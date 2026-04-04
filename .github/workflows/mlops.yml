@@ -1,0 +1,29 @@
+name: MLOps Paper Pipeline
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'   # 매월 1일 오전 2시 UTC (한국 오전 11시)
+  workflow_dispatch:        # 수동 실행 가능
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r mlops/requirements.txt
+
+      - name: Run paper ingestion pipeline
+        run: python mlops/scripts/initial_ingest.py
+        env:
+          RAILWAY_API_URL: ${{ secrets.RAILWAY_API_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+
+      - name: Report results
+        if: always()
+        run: echo "Pipeline completed. Check logs for failed papers."
