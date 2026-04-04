@@ -2,6 +2,9 @@
 
 > Claude Code가 프로젝트 전체 컨텍스트를 파악하기 위한 기준 문서입니다.
 > 설계 결정이 변경될 때 반드시 업데이트하세요.
+
+## 0. 응답 규칙
+- **항상 한국어로 응답한다.** 코드, 커밋 메시지, 변수명 등 영어가 관례인 부분은 예외.
 >
 > 상세 설계서: https://www.notion.so/338aebb23ee081af885ecdda757047d5
 > Figma 와이어프레임: https://www.figma.com/design/lowVkeYctKKWbXx7AYIa6V/캡스톤\?node-id\=276-822
