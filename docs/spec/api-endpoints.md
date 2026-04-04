@@ -1,4 +1,4 @@
-# API 명세 (49개)
+# API 명세 (50개)
 
 **Base URL**: `/api/v1`
 **인증**: `Authorization: Bearer {access_token}`
@@ -93,3 +93,4 @@ data: [DONE]
 | 47 | GET | /exercises | Yes |
 | 48 | GET | /sessions/{id} | Yes |
 | 49 | GET | /health | No |
+| 50 | GET | /users/me/equipment | Yes |

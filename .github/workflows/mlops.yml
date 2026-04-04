@@ -18,11 +18,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r mlops/requirements.txt
 
-      - name: Run paper ingestion pipeline
-        run: python mlops/scripts/initial_ingest.py
+      - name: Run monthly paper ingestion pipeline
+        run: python mlops/scripts/monthly_ingest.py
         env:
-          RAILWAY_API_URL: ${{ secrets.RAILWAY_API_URL }}
-          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
 
       - name: Report results
         if: always()

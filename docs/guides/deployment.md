@@ -32,8 +32,8 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 
 ## ChromaDB 초기 데이터
 - 첫 배포 시 ChromaDB가 비어 있으면 RAG가 작동하지 않음
-- `mlops/scripts/initial_ingest.py`로 초기 논문 데이터 적재 필요
-- 이후 월간 cron으로 증분 수집
+- `mlops/scripts/initial_ingest.py`로 초기 논문 데이터 적재 필요 (최초 1회)
+- 이후 `mlops/scripts/monthly_ingest.py`로 월간 증분 수집 (GitHub Actions cron)
 
 ## 환경변수 (AWS)
 - ECS: Task Definition의 environment 또는 AWS Secrets Manager 사용
@@ -41,6 +41,11 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 - `ENV=production` 필수
 - `CHROMA_PERSIST_PATH=/chroma-data` 필수
 - 프로덕션 `/docs` (Swagger) 비활성화 또는 Security Group으로 IP 제한
+
+## ChromaDB 단일 인스턴스 제약
+- ChromaDB `PersistentClient`는 **단일 프로세스 전용** — 동시 쓰기 미지원
+- ECS Fargate Task 수를 2개 이상으로 스케일링하면 데이터 충돌 발생
+- **반드시 단일 인스턴스(Task count=1)로 운영**, 수평 확장 필요 시 별도 벡터 DB(Qdrant, Weaviate 등) 전환 검토
 
 ## 롤백
 - ECS: 이전 Task Definition revision으로 서비스 업데이트
@@ -66,7 +71,7 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 ### 월간 논문 파이프라인 (`.github/workflows/mlops.yml`)
 - **트리거**: 매월 1일 오전 11시(KST) cron + 수동 dispatch
 - **실행 내용**: 논문 크롤링 → 청킹 → 임베딩 → ChromaDB upsert
-- **주의**: `initial_ingest.py`(일회성)가 아닌 **증분 수집 스크립트**를 실행해야 함
+- **주의**: `initial_ingest.py`(일회성)가 아닌 `monthly_ingest.py`(증분 수집)를 실행해야 함
 
 ## 모니터링 (권장)
 

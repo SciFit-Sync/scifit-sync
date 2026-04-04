@@ -46,6 +46,7 @@ scifiit-sync/
 ├── server/alembic/       # DB 마이그레이션
 ├── server/tests/         # pytest
 ├── mlops/pipeline/       # crawler, chunker, embedder, upserter
+├── mlops/scripts/        # initial_ingest.py, monthly_ingest.py
 └── docs/                 # spec/, guides/
 ```
 
@@ -73,7 +74,7 @@ cd server && pytest tests/ -v                   # 테스트
     ├── Chat Service    → RAG Pipeline
     │                       ├── 한→영 번역 (Gemini) + fallback 원문 검색
     │                       ├── ChromaDB (top_k=10, threshold=0.70)
-    │                       └── LLM 응답 (Gemini 1.5 Flash)
+    │                       └── LLM 응답 (Gemini 1.5 Flash → GPT-4o-mini fallback)
     └── Equipment Service → 카카오 로컬 API 프록시
 
 [PostgreSQL — Supabase]  [ChromaDB — 인프로세스 /chroma-data]
@@ -219,6 +220,7 @@ fix/{이름}/{버그}
 - `npm audit fix --force`
 - 테스트 없이 main/develop 머지 → CI 통과 필수
 - CLAUDE.md 설계 변경 시 팀 합의 없이 수정 → PR 리뷰 필수
+- ECS 멀티 태스크 배포 시 ChromaDB 동시 접근 → 단일 인스턴스(Task count=1)만 허용
 
 ---
 
@@ -228,10 +230,16 @@ fix/{이름}/{버그}
 |---|---|---|
 | D-01 | 회원가입 인증 | SMS vs 이메일 OTP |
 | D-02 | PO 제안 바텀시트(W-L03) | 구현 여부 |
+| ~~D-03~~ | ~~(해결됨)~~ | — |
+| ~~D-04~~ | ~~(해결됨)~~ | — |
 | D-05 | 소셜 로그인 확장 | 네이버/Google/Apple |
 | D-06 | 주당 운동 일수 UI | 슬라이더 vs 칩 |
 | D-07 | 나이 입력 | 숫자 vs Date Picker |
+| ~~D-08~~ | ~~(해결됨)~~ | — |
 | D-09 | 근육 회복도 계산 | 계산 기준 미정 |
+| D-10 | Program vs Routine 관계 | W-M02/W-R02 화면 존재, API 미정의 |
+| D-11 | rehabilitation PO 전략 | RANGES에만 존재, INCREASE 미정의 |
+| D-12 | PO 증가량: machine/dumbbell/bodyweight | INCREASE에 cable/barbell만 정의 |
 
 ---
 
@@ -239,7 +247,7 @@ fix/{이름}/{버그}
 
 | 문서 | 경로 |
 |---|---|
-| API 전체 명세 (49개) | `docs/spec/api-endpoints.md` |
+| API 전체 명세 (50개) | `docs/spec/api-endpoints.md` |
 | DB 스키마 (27개 테이블) | `docs/spec/database-schema.md` |
 | 화면 목록 (23개) | `docs/spec/screens.md` |
 | 환경 셋업 가이드 | `docs/guides/environment-setup.md` |
