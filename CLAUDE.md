@@ -34,7 +34,7 @@
 | Vector DB | ChromaDB 인프로세스 | PersistentClient(), /chroma-data 볼륨 필수 |
 | LLM | Gemini 1.5 Flash → GPT-4o-mini | 환경변수로 교체 |
 | 임베딩 | BAAI/bge-large-en-v1.5 | 1024차원, passage retrieval 특화 |
-| 배포 | Railway Hobby | Volume /chroma-data 마운트 필수 |
+| 배포 | AWS (EC2/ECS) | Docker 이미지 배포 |
 | MLOps | GitHub Actions Cron | 월 1회 자동 |
 | 지도 | 카카오 로컬 API | 백엔드 프록시 |
 | 로컬 개발 | Docker Compose | |
@@ -399,9 +399,14 @@ chore: 의존성 업데이트
 
 - Supabase 대시보드 직접 DB 스키마 수정 → Alembic만 사용
 - 프로덕션 /docs 활성화 → IP 제한 또는 비활성화
-- Railway 배포 시 /chroma-data 볼륨 없이 배포 → 데이터 소실
+- AWS 배포 시 /chroma-data 스토리지 없이 배포 → 데이터 소실
 - LLM에 사용자 입력 raw 전달 → <user_query> 태그 필수
 - .env 파일 커밋 → .gitignore 확인
+- `git push --force` 또는 `git push -f` → 히스토리 파괴
+- `git reset --hard` on shared branches → 다른 팀원 작업 소실
+- `npm audit fix --force` → 의존성 깨짐 위험
+- 테스트 없이 main/develop 머지 → CI 통과 필수
+- CLAUDE.md 설계 변경 시 팀 합의 없이 수정 → 반드시 PR 리뷰
 
 ---
 
@@ -415,3 +420,328 @@ chore: 의존성 업데이트
 | D-06 | 주당 운동 일수 UI | 슬라이더 vs 칩 |
 | D-07 | 나이 입력 | 숫자 vs Date Picker |
 | D-09 | 근육 회복도 계산 | 계산 기준 미정 |
+
+---
+
+## 14. 환경 셋업 (신규 팀원)
+
+### 사전 요구사항
+- Python 3.11+
+- Node.js 18+ / npm 9+
+- Docker Desktop (Windows: WSL2 백엔드 활성화 필수)
+- Expo Go 앱 (모바일 테스트용, iOS/Android)
+- Git
+
+### Docker 서비스 구성
+| 서비스 | 이미지 | 포트 | 비고 |
+|---|---|---|---|
+| server | `./server` (빌드) | 8000 | FastAPI |
+| db | `postgres:15-alpine` | 5432 | 로컬 개발 DB |
+
+> ChromaDB는 FastAPI 서버 내 인프로세스(`PersistentClient`)로 동작하며, `/chroma-data` 볼륨에 데이터 저장
+
+### 첫 설정
+
+```bash
+# 1. 리포 클론
+git clone https://github.com/SciFit-Sync/scifiit-sync.git
+cd scifiit-sync
+git checkout develop
+```
+
+```bash
+# 2. 서버 환경변수 설정
+cp server/.env.example server/.env
+# → .env 파일에 실제 키 입력 (아래 시크릿 획득처 참고)
+```
+
+```bash
+# 3. 앱 환경변수 설정
+cp app/.env.example app/.env
+# → API_BASE_URL=http://localhost:8000 (로컬 기본값)
+```
+
+```bash
+# 4. pre-commit 설정
+pip install pre-commit
+pre-commit install
+detect-secrets scan > .secrets.baseline
+```
+
+```bash
+# 5. Docker로 전체 실행
+docker compose up
+```
+
+```bash
+# 6. DB 마이그레이션
+docker compose exec server alembic upgrade head
+```
+
+```bash
+# 7. 앱 실행 (별도 터미널)
+cd app && npm install && npx expo start
+```
+
+### 환경변수 전체 목록
+
+| 변수명 | 설명 | 필수 | 획득처 |
+|---|---|---|---|
+| `DATABASE_URL` | PostgreSQL 연결 문자열 | Y | Supabase 대시보드 > Settings > Database |
+| `SUPABASE_URL` | Supabase 프로젝트 URL | Y | Supabase 대시보드 > Settings > API |
+| `SUPABASE_ANON_KEY` | Supabase anon key | Y | Supabase 대시보드 > Settings > API |
+| `JWT_SECRET_KEY` | JWT 서명 키 | Y | `openssl rand -hex 32`로 생성 |
+| `JWT_ALGORITHM` | JWT 알고리즘 | Y | 기본값: `HS256` |
+| `GEMINI_API_KEY` | Gemini API 키 | Y | Google AI Studio |
+| `OPENAI_API_KEY` | GPT-4o-mini 폴백 키 | N | OpenAI 대시보드 |
+| `KAKAO_REST_API_KEY` | 카카오 로컬 API 키 | Y | Kakao Developers 앱 > 앱 키 |
+| `CHROMA_PERSIST_PATH` | ChromaDB 데이터 경로 | Y | 기본값: `/chroma-data` |
+| `ENV` | 실행 환경 | Y | `development` / `production` |
+| `API_BASE_URL` (앱) | 서버 API URL | Y | 로컬: `http://localhost:8000` |
+
+### 시크릿 공유 정책
+- 시크릿은 **팀 공유 1Password** 또는 **암호화된 채널**로만 공유
+- Notion 페이지에 API 키 직접 기재 금지
+- 각자 개인 키 발급 권장 (Gemini, Kakao 등)
+
+### 플랫폼별 주의사항
+| 환경 | 주의 |
+|---|---|
+| Windows (WSL2) | Docker Desktop WSL2 Integration 활성화 필수. Expo는 WSL 내부가 아닌 PowerShell에서 실행 권장 |
+| Mac (Apple Silicon) | `pip install` 시 일부 패키지 arm64 빌드 이슈 가능 → `--platform` 플래그 또는 Rosetta 사용 |
+| Linux | Docker는 `sudo` 없이 사용하도록 그룹 추가: `sudo usermod -aG docker $USER` |
+
+---
+
+## 15. 코드 스타일
+
+### Python (server/, mlops/)
+- 린트 + 포매팅 + import 정렬: **ruff 단일 도구** (black 호환 포매팅, isort 호환 정렬 내장)
+- 타입 체크: mypy (점진적 채택 — `--warn-return-any`, `--disallow-untyped-defs`부터 시작)
+
+### TypeScript (app/)
+- 포매터: Prettier
+- 린터: ESLint (Expo 기본 설정)
+- 경로 별칭: `@/` → `app/src/`
+
+### 공통 규칙
+- 함수/변수: snake_case (Python), camelCase (TS)
+- 컴포넌트: PascalCase (TS)
+- 상수: UPPER_SNAKE_CASE
+- 파일명: 화면은 W코드 기준 (예: `WA01Login.tsx`, W코드 목록은 CLAUDE.md 섹션 9 참고), 나머지 kebab-case
+
+### 자동 강제
+
+> ruff가 포매팅(black 호환)과 import 정렬(isort 호환)을 모두 내장하므로 ruff 단일 도구로 통합합니다.
+> 전체 설정은 `.pre-commit-config.yaml` 참조.
+
+```yaml
+# .pre-commit-config.yaml (핵심 부분)
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff          # 린트 + import 정렬
+        args: [--fix]
+        files: ^server/
+      - id: ruff-format   # 포매팅 (black 호환)
+        files: ^server/
+```
+- 첫 설정 시 `pre-commit install` 실행 (섹션 14 step 4)
+- CI에서도 `ruff check` / `ruff format --check` 실행 → 실패 시 머지 차단
+- 프론트엔드 lint/format CI는 `test-app` job 추가 시 포함 예정
+
+---
+
+## 16. 테스트 전략
+
+### 백엔드 필수 테스트 (PR 머지 조건)
+| 영역 | 테스트 대상 | 최소 커버리지 |
+|---|---|---|
+| 중량 계산 엔진 | `load_calc.py` 모든 equipment.category | 100% |
+| 1RM 추정 | Epley 공식 경계값 (0, 음수, 극대값) | 100% |
+| Progressive Overload | 트리거 조건, 증가량, max_stack 초과, sets 한계 | 100% |
+| RAG 파이프라인 | 아래 시나리오 목록 참조 | 시나리오별 |
+| 인증 | 아래 시나리오 목록 참조 | 시나리오별 |
+
+#### RAG 주요 테스트 시나리오
+- 한→영 번역 성공 후 ChromaDB 검색 → 결과 반환
+- 번역 실패 시 원문 직접 검색 fallback 동작
+- ChromaDB 검색 결과 0건일 때 응답 처리
+- threshold(0.70) 미만 결과만 있을 때 처리
+- LLM API 호출 실패 시 에러 응답 (mock 사용)
+
+#### 인증 주요 테스트 시나리오
+- 로그인 성공 → 토큰 발급
+- 잘못된 비밀번호 → 401
+- 로그인 5회 실패 → 계정 15분 잠금
+- 토큰 만료 → refresh 성공
+- Refresh Token Rotation + Grace Period 10초
+- 폐기된 refresh token 사용 → family revoke
+
+### 프론트엔드 테스트
+- 프레임워크: Jest + React Native Testing Library
+- 테스트 대상:
+  - 핵심 컴포넌트 렌더링 (루틴 카드, 운동 기록 폼)
+  - Zustand 스토어 상태 변경 로직
+  - API 호출 mock 및 에러 처리
+- 실행: `cd app && npm test`
+
+### 테스트 실행
+```bash
+# 백엔드 전체 테스트
+cd server && pytest tests/ -v
+
+# 특정 모듈
+pytest tests/test_load_calc.py -v
+
+# 커버리지 리포트
+pytest tests/ --cov=app --cov-report=html
+
+# 프론트엔드 테스트
+cd app && npm test
+
+# 프론트엔드 커버리지
+cd app && npm test -- --coverage
+```
+
+### 테스트 파일 네이밍
+- 백엔드: `server/tests/test_{모듈명}.py`, 픽스처: `server/tests/conftest.py`
+- 프론트: `app/src/**/__tests__/{컴포넌트명}.test.tsx`
+
+---
+
+## 17. CI/CD 파이프라인
+
+### PR 자동 테스트 (`.github/workflows/test.yml`)
+- **트리거**: `develop`, `main` 대상 PR 생성/업데이트 시
+- **Status Check 이름**: `test-server` (브랜치 보호 규칙에서 참조)
+- **실행 내용**:
+  1. PostgreSQL 서비스 컨테이너 기동 (CI 전용)
+  2. `pip install -r server/requirements.txt`
+  3. `ruff check server/` — 린트 실패 시 즉시 중단
+  4. `pytest server/tests/ -v --tb=short` — 테스트 실행
+- **환경변수**: CI 서비스 컨테이너에서 자동 구성 (GitHub Secrets 불필요)
+
+### 월간 논문 파이프라인 (`.github/workflows/mlops.yml`)
+- **트리거**: 매월 1일 오전 11시(KST) cron + 수동 dispatch
+- **실행 내용**: 논문 크롤링 → 청킹 → 임베딩 → ChromaDB upsert
+- **주의**: `initial_ingest.py`(일회성)가 아닌 **증분 수집 스크립트**를 실행해야 함
+
+### CI 실패 시 대응
+- PR에 실패 로그 자동 코멘트 → 작성자가 수정 후 재push
+- CI 통과 없이 머지 불가 (브랜치 보호 규칙으로 강제)
+
+---
+
+## 18. 배포 (AWS)
+
+### 배포 흐름
+```
+develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
+```
+
+### AWS 인프라 구성
+| 서비스 | 용도 | 비고 |
+|---|---|---|
+| EC2 또는 ECS Fargate | FastAPI 서버 | Docker 이미지 배포 |
+| RDS PostgreSQL 또는 Supabase | 관계형 DB | 프로덕션 DB |
+| EBS / EFS | ChromaDB 데이터 | `/chroma-data` 영구 스토리지 |
+| ECR | Docker 이미지 레지스트리 | CI에서 빌드 후 push |
+| ALB | 로드 밸런서 | HTTPS 종단, 헬스체크 |
+
+### 배포 체크리스트
+1. `develop` → `main` PR 생성 및 승인 (리뷰어 1명)
+2. CI 테스트 통과 확인
+3. Docker 이미지 빌드 → ECR push
+4. DB 마이그레이션 확인 (아래 참조)
+5. ECS 서비스 업데이트 또는 EC2 배포
+6. **필수**: ChromaDB 스토리지(EBS/EFS) 마운트 확인
+7. 헬스체크: `GET /health` 200 응답 확인
+8. 주요 기능 수동 확인 (루틴 생성, 챗봇 응답)
+
+### DB 마이그레이션 (프로덕션)
+- ECS: Task Definition의 `entryPoint`에 `alembic upgrade head` 포함, 또는 별도 migration task 실행
+- EC2: SSH 접속 후 `alembic upgrade head` 수동 실행
+- **로컬 DB(Docker postgres)와 프로덕션(RDS/Supabase)의 `DATABASE_URL`이 다름** — 혼동 주의
+- 마이그레이션 롤백: `alembic downgrade -1` (직전 버전)
+
+### ChromaDB 초기 데이터
+- 첫 배포 시 ChromaDB가 비어 있으면 RAG가 작동하지 않음
+- `mlops/scripts/initial_ingest.py`로 초기 논문 데이터 적재 필요
+- 이후 월간 cron으로 증분 수집
+
+### 환경변수 (AWS)
+- ECS: Task Definition의 environment 또는 AWS Secrets Manager 사용
+- EC2: `.env` 파일 또는 AWS Systems Manager Parameter Store 사용
+- `ENV=production` 필수
+- `CHROMA_PERSIST_PATH=/chroma-data` 필수
+- 프로덕션 `/docs` (Swagger) 비활성화 또는 Security Group으로 IP 제한
+
+### 롤백
+- ECS: 이전 Task Definition revision으로 서비스 업데이트
+- EC2: 이전 Docker 이미지 태그로 재배포
+- DB 마이그레이션 롤백은 별도로 `alembic downgrade -1` 실행 필요
+
+### 장애 알림 (권장)
+- CloudWatch Alarms → SNS → Discord/Slack 채널로 배포 성공/실패 알림 설정
+- ALB 헬스체크 실패 시 자동 알림
+
+---
+
+## 19. 에러 핸들링
+
+### 응답 구조
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "이메일 형식이 올바르지 않습니다",
+    "details": {"field": "email"},
+    "request_id": "req_abc123"
+  }
+}
+```
+
+### 에러 코드 매핑
+| 코드 | HTTP | 용도 |
+|---|---|---|
+| VALIDATION_ERROR | 400 | 입력 검증 실패 |
+| UNAUTHORIZED | 401 | 인증 실패/토큰 만료 |
+| FORBIDDEN | 403 | 권한 부족 |
+| NOT_FOUND | 404 | 리소스 미존재 |
+| CONFLICT | 409 | 중복/상태 충돌 (예: 이미 등록된 이메일) |
+| RATE_LIMITED | 429 | 요청 제한 초과 |
+| INTERNAL_ERROR | 500 | 서버 내부 오류 |
+
+### 구현 위치
+| 파일 | 역할 |
+|---|---|
+| `server/app/core/exceptions.py` | AppError 기본 클래스 + 에러 카테고리별 서브클래스 |
+| `server/app/core/exception_handlers.py` | 전역 핸들러 (`app.add_exception_handler`로 등록) |
+| `server/app/core/middleware.py` | request_id 생성 미들웨어 (UUID → `request.state.request_id`) |
+
+### 프로젝트 고유 에러 시나리오
+| 시나리오 | 에러 코드 | 대응 |
+|---|---|---|
+| ChromaDB 연결 실패 | INTERNAL_ERROR | 로그 기록 + 사용자에게 "잠시 후 재시도" 응답 |
+| LLM API 할당량 초과 | RATE_LIMITED | 대체 모델(GPT-4o-mini ↔ Gemini) 자동 전환 |
+| 도르래 비율 범위 초과 (0 이하, 10 초과) | VALIDATION_ERROR | 기구 데이터 확인 요청 |
+| SSE 스트리밍 중 연결 끊김 | — | `event_id` 기반 재연결, 마지막 이벤트부터 재전송 |
+| Supabase 연결 타임아웃 | INTERNAL_ERROR | 재시도 3회 후 실패 응답 |
+
+### 프로덕션 금지 노출 항목
+- 스택 트레이스, SQL 쿼리, 파일 경로, API 키, DB 연결 문자열
+
+---
+
+## 20. 모니터링 (권장)
+
+### 최소 모니터링
+- AWS CloudWatch: CPU, Memory, Request count 확인
+- `/health` 엔드포인트: 주기적 ping (UptimeRobot 등 무료 서비스)
+
+### 로깅 규칙
+- 모든 에러 로그에 `request_id`, `user_id`, `endpoint` 포함
+- `print()` 대신 `logging` 모듈 사용
+- 프로덕션 로그 레벨: `WARNING` 이상
