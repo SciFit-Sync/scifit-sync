@@ -8,7 +8,7 @@
 >
 > 전체 설계서: https://www.notion.so/Scifit-Sync-33daebb23ee080f1b3aef1f7c8b416b1
 > API 상세 명세서: https://www.notion.so/32eaebb23ee081dda33ee792957dd16d?v=335aebb23ee0808d9ad6000c2c7c2d30
-> Figma 와이어프레임: https://www.figma.com/design/lowVkeYctKKWbXx7AYIa6V/캡스톤\?node-id\=276-822
+> Figma 와이어프레임: https://www.figma.com/design/lowVkeYctKKWbXx7AYIa6V/%EC%BA%A1%EC%8A%A4%ED%86%A4?node-id=1-2
 
 ---
 
