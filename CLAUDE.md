@@ -154,7 +154,7 @@ INCREASE = {
 
 ## 8. 데이터 모델
 
-- 27개 테이블 (users, equipments, exercises, routines, workout_logs, papers 등)
+- 28개 테이블 (users, equipments, exercises, routines, workout_logs, papers 등)
 - equipment.category: cable / machine / barbell / dumbbell / bodyweight
 - 중량 기록: weight_kg = 표시값, 실효 부하 = weight_kg × pulley_ratio
 - 루틴 삭제: soft delete (deleted_at)
@@ -252,7 +252,7 @@ fix/{이름}/{버그}
 | 문서 | 경로 |
 |---|---|
 | API 전체 명세 (50개) | `docs/spec/api-endpoints.md` |
-| DB 스키마 (27개 테이블) | `docs/spec/database-schema.md` |
+| DB 스키마 (28개 테이블) | `docs/spec/database-schema.md` |
 | 화면 목록 (23개) | `docs/spec/screens.md` |
 | 환경 셋업 가이드 | `docs/guides/environment-setup.md` |
 | 테스트 전략 상세 | `docs/guides/testing-strategy.md` |
