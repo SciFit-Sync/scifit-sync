@@ -241,8 +241,8 @@ fix/{이름}/{버그}
 | D-10 | Program vs Routine 관계 | W-M02/W-R02 화면 존재, API 미정의 | 미정 |
 | D-11 | rehabilitation PO 전략 | RANGES에만 존재, INCREASE 미정의 | 임시: 1.25kg 기본값 |
 | D-12 | PO 증가량: machine/dumbbell/bodyweight | INCREASE에 cable/barbell만 정의 | 임시: cable 값 대체 |
-| D-13 | 회원가입 phone 필드 | API 명세에 필수지만 DB users에 컬럼 없음 | 필드 제거 or DB 추가 |
-| D-14 | 회원가입 goals 단수/복수 | API는 Array, DB fitness_goal은 단일 enum | 단수 변경 or DB 배열화 |
+| ~~D-13~~ | ~~회원가입 phone 필드~~ | ~~API 명세에 필수지만 DB users에 컬럼 없음~~ | **확정: DB 기준으로 API에서 제거** |
+| ~~D-14~~ | ~~회원가입 goals 단수/복수~~ | ~~API는 Array, DB fitness_goal은 단일 enum~~ | **확정: 단일 선택(enum)** |
 | D-15 | JSON 필드명 컨벤션 | API camelCase vs DB snake_case | 프론트-백 합의 필요 |
 
 ---
