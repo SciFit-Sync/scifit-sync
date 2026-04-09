@@ -19,12 +19,8 @@ class WorkoutRoutine(TimestampMixin, Base):
     generated_by: Mapped[str | None] = mapped_column(String(100), default=None)
     deleted_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
 
-    days: Mapped[list["RoutineDay"]] = relationship(
-        back_populates="routine", cascade="all, delete-orphan"
-    )
-    papers: Mapped[list["RoutinePaper"]] = relationship(
-        back_populates="routine", cascade="all, delete-orphan"
-    )
+    days: Mapped[list["RoutineDay"]] = relationship(back_populates="routine", cascade="all, delete-orphan")
+    papers: Mapped[list["RoutinePaper"]] = relationship(back_populates="routine", cascade="all, delete-orphan")
 
 
 class RoutineDay(TimestampMixin, Base):
@@ -52,9 +48,7 @@ class RoutineExercise(TimestampMixin, Base):
         ForeignKey("routine_days.id", ondelete="CASCADE"),
         index=True,
     )
-    exercise_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE")
-    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"))
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("equipments.id"), default=None
     )
@@ -83,9 +77,7 @@ class RoutinePaper(TimestampMixin, Base):
         ForeignKey("routine_exercises.id", ondelete="CASCADE"),
         default=None,
     )
-    paper_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE")
-    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"))
     relevance_summary: Mapped[str | None] = mapped_column(Text, default=None)
 
     routine: Mapped["WorkoutRoutine"] = relationship(back_populates="papers")

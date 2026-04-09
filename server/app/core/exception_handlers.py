@@ -32,9 +32,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-async def validation_error_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
     return JSONResponse(
         status_code=400,
@@ -60,9 +58,7 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     )
 
     settings = get_settings()
-    message = (
-        str(exc) if settings.ENV == "development" else "서버 내부 오류가 발생했습니다"
-    )
+    message = str(exc) if settings.ENV == "development" else "서버 내부 오류가 발생했습니다"
 
     return JSONResponse(
         status_code=500,

@@ -14,9 +14,7 @@ class AppError(Exception):
 
 
 class ValidationError(AppError):
-    def __init__(
-        self, message: str = "입력값이 올바르지 않습니다", details: dict | None = None
-    ):
+    def __init__(self, message: str = "입력값이 올바르지 않습니다", details: dict | None = None):
         super().__init__("VALIDATION_ERROR", message, 400, details)
 
 
@@ -36,16 +34,12 @@ class NotFoundError(AppError):
 
 
 class ConflictError(AppError):
-    def __init__(
-        self, message: str = "이미 존재하는 리소스입니다", code: str = "CONFLICT"
-    ):
+    def __init__(self, message: str = "이미 존재하는 리소스입니다", code: str = "CONFLICT"):
         super().__init__(code, message, 409)
 
 
 class RateLimitedError(AppError):
-    def __init__(
-        self, message: str = "요청이 너무 많습니다. 잠시 후 다시 시도해주세요"
-    ):
+    def __init__(self, message: str = "요청이 너무 많습니다. 잠시 후 다시 시도해주세요"):
         super().__init__("RATE_LIMITED", message, 429)
 
 

@@ -20,17 +20,13 @@ class EquipmentCategory(str, enum.Enum):
 class Gym(TimestampMixin, Base):
     __tablename__ = "gyms"
 
-    kakao_place_id: Mapped[str | None] = mapped_column(
-        String(50), unique=True, default=None
-    )
+    kakao_place_id: Mapped[str | None] = mapped_column(String(50), unique=True, default=None)
     name: Mapped[str] = mapped_column(String(200))
     address: Mapped[str | None] = mapped_column(String(500), default=None)
     latitude: Mapped[float | None] = mapped_column(default=None)
     longitude: Mapped[float | None] = mapped_column(default=None)
 
-    gym_equipments: Mapped[list["GymEquipment"]] = relationship(
-        back_populates="gym", cascade="all, delete-orphan"
-    )
+    gym_equipments: Mapped[list["GymEquipment"]] = relationship(back_populates="gym", cascade="all, delete-orphan")
 
 
 class UserGym(TimestampMixin, Base):
@@ -40,9 +36,7 @@ class UserGym(TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    gym_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE")
-    )
+    gym_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE"))
     is_primary: Mapped[bool] = mapped_column(default=False)
 
     gym: Mapped["Gym"] = relationship()
@@ -74,16 +68,10 @@ class Equipment(TimestampMixin, Base):
 
 class GymEquipment(TimestampMixin, Base):
     __tablename__ = "gym_equipments"
-    __table_args__ = (
-        UniqueConstraint("gym_id", "equipment_id", name="uq_gym_equipment"),
-    )
+    __table_args__ = (UniqueConstraint("gym_id", "equipment_id", name="uq_gym_equipment"),)
 
-    gym_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE"), index=True
-    )
-    equipment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE")
-    )
+    gym_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE"), index=True)
+    equipment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE"))
     quantity: Mapped[int] = mapped_column(default=1)
 
     gym: Mapped["Gym"] = relationship(back_populates="gym_equipments")

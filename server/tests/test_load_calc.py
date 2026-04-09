@@ -12,9 +12,7 @@ class TestCalculateEffectiveWeight:
     """calculate_effective_weight: 5개 카테고리 + 경계값 테스트."""
 
     def test_cable_with_pulley_ratio(self):
-        result = calculate_effective_weight(
-            "cable", stack=50.0, pulley_ratio=2.0, bar_weight_kg=5.0
-        )
+        result = calculate_effective_weight("cable", stack=50.0, pulley_ratio=2.0, bar_weight_kg=5.0)
         assert result == 105.0  # 50 * 2.0 + 5.0
 
     def test_cable_default_ratio(self):
@@ -22,9 +20,7 @@ class TestCalculateEffectiveWeight:
         assert result == 40.0  # 40 * 1.0 + 0
 
     def test_machine_with_bar_weight(self):
-        result = calculate_effective_weight(
-            "machine", stack=30.0, pulley_ratio=1.5, bar_weight_kg=10.0
-        )
+        result = calculate_effective_weight("machine", stack=30.0, pulley_ratio=1.5, bar_weight_kg=10.0)
         assert result == 55.0  # 30 * 1.5 + 10
 
     def test_machine_no_optional(self):
@@ -56,9 +52,7 @@ class TestCalculateEffectiveWeight:
         assert result == 80.0
 
     def test_bodyweight_with_assist(self):
-        result = calculate_effective_weight(
-            "bodyweight", body_weight=70.0, stack=20.0, has_weight_assist=True
-        )
+        result = calculate_effective_weight("bodyweight", body_weight=70.0, stack=20.0, has_weight_assist=True)
         assert result == 50.0  # 70 - 20
 
     def test_bodyweight_no_added_no_body(self):

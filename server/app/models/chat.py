@@ -23,9 +23,7 @@ class ChatSession(TimestampMixin, Base):
     title: Mapped[str | None] = mapped_column(String(300), default=None)
     started_at: Mapped[datetime] = mapped_column(server_default="now()")
 
-    messages: Mapped[list["ChatMessage"]] = relationship(
-        back_populates="session", cascade="all, delete-orphan"
-    )
+    messages: Mapped[list["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
 
 
 class ChatMessage(TimestampMixin, Base):
@@ -42,9 +40,7 @@ class ChatMessage(TimestampMixin, Base):
     routine_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("workout_routines.id"), default=None
     )
-    paper_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("papers.id"), default=None
-    )
+    paper_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id"), default=None)
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
     paper: Mapped["Paper | None"] = relationship()
@@ -61,9 +57,7 @@ class Paper(TimestampMixin, Base):
     published_year: Mapped[int | None] = mapped_column(default=None)
     abstract: Mapped[str | None] = mapped_column(Text, default=None)
 
-    chunks: Mapped[list["PaperChunk"]] = relationship(
-        back_populates="paper", cascade="all, delete-orphan"
-    )
+    chunks: Mapped[list["PaperChunk"]] = relationship(back_populates="paper", cascade="all, delete-orphan")
 
 
 class PaperChunk(TimestampMixin, Base):

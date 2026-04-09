@@ -32,9 +32,7 @@ def create_access_token(user_id: uuid.UUID) -> str:
         "iat": now,
         "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     }
-    return jwt.encode(
-        payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def create_refresh_token(user_id: uuid.UUID, family_id: uuid.UUID | None = None) -> str:
@@ -47,21 +45,15 @@ def create_refresh_token(user_id: uuid.UUID, family_id: uuid.UUID | None = None)
         "iat": now,
         "exp": now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     }
-    return jwt.encode(
-        payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
-    )
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def verify_token(token: str, expected_type: str = "access") -> dict:
     settings = get_settings()
     try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     except JWTError as e:
-        raise UnauthorizedError(
-            message="유효하지 않은 토큰입니다", code="TOKEN_EXPIRED"
-        ) from e
+        raise UnauthorizedError(message="유효하지 않은 토큰입니다", code="TOKEN_EXPIRED") from e
 
     if payload.get("type") != expected_type:
         raise UnauthorizedError(message="토큰 타입이 일치하지 않습니다")
@@ -92,8 +84,6 @@ async def get_current_user(
 
     now = datetime.now(timezone.utc)
     if user.locked_until and user.locked_until > now:
-        raise UnauthorizedError(
-            message="계정이 잠겨 있습니다. 잠시 후 다시 시도해주세요"
-        )
+        raise UnauthorizedError(message="계정이 잠겨 있습니다. 잠시 후 다시 시도해주세요")
 
     return user

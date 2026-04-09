@@ -21,9 +21,7 @@ class WorkoutLog(TimestampMixin, Base):
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    sets: Mapped[list["WorkoutLogSet"]] = relationship(
-        back_populates="workout_log", cascade="all, delete-orphan"
-    )
+    sets: Mapped[list["WorkoutLogSet"]] = relationship(back_populates="workout_log", cascade="all, delete-orphan")
 
 
 class WorkoutLogSet(TimestampMixin, Base):
@@ -34,9 +32,7 @@ class WorkoutLogSet(TimestampMixin, Base):
         ForeignKey("workout_logs.id", ondelete="CASCADE"),
         index=True,
     )
-    exercise_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE")
-    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"))
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("equipments.id"), default=None
     )

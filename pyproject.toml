@@ -1,0 +1,36 @@
+[project]
+name = "scifiit-sync"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+# ──────────────────────────────────────────────
+# Ruff (lint + format + import sort)
+# ──────────────────────────────────────────────
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["server/app", "mlops"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
+ignore = [
+    "E501",   # line-length는 formatter가 처리
+    "B008",   # FastAPI Depends() 패턴 허용
+    "UP017",  # datetime.UTC alias — Python 3.11 호환성
+    "UP042",  # StrEnum — SQLAlchemy enum 호환성 유지
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ──────────────────────────────────────────────
+# Pytest
+# ──────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

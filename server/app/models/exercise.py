@@ -25,25 +25,17 @@ class Exercise(TimestampMixin, Base):
     equipment_maps: Mapped[list["ExerciseEquipmentMap"]] = relationship(
         back_populates="exercise", cascade="all, delete-orphan"
     )
-    muscle_maps: Mapped[list["ExerciseMuscle"]] = relationship(
-        back_populates="exercise", cascade="all, delete-orphan"
-    )
+    muscle_maps: Mapped[list["ExerciseMuscle"]] = relationship(back_populates="exercise", cascade="all, delete-orphan")
 
 
 class ExerciseEquipmentMap(TimestampMixin, Base):
     __tablename__ = "exercise_equipment_map"
-    __table_args__ = (
-        UniqueConstraint(
-            "exercise_id", "equipment_id", name="uq_exercise_equipment_map"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("exercise_id", "equipment_id", name="uq_exercise_equipment_map"),)
 
     exercise_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), index=True
     )
-    equipment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE")
-    )
+    equipment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE"))
 
     exercise: Mapped["Exercise"] = relationship(back_populates="equipment_maps")
     equipment: Mapped["Equipment"] = relationship()  # noqa: F821
@@ -59,9 +51,7 @@ class MuscleGroup(TimestampMixin, Base):
 
 class ExerciseMuscle(TimestampMixin, Base):
     __tablename__ = "exercise_muscles"
-    __table_args__ = (
-        UniqueConstraint("exercise_id", "muscle_group_id", name="uq_exercise_muscle"),
-    )
+    __table_args__ = (UniqueConstraint("exercise_id", "muscle_group_id", name="uq_exercise_muscle"),)
 
     exercise_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), index=True

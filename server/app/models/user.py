@@ -38,12 +38,8 @@ class User(TimestampMixin, Base):
     body_measurements: Mapped[list["UserBodyMeasurement"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    exercise_1rms: Mapped[list["UserExercise1RM"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
+    exercise_1rms: Mapped[list["UserExercise1RM"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     equipment_selections: Mapped[list["UserEquipmentSelection"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -81,16 +77,12 @@ class UserBodyMeasurement(TimestampMixin, Base):
 
 class UserExercise1RM(TimestampMixin, Base):
     __tablename__ = "user_exercise_1rm"
-    __table_args__ = (
-        UniqueConstraint("user_id", "exercise_id", name="uq_user_exercise_1rm"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "exercise_id", name="uq_user_exercise_1rm"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    exercise_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE")
-    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"))
     weight_kg: Mapped[float]
     estimated_at: Mapped[datetime] = mapped_column(server_default="now()")
 
@@ -117,11 +109,7 @@ class RefreshToken(TimestampMixin, Base):
 
 class UserEquipmentSelection(TimestampMixin, Base):
     __tablename__ = "user_equipment_selections"
-    __table_args__ = (
-        UniqueConstraint(
-            "user_id", "gym_equipment_id", name="uq_user_gym_equipment_selection"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "gym_equipment_id", name="uq_user_gym_equipment_selection"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
