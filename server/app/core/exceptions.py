@@ -28,6 +28,16 @@ class ForbiddenError(AppError):
         super().__init__(code, message, 403)
 
 
+class OnboardingRequiredError(AppError):
+    def __init__(self, message: str = "온보딩을 완료해주세요"):
+        super().__init__("ONBOARDING_REQUIRED", message, 403)
+
+
+class EmailDuplicateError(AppError):
+    def __init__(self, message: str = "이미 사용 중인 이메일입니다"):
+        super().__init__("EMAIL_DUPLICATE", message, 409)
+
+
 class NotFoundError(AppError):
     def __init__(self, message: str = "리소스를 찾을 수 없습니다"):
         super().__init__("NOT_FOUND", message, 404)

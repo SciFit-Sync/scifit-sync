@@ -41,6 +41,11 @@ jobs:
       - name: Format check (ruff format)
         run: ruff format --check server/ mlops/
 
+      - name: Run DB migrations
+        run: cd server && alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/scifiitsync_test
+
       - name: Run server tests
         run: pytest server/tests/ -v --tb=short --cov=server/app --cov-report=term-missing
         env:

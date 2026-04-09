@@ -3,6 +3,7 @@ import logging
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
@@ -42,6 +43,31 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
                 "code": "VALIDATION_ERROR",
                 "message": "입력값이 올바르지 않습니다",
                 "details": {"errors": exc.errors()},
+                "request_id": request_id,
+            },
+        },
+    )
+
+
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """FastAPI/Starlette 기본 HTTPException을 표준 포맷으로 변환."""
+    request_id = getattr(request.state, "request_id", None)
+    code_map = {
+        400: "VALIDATION_ERROR",
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        405: "METHOD_NOT_ALLOWED",
+        429: "RATE_LIMITED",
+    }
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": code_map.get(exc.status_code, "HTTP_ERROR"),
+                "message": exc.detail or "요청을 처리할 수 없습니다",
+                "details": None,
                 "request_id": request_id,
             },
         },
