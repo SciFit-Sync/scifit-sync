@@ -154,7 +154,7 @@ INCREASE = {
 
 ## 8. 데이터 모델
 
-- 27개 테이블 (users, equipments, exercises, routines, workout_logs, papers 등)
+- 28개 테이블 (users, equipments, exercises, routines, workout_logs, papers 등)
 - equipment.category: cable / machine / barbell / dumbbell / bodyweight
 - 중량 기록: weight_kg = 표시값, 실효 부하 = weight_kg × pulley_ratio
 - 루틴 삭제: soft delete (deleted_at)
@@ -230,20 +230,20 @@ fix/{이름}/{버그}
 
 ## 15. 미결정 사항
 
-| ID | 주제 | 결정 필요 |
-|---|---|---|
-| D-01 | 회원가입 인증 | SMS vs 이메일 OTP |
-| D-02 | PO 제안 바텀시트(W-L03) | 구현 여부 |
-| ~~D-03~~ | ~~(해결됨)~~ | — |
-| ~~D-04~~ | ~~(해결됨)~~ | — |
-| D-05 | 소셜 로그인 확장 | 네이버/Google/Apple |
-| D-06 | 주당 운동 일수 UI | 슬라이더 vs 칩 |
-| D-07 | 나이 입력 | 숫자 vs Date Picker |
-| ~~D-08~~ | ~~(해결됨)~~ | — |
-| D-09 | 근육 회복도 계산 | 계산 기준 미정 |
-| D-10 | Program vs Routine 관계 | W-M02/W-R02 화면 존재, API 미정의 |
-| D-11 | rehabilitation PO 전략 | RANGES에만 존재, INCREASE 미정의 |
-| D-12 | PO 증가량: machine/dumbbell/bodyweight | INCREASE에 cable/barbell만 정의 |
+| ID | 주제 | 결정 필요 | 현재 상태 |
+|---|---|---|---|
+| D-01 | 회원가입 인증 | SMS vs 이메일 OTP | 미정 |
+| D-02 | PO 제안 바텀시트(W-L03) | 구현 여부 | 미정 |
+| D-05 | 소셜 로그인 확장 | 네이버/Google/Apple | 미정 (카카오만 명세) |
+| D-06 | 주당 운동 일수 UI | 슬라이더 vs 칩 | 미정 |
+| D-07 | 나이 입력 | 숫자 vs Date Picker | 미정 |
+| D-09 | 근육 회복도 계산 | 계산 기준 미정 | 미정 |
+| D-10 | Program vs Routine 관계 | W-M02/W-R02 화면 존재, API 미정의 | 미정 |
+| D-11 | rehabilitation PO 전략 | RANGES에만 존재, INCREASE 미정의 | 임시: 1.25kg 기본값 |
+| D-12 | PO 증가량: machine/dumbbell/bodyweight | INCREASE에 cable/barbell만 정의 | 임시: cable 값 대체 |
+| D-13 | 회원가입 phone 필드 | API 명세에 필수지만 DB users에 컬럼 없음 | 필드 제거 or DB 추가 |
+| D-14 | 회원가입 goals 단수/복수 | API는 Array, DB fitness_goal은 단일 enum | 단수 변경 or DB 배열화 |
+| D-15 | JSON 필드명 컨벤션 | API camelCase vs DB snake_case | 프론트-백 합의 필요 |
 
 ---
 
@@ -252,7 +252,7 @@ fix/{이름}/{버그}
 | 문서 | 경로 |
 |---|---|
 | API 전체 명세 (50개) | `docs/spec/api-endpoints.md` |
-| DB 스키마 (27개 테이블) | `docs/spec/database-schema.md` |
+| DB 스키마 (28개 테이블) | `docs/spec/database-schema.md` |
 | 화면 목록 (23개) | `docs/spec/screens.md` |
 | 환경 셋업 가이드 | `docs/guides/environment-setup.md` |
 | 테스트 전략 상세 | `docs/guides/testing-strategy.md` |

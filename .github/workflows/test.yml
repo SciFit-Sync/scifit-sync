@@ -36,12 +36,12 @@ jobs:
         run: pip install -r server/requirements-dev.txt
 
       - name: Lint check (ruff)
-        run: ruff check server/ --output-format=github
+        run: ruff check server/ mlops/ --output-format=github
 
       - name: Format check (ruff format)
-        run: ruff format --check server/
+        run: ruff format --check server/ mlops/
 
-      - name: Run tests
+      - name: Run server tests
         run: pytest server/tests/ -v --tb=short --cov=server/app --cov-report=term-missing
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/scifiitsync_test
@@ -49,3 +49,9 @@ jobs:
           JWT_ALGORITHM: HS256
           CHROMA_PERSIST_PATH: /tmp/chroma-test-data
           ENV: test
+
+      - name: Install mlops dependencies
+        run: pip install -r mlops/requirements.txt
+
+      - name: Run mlops tests
+        run: pytest mlops/tests/ -v --tb=short

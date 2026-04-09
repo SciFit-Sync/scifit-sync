@@ -72,6 +72,18 @@ cd app && npm install && npx expo start
 - Notion 페이지에 API 키 직접 기재 금지
 - 각자 개인 키 발급 권장 (Gemini, Kakao 등)
 
+## GitHub Actions Secrets 설정
+
+GitHub 레포 > Settings > Secrets and variables > Actions 에서 설정:
+
+| Secret 이름 | 용도 | 사용 워크플로우 |
+|---|---|---|
+| `API_BASE_URL` | 프로덕션 서버 URL (예: `https://api.scifitsync.com`) | `mlops.yml` |
+| `ADMIN_API_TOKEN` | 서버 admin API 인증 토큰 | `mlops.yml` |
+
+> 현재 미설정 상태. MLOps 월간 파이프라인이 서버 admin 엔드포인트를 호출할 때 필요.
+> 서버 배포 후 설정.
+
 ## 플랫폼별 주의사항
 | 환경 | 주의 |
 |---|---|
