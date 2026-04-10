@@ -9,7 +9,7 @@ sqlalchemy[asyncio]>=2.0.0
 asyncpg>=0.30.0
 alembic>=1.14.0
 
-# Auth
+# Auth (passlib 제거 → bcrypt 직접 사용)
 python-jose[cryptography]>=3.3.0
 bcrypt>=4.0.0
 
