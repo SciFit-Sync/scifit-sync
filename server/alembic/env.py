@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 config = context.config
 
@@ -15,7 +15,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # .env에서 DATABASE_URL 로딩
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", "").replace("%", "%%"))
+_database_url = os.getenv("DATABASE_URL", "")
+if not _database_url:
+    raise RuntimeError("DATABASE_URL이 설정되지 않았습니다. server/.env 파일을 확인하세요.")
+config.set_main_option("sqlalchemy.url", _database_url.replace("%", "%%"))
 
 # 모든 모델의 MetaData를 import
 from app.models import Base  # noqa: E402
