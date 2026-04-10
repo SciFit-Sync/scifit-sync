@@ -4,9 +4,17 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
     username: str
     password: str
+    name: str
+    email: EmailStr
+    phone: str | None = None
+    gender: str | None = None
+    age: int | None = None
+    height: float | None = None
+    weight: float | None = None
+    careerLevel: str | None = None
+    goals: list[str] = []
 
     @field_validator("username")
     @classmethod
@@ -25,6 +33,11 @@ class RegisterRequest(BaseModel):
         return v
 
 
+class RegisterData(BaseModel):
+    userId: str
+    username: str
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -39,3 +52,14 @@ class TokenResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class LoginData(BaseModel):
+    accessToken: str
+    refreshToken: str
+    userId: str
+    username: str
+
+
+class LogoutRequest(BaseModel):
+    refreshToken: str
