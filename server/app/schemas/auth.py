@@ -63,3 +63,14 @@ class LoginData(BaseModel):
 
 class LogoutRequest(BaseModel):
     refreshToken: str
+
+
+class KakaoLoginRequest(BaseModel):
+    accessToken: str
+
+
+class KakaoLoginData(BaseModel):
+    accessToken: str
+    refreshToken: str
+    isNewUser: bool
+    message: str | None = None
