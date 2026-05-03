@@ -9,65 +9,91 @@ from app.models.exercise import (
 )
 from app.models.gym import (
     Equipment,
+    EquipmentBodyCategory,
     EquipmentBrand,
-    EquipmentCategory,
+    EquipmentMuscle,
     EquipmentReport,
+    EquipmentReportStatus,
+    EquipmentType,
     Gym,
     GymEquipment,
     UserGym,
 )
-from app.models.notification import Notification, UserStats
+from app.models.notification import Notification, NotificationType
 from app.models.routine import (
+    GeneratedBy,
+    Program,
+    ProgramRoutine,
     RoutineDay,
     RoutineExercise,
     RoutinePaper,
+    RoutineStatus,
+    SplitType,
     WorkoutRoutine,
 )
 from app.models.user import (
     CareerLevel,
-    FitnessGoal,
+    Gender,
+    OnermSource,
+    Provider,
     RefreshToken,
     User,
     UserBodyMeasurement,
-    UserEquipmentSelection,
     UserExercise1RM,
     UserProfile,
 )
-from app.models.workout import WorkoutLog, WorkoutLogSet
+from app.models.workout import WorkoutLog, WorkoutLogSet, WorkoutStatus
 
 __all__ = [
     "Base",
+    # user
     "User",
     "UserProfile",
     "UserBodyMeasurement",
     "UserExercise1RM",
     "RefreshToken",
-    "UserEquipmentSelection",
-    "FitnessGoal",
+    "Gender",
+    "Provider",
     "CareerLevel",
+    "OnermSource",
+    # gym
     "Gym",
     "UserGym",
     "EquipmentBrand",
     "Equipment",
     "GymEquipment",
     "EquipmentReport",
-    "EquipmentCategory",
+    "EquipmentMuscle",
+    "EquipmentBodyCategory",
+    "EquipmentType",
+    "EquipmentReportStatus",
+    # exercise
     "Exercise",
     "ExerciseEquipmentMap",
     "MuscleGroup",
     "ExerciseMuscle",
     "MuscleInvolvement",
+    # routine
     "WorkoutRoutine",
     "RoutineDay",
     "RoutineExercise",
     "RoutinePaper",
+    "Program",
+    "ProgramRoutine",
+    "GeneratedBy",
+    "RoutineStatus",
+    "SplitType",
+    # workout
     "WorkoutLog",
     "WorkoutLogSet",
+    "WorkoutStatus",
+    # chat
     "ChatSession",
     "ChatMessage",
     "ChatRole",
     "Paper",
     "PaperChunk",
+    # notification
     "Notification",
-    "UserStats",
+    "NotificationType",
 ]
