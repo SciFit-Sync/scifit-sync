@@ -1,28 +1,36 @@
-# 데이터 모델 (28개 테이블)
+# 데이터 모델 (29개 테이블)
 
 ## 테이블 목록
 
 ```
 사용자: users, user_profiles, user_body_measurements,
-        user_exercise_1rm, refresh_tokens, user_equipment_selections
+        user_exercise_1rm, refresh_tokens
 
 헬스장: gyms, user_gyms, equipment_brands, equipments,
-        gym_equipments, equipment_reports
+        gym_equipments, equipment_reports, equipment_muscles
 
 운동:   exercises, exercise_equipment_map, muscle_groups, exercise_muscles
 
 루틴:   workout_routines, routine_days, routine_exercises, routine_papers
 
+프로그램: programs, program_routines
+
 기록:   workout_logs, workout_log_sets
 
 RAG:    chat_sessions, chat_messages, papers, paper_chunks
 
-기타:   notifications, user_stats
+기타:   notifications
 ```
+
+## 변경 이력 (v003 리디자인)
+
+- 제거: `user_equipment_selections`, `user_stats`
+- 추가: `programs`, `program_routines`, `equipment_muscles`
 
 ## 주요 설계 결정
 
-- equipment.category: cable / machine / barbell / dumbbell / bodyweight
+- equipment.equipment_type: cable / machine / barbell / dumbbell / bodyweight
+- equipment.category (body 부위): chest / back / shoulders / arms / core / legs
 - 중량 기록: weight_kg = 기구 표시값, 실효 부하 = weight_kg × pulley_ratio
 - 루틴 삭제: soft delete (deleted_at), 복구 불가
 - RAG: 임베딩은 ChromaDB만 저장 (pgvector 미사용)
