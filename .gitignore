@@ -9,6 +9,10 @@ venv/
 .pytest_cache/
 .mypy_cache/
 
+# Expo prebuild 결과물 (plugins로 관리)
+/app/android/
+/app/ios/
+
 # ChromaDB 데이터 (절대 커밋 금지)
 /chroma-data/
 *.chroma

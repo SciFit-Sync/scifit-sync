@@ -27,7 +27,8 @@ class User(TimestampMixin, Base):
 
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255), default=None)
+    kakao_id: Mapped[str | None] = mapped_column(String(50), unique=True, index=True, default=None)
     name: Mapped[str | None] = mapped_column(String(100), default=None)
     phone: Mapped[str | None] = mapped_column(String(20), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
