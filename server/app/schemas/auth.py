@@ -9,12 +9,11 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
     email: EmailStr
-    phone: str | None = None
     gender: str | None = None
     birth_date: date | None = None
     height: float | None = None
     weight: float | None = None
-    careerLevel: str | None = None
+    career_level: str | None = None
     goals: list[str] = []
 
     @field_validator("username")
@@ -35,7 +34,7 @@ class RegisterRequest(BaseModel):
 
 
 class RegisterData(BaseModel):
-    userId: str
+    user_id: str
     username: str
 
 
@@ -56,22 +55,56 @@ class RefreshRequest(BaseModel):
 
 
 class LoginData(BaseModel):
-    accessToken: str
-    refreshToken: str
-    userId: str
+    access_token: str
+    refresh_token: str
+    user_id: str
     username: str
 
 
 class LogoutRequest(BaseModel):
-    refreshToken: str
+    refresh_token: str
 
 
 class KakaoLoginRequest(BaseModel):
-    accessToken: str
+    access_token: str
 
 
 class KakaoLoginData(BaseModel):
-    accessToken: str
-    refreshToken: str
-    isNewUser: bool
+    access_token: str
+    refresh_token: str
+    is_new_user: bool
     message: str | None = None
+
+
+# ── 추가 엔드포인트 ──────────────────────────────────────────────────────────
+class CheckUsernameData(BaseModel):
+    username: str
+    available: bool
+
+
+class PasswordResetEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetEmailData(BaseModel):
+    sent: bool
+    message: str | None = None
+
+
+class PasswordResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class PasswordResetData(BaseModel):
+    success: bool
+
+
+class WithdrawData(BaseModel):
+    user_id: str
+    success: bool
+
+
+class RefreshData(BaseModel):
+    access_token: str
+    refresh_token: str

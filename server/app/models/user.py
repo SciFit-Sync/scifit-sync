@@ -37,7 +37,6 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100))
-    phone: Mapped[str | None] = mapped_column(String(20), default=None)
     password_hash: Mapped[str | None] = mapped_column(String(255), default=None)
     provider: Mapped[Provider] = mapped_column(
         Enum(Provider, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
@@ -136,8 +135,3 @@ class RefreshToken(Base):
         UUID(as_uuid=True), ForeignKey("refresh_tokens.id"), default=None
     )
     device_info: Mapped[str | None] = mapped_column(String(255), default=None)
-
-    user: Mapped["User"] = relationship(back_populates="refresh_tokens")
-
-
-from app.models.exercise import Exercise  # noqa: E402, F401

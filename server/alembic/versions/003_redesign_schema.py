@@ -95,7 +95,6 @@ def upgrade() -> None:
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("username", sa.String(50), nullable=False),
         sa.Column("name", sa.String(100), nullable=False),
-        sa.Column("phone", sa.String(20), nullable=True),
         sa.Column("password_hash", sa.String(255), nullable=True),
         sa.Column("provider", _e("provider", "local", "kakao"), server_default=sa.text("'local'"), nullable=False),
         sa.Column("provider_id", sa.String(100), nullable=True),
@@ -727,15 +726,3 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS workoutstatus")
     op.execute("DROP TYPE IF EXISTS splittype")
     op.execute("DROP TYPE IF EXISTS routinestatus")
-    op.execute("DROP TYPE IF EXISTS generatedby")
-    op.execute("DROP TYPE IF EXISTS equipmentreportstatus")
-    op.execute("DROP TYPE IF EXISTS equipmenttype")
-    op.execute("DROP TYPE IF EXISTS equipmentbodycategory")
-    op.execute("DROP TYPE IF EXISTS onermsource")
-    op.execute("DROP TYPE IF EXISTS careerlevel")
-    op.execute("DROP TYPE IF EXISTS provider")
-    op.execute("DROP TYPE IF EXISTS gender")
-
-    op.execute("CREATE TYPE fitnessgoal AS ENUM ('hypertrophy', 'strength', 'endurance', 'rehabilitation')")
-    op.execute("CREATE TYPE careerlevel AS ENUM ('beginner', 'intermediate', 'advanced')")
-    op.execute("CREATE TYPE equipmentcategory AS ENUM ('cable', 'machine', 'barbell', 'dumbbell', 'bodyweight')")

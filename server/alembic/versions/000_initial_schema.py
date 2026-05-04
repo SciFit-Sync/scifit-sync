@@ -17,14 +17,16 @@ depends_on = None
 
 def upgrade() -> None:
     # PostgreSQL ENUM types — created before first use
-    op.execute("CREATE TYPE fitnessgoal AS ENUM ('hypertrophy', 'strength', 'endurance', 'rehabilitation')")
+    op.execute(
+        "CREATE TYPE fitnessgoal AS ENUM ('hypertrophy', 'strength', 'endurance', 'rehabilitation', 'weight_loss')"
+    )
     op.execute("CREATE TYPE careerlevel AS ENUM ('beginner', 'intermediate', 'advanced')")
     op.execute("CREATE TYPE equipmentcategory AS ENUM ('cable', 'machine', 'barbell', 'dumbbell', 'bodyweight')")
     op.execute("CREATE TYPE muscleinvolvement AS ENUM ('primary', 'secondary', 'stabilizer')")
     op.execute("CREATE TYPE chatrole AS ENUM ('user', 'assistant')")
 
     # ── users ──────────────────────────────────────────────────────────────────
-    # NOTE: name/phone added by 001, kakao_id added by 002, password_hash made nullable by 002
+    # NOTE: name added by 001, provider/provider_id added by 002, password_hash made nullable by 002
     op.create_table(
         "users",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -123,7 +125,13 @@ def upgrade() -> None:
         sa.Column(
             "fitness_goal",
             postgresql.ENUM(
-                "hypertrophy", "strength", "endurance", "rehabilitation", name="fitnessgoal", create_type=False
+                "hypertrophy",
+                "strength",
+                "endurance",
+                "rehabilitation",
+                "weight_loss",
+                name="fitnessgoal",
+                create_type=False,
             ),
             nullable=True,
         ),

@@ -28,13 +28,21 @@ from app.core.exceptions import (
 )
 from app.models.user import CareerLevel, Gender, Provider, RefreshToken, User, UserBodyMeasurement, UserProfile
 from app.schemas.auth import (
+    CheckUsernameData,
     KakaoLoginData,
     KakaoLoginRequest,
     LoginData,
     LoginRequest,
     LogoutRequest,
+    PasswordResetData,
+    PasswordResetEmailData,
+    PasswordResetEmailRequest,
+    PasswordResetRequest,
+    RefreshData,
+    RefreshRequest,
     RegisterData,
     RegisterRequest,
+    WithdrawData,
 )
 from app.schemas.common import SuccessResponse
 
@@ -78,9 +86,9 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     return SuccessResponse(
         data=LoginData(
-            accessToken=access_token,
-            refreshToken=refresh_token,
-            userId=str(user.id),
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user_id=str(user.id),
             username=user.username,
         )
     )
@@ -92,12 +100,12 @@ async def logout(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    payload = verify_token(body.refreshToken, expected_type="refresh")
+    payload = verify_token(body.refresh_token, expected_type="refresh")
 
     if payload.get("sub") != str(current_user.id):
         raise UnauthorizedError()
 
-    token_hash = _hash_token(body.refreshToken)
+    token_hash = _hash_token(body.refresh_token)
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.token_hash == token_hash,
@@ -133,7 +141,6 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         username=body.username,
         password_hash=hash_password(body.password),
         name=body.name,
-        phone=body.phone,
     )
     db.add(user)
     await db.flush()  # user.id 확보
@@ -144,7 +151,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         body.gender is not None
         and body.birth_date is not None
         and body.height is not None
-        and body.careerLevel is not None
+        and body.career_level is not None
     ):
         db.add(
             UserProfile(
@@ -153,7 +160,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
                 birth_date=body.birth_date,
                 height_cm=body.height,
                 default_goals=body.goals or None,
-                career_level=CareerLevel(body.careerLevel),
+                career_level=CareerLevel(body.career_level),
             )
         )
 
@@ -173,7 +180,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     return SuccessResponse(
         data=RegisterData(
-            userId=str(user.id),
+            user_id=str(user.id),
             username=user.username,
         )
     )
@@ -190,7 +197,7 @@ async def kakao_login(
         async with httpx.AsyncClient(timeout=10.0) as client:
             kakao_resp = await client.get(
                 "https://kapi.kakao.com/v2/user/me",
-                headers={"Authorization": f"Bearer {body.accessToken}"},
+                headers={"Authorization": f"Bearer {body.access_token}"},
             )
     except httpx.RequestError as e:
         raise ExternalServiceError(message="카카오 API가 일시적으로 사용할 수 없습니다.") from e
@@ -260,9 +267,122 @@ async def kakao_login(
 
     return SuccessResponse(
         data=KakaoLoginData(
-            accessToken=access_token,
-            refreshToken=refresh_token,
-            isNewUser=is_new_user,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            is_new_user=is_new_user,
             message="온보딩을 완료해주세요." if is_new_user else None,
         )
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 추가 엔드포인트: #5 #6 #7 #8 #42
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/check-username",
+    response_model=SuccessResponse[CheckUsernameData],
+    summary="아이디 사용 가능 여부 확인",
+)
+async def check_username(username: str, db: AsyncSession = Depends(get_db)):
+    if len(username) < 2 or len(username) > 20:
+        raise ValidationError(message="사용자명은 2~20자여야 합니다.")
+    existing = (await db.execute(select(User).where(User.username == username))).scalar_one_or_none()
+    return SuccessResponse(data=CheckUsernameData(username=username, available=existing is None))
+
+
+@router.post(
+    "/password/reset-email",
+    response_model=SuccessResponse[PasswordResetEmailData],
+    summary="비밀번호 재설정 메일 발송",
+)
+async def password_reset_email(body: PasswordResetEmailRequest, db: AsyncSession = Depends(get_db)):
+    """⚠️ TODO: 메일 발송 인프라 연동 필요. 현재는 스텁."""
+    user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    # 보안상 사용자 존재 여부에 무관하게 동일 응답
+    logger.info("Password reset email requested for %s (exists=%s)", body.email, user is not None)
+    return SuccessResponse(data=PasswordResetEmailData(sent=True, message="비밀번호 재설정 메일이 발송되었습니다."))
+
+
+@router.patch(
+    "/password/reset",
+    response_model=SuccessResponse[PasswordResetData],
+    summary="비밀번호 재설정",
+)
+async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
+    """비밀번호 재설정 토큰을 검증하고 새 비밀번호로 갱신한다."""
+    payload = verify_token(body.token, expected_type="reset")
+    user_id = payload.get("sub")
+    if not user_id:
+        raise UnauthorizedError(message="유효하지 않은 토큰입니다.")
+
+    if len(body.new_password) < 8:
+        raise ValidationError(message="비밀번호는 8자 이상이어야 합니다.")
+
+    user = (await db.execute(select(User).where(User.id == uuid.UUID(user_id)))).scalar_one_or_none()
+    if user is None:
+        raise UnauthorizedError(message="사용자를 찾을 수 없습니다.")
+
+    user.password_hash = hash_password(body.new_password)
+    await db.commit()
+    return SuccessResponse(data=PasswordResetData(success=True))
+
+
+@router.delete("/withdraw", response_model=SuccessResponse[WithdrawData], summary="회원 탈퇴")
+async def withdraw(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.is_active = False
+    # 모든 refresh token 무효화
+    refresh_tokens = (
+        (await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))).scalars().all()
+    )
+    now_utc = datetime.now(timezone.utc)
+    for rt in refresh_tokens:
+        rt.revoked_at = now_utc
+    await db.commit()
+    return SuccessResponse(data=WithdrawData(user_id=str(current_user.id), success=True))
+
+
+@router.post("/refresh", response_model=SuccessResponse[RefreshData], summary="액세스 토큰 갱신")
+async def refresh_token_endpoint(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
+    """Refresh Token Rotation — Grace Period 10초 + family revoke."""
+    payload = verify_token(body.refresh_token, expected_type="refresh")
+    user_id_str = payload.get("sub")
+    family_id_str = payload.get("family_id")
+    if not user_id_str or not family_id_str:
+        raise UnauthorizedError(message="유효하지 않은 토큰입니다.")
+
+    token_hash = _hash_token(body.refresh_token)
+    rec = (await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))).scalar_one_or_none()
+    if rec is None:
+        raise UnauthorizedError(message="유효하지 않은 토큰입니다.")
+
+    now_utc = datetime.now(timezone.utc)
+
+    # 이미 revoke된 토큰이면서 grace period(10초)도 지났다면 family 전체를 revoke (재사용 공격 방지)
+    if rec.revoked_at is not None and (now_utc - rec.revoked_at).total_seconds() > 10:
+        family = (await db.execute(select(RefreshToken).where(RefreshToken.family_id == rec.family_id))).scalars().all()
+        for t in family:
+            if t.revoked_at is None:
+                t.revoked_at = now_utc
+        await db.commit()
+        raise UnauthorizedError(message="토큰 재사용이 감지되었습니다.")
+
+    # 새 토큰 발급 + 기존 토큰 revoke
+    rec.revoked_at = now_utc
+    new_access = create_access_token(uuid.UUID(user_id_str))
+    new_refresh = create_refresh_token(uuid.UUID(user_id_str), family_id=rec.family_id)
+    db.add(
+        RefreshToken(
+            user_id=rec.user_id,
+            token_hash=_hash_token(new_refresh),
+            family_id=rec.family_id,
+            expires_at=now_utc + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+    )
+    await db.commit()
+
+    return SuccessResponse(data=RefreshData(access_token=new_access, refresh_token=new_refresh))
