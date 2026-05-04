@@ -122,12 +122,14 @@ def upgrade() -> None:
         sa.Column("age", sa.Integer(), nullable=True),
         sa.Column(
             "fitness_goal",
-            sa.Enum("hypertrophy", "strength", "endurance", "rehabilitation", name="fitnessgoal", create_type=False),
+            postgresql.ENUM(
+                "hypertrophy", "strength", "endurance", "rehabilitation", name="fitnessgoal", create_type=False
+            ),
             nullable=True,
         ),
         sa.Column(
             "career_level",
-            sa.Enum("beginner", "intermediate", "advanced", name="careerlevel", create_type=False),
+            postgresql.ENUM("beginner", "intermediate", "advanced", name="careerlevel", create_type=False),
             nullable=True,
         ),
         sa.Column("workout_days_per_week", sa.Integer(), nullable=True),
@@ -191,7 +193,7 @@ def upgrade() -> None:
         sa.Column("name_en", sa.String(200), nullable=True),
         sa.Column(
             "category",
-            sa.Enum(
+            postgresql.ENUM(
                 "cable", "machine", "barbell", "dumbbell", "bodyweight", name="equipmentcategory", create_type=False
             ),
             nullable=False,
@@ -269,7 +271,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "involvement",
-            sa.Enum("primary", "secondary", "stabilizer", name="muscleinvolvement", create_type=False),
+            postgresql.ENUM("primary", "secondary", "stabilizer", name="muscleinvolvement", create_type=False),
             nullable=False,
         ),
         sa.UniqueConstraint("exercise_id", "muscle_group_id", name="uq_exercise_muscle"),
@@ -516,7 +518,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "role",
-            sa.Enum("user", "assistant", name="chatrole", create_type=False),
+            postgresql.ENUM("user", "assistant", name="chatrole", create_type=False),
             nullable=False,
         ),
         sa.Column("content", sa.Text(), nullable=False),
