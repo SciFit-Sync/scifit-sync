@@ -18,9 +18,23 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.exceptions import ConflictError, EmailDuplicateError, ExternalServiceError, UnauthorizedError, ValidationError
+from app.core.exceptions import (
+    ConflictError,
+    EmailDuplicateError,
+    ExternalServiceError,
+    UnauthorizedError,
+    ValidationError,
+)
 from app.models.user import CareerLevel, FitnessGoal, RefreshToken, User, UserBodyMeasurement, UserProfile
-from app.schemas.auth import KakaoLoginData, KakaoLoginRequest, LoginData, LoginRequest, LogoutRequest, RegisterData, RegisterRequest
+from app.schemas.auth import (
+    KakaoLoginData,
+    KakaoLoginRequest,
+    LoginData,
+    LoginRequest,
+    LogoutRequest,
+    RegisterData,
+    RegisterRequest,
+)
 from app.schemas.common import SuccessResponse
 
 logger = logging.getLogger(__name__)
@@ -172,8 +186,8 @@ async def kakao_login(
                 "https://kapi.kakao.com/v2/user/me",
                 headers={"Authorization": f"Bearer {body.accessToken}"},
             )
-    except httpx.RequestError:
-        raise ExternalServiceError(message="카카오 API가 일시적으로 사용할 수 없습니다.")
+    except httpx.RequestError as e:
+        raise ExternalServiceError(message="카카오 API가 일시적으로 사용할 수 없습니다.") from e
 
     if kakao_resp.status_code in (400, 401):
         raise ValidationError(message="유효하지 않은 카카오 토큰입니다.")

@@ -28,7 +28,9 @@ class Notification(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x])
+        Enum(
+            NotificationType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]
+        )
     )
     title: Mapped[str] = mapped_column(String(200))
     body: Mapped[str] = mapped_column(Text)

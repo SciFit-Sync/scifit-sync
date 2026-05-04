@@ -41,7 +41,8 @@ class User(TimestampMixin, Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), default=None)
     provider: Mapped[Provider] = mapped_column(
         Enum(Provider, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
-        default=Provider.LOCAL, server_default=text("'local'")
+        default=Provider.LOCAL,
+        server_default=text("'local'"),
     )
     provider_id: Mapped[str | None] = mapped_column(String(100), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -52,12 +53,8 @@ class User(TimestampMixin, Base):
     body_measurements: Mapped[list["UserBodyMeasurement"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    exercise_1rms: Mapped[list["UserExercise1RM"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
+    exercise_1rms: Mapped[list["UserExercise1RM"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -108,13 +105,12 @@ class UserExercise1RM(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    exercise_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE")
-    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"))
     weight_kg: Mapped[float]
     source: Mapped[OnermSource] = mapped_column(
         Enum(OnermSource, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
-        default=OnermSource.MANUAL, server_default=text("'manual'")
+        default=OnermSource.MANUAL,
+        server_default=text("'manual'"),
     )
     estimated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 

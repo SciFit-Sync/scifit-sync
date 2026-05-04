@@ -25,9 +25,7 @@ class Exercise(TimestampMixin, Base):
     equipment_maps: Mapped[list["ExerciseEquipmentMap"]] = relationship(
         back_populates="exercise", cascade="all, delete-orphan"
     )
-    muscle_maps: Mapped[list["ExerciseMuscle"]] = relationship(
-        back_populates="exercise", cascade="all, delete-orphan"
-    )
+    muscle_maps: Mapped[list["ExerciseMuscle"]] = relationship(back_populates="exercise", cascade="all, delete-orphan")
 
 
 class ExerciseEquipmentMap(Base):
@@ -68,7 +66,12 @@ class ExerciseMuscle(Base):
         UUID(as_uuid=True), ForeignKey("muscle_groups.id", ondelete="RESTRICT"), primary_key=True
     )
     involvement: Mapped[MuscleInvolvement] = mapped_column(
-        Enum(MuscleInvolvement, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x])
+        Enum(
+            MuscleInvolvement,
+            native_enum=False,
+            create_constraint=False,
+            values_callable=lambda x: [e.value for e in x],
+        )
     )
     activation_pct: Mapped[int | None] = mapped_column(Integer, default=None)
 

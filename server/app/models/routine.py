@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Enum, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,15 +40,18 @@ class WorkoutRoutine(TimestampMixin, Base):
     target_muscle_group_ids: Mapped[list | None] = mapped_column(JSONB, default=None)
     session_duration_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
     split_type: Mapped[SplitType | None] = mapped_column(
-        Enum(SplitType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]), default=None
+        Enum(SplitType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
+        default=None,
     )
     generated_by: Mapped[GeneratedBy] = mapped_column(
         Enum(GeneratedBy, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
-        default=GeneratedBy.USER, server_default=text("'user'")
+        default=GeneratedBy.USER,
+        server_default=text("'user'"),
     )
     status: Mapped[RoutineStatus] = mapped_column(
         Enum(RoutineStatus, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
-        default=RoutineStatus.ACTIVE, server_default=text("'active'")
+        default=RoutineStatus.ACTIVE,
+        server_default=text("'active'"),
     )
     ai_reasoning: Mapped[str | None] = mapped_column(Text, default=None)
     deleted_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
@@ -84,9 +87,7 @@ class RoutineExercise(Base):
     routine_day_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("routine_days.id", ondelete="CASCADE"), index=True
     )
-    exercise_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="RESTRICT")
-    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="RESTRICT"))
     equipment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="SET NULL"), default=None
     )
@@ -115,9 +116,7 @@ class RoutinePaper(Base):
     routine_exercise_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("routine_exercises.id", ondelete="SET NULL"), default=None
     )
-    paper_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE")
-    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"))
     relevance_summary: Mapped[str | None] = mapped_column(Text, default=None)
 
     routine: Mapped["WorkoutRoutine"] = relationship(back_populates="papers")
