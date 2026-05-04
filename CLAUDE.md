@@ -58,7 +58,7 @@ scifit-sync/
 │   └── constants/    # 디자인 토큰, 상수
 ├── server/app/
 │   ├── api/v1/       # 라우터 (auth, users, gyms, routines, sessions, chat, notifications)
-│   ├── models/       # SQLAlchemy 모델 (28개 테이블)
+│   ├── models/       # SQLAlchemy 모델 (29개 테이블)
 │   ├── schemas/      # Pydantic 스키마
 │   ├── services/     # rag.py, load_calc.py, po.py, llm.py
 │   └── core/         # config, database, auth, exceptions, middleware
@@ -127,12 +127,30 @@ cd app && npm test
 - 회원가입 API Request body에 phone 필드 없음
 - 절대 추가하지 말 것
 
-### ✅ D-14 확정 — 운동 목표 단일 선택
-- DB: user_profiles.fitness_goal = 단일 enum
-  (`'hypertrophy' | 'strength' | 'endurance' | 'rehabilitation' | 'weight_loss'`)
-- API: 배열이 아닌 단일 문자열로 송수신
-- Figma는 복수 선택 칩으로 그려져 있으나 구현은 단일 선택
-- 새 칩 선택 시 기존 선택 해제
+### ❌ D-14 폐기 — 운동 목표 단일 선택 (D-M6로 대체)
+- 폐기 사유: Program 도메인 도입 및 루틴별 복수 목표 허용 정책 전환
+- 신규 정책: D-M6 참조
+- 과거 정책 (참고용):
+  - DB: user_profiles.fitness_goal = 단일 enum
+  - API: 배열이 아닌 단일 문자열로 송수신
+  - Figma 복수 선택 칩 UI와 불일치했음
+
+### ✅ D-M6 확정 — 운동 목표 복수 선택
+- DB:
+  - `user_profiles.default_goals` = `text[]` (회원가입 시 선호 목표 배열)
+  - `workout_routines.fitness_goals` = `text[]` (루틴별 목표 복수 허용)
+- 허용 값: `'hypertrophy' | 'strength' | 'endurance' | 'rehabilitation' | 'weight_loss'`
+- API: snake_case JSON 배열로 송수신
+  - 예: `"default_goals": ["hypertrophy", "strength"]`
+- Figma 복수 선택 칩 UI와 일치
+- ⚠️ 후속 결정 필요: 복수 목표 시 PO/권장 중량 계산 기준 정책 (별도 D-issue 등록 예정)
+
+### ✅ D-10 확정 — Program 도메인 신설 (F-7)
+- 결정: Program ↔ Routine을 별도 도메인으로 분리
+- 신규 테이블: `programs`, `program_routines` (N:M + `order_index`)
+- 의미: 루틴(분할 단위) 위에 프로그램(다주기 묶음) 계층 추가
+  예: "4주 벌크업 프로그램" = Day 분할 루틴 N개의 시퀀스
+- 화면: W-M02, W-R02 영향
 
 ### ✅ D-15 확정 — API 필드명: snake_case 통일
 - 프론트(TypeScript)와 백엔드(Python) 모두 snake_case 사용
@@ -273,22 +291,30 @@ fix/taehyun/alembic-env
 - 모든 테이블: `created_at` + `updated_at` 자동 갱신
 - DB 관리: Alembic 단독, Supabase 대시보드 직접 수정 절대 금지
 
-### 테이블 도메인 구성 (28개)
+### 테이블 도메인 구성 (29개)
 ```
-User:     users, user_profiles, user_body_measurements,
-          user_exercise_1rm, refresh_tokens, user_equipment_selections
-Gym:      gyms, user_gyms, equipment_brands, equipments,
-          gym_equipments, equipment_reports
-Exercise: exercises, exercise_equipment_map, muscle_groups, exercise_muscles
-Routine:  workout_routines, routine_days, routine_exercises, routine_papers
-Record:   workout_logs, workout_log_sets
-RAG:      papers, paper_chunks, chat_sessions, chat_messages
-기타:     notifications, user_stats
+User:       users, user_profiles, user_body_measurements,
+            user_exercise_1rm, refresh_tokens                       (5)
+Gym:        gyms, user_gyms, equipment_brands, equipments,
+            gym_equipments, equipment_reports, equipment_muscles    (7)
+Exercise:   exercises, exercise_equipment_map, muscle_groups,
+            exercise_muscles                                        (4)
+Routine:    workout_routines, routine_days, routine_exercises,
+            routine_papers                                          (4)
+Program:    programs, program_routines                              (2)
+Workout:    workout_logs, workout_log_sets                          (2)
+Chat & RAG: chat_sessions, chat_messages, papers, paper_chunks      (4)
+기타:       notifications                                           (1)
 ```
+폐기 테이블 (구버전 → 신버전 흡수 경로):
+- `user_equipment_selections` → 보유 기구는 `user_gyms` + `gym_equipments` 조인으로 추론
+- `user_stats` → 통계는 `workout_logs` 직접 쿼리 (집계 캐시는 별도 D-issue 결정)
 
-### equipment.category 허용 값
-`'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
-이 5개 외 다른 값 사용 금지
+### equipment 분류 (API-12: category와 equipment_type 분리)
+- `equipments.category` (근육 부위 대표 1개): `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
+- `equipments.equipment_type` (물리 타입): `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
+- 중량 계산 엔진은 `equipment_type` 기준 (이전 버전의 `category` 분기 코드는 마이그레이션 필요)
+- 위 허용 값 외 다른 값 사용 금지
 
 ### 중량 기록
 - `weight_kg` = 기구 표시값 (사용자 입력)
@@ -309,7 +335,8 @@ RAG:      papers, paper_chunks, chat_sessions, chat_messages
 
 ```python
 def calculate_effective_weight(equipment, stack, added, body_weight):
-    match equipment.category:
+    # API-12: category는 근육 부위, 물리 분기는 equipment_type
+    match equipment.equipment_type:
         case "cable" | "machine":
             return stack * equipment.pulley_ratio + (equipment.bar_weight_kg or 0)
         case "barbell":
@@ -339,7 +366,7 @@ one_rm = effective_weight * (1 + reps / 30)
 ### Progressive Overload 트리거
 - 조건: 목표 rep 상단을 연속 2세션 달성
 
-증가량 (kg):
+증가량 (kg, 컬럼은 `equipment_type` 기준):
 
 | 목표 | cable | machine | barbell | dumbbell | bodyweight |
 |---|---|---|---|---|---|
@@ -478,7 +505,7 @@ ChipSelector:  선택 시 bg=#000 text white
 | D-06 | 주당 운동 일수 UI (슬라이더 vs 칩) | 미정 |
 | D-07 | 나이 입력 방식 (숫자 vs Date Picker) | 미정 |
 | D-09 | 근육 회복도 계산 기준 | 미정 |
-| D-10 | Program vs Routine 관계 (W-M02/W-R02) | Should 착수 전 결정 |
+| D-MX | 복수 목표 시 PO/권장 중량 계산 기준 (D-M6 후속) | 미정 |
 
 ---
 
@@ -487,7 +514,7 @@ ChipSelector:  선택 시 bg=#000 text white
 | 문서 | 경로 |
 |---|---|
 | API 전체 명세 50개 | `docs/spec/api-endpoints.md` |
-| DB 스키마 28테이블 | `docs/spec/database-schema.md` |
+| DB 스키마 29테이블 | `docs/spec/database-schema.md` |
 | 화면 목록 25개+ | `docs/spec/screens.md` |
 | 환경 셋업 가이드 | `docs/guides/environment-setup.md` |
 | 테스트 전략 | `docs/guides/testing-strategy.md` |
