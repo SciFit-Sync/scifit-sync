@@ -381,9 +381,6 @@ one_rm = effective_weight * (1 + reps / 30)
 - 일반 엔드포인트: 분당 60회
 - LLM 엔드포인트: 분당 5회 (`/routines/generate`, `/chat/messages`)
 
-### 로그인 잠금
-- 실패 5회 → `locked_until = now + 15분`
-
 ### 프롬프트 인젝션 방어
 - 사용자 입력은 항상 `<user_query>` 태그로 격리
   ```

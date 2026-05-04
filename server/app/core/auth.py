@@ -82,8 +82,4 @@ async def get_current_user(
     if not user or not user.is_active:
         raise UnauthorizedError(message="비활성화된 계정입니다")
 
-    now = datetime.now(timezone.utc)
-    if user.locked_until and user.locked_until > now:
-        raise UnauthorizedError(message="계정이 잠겨 있습니다. 잠시 후 다시 시도해주세요")
-
     return user
