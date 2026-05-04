@@ -1,4 +1,5 @@
 import re
+from datetime import date
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -10,7 +11,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     phone: str | None = None
     gender: str | None = None
-    age: int | None = None
+    birth_date: date | None = None
     height: float | None = None
     weight: float | None = None
     careerLevel: str | None = None

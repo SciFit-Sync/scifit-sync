@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import uuid
+from datetime import date as date_type
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -25,7 +26,7 @@ from app.core.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
-from app.models.user import CareerLevel, FitnessGoal, RefreshToken, User, UserBodyMeasurement, UserProfile
+from app.models.user import CareerLevel, Gender, Provider, RefreshToken, User, UserBodyMeasurement, UserProfile
 from app.schemas.auth import (
     KakaoLoginData,
     KakaoLoginRequest,
@@ -137,27 +138,32 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()  # user.id 확보
 
-    # 프로필 생성
-    fitness_goal = FitnessGoal(body.goals[0]) if body.goals else None
-    career_level = CareerLevel(body.careerLevel) if body.careerLevel else None
-
-    db.add(
-        UserProfile(
-            user_id=user.id,
-            gender=body.gender,
-            age=body.age,
-            fitness_goal=fitness_goal,
-            career_level=career_level,
+    # 프로필 생성 — 신규 스키마: gender/birth_date/height_cm/career_level은 NOT NULL.
+    # 모두 제공된 경우에만 생성하고, 그렇지 않으면 온보딩 단계에서 채우도록 둔다.
+    if (
+        body.gender is not None
+        and body.birth_date is not None
+        and body.height is not None
+        and body.careerLevel is not None
+    ):
+        db.add(
+            UserProfile(
+                user_id=user.id,
+                gender=Gender(body.gender),
+                birth_date=body.birth_date,
+                height_cm=body.height,
+                default_goals=body.goals or None,
+                career_level=CareerLevel(body.careerLevel),
+            )
         )
-    )
 
-    # 신체 정보 생성
-    if body.height is not None or body.weight is not None:
+    # 체중이 입력된 경우 초기 측정 기록 생성
+    if body.weight is not None:
         db.add(
             UserBodyMeasurement(
                 user_id=user.id,
-                height_cm=body.height,
                 weight_kg=body.weight,
+                measured_at=date_type.today(),
             )
         )
 
@@ -200,8 +206,8 @@ async def kakao_login(
     kakao_email = kakao_account.get("email")
     kakao_nickname = (kakao_account.get("profile") or {}).get("nickname")
 
-    # kakao_id로 기존 사용자 조회
-    result = await db.execute(select(User).where(User.kakao_id == kakao_id))
+    # kakao_id(provider_id)로 기존 사용자 조회
+    result = await db.execute(select(User).where(User.provider == Provider.KAKAO, User.provider_id == kakao_id))
     user = result.scalar_one_or_none()
     is_new_user = user is None
 
@@ -217,13 +223,15 @@ async def kakao_login(
         user = User(
             email=email,
             username=f"kakao_{kakao_id}",
-            kakao_id=kakao_id,
-            name=kakao_nickname,
+            provider=Provider.KAKAO,
+            provider_id=kakao_id,
+            name=kakao_nickname or "사용자",
         )
         db.add(user)
         await db.flush()
 
-        db.add(UserProfile(user_id=user.id))
+        # UserProfile은 온보딩 단계에서 생성 — 필수 필드(gender/birth_date/height_cm/career_level)가
+        # 카카오 응답만으로는 채워지지 않으므로 여기서는 생성하지 않는다.
         await db.commit()
 
         logger.info("Kakao user %s registered (user_id=%s)", kakao_id, user.id)
