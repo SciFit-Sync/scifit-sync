@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "scheme": "scifiitsync",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "backgroundColor": "#000000"
     },
@@ -21,7 +21,20 @@
       }
     },
     "plugins": [
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      [
+        "@react-native-seoul/kakao-login",
+        {
+          "kakaoAppKey": "31250347642127059188b6723d38cca3",
+          "kotlinVersion": "1.9.25"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2c24df8a-4e78-4de3-aaec-b5b9f0344b56"
+      }
+    },
+    "owner": "kuyebin"
   }
 }

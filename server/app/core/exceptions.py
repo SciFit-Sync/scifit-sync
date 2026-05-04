@@ -56,3 +56,12 @@ class RateLimitedError(AppError):
 class InternalError(AppError):
     def __init__(self, message: str = "서버 내부 오류가 발생했습니다"):
         super().__init__("INTERNAL_ERROR", message, 500)
+
+
+class ExternalServiceError(AppError):
+    def __init__(
+        self,
+        message: str = "외부 서비스가 일시적으로 사용할 수 없습니다",
+        code: str = "EXTERNAL_API_UNAVAILABLE",
+    ):
+        super().__init__(code, message, 503)
