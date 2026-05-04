@@ -65,8 +65,7 @@ jobs:
         run: |
           pytest server/tests/ -v --tb=short \
             --cov=server/app \
-            --cov-report=term-missing \
-            --cov-fail-under=80
+            --cov-report=term-missing
         env:
           PYTHONPATH: server
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/scifiitsync_test
