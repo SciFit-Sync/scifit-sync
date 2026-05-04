@@ -14,6 +14,7 @@ down_revision = "002"
 branch_labels = None
 depends_on = None
 
+
 # Helper: pre-created enum type reference (no auto-create on table create)
 def _e(name, *values):
     return postgresql.ENUM(*values, name=name, create_type=False)
@@ -79,7 +80,9 @@ def upgrade() -> None:
     op.execute("CREATE TYPE routinestatus AS ENUM ('active', 'archived')")
     op.execute("CREATE TYPE splittype AS ENUM ('2split', '3split', '4split', '5split')")
     op.execute("CREATE TYPE workoutstatus AS ENUM ('in_progress', 'completed')")
-    op.execute("CREATE TYPE notificationtype AS ENUM ('workout_reminder', 'motivation', 'po_suggestion', 'skip_warning', 'system')")
+    op.execute(
+        "CREATE TYPE notificationtype AS ENUM ('workout_reminder', 'motivation', 'po_suggestion', 'skip_warning', 'system')"
+    )
 
     # ── 4. Recreate all tables ────────────────────────────────────────────────
 
@@ -241,8 +244,14 @@ def upgrade() -> None:
         ),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("name_en", sa.String(200), nullable=True),
-        sa.Column("category", _e("equipmentbodycategory", "chest", "back", "shoulders", "arms", "core", "legs"), nullable=True),
-        sa.Column("equipment_type", _e("equipmenttype", "cable", "machine", "barbell", "dumbbell", "bodyweight"), nullable=False),
+        sa.Column(
+            "category", _e("equipmentbodycategory", "chest", "back", "shoulders", "arms", "core", "legs"), nullable=True
+        ),
+        sa.Column(
+            "equipment_type",
+            _e("equipmenttype", "cable", "machine", "barbell", "dumbbell", "bodyweight"),
+            nullable=False,
+        ),
         sa.Column("pulley_ratio", sa.Float(), server_default=sa.text("1.0"), nullable=False),
         sa.Column("bar_weight_kg", sa.Float(), nullable=True),
         sa.Column("has_weight_assist", sa.Boolean(), server_default=sa.text("false"), nullable=False),
@@ -459,7 +468,9 @@ def upgrade() -> None:
         sa.Column("session_duration_minutes", sa.Integer(), nullable=True),
         sa.Column("split_type", _e("splittype", "2split", "3split", "4split", "5split"), nullable=True),
         sa.Column("generated_by", _e("generatedby", "user", "ai"), server_default=sa.text("'user'"), nullable=False),
-        sa.Column("status", _e("routinestatus", "active", "archived"), server_default=sa.text("'active'"), nullable=False),
+        sa.Column(
+            "status", _e("routinestatus", "active", "archived"), server_default=sa.text("'active'"), nullable=False
+        ),
         sa.Column("ai_reasoning", sa.Text(), nullable=True),
         sa.Column("deleted_at", sa.DateTime(), nullable=True),
     )
@@ -529,7 +540,12 @@ def upgrade() -> None:
         ),
         sa.Column("started_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.Column("finished_at", sa.DateTime(), nullable=True),
-        sa.Column("status", _e("workoutstatus", "in_progress", "completed"), server_default=sa.text("'in_progress'"), nullable=False),
+        sa.Column(
+            "status",
+            _e("workoutstatus", "in_progress", "completed"),
+            server_default=sa.text("'in_progress'"),
+            nullable=False,
+        ),
     )
     op.create_index("ix_workout_logs_user_id", "workout_logs", ["user_id"])
 

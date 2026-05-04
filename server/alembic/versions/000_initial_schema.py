@@ -191,7 +191,9 @@ def upgrade() -> None:
         sa.Column("name_en", sa.String(200), nullable=True),
         sa.Column(
             "category",
-            sa.Enum("cable", "machine", "barbell", "dumbbell", "bodyweight", name="equipmentcategory", create_type=False),
+            sa.Enum(
+                "cable", "machine", "barbell", "dumbbell", "bodyweight", name="equipmentcategory", create_type=False
+            ),
             nullable=False,
         ),
         sa.Column("brand_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("equipment_brands.id"), nullable=True),

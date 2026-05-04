@@ -1,11 +1,7 @@
-import asyncio
+import app.models  # noqa: F401  -- side-effect import: registers all models on Base.metadata
 from app.core.database import engine
-from app.models.base import Base
-import app.models
+
 
 async def main():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("Done!")
-
-asyncio.run(main())
+        await conn

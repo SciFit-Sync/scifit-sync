@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Text, func, text
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,7 +34,8 @@ class WorkoutLog(Base):
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
     status: Mapped[WorkoutStatus] = mapped_column(
         Enum(WorkoutStatus, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
-        default=WorkoutStatus.IN_PROGRESS, server_default=text("'in_progress'")
+        default=WorkoutStatus.IN_PROGRESS,
+        server_default=text("'in_progress'"),
     )
 
     sets: Mapped[list["WorkoutLogSet"]] = relationship(back_populates="workout_log", cascade="all, delete-orphan")
@@ -49,9 +50,7 @@ class WorkoutLogSet(Base):
     workout_log_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("workout_logs.id", ondelete="CASCADE"), index=True
     )
-    exercise_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="RESTRICT")
-    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="RESTRICT"))
     routine_exercise_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("routine_exercises.id", ondelete="SET NULL"), default=None
     )

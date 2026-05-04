@@ -6,7 +6,7 @@ from sqlalchemy import Enum, ForeignKey, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base
 
 
 class EquipmentBodyCategory(enum.StrEnum):
@@ -86,7 +86,13 @@ class Equipment(Base):
     name: Mapped[str] = mapped_column(String(200))
     name_en: Mapped[str | None] = mapped_column(String(200), default=None)
     category: Mapped[EquipmentBodyCategory | None] = mapped_column(
-        Enum(EquipmentBodyCategory, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]), default=None
+        Enum(
+            EquipmentBodyCategory,
+            native_enum=False,
+            create_constraint=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=None,
     )
     equipment_type: Mapped[EquipmentType] = mapped_column(
         Enum(EquipmentType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x])
@@ -127,16 +133,18 @@ class EquipmentReport(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    gym_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE")
-    )
-    equipment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE")
-    )
+    gym_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE"))
+    equipment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE"))
     report_type: Mapped[str] = mapped_column(String(50))
     status: Mapped[EquipmentReportStatus] = mapped_column(
-        Enum(EquipmentReportStatus, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
-        default=EquipmentReportStatus.PENDING, server_default=text("'pending'")
+        Enum(
+            EquipmentReportStatus,
+            native_enum=False,
+            create_constraint=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=EquipmentReportStatus.PENDING,
+        server_default=text("'pending'"),
     )
     description: Mapped[str | None] = mapped_column(Text, default=None)
 
