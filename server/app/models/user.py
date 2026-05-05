@@ -135,3 +135,5 @@ class RefreshToken(Base):
         UUID(as_uuid=True), ForeignKey("refresh_tokens.id"), default=None
     )
     device_info: Mapped[str | None] = mapped_column(String(255), default=None)
+
+    user: Mapped["User"] = relationship(back_populates="refresh_tokens")
