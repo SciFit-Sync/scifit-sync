@@ -12,6 +12,7 @@ from app.models.user import User
 from app.schemas.common import SuccessResponse
 from app.schemas.routine import (
     DeleteRoutineData,
+    ExerciseDetail,
     GenerateRoutineRequest,
     NewExerciseData,
     PaperData,
@@ -19,9 +20,8 @@ from app.schemas.routine import (
     RenameRoutineRequest,
     ReplaceExerciseData,
     ReplaceExerciseRequest,
-    RoutineDetail,
     RoutineDayDetail,
-    ExerciseDetail,
+    RoutineDetail,
     RoutineListData,
     RoutineSummary,
 )
@@ -34,6 +34,7 @@ router = APIRouter(prefix="/routines", tags=["routines"])
 
 # ── 1. 루틴 생성 (SSE) ────────────────────────────────────────────────────────
 
+
 @router.post("/generate", summary="AI 루틴 생성 (SSE)")
 async def generate_routine(
     body: GenerateRoutineRequest,
@@ -42,12 +43,13 @@ async def generate_routine(
 ):
     async def event_stream():
         yield 'data: {"type": "chunk", "content": "루틴을 생성하는 중입니다..."}\n\n'
-        yield 'data: [DONE]\n\n'
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 # ── 2. 루틴 목록 조회 ─────────────────────────────────────────────────────────
+
 
 @router.get("", response_model=SuccessResponse[RoutineListData], summary="루틴 목록 조회")
 async def list_routines(
@@ -81,6 +83,7 @@ async def list_routines(
 
 
 # ── 3. 루틴 상세 조회 ─────────────────────────────────────────────────────────
+
 
 @router.get("/{routine_id}", response_model=SuccessResponse[RoutineDetail], summary="루틴 상세 조회")
 async def get_routine(
@@ -119,12 +122,11 @@ async def get_routine(
             )
         )
 
-    return SuccessResponse(
-        data=RoutineDetail(routineId=str(routine.id), name=routine.name, days=days)
-    )
+    return SuccessResponse(data=RoutineDetail(routineId=str(routine.id), name=routine.name, days=days))
 
 
 # ── 4. 루틴 이름 수정 ─────────────────────────────────────────────────────────
+
 
 @router.patch("/{routine_id}/name", response_model=SuccessResponse[RenameRoutineData], summary="루틴 이름 수정")
 async def rename_routine(
@@ -138,6 +140,7 @@ async def rename_routine(
 
 
 # ── 5. 루틴 종목 교체 ─────────────────────────────────────────────────────────
+
 
 @router.patch(
     "/{routine_id}/exercises/{exercise_id}",
@@ -173,6 +176,7 @@ async def replace_exercise(
 
 # ── 6. 루틴 재생성 (SSE) ──────────────────────────────────────────────────────
 
+
 @router.post("/{routine_id}/regenerate", summary="루틴 재생성 (SSE)")
 async def regenerate_routine(
     routine_id: uuid.UUID,
@@ -181,12 +185,13 @@ async def regenerate_routine(
 ):
     async def event_stream():
         yield 'data: {"type": "chunk", "content": "루틴을 재생성하는 중입니다..."}\n\n'
-        yield 'data: [DONE]\n\n'
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 # ── 7. 루틴 삭제 ──────────────────────────────────────────────────────────────
+
 
 @router.delete("/{routine_id}", response_model=SuccessResponse[DeleteRoutineData], summary="루틴 삭제")
 async def delete_routine(
@@ -204,6 +209,7 @@ async def delete_routine(
 
 
 # ── 8. 논문 근거 조회 ─────────────────────────────────────────────────────────
+
 
 @router.get(
     "/{routine_id}/exercises/{exercise_id}/paper",

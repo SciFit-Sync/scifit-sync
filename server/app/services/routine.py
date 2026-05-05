@@ -17,12 +17,12 @@ async def get_routine_or_404(db: AsyncSession, routine_id: uuid.UUID, user_id: u
         select(WorkoutRoutine)
         .where(WorkoutRoutine.id == routine_id, WorkoutRoutine.deleted_at.is_(None))
         .options(
-            selectinload(WorkoutRoutine.days).selectinload(
-                WorkoutRoutine.days.property.mapper.class_.exercises
-            ).selectinload(RoutineExercise.exercise),
-            selectinload(WorkoutRoutine.days).selectinload(
-                WorkoutRoutine.days.property.mapper.class_.exercises
-            ).selectinload(RoutineExercise.equipment),
+            selectinload(WorkoutRoutine.days)
+            .selectinload(WorkoutRoutine.days.property.mapper.class_.exercises)
+            .selectinload(RoutineExercise.exercise),
+            selectinload(WorkoutRoutine.days)
+            .selectinload(WorkoutRoutine.days.property.mapper.class_.exercises)
+            .selectinload(RoutineExercise.equipment),
             selectinload(WorkoutRoutine.papers),
         )
     )
@@ -53,9 +53,7 @@ async def list_routines(
 
     result = await db.execute(
         base_query.options(
-            selectinload(WorkoutRoutine.days).selectinload(
-                WorkoutRoutine.days.property.mapper.class_.exercises
-            ),
+            selectinload(WorkoutRoutine.days).selectinload(WorkoutRoutine.days.property.mapper.class_.exercises),
             selectinload(WorkoutRoutine.papers),
         )
         .order_by(WorkoutRoutine.created_at.desc())
@@ -75,14 +73,13 @@ async def get_routine_detail(
         select(WorkoutRoutine)
         .where(WorkoutRoutine.id == routine_id, WorkoutRoutine.deleted_at.is_(None))
         .options(
-            selectinload(WorkoutRoutine.days).selectinload(
-                WorkoutRoutine.days.property.mapper.class_.exercises
-            ).selectinload(RoutineExercise.exercise),
-            selectinload(WorkoutRoutine.days).selectinload(
-                WorkoutRoutine.days.property.mapper.class_.exercises
-            ).selectinload(RoutineExercise.equipment).selectinload(
-                RoutineExercise.equipment.property.mapper.class_.brand
-            ),
+            selectinload(WorkoutRoutine.days)
+            .selectinload(WorkoutRoutine.days.property.mapper.class_.exercises)
+            .selectinload(RoutineExercise.exercise),
+            selectinload(WorkoutRoutine.days)
+            .selectinload(WorkoutRoutine.days.property.mapper.class_.exercises)
+            .selectinload(RoutineExercise.equipment)
+            .selectinload(RoutineExercise.equipment.property.mapper.class_.brand),
             selectinload(WorkoutRoutine.papers),
         )
     )
@@ -192,7 +189,6 @@ async def get_exercise_paper(
     exercise_id: uuid.UUID,
     user_id: uuid.UUID,
 ) -> RoutinePaper:
-    from app.models.chat import Paper
 
     # 루틴 소유자 확인
     routine_result = await db.execute(

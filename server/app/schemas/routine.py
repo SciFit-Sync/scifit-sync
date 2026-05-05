@@ -2,8 +2,8 @@ import uuid
 
 from pydantic import BaseModel
 
-
 # ── Request ──────────────────────────────────────────────────────────────────
+
 
 class GenerateRoutineRequest(BaseModel):
     goals: list[str]
@@ -21,6 +21,7 @@ class ReplaceExerciseRequest(BaseModel):
 
 
 # ── Response data ─────────────────────────────────────────────────────────────
+
 
 class RoutineSummary(BaseModel):
     routineId: str
