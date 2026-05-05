@@ -14,7 +14,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.main import app
-from app.models import Equipment, EquipmentReportStatus, Gym, GymEquipment, User
+from app.models import Equipment, Gym, GymEquipment, User
 
 _USER_ID = uuid.uuid4()
 _GYM_ID = uuid.uuid4()

@@ -80,8 +80,6 @@ class TestSendChatMessage:
     async def test_new_session_streams_sse(self, client):
         db = _make_db()
         db.flush = AsyncMock(side_effect=lambda: setattr(db, "_flushed", True))
-
-        mock_session = _mock_session()
         db.add = MagicMock()
 
         app.dependency_overrides[get_db] = _db_override(db)

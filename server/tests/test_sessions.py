@@ -1,7 +1,7 @@
 """세션(운동 로그) 도메인 엔드포인트 테스트 (#30-36, #48)."""
 
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -96,7 +96,6 @@ async def client():
 class TestStartSession:
     @pytest.mark.asyncio
     async def test_success(self, client):
-        session = _mock_session()
         db = _make_db()
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)
