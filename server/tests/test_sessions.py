@@ -161,7 +161,13 @@ class TestLogSet:
 
         resp = await client.post(
             f"/api/v1/sessions/{uuid.uuid4()}/sets",
-            json={"exercise_id": str(_EXERCISE_ID), "set_number": 1, "weight_kg": 50.0, "reps": 8, "is_completed": True},
+            json={
+                "exercise_id": str(_EXERCISE_ID),
+                "set_number": 1,
+                "weight_kg": 50.0,
+                "reps": 8,
+                "is_completed": True,
+            },
         )
 
         assert resp.status_code == 404
@@ -174,7 +180,13 @@ class TestLogSet:
 
         resp = await client.post(
             f"/api/v1/sessions/{_SESSION_ID}/sets",
-            json={"exercise_id": str(_EXERCISE_ID), "set_number": 1, "weight_kg": 50.0, "reps": 8, "is_completed": True},
+            json={
+                "exercise_id": str(_EXERCISE_ID),
+                "set_number": 1,
+                "weight_kg": 50.0,
+                "reps": 8,
+                "is_completed": True,
+            },
         )
 
         assert resp.status_code == 409

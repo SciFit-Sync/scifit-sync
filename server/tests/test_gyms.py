@@ -155,8 +155,9 @@ class TestSearchGyms:
         mock_settings = MagicMock()
         mock_settings.KAKAO_REST_API_KEY = "test-key"
 
-        with patch("app.api.v1.gyms.get_settings", return_value=mock_settings), patch(
-            "app.api.v1.gyms.httpx.AsyncClient", return_value=_kakao_mock_ctx([_KAKAO_DOCUMENT])
+        with (
+            patch("app.api.v1.gyms.get_settings", return_value=mock_settings),
+            patch("app.api.v1.gyms.httpx.AsyncClient", return_value=_kakao_mock_ctx([_KAKAO_DOCUMENT])),
         ):
             resp = await client.get("/api/v1/gyms?keyword=헬스장")
 
@@ -175,8 +176,9 @@ class TestSearchGyms:
         mock_settings = MagicMock()
         mock_settings.KAKAO_REST_API_KEY = "test-key"
 
-        with patch("app.api.v1.gyms.get_settings", return_value=mock_settings), patch(
-            "app.api.v1.gyms.httpx.AsyncClient", return_value=_kakao_error_ctx()
+        with (
+            patch("app.api.v1.gyms.get_settings", return_value=mock_settings),
+            patch("app.api.v1.gyms.httpx.AsyncClient", return_value=_kakao_error_ctx()),
         ):
             resp = await client.get("/api/v1/gyms?keyword=헬스장")
 
