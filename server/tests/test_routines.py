@@ -309,7 +309,7 @@ class TestUpdateRoutineExercise:
         rex = _routine_exercise()
 
         db = _make_db(
-            _exec_scalar(r),    # _get_my_routine
+            _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
             _exec_scalar("벤치프레스"),  # Exercise.name
         )
@@ -341,7 +341,7 @@ class TestUpdateRoutineExercise:
     async def test_exercise_not_found(self, client):
         r = _routine()
         db = _make_db(
-            _exec_scalar(r),   # _get_my_routine
+            _exec_scalar(r),  # _get_my_routine
             _exec_scalar(None),  # RoutineExercise 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
@@ -403,8 +403,8 @@ class TestGetRoutineExercisePapers:
     async def test_no_papers(self, client):
         r = _routine()
         db = _make_db(
-            _exec_scalar(r),   # _get_my_routine
-            _exec_all([]),     # RoutinePaper + Paper 조인
+            _exec_scalar(r),  # _get_my_routine
+            _exec_all([]),  # RoutinePaper + Paper 조인
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
