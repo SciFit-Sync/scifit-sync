@@ -19,7 +19,6 @@
 ### 인증 주요 테스트 시나리오
 - 로그인 성공 → 토큰 발급
 - 잘못된 비밀번호 → 401
-- 로그인 5회 실패 → 계정 15분 잠금
 - 토큰 만료 → refresh 성공
 - Refresh Token Rotation + Grace Period 10초
 - 폐기된 refresh token 사용 → family revoke
