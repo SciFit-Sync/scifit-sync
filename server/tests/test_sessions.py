@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.main import app
-from app.models import User, WorkoutLog, WorkoutLogSet, WorkoutStatus
+from app.models import User, WorkoutLog, WorkoutStatus
 
 _USER_ID = uuid.uuid4()
 _SESSION_ID = uuid.uuid4()
@@ -97,7 +97,11 @@ class TestStartSession:
     @pytest.mark.asyncio
     async def test_success(self, client):
         db = _make_db()
-        db.refresh = AsyncMock()
+
+        async def _set_fields(obj):
+            obj.started_at = _NOW
+
+        db.refresh = AsyncMock(side_effect=_set_fields)
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post("/api/v1/sessions", json={})
@@ -108,6 +112,11 @@ class TestStartSession:
     @pytest.mark.asyncio
     async def test_success_with_routine_day(self, client):
         db = _make_db()
+
+        async def _set_fields(obj):
+            obj.started_at = _NOW
+
+        db.refresh = AsyncMock(side_effect=_set_fields)
         app.dependency_overrides[get_db] = _db_override(db)
 
         routine_day_id = str(uuid.uuid4())
@@ -123,21 +132,16 @@ class TestLogSet:
     @pytest.mark.asyncio
     async def test_success(self, client):
         session = _mock_session()
-        set_record = MagicMock(spec=WorkoutLogSet)
-        set_record.id = uuid.uuid4()
-        set_record.exercise_id = _EXERCISE_ID
-        set_record.set_number = 1
-        set_record.weight_kg = 80.0
-        set_record.reps = 10
-        set_record.rpe = None
-        set_record.is_completed = True
-        set_record.performed_at = _NOW
 
         db = _make_db(
             _exec_scalar(session),
             _exec_scalar("벤치프레스"),  # exercise name query
         )
-        db.refresh = AsyncMock()
+
+        async def _set_fields(obj):
+            obj.performed_at = _NOW
+
+        db.refresh = AsyncMock(side_effect=_set_fields)
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(

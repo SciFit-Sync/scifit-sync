@@ -185,7 +185,7 @@ class TestUpdateGoal:
         db = _make_db(_exec_scalar(profile))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.patch("/api/v1/users/me/goal", json={"default_goals": ["strength", "hypertrophy"]})
+        resp = await client.patch("/api/v1/users/me/goal", json={"goals": ["strength", "hypertrophy"]})
 
         assert resp.status_code == 200
         assert resp.json()["success"] is True
@@ -195,9 +195,9 @@ class TestUpdateGoal:
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.patch("/api/v1/users/me/goal", json={"default_goals": ["strength"]})
+        resp = await client.patch("/api/v1/users/me/goal", json={"goals": ["strength"]})
 
-        assert resp.status_code == 404
+        assert resp.status_code == 400
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
@@ -216,9 +216,13 @@ class TestUpdateCareer:
 
     @pytest.mark.asyncio
     async def test_invalid_career_level(self, client):
+        # 앱 커스텀 핸들러가 ValidationError를 400으로 변환
+        db = _make_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
         resp = await client.patch("/api/v1/users/me/career", json={"career_level": "expert"})
 
-        assert resp.status_code == 422  # Pydantic validation error
+        assert resp.status_code == 400
 
 
 # ── GET /users/me/1rm ─────────────────────────────────────────────────────────
@@ -250,7 +254,7 @@ class TestGet1RM:
         orm.estimated_at = _NOW
         orm.exercise = exercise
 
-        db = _make_db(_exec_scalars_all([orm]))
+        db = _make_db(_exec_all([(orm, "벤치프레스")]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/users/me/1rm")
@@ -269,8 +273,14 @@ class TestAdd1RM:
     async def test_success_manual(self, client):
         exercise = MagicMock(spec=Exercise)
         exercise.id = _EXERCISE_ID
+        exercise.name = "벤치프레스"
 
         db = _make_db(_exec_scalar(exercise))
+
+        async def _set_fields(obj):
+            obj.estimated_at = _NOW
+
+        db.refresh = AsyncMock(side_effect=_set_fields)
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(

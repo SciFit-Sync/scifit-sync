@@ -197,7 +197,7 @@ class TestSearchGyms:
     @pytest.mark.asyncio
     async def test_missing_keyword_param(self, client):
         resp = await client.get("/api/v1/gyms")
-        assert resp.status_code == 422
+        assert resp.status_code == 400
 
 
 # ── GET /gyms/{gymId}/equipment ───────────────────────────────────────────────
