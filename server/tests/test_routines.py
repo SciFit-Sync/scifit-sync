@@ -414,9 +414,7 @@ class TestGetRoutineExercisePapers:
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.get(
-            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper"
-        )
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
 
         assert resp.status_code == 200
         assert resp.json()["data"]["items"] == []
@@ -442,9 +440,7 @@ class TestGetRoutineExercisePapers:
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.get(
-            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper"
-        )
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
 
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
@@ -457,9 +453,7 @@ class TestGetRoutineExercisePapers:
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.get(
-            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper"
-        )
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
 
         assert resp.status_code == 404
 
