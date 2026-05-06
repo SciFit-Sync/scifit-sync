@@ -15,7 +15,6 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.main import app
 from app.models import Equipment, Exercise, User
-from app.models.user import EquipmentType
 
 # ── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -37,7 +36,7 @@ def _equipment(name: str = "바벨") -> Equipment:
     eq.name_en = "Barbell"
     eq.category = MagicMock()
     eq.category.value = "chest"
-    eq.equipment_type = EquipmentType.BARBELL
+    eq.equipment_type = MagicMock()
     eq.equipment_type.value = "barbell"
     eq.pulley_ratio = 1.0
     eq.bar_weight_kg = 20.0
