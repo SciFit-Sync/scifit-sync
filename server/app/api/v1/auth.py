@@ -3,7 +3,7 @@ import logging
 import random
 import uuid
 from datetime import date as date_type
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, Response
@@ -458,7 +458,7 @@ async def refresh_token_endpoint(body: RefreshRequest, db: AsyncSession = Depend
             user_id=rec.user_id,
             token_hash=_hash_token(new_refresh),
             family_id=rec.family_id,
-            expires_at=now_utc + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS),  # noqa: DTZ
+            expires_at=now_utc + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS),
         )
     )
     await db.commit()
