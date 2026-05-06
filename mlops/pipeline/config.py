@@ -26,6 +26,10 @@ CHUNK_OVERLAP_TOKENS: int = int(os.getenv("CHUNK_OVERLAP_TOKENS", "50"))
 # 파이프라인
 MAX_PAPERS_PER_RUN: int = int(os.getenv("MAX_PAPERS_PER_RUN", "100"))
 
+# API 연동 (GitHub Actions → 서버 ChromaDB 적재)
+API_BASE_URL: str = os.getenv("API_BASE_URL", "")
+ADMIN_API_TOKEN: str = os.getenv("ADMIN_API_TOKEN", "")
+
 # 경로
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
