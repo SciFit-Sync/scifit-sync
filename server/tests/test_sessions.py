@@ -1,7 +1,7 @@
 """세션(운동 로그) 도메인 엔드포인트 테스트 (#30-36, #48)."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -297,5 +297,91 @@ class TestGetSession:
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get(f"/api/v1/sessions/{uuid.uuid4()}")
+
+        assert resp.status_code == 404
+
+
+# ── GET /sessions/analysis/volume (#35) ──────────────────────────────────────
+
+
+class TestVolumeAnalysis:
+    @pytest.mark.asyncio
+    async def test_success_empty(self, client):
+        db = _make_db(_exec_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/volume")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["items"] == []
+
+    @pytest.mark.asyncio
+    async def test_success_with_data(self, client):
+        db = _make_db(_exec_all([(date(2025, 5, 1), 5000.0)]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/volume?days=30")
+
+        assert resp.status_code == 200
+        items = resp.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["volume_kg"] == 5000.0
+
+    @pytest.mark.asyncio
+    async def test_invalid_days_zero(self, client):
+        resp = await client.get("/api/v1/sessions/analysis/volume?days=0")
+
+        assert resp.status_code == 400
+
+
+# ── GET /sessions/{id}/rest-timer (#36) ──────────────────────────────────────
+
+
+class TestRestTimer:
+    @pytest.mark.asyncio
+    async def test_goal_default_strength(self, client):
+        session = _mock_session()
+        db = _make_db(_exec_scalar(session))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/sessions/{_SESSION_ID}/rest-timer?goal=strength")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["rest_seconds"] == 180
+        assert resp.json()["data"]["based_on"] == "goal_default"
+
+    @pytest.mark.asyncio
+    async def test_no_goal_defaults_to_hypertrophy(self, client):
+        session = _mock_session()
+        db = _make_db(_exec_scalar(session))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/sessions/{_SESSION_ID}/rest-timer")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["rest_seconds"] == 90
+        assert resp.json()["data"]["based_on"] == "goal_default"
+
+    @pytest.mark.asyncio
+    async def test_routine_exercise_overrides_goal(self, client):
+        session = _mock_session()
+        rex = MagicMock()
+        rex.rest_seconds = 120
+        db = _make_db(_exec_scalar(session), _exec_scalar(rex))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        rex_id = str(uuid.uuid4())
+        resp = await client.get(f"/api/v1/sessions/{_SESSION_ID}/rest-timer?routine_exercise_id={rex_id}")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["rest_seconds"] == 120
+        assert resp.json()["data"]["based_on"] == "routine"
+
+    @pytest.mark.asyncio
+    async def test_session_not_found(self, client):
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/sessions/{uuid.uuid4()}/rest-timer")
 
         assert resp.status_code == 404
