@@ -33,6 +33,7 @@ from app.models.routine import (
 )
 from app.models.user import (
     CareerLevel,
+    EmailOtp,
     Gender,
     OnermSource,
     Provider,
@@ -47,6 +48,7 @@ from app.models.workout import WorkoutLog, WorkoutLogSet, WorkoutStatus
 __all__ = [
     "Base",
     # user
+    "EmailOtp",
     "User",
     "UserProfile",
     "UserBodyMeasurement",
