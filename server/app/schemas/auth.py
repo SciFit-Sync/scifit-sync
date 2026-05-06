@@ -16,6 +16,20 @@ class RegisterRequest(BaseModel):
     career_level: str | None = None
     goals: list[str] = []
 
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("male", "female"):
+            raise ValueError("gender는 'male' 또는 'female'이어야 합니다")
+        return v
+
+    @field_validator("career_level")
+    @classmethod
+    def validate_career_level(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("beginner", "novice", "intermediate", "advanced"):
+            raise ValueError("career_level은 beginner/novice/intermediate/advanced 중 하나여야 합니다")
+        return v
+
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
@@ -108,3 +122,22 @@ class WithdrawData(BaseModel):
 class RefreshData(BaseModel):
     access_token: str
     refresh_token: str
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+class VerifyEmailData(BaseModel):
+    verified: bool
+    message: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: EmailStr
+
+
+class ResendOtpData(BaseModel):
+    sent: bool
+    message: str

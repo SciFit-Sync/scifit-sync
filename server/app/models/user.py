@@ -45,6 +45,7 @@ class User(TimestampMixin, Base):
     )
     provider_id: Mapped[str | None] = mapped_column(String(100), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
+    is_email_verified: Mapped[bool] = mapped_column(default=False)
 
     profile: Mapped["UserProfile | None"] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
@@ -115,6 +116,19 @@ class UserExercise1RM(Base):
 
     user: Mapped["User"] = relationship(back_populates="exercise_1rms")
     exercise: Mapped["Exercise"] = relationship()  # noqa: F821
+
+
+class EmailOtp(Base):
+    __tablename__ = "email_otps"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    code: Mapped[str] = mapped_column(String(6))
+    expires_at: Mapped[datetime]
+    used_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class RefreshToken(Base):
