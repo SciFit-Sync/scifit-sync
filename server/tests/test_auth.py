@@ -5,7 +5,7 @@ DB와 인증을 dependency_overrides로 대체하여 외부 인프라 없이 CI�
 
 import hashlib
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -21,7 +21,7 @@ from app.models.user import RefreshToken, User
 
 _USER_ID = uuid.uuid4()
 _FAMILY_ID = uuid.uuid4()
-_NOW = datetime.now(timezone.utc)
+_NOW = datetime.utcnow()
 _HASHED_PW = hash_password("password123")  # 모듈 로드 시 1회 계산
 
 
