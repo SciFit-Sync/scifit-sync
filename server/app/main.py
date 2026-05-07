@@ -1,8 +1,8 @@
 import logging
 
 from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import router as v1_router
