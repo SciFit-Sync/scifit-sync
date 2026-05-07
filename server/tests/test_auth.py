@@ -123,9 +123,7 @@ class TestLogin:
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post(
-            "/api/v1/auth/login", json={"username": "nonexistent", "password": "password123"}
-        )
+        resp = await client.post("/api/v1/auth/login", json={"username": "nonexistent", "password": "password123"})
 
         assert resp.status_code == 401
 
