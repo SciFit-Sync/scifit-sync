@@ -167,12 +167,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     # 프로필 생성 — gender/birth_date/height_cm/career_level 모두 있을 때만 생성.
     # 없으면 온보딩 단계에서 채운다.
-    if (
-        body.gender is not None
-        and birth_date is not None
-        and body.height is not None
-        and body.career_level is not None
-    ):
+    if body.gender is not None and birth_date is not None and body.height is not None and body.career_level is not None:
         db.add(
             UserProfile(
                 user_id=user.id,
