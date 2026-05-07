@@ -53,7 +53,7 @@ class RegisterData(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -77,6 +77,10 @@ class LoginData(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+
+class LogoutData(BaseModel):
+    message: str
 
 
 class KakaoLoginRequest(BaseModel):
@@ -108,10 +112,11 @@ class PasswordResetEmailData(BaseModel):
 class PasswordResetRequest(BaseModel):
     token: str
     new_password: str
+    new_password_confirm: str
 
 
 class PasswordResetData(BaseModel):
-    success: bool
+    message: str
 
 
 class WithdrawData(BaseModel):
@@ -122,6 +127,8 @@ class WithdrawData(BaseModel):
 class RefreshData(BaseModel):
     access_token: str
     refresh_token: str
+    token_type: str = "Bearer"
+    expires_in: int = 3600
 
 
 class VerifyEmailRequest(BaseModel):

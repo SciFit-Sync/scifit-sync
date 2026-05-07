@@ -43,6 +43,7 @@ from app.schemas.auth import (
     KakaoLoginRequest,
     LoginData,
     LoginRequest,
+    LogoutData,
     LogoutRequest,
     PasswordResetData,
     PasswordResetEmailData,
@@ -71,7 +72,7 @@ def _hash_token(token: str) -> str:
 
 @router.post("/login", response_model=SuccessResponse[LoginData], summary="로그인")
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == body.email))
+    result = await db.execute(select(User).where(User.username == body.username))
     user = result.scalar_one_or_none()
 
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
@@ -111,7 +112,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/logout", response_model=SuccessResponse[None], summary="로그아웃")
+@router.post("/logout", response_model=SuccessResponse[LogoutData], summary="로그아웃")
 async def logout(
     body: LogoutRequest,
     current_user: User = Depends(get_current_user),
@@ -138,7 +139,7 @@ async def logout(
 
     logger.info("User %s logged out", current_user.id)
 
-    return SuccessResponse(data=None)
+    return SuccessResponse(data=LogoutData(message="로그아웃되었습니다."))
 
 
 @router.post("/register", response_model=SuccessResponse[RegisterData], status_code=201, summary="회원가입")
@@ -340,6 +341,9 @@ async def password_reset_email(body: PasswordResetEmailRequest, db: AsyncSession
 )
 async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
     """비밀번호 재설정 토큰을 검증하고 새 비밀번호로 갱신한다."""
+    if body.new_password != body.new_password_confirm:
+        raise ValidationError(message="비밀번호 확인이 일치하지 않습니다.")
+
     payload = verify_token(body.token, expected_type="reset")
     user_id = payload.get("sub")
     if not user_id:
@@ -354,7 +358,7 @@ async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(
 
     user.password_hash = hash_password(body.new_password)
     await db.commit()
-    return SuccessResponse(data=PasswordResetData(success=True))
+    return SuccessResponse(data=PasswordResetData(message="비밀번호가 성공적으로 변경되었습니다."))
 
 
 @router.delete("/withdraw", response_model=SuccessResponse[WithdrawData], summary="회원 탈퇴")
@@ -463,4 +467,12 @@ async def refresh_token_endpoint(body: RefreshRequest, db: AsyncSession = Depend
     )
     await db.commit()
 
-    return SuccessResponse(data=RefreshData(access_token=new_access, refresh_token=new_refresh))
+    settings = get_settings()
+    return SuccessResponse(
+        data=RefreshData(
+            access_token=new_access,
+            refresh_token=new_refresh,
+            token_type="Bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+    )
