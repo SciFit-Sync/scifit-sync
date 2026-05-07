@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import router as v1_router
@@ -39,6 +40,28 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_error_handler)
 
     app.include_router(v1_router)
+
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            routes=app.routes,
+        )
+        schema["components"]["securitySchemes"] = {
+            "HTTPBearer": {
+                "type": "http",
+                "scheme": "bearer",
+            }
+        }
+        for path in schema.get("paths", {}).values():
+            for operation in path.values():
+                operation.setdefault("security", [{"HTTPBearer": []}])
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = custom_openapi
 
     return app
 

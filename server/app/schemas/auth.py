@@ -53,7 +53,7 @@ class RegisterData(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
