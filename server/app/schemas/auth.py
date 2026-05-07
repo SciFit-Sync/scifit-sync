@@ -108,10 +108,11 @@ class PasswordResetEmailData(BaseModel):
 class PasswordResetRequest(BaseModel):
     token: str
     new_password: str
+    new_password_confirm: str
 
 
 class PasswordResetData(BaseModel):
-    success: bool
+    message: str
 
 
 class WithdrawData(BaseModel):

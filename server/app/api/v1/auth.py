@@ -340,6 +340,9 @@ async def password_reset_email(body: PasswordResetEmailRequest, db: AsyncSession
 )
 async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
     """비밀번호 재설정 토큰을 검증하고 새 비밀번호로 갱신한다."""
+    if body.new_password != body.new_password_confirm:
+        raise ValidationError(message="비밀번호 확인이 일치하지 않습니다.")
+
     payload = verify_token(body.token, expected_type="reset")
     user_id = payload.get("sub")
     if not user_id:
@@ -354,7 +357,7 @@ async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(
 
     user.password_hash = hash_password(body.new_password)
     await db.commit()
-    return SuccessResponse(data=PasswordResetData(success=True))
+    return SuccessResponse(data=PasswordResetData(message="비밀번호가 성공적으로 변경되었습니다."))
 
 
 @router.delete("/withdraw", response_model=SuccessResponse[WithdrawData], summary="회원 탈퇴")
