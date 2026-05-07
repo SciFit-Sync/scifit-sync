@@ -53,7 +53,7 @@ class RegisterData(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -77,6 +77,10 @@ class LoginData(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+
+class LogoutData(BaseModel):
+    message: str
 
 
 class KakaoLoginRequest(BaseModel):
