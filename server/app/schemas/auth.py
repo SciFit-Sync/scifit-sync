@@ -139,9 +139,12 @@ class PasswordResetData(BaseModel):
     success: bool
 
 
+class WithdrawRequest(BaseModel):
+    password: str
+
+
 class WithdrawData(BaseModel):
-    user_id: str
-    success: bool
+    message: str
 
 
 class RefreshData(BaseModel):
