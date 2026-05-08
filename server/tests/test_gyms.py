@@ -143,6 +143,55 @@ async def client():
     app.dependency_overrides.clear()
 
 
+_GYM_BODY = {
+    "kakao_place_id": "12345",
+    "name": "테스트 헬스장",
+    "address": "서울 강남구 테헤란로",
+    "latitude": 37.4979,
+    "longitude": 127.0276,
+}
+
+
+# ── POST /gyms ────────────────────────────────────────────────────────────────
+
+
+class TestCreateGym:
+    @pytest.mark.asyncio
+    async def test_new_gym_returns_201(self, client):
+        """신규 헬스장 등록 시 201 반환."""
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post("/api/v1/gyms", json=_GYM_BODY)
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["success"] is True
+        assert "gym_id" in body["data"]
+        assert body["data"]["name"] == "테스트 헬스장"
+        assert body["data"]["message"] == "헬스장이 등록되었습니다."
+
+    @pytest.mark.asyncio
+    async def test_existing_gym_returns_200(self, client):
+        """이미 등록된 헬스장은 200 반환."""
+        db = _make_db(_exec_scalar(_mock_gym()))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post("/api/v1/gyms", json=_GYM_BODY)
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["data"]["gym_id"] == str(_GYM_ID)
+        assert body["data"]["message"] == "이미 등록된 헬스장입니다."
+
+    @pytest.mark.asyncio
+    async def test_missing_required_field_returns_400(self, client):
+        """필수 필드 누락 시 400."""
+        resp = await client.post("/api/v1/gyms", json={"name": "헬스장만"})
+        assert resp.status_code == 400
+
+
 # ── GET /gyms?keyword= ────────────────────────────────────────────────────────
 
 

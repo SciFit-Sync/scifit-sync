@@ -7,7 +7,7 @@ import logging
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -27,6 +27,7 @@ from app.models import (
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
+    CreateGymData,
     CreateGymRequest,
     EquipmentItem,
     GymEquipmentListData,
@@ -122,25 +123,23 @@ async def search_gyms(
 
 
 # ── POST /gyms ────────────────────────────────────────────────────────────────
-@router.post("", response_model=SuccessResponse[GymItem], status_code=201, summary="헬스장 등록")
+@router.post("", response_model=SuccessResponse[CreateGymData], status_code=201, summary="헬스장 등록")
 async def create_gym(
     body: CreateGymRequest,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if body.kakao_place_id:
-        existing = (await db.execute(select(Gym).where(Gym.kakao_place_id == body.kakao_place_id))).scalar_one_or_none()
-        if existing is not None:
-            return SuccessResponse(
-                data=GymItem(
-                    gym_id=str(existing.id),
-                    name=existing.name,
-                    address=existing.address,
-                    latitude=existing.latitude,
-                    longitude=existing.longitude,
-                    kakao_place_id=existing.kakao_place_id,
-                )
+    existing = (await db.execute(select(Gym).where(Gym.kakao_place_id == body.kakao_place_id))).scalar_one_or_none()
+    if existing is not None:
+        response.status_code = 200
+        return SuccessResponse(
+            data=CreateGymData(
+                gym_id=str(existing.id),
+                name=existing.name,
+                message="이미 등록된 헬스장입니다.",
             )
+        )
 
     gym = Gym(
         name=body.name,
@@ -153,14 +152,12 @@ async def create_gym(
     await db.commit()
     await db.refresh(gym)
 
+    logger.info("Gym created: %s (kakao_place_id=%s)", gym.id, gym.kakao_place_id)
     return SuccessResponse(
-        data=GymItem(
+        data=CreateGymData(
             gym_id=str(gym.id),
             name=gym.name,
-            address=gym.address,
-            latitude=gym.latitude,
-            longitude=gym.longitude,
-            kakao_place_id=gym.kakao_place_id,
+            message="헬스장이 등록되었습니다.",
         )
     )
 
