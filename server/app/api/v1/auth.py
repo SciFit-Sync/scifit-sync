@@ -71,7 +71,7 @@ def _hash_token(token: str) -> str:
 
 @router.post("/login", response_model=SuccessResponse[LoginData], summary="로그인")
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == body.email))
+    result = await db.execute(select(User).where(User.username == body.username))
     user = result.scalar_one_or_none()
 
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
@@ -162,19 +162,17 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()  # user.id 확보
 
-    # 프로필 생성 — 신규 스키마: gender/birth_date/height_cm/career_level은 NOT NULL.
-    # 모두 제공된 경우에만 생성하고, 그렇지 않으면 온보딩 단계에서 채우도록 둔다.
-    if (
-        body.gender is not None
-        and body.birth_date is not None
-        and body.height is not None
-        and body.career_level is not None
-    ):
+    # age → birth_date 변환 (1월 1일 기준 근사값)
+    birth_date = date_type(date_type.today().year - body.age, 1, 1) if body.age is not None else None
+
+    # 프로필 생성 — gender/birth_date/height_cm/career_level 모두 있을 때만 생성.
+    # 없으면 온보딩 단계에서 채운다.
+    if body.gender is not None and birth_date is not None and body.height is not None and body.career_level is not None:
         db.add(
             UserProfile(
                 user_id=user.id,
                 gender=Gender(body.gender),
-                birth_date=body.birth_date,
+                birth_date=birth_date,
                 height_cm=body.height,
                 default_goals=body.goals or None,
                 career_level=CareerLevel(body.career_level),
