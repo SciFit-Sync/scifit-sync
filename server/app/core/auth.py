@@ -4,8 +4,6 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-_bearer = HTTPBearer(auto_error=False)
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +12,8 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import UnauthorizedError
 from app.models.user import User
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(plain: str) -> str:
