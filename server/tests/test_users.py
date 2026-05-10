@@ -355,9 +355,9 @@ class TestAddPrimaryGym:
         gym = _mock_gym()
 
         db = _make_db(
-            _exec_scalar(gym),         # gym 존재 확인
-            _exec_scalars_all([]),     # 기존 primary 없음
-            _exec_scalar(None),        # UserGym 없음 → 새로 추가
+            _exec_scalar(gym),  # gym 존재 확인
+            _exec_scalars_all([]),  # 기존 primary 없음
+            _exec_scalar(None),  # UserGym 없음 → 새로 추가
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -378,9 +378,9 @@ class TestAddPrimaryGym:
         existing_ug = _mock_user_gym(is_primary=False)
 
         db = _make_db(
-            _exec_scalar(gym),            # gym 존재
-            _exec_scalars_all([]),        # 기존 primary 없음
-            _exec_scalar(existing_ug),   # UserGym 이미 있음 → primary 승격
+            _exec_scalar(gym),  # gym 존재
+            _exec_scalars_all([]),  # 기존 primary 없음
+            _exec_scalar(existing_ug),  # UserGym 이미 있음 → primary 승격
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -453,9 +453,9 @@ class TestListMyEquipment:
         gym.gym_equipments = [gym_eq]
 
         db = _make_db(
-            _exec_scalar(user_gym),       # primary gym
-            _exec_scalar(gym),            # gym with equipments
-            _exec_scalars_all([equipment]), # equipment 목록
+            _exec_scalar(user_gym),  # primary gym
+            _exec_scalar(gym),  # gym with equipments
+            _exec_scalars_all([equipment]),  # equipment 목록
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -488,8 +488,8 @@ class TestAddMyEquipment:
 
         db = _make_db(
             _exec_scalar(equipment),  # equipment 존재
-            _exec_scalar(user_gym),   # primary gym 있음
-            _exec_scalar(None),       # 중복 없음
+            _exec_scalar(user_gym),  # primary gym 있음
+            _exec_scalar(None),  # 중복 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -519,7 +519,7 @@ class TestAddMyEquipment:
 
         db = _make_db(
             _exec_scalar(equipment),  # equipment 있음
-            _exec_scalar(None),       # primary gym 없음
+            _exec_scalar(None),  # primary gym 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -538,8 +538,8 @@ class TestAddMyEquipment:
 
         db = _make_db(
             _exec_scalar(equipment),  # equipment 있음
-            _exec_scalar(user_gym),   # primary gym 있음
-            _exec_scalar(existing),   # 중복
+            _exec_scalar(user_gym),  # primary gym 있음
+            _exec_scalar(existing),  # 중복
         )
         app.dependency_overrides[get_db] = _db_override(db)
 

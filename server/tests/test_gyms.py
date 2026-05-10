@@ -290,9 +290,9 @@ class TestAddGymEquipment:
         equipment = _mock_equipment()
 
         db = _make_db(
-            _exec_scalar(gym),       # gym 존재 확인
-            _exec_scalar(equipment), # equipment 존재 확인
-            _exec_scalar(None),      # 중복 없음
+            _exec_scalar(gym),  # gym 존재 확인
+            _exec_scalar(equipment),  # equipment 존재 확인
+            _exec_scalar(None),  # 중복 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -324,7 +324,7 @@ class TestAddGymEquipment:
 
         db = _make_db(
             _exec_scalar(gym),  # gym 존재
-            _exec_scalar(None), # equipment 없음
+            _exec_scalar(None),  # equipment 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -346,9 +346,9 @@ class TestAddGymEquipment:
         existing_link = MagicMock(spec=GymEquipment)
 
         db = _make_db(
-            _exec_scalar(gym),           # gym 존재
-            _exec_scalar(equipment),     # equipment 존재
-            _exec_scalar(existing_link), # 이미 연결된 장비
+            _exec_scalar(gym),  # gym 존재
+            _exec_scalar(equipment),  # equipment 존재
+            _exec_scalar(existing_link),  # 이미 연결된 장비
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
