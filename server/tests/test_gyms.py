@@ -278,3 +278,92 @@ class TestReportEquipment:
         )
 
         assert resp.status_code == 404
+
+
+# ── POST /gyms/{gymId}/equipment ─────────────────────────────────────────────
+
+
+class TestAddGymEquipment:
+    @pytest.mark.asyncio
+    async def test_success(self, client):
+        gym = _mock_gym()
+        equipment = _mock_equipment()
+
+        db = _make_db(
+            _exec_scalar(gym),       # gym 존재 확인
+            _exec_scalar(equipment), # equipment 존재 확인
+            _exec_scalar(None),      # 중복 없음
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            f"/api/v1/gyms/{_GYM_ID}/equipment",
+            json={"equipment_id": str(_EQUIPMENT_ID), "quantity": 2},
+        )
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["success"] is True
+        assert body["data"]["equipment_id"] == str(_EQUIPMENT_ID)
+
+    @pytest.mark.asyncio
+    async def test_gym_not_found(self, client):
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            f"/api/v1/gyms/{uuid.uuid4()}/equipment",
+            json={"equipment_id": str(_EQUIPMENT_ID), "quantity": 1},
+        )
+
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_equipment_not_found(self, client):
+        gym = _mock_gym()
+
+        db = _make_db(
+            _exec_scalar(gym),  # gym 존재
+            _exec_scalar(None), # equipment 없음
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            f"/api/v1/gyms/{_GYM_ID}/equipment",
+            json={"equipment_id": str(uuid.uuid4()), "quantity": 1},
+        )
+
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_duplicate_equipment(self, client):
+        from unittest.mock import MagicMock
+
+        from app.models import GymEquipment
+
+        gym = _mock_gym()
+        equipment = _mock_equipment()
+        existing_link = MagicMock(spec=GymEquipment)
+
+        db = _make_db(
+            _exec_scalar(gym),           # gym 존재
+            _exec_scalar(equipment),     # equipment 존재
+            _exec_scalar(existing_link), # 이미 연결된 장비
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            f"/api/v1/gyms/{_GYM_ID}/equipment",
+            json={"equipment_id": str(_EQUIPMENT_ID), "quantity": 1},
+        )
+
+        assert resp.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_invalid_gym_id(self, client):
+        resp = await client.post(
+            "/api/v1/gyms/not-a-uuid/equipment",
+            json={"equipment_id": str(_EQUIPMENT_ID), "quantity": 1},
+        )
+
+        assert resp.status_code == 400
