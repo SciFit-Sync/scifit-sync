@@ -44,7 +44,6 @@ class User(TimestampMixin, Base):
         server_default=text("'local'"),
     )
     provider_id: Mapped[str | None] = mapped_column(String(100), default=None)
-    phone: Mapped[str | None] = mapped_column(String(20), default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_email_verified: Mapped[bool] = mapped_column(default=False)
 
