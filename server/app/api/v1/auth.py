@@ -72,11 +72,11 @@ def _hash_token(token: str) -> str:
 
 @router.post("/login", response_model=SuccessResponse[LoginData], summary="로그인")
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == body.username))
+    result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
-        raise UnauthorizedError(message="아이디 또는 비밀번호가 올바르지 않습니다.")
+        raise UnauthorizedError(message="이메일 또는 비밀번호가 올바르지 않습니다.")
 
     if not user.is_active:
         raise UnauthorizedError(message="비활성화된 계정입니다")
