@@ -16,6 +16,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 def _load_env() -> None:
     try:
         from dotenv import load_dotenv
+
         env_path = _PROJECT_ROOT / "mlops" / ".env"
         if env_path.exists():
             load_dotenv(env_path)
@@ -25,7 +26,7 @@ def _load_env() -> None:
 
 _load_env()
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")   # "gemini" | "openai"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")  # "gemini" | "openai"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -39,10 +40,9 @@ def _get_gemini():
     global _gemini_client
     if _gemini_client is None:
         if not GEMINI_API_KEY:
-            raise RuntimeError(
-                "GEMINI_API_KEY가 설정되지 않았습니다. mlops/.env에 추가하세요."
-            )
+            raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다. mlops/.env에 추가하세요.")
         from google import genai
+
         _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         logger.info("Gemini 초기화 완료: %s", GEMINI_MODEL)
     return _gemini_client
@@ -52,10 +52,9 @@ def _get_openai():
     global _openai_client
     if _openai_client is None:
         if not OPENAI_API_KEY:
-            raise RuntimeError(
-                "OPENAI_API_KEY가 설정되지 않았습니다. mlops/.env에 추가하세요."
-            )
+            raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다. mlops/.env에 추가하세요.")
         from openai import OpenAI
+
         _openai_client = OpenAI(api_key=OPENAI_API_KEY)
         logger.info("OpenAI 초기화 완료: %s", OPENAI_MODEL)
     return _openai_client

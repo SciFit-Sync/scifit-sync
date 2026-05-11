@@ -29,6 +29,7 @@ def _load_env() -> None:
     """로컬 개발 시 mlops/.env에서 환경변수를 로드한다."""
     try:
         from dotenv import load_dotenv
+
         env_path = _PROJECT_ROOT / "mlops" / ".env"
         if env_path.exists():
             load_dotenv(env_path)
@@ -43,6 +44,7 @@ _SERVICES_DIR = Path(__file__).resolve().parent
 if str(_SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVICES_DIR))
 from llm import generate as llm_generate  # noqa: E402, I001
+
 
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
@@ -71,6 +73,7 @@ def _get_collection():
     global _chroma_collection
     if _chroma_collection is None:
         import chromadb
+
         logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
         client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
         _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
@@ -83,6 +86,7 @@ def _get_embed_model():
     global _embed_model
     if _embed_model is None:
         from sentence_transformers import SentenceTransformer
+
         logger.info("임베딩 모델 로딩: %s", EMBEDDING_MODEL)
         _embed_model = SentenceTransformer(EMBEDDING_MODEL)
         logger.info("임베딩 모델 로딩 완료")
@@ -90,6 +94,7 @@ def _get_embed_model():
 
 
 # ── 핵심 함수 ─────────────────────────────────────────────────
+
 
 def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     """쿼리를 임베딩하여 ChromaDB에서 유사 청크를 검색한다.
@@ -121,13 +126,15 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
         # ChromaDB cosine distance → similarity (1 - distance)
         score = 1 - dist
         if score >= SIMILARITY_THRESHOLD:
-            chunks.append({
-                "content": doc,
-                "pmid": meta.get("paper_pmid", ""),
-                "title": meta.get("paper_title", ""),
-                "section": meta.get("section_name", ""),
-                "score": round(score, 4),
-            })
+            chunks.append(
+                {
+                    "content": doc,
+                    "pmid": meta.get("paper_pmid", ""),
+                    "title": meta.get("paper_title", ""),
+                    "section": meta.get("section_name", ""),
+                    "score": round(score, 4),
+                }
+            )
 
     logger.info("검색 결과: %d개 (threshold=%.2f 이상)", len(chunks), SIMILARITY_THRESHOLD)
     return chunks
@@ -183,10 +190,7 @@ def chat_rag(question: str) -> dict:
     # 3. 프롬프트 구성 (상위 5개 청크 사용)
     context = ""
     for i, chunk in enumerate(chunks[:5], 1):
-        context += (
-            f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n"
-            f"{chunk['content'][:400]}\n"
-        )
+        context += f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:400]}\n"
 
     prompt = (
         "You are a sports science expert. Answer the question based ONLY on the provided research papers.\n"
@@ -206,11 +210,13 @@ def chat_rag(question: str) -> dict:
     for chunk in chunks[:5]:
         if chunk["pmid"] not in seen:
             seen.add(chunk["pmid"])
-            sources.append({
-                "pmid": chunk["pmid"],
-                "title": chunk["title"],
-                "section": chunk["section"],
-            })
+            sources.append(
+                {
+                    "pmid": chunk["pmid"],
+                    "title": chunk["title"],
+                    "section": chunk["section"],
+                }
+            )
 
     return {
         "answer": answer,
@@ -221,10 +227,11 @@ def chat_rag(question: str) -> dict:
 @dataclass
 class UserProfile:
     """루틴 생성에 필요한 사용자 프로필."""
-    goal: str                              # hypertrophy / strength / endurance / rehabilitation
-    body_weight: float                     # kg
-    fitness_career: str                    # beginner / intermediate / advanced
-    days_per_week: int                     # 주당 운동 일수
+
+    goal: str  # hypertrophy / strength / endurance / rehabilitation
+    body_weight: float  # kg
+    fitness_career: str  # beginner / intermediate / advanced
+    days_per_week: int  # 주당 운동 일수
     available_equipment: list[str] = field(default_factory=list)  # 사용 가능한 기구
 
 
@@ -242,8 +249,8 @@ def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
     # 1. 목표별 검색 쿼리
     goal_queries = {
         "hypertrophy": "muscle hypertrophy resistance training volume sets reps",
-        "strength":    "strength training progressive overload 1RM powerlifting",
-        "endurance":   "muscular endurance high repetition aerobic training",
+        "strength": "strength training progressive overload 1RM powerlifting",
+        "endurance": "muscular endurance high repetition aerobic training",
         "rehabilitation": "rehabilitation exercise low intensity recovery injury",
     }
     query = goal_queries.get(profile.goal, profile.goal)
@@ -257,15 +264,10 @@ def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
     # 3. 컨텍스트 구성
     context = ""
     for i, chunk in enumerate(chunks[:5], 1):
-        context += (
-            f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n"
-            f"{chunk['content'][:300]}\n"
-        )
+        context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
 
     equipment_str = (
-        ", ".join(profile.available_equipment)
-        if profile.available_equipment
-        else "barbell, dumbbell, bodyweight"
+        ", ".join(profile.available_equipment) if profile.available_equipment else "barbell, dumbbell, bodyweight"
     )
 
     # 4. 루틴 생성 프롬프트
@@ -353,15 +355,18 @@ if __name__ == "__main__":
             days_per_week=3,
             available_equipment=["barbell", "dumbbell", "cable"],
         )
-        print(f"프로필: 목표={profile.goal}, 체중={profile.body_weight}kg, "
-              f"레벨={profile.fitness_career}, 주{profile.days_per_week}일\n")
+        print(
+            f"프로필: 목표={profile.goal}, 체중={profile.body_weight}kg, "
+            f"레벨={profile.fitness_career}, 주{profile.days_per_week}일\n"
+        )
 
         for event in routine_rag(profile):
             if event["type"] == "day_complete":
                 print(f"[Day {event['day']}] {event.get('focus', '')}")
                 for ex in event.get("exercises", []):
-                    print(f"  - {ex['name']}: {ex['sets']}세트 × {ex['reps']}회  "
-                          f"(휴식 {ex.get('rest_seconds', '?')}초)")
+                    print(
+                        f"  - {ex['name']}: {ex['sets']}세트 × {ex['reps']}회  (휴식 {ex.get('rest_seconds', '?')}초)"
+                    )
                     if ex.get("notes"):
                         print(f"    근거: {ex['notes'][:80]}")
                 print()
