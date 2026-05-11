@@ -150,7 +150,7 @@ def translate_to_english(text: str) -> str:
         translated = llm_generate(
             "Translate the following Korean fitness/exercise query to English. "
             "Return only the translation, no explanation.\n\n"
-            f"{text}"
+            f"<user_query>{text}</user_query>"
         )
         logger.info("번역: '%s' → '%s'", text[:30], translated[:50])
         return translated
@@ -192,12 +192,13 @@ def chat_rag(question: str) -> dict:
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:400]}\n"
 
+    safe_question = question.replace("</user_query>", "</ user_query>")
     prompt = (
         "You are a sports science expert. Answer the question based ONLY on the provided research papers.\n"
         "Always cite which paper supports each claim.\n"
         "If the papers don't contain relevant information, say so clearly.\n\n"
         f"Research papers:\n{context}\n"
-        f"<user_query>{question}</user_query>\n\n"
+        f"<user_query>{safe_question}</user_query>\n\n"
         "Answer in Korean. Be specific and cite paper titles."
     )
 
