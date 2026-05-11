@@ -57,6 +57,7 @@ from app.schemas.auth import (
     VerifyEmailData,
     VerifyEmailRequest,
     WithdrawData,
+    WithdrawRequest,
 )
 from app.schemas.common import SuccessResponse
 
@@ -357,9 +358,13 @@ async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(
 
 @router.delete("/withdraw", response_model=SuccessResponse[WithdrawData], summary="회원 탈퇴")
 async def withdraw(
+    body: WithdrawRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if not current_user.password_hash or not verify_password(body.password, current_user.password_hash):
+        raise UnauthorizedError(message="비밀번호가 올바르지 않습니다.")
+
     current_user.is_active = False
     # 모든 refresh token 무효화
     refresh_tokens = (
@@ -369,7 +374,9 @@ async def withdraw(
     for rt in refresh_tokens:
         rt.revoked_at = now_utc
     await db.commit()
-    return SuccessResponse(data=WithdrawData(user_id=str(current_user.id), success=True))
+
+    logger.info("User %s withdrew", current_user.id)
+    return SuccessResponse(data=WithdrawData(message="회원 탈퇴가 완료되었습니다."))
 
 
 @router.post("/verify-email", response_model=SuccessResponse[VerifyEmailData], summary="이메일 OTP 인증")
