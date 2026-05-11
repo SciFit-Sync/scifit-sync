@@ -14,9 +14,9 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +116,7 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
         results["documents"][0],
         results["metadatas"][0],
         results["distances"][0],
+        strict=False,
     ):
         # ChromaDB cosine distance → similarity (1 - distance)
         score = 1 - dist
