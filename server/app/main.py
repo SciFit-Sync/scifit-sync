@@ -32,6 +32,19 @@ def create_app() -> FastAPI:
         redoc_url=None if settings.ENV == "production" else "/redoc",
     )
 
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+        schema.setdefault("components", {})["securitySchemes"] = {"HTTPBearer": {"type": "http", "scheme": "bearer"}}
+        for path in schema["paths"].values():
+            for operation in path.values():
+                operation["security"] = [{"HTTPBearer": []}]
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = custom_openapi  # type: ignore[method-assign]
+
     app.add_middleware(RequestIdMiddleware)
 
     app.add_exception_handler(AppError, app_error_handler)
