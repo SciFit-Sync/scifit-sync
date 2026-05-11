@@ -8,6 +8,10 @@ biopython>=1.84,<2.0.0
 chromadb>=1.0.0,<2.0.0
 sentence-transformers>=3.0.0,<6.0.0
 
+# LLM
+google-genai>=1.0.0,<2.0.0
+openai>=1.0.0,<2.0.0
+
 # 청킹 (토큰 카운트)
 tiktoken>=0.8.0,<1.0.0
 
