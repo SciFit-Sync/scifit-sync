@@ -64,7 +64,7 @@ jobs:
       - name: Run server tests
         run: |
           pytest server/tests/ -v --tb=short \
-            --cov=server/app \
+            --cov=app \
             --cov-report=term-missing
         env:
           PYTHONPATH: server

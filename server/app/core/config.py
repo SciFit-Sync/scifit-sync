@@ -32,6 +32,10 @@ class Settings(BaseSettings):
 
     # ChromaDB
     CHROMA_PERSIST_PATH: str = "/chroma-data"
+    CHROMA_COLLECTION_NAME: str = "paper_chunks"
+
+    # Admin
+    ADMIN_API_TOKEN: str = ""
 
     # Environment
     ENV: str = "development"

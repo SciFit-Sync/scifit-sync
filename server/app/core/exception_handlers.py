@@ -35,6 +35,11 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     request_id = getattr(request.state, "request_id", None)
+    safe_errors = []
+    for err in exc.errors():
+        if "ctx" in err and isinstance(err["ctx"].get("error"), Exception):
+            err = {**err, "ctx": {"error": str(err["ctx"]["error"])}}
+        safe_errors.append(err)
     return JSONResponse(
         status_code=400,
         content={
@@ -42,7 +47,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "입력값이 올바르지 않습니다",
-                "details": {"errors": exc.errors()},
+                "details": {"errors": safe_errors},
                 "request_id": request_id,
             },
         },

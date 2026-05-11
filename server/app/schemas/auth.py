@@ -1,7 +1,8 @@
 import re
-from datetime import date
 
 from pydantic import BaseModel, EmailStr, field_validator
+
+_VALID_GOALS = {"hypertrophy", "strength", "endurance", "rehabilitation", "weight_loss"}
 
 
 class RegisterRequest(BaseModel):
@@ -10,7 +11,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     gender: str | None = None
-    birth_date: date | None = None
+    age: int | None = None
     height: float | None = None
     weight: float | None = None
     career_level: str | None = None
@@ -32,6 +33,44 @@ class RegisterRequest(BaseModel):
             raise ValueError("비밀번호는 8자 이상이어야 합니다")
         return v
 
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.lower()
+        if v not in ("male", "female"):
+            raise ValueError("gender는 'male' 또는 'female'이어야 합니다")
+        return v
+
+    @field_validator("age")
+    @classmethod
+    def validate_age(cls, v: int | None) -> int | None:
+        if v is not None and not (10 <= v <= 100):
+            raise ValueError("나이는 10~100 사이여야 합니다")
+        return v
+
+    @field_validator("career_level")
+    @classmethod
+    def validate_career_level(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.lower()
+        if v not in ("beginner", "novice", "intermediate", "advanced"):
+            raise ValueError("career_level은 beginner/novice/intermediate/advanced 중 하나여야 합니다")
+        return v
+
+    @field_validator("goals")
+    @classmethod
+    def validate_goals(cls, v: list[str]) -> list[str]:
+        result = []
+        for goal in v:
+            g = goal.lower()
+            if g not in _VALID_GOALS:
+                raise ValueError(f"goals 허용값: {sorted(_VALID_GOALS)}")
+            result.append(g)
+        return result
+
 
 class RegisterData(BaseModel):
     user_id: str
@@ -39,7 +78,7 @@ class RegisterData(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -100,11 +139,33 @@ class PasswordResetData(BaseModel):
     success: bool
 
 
+class WithdrawRequest(BaseModel):
+    password: str
+
+
 class WithdrawData(BaseModel):
-    user_id: str
-    success: bool
+    message: str
 
 
 class RefreshData(BaseModel):
     access_token: str
     refresh_token: str
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+class VerifyEmailData(BaseModel):
+    verified: bool
+    message: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: EmailStr
+
+
+class ResendOtpData(BaseModel):
+    sent: bool
+    message: str

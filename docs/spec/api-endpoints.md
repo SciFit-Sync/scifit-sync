@@ -44,55 +44,57 @@ data: [DONE]
 
 ## 전체 엔드포인트
 
-| # | Method | Path | Auth |
-|---|---|---|---|
-| 1 | POST | /auth/register | No |
-| 2 | POST | /auth/login | No |
-| 3 | POST | /auth/oauth/kakao | No |
-| 4 | POST | /auth/logout | Yes |
-| 5 | GET | /auth/check-username | No |
-| 6 | POST | /auth/password/reset-email | No |
-| 7 | PATCH | /auth/password/reset | No |
-| 8 | DELETE | /auth/withdraw | Yes |
-| 9 | GET | /users/me | Yes |
-| 10 | PATCH | /users/me/body | Yes |
-| 11 | PATCH | /users/me/goal | Yes |
-| 12 | PATCH | /users/me/career | Yes |
-| 13 | POST | /users/me/gym | Yes |
-| 14 | PATCH | /users/me/gym | Yes |
-| 15 | POST | /users/me/1rm | Yes |
-| 16 | PATCH | /users/me/1rm | Yes |
-| 17 | POST | /users/me/equipment | Yes |
-| 18 | GET | /gyms?keyword= | Yes |
-| 19 | GET | /gyms/{gymId}/equipment | Yes |
-| 20 | POST | /gyms/{gymId}/equipment/report | Yes |
-| 21 | POST | /routines/generate (SSE) | Yes |
-| 22 | GET | /routines | Yes |
-| 23 | GET | /routines/{id} | Yes |
-| 24 | PATCH | /routines/{id}/name | Yes |
-| 25 | PATCH | /routines/{id}/exercises/{exId} | Yes |
-| 26 | POST | /routines/{id}/regenerate | Yes |
-| 27 | DELETE | /routines/{id} | Yes |
-| 28 | GET | /routines/{id}/exercises/{exId}/paper | Yes |
-| 29 | GET | /home | Yes |
-| 30 | POST | /sessions | Yes |
-| 31 | POST | /sessions/{id}/sets | Yes |
-| 32 | PATCH | /sessions/{id}/finish | Yes |
-| 33 | GET | /sessions?year=&month= | Yes |
-| 34 | GET | /sessions/stats | Yes |
-| 35 | GET | /sessions/analysis/volume | Yes |
-| 36 | GET | /sessions/{id}/rest-timer | Yes |
-| 37 | POST | /chat/messages (SSE) | Yes |
-| 38 | GET | /chat/messages | Yes |
-| 39 | GET | /chat/recommended-routines | Yes |
-| 40 | GET | /notifications | Yes |
-| 41 | PATCH | /notifications/{id}/read | Yes |
-| 42 | POST | /auth/refresh | No |
-| 43 | GET | /users/me/1rm | Yes |
-| 44 | POST | /gyms | Yes |
-| 45 | POST | /gyms/{id}/equipment | Yes |
-| 46 | GET | /equipment | Yes |
-| 47 | GET | /exercises | Yes |
-| 48 | GET | /sessions/{id} | Yes |
-| 49 | GET | /health | No |
-| 50 | GET | /users/me/equipment | Yes |
+> **상태 범례**: ✅ 구현 완료 | ⚠️ 스텁(부분 구현) | ❌ 미구현
+
+| # | Method | Path | Auth | 상태 | 비고 |
+|---|---|---|---|---|---|
+| 1 | POST | /auth/register | No | ⚠️ | OTP 이메일 인증 미구현 (D-01) |
+| 2 | POST | /auth/login | No | ✅ | |
+| 3 | POST | /auth/oauth/kakao | No | ✅ | |
+| 4 | POST | /auth/logout | Yes | ✅ | |
+| 5 | GET | /auth/check-username | No | ✅ | |
+| 6 | POST | /auth/password/reset-email | No | ✅ | |
+| 7 | PATCH | /auth/password/reset | No | ✅ | |
+| 8 | DELETE | /auth/withdraw | Yes | ✅ | |
+| 9 | GET | /users/me | Yes | ✅ | |
+| 10 | PATCH | /users/me/body | Yes | ✅ | |
+| 11 | PATCH | /users/me/goal | Yes | ✅ | |
+| 12 | PATCH | /users/me/career | Yes | ✅ | |
+| 13 | POST | /users/me/gym | Yes | ✅ | |
+| 14 | PATCH | /users/me/gym | Yes | ✅ | |
+| 15 | POST | /users/me/1rm | Yes | ✅ | |
+| 16 | PATCH | /users/me/1rm | Yes | ✅ | |
+| 17 | POST | /users/me/equipment | Yes | ✅ | |
+| 18 | GET | /gyms?keyword= | Yes | ✅ | |
+| 19 | GET | /gyms/{gymId}/equipment | Yes | ✅ | |
+| 20 | POST | /gyms/{gymId}/equipment/report | Yes | ✅ | |
+| 21 | POST | /routines/generate (SSE) | Yes | ⚠️ | rag.py 미구현으로 SSE 스텁 |
+| 22 | GET | /routines | Yes | ✅ | |
+| 23 | GET | /routines/{id} | Yes | ✅ | |
+| 24 | PATCH | /routines/{id}/name | Yes | ✅ | |
+| 25 | PATCH | /routines/{id}/exercises/{exId} | Yes | ✅ | |
+| 26 | POST | /routines/{id}/regenerate | Yes | ⚠️ | rag.py 미구현으로 SSE 스텁 |
+| 27 | DELETE | /routines/{id} | Yes | ✅ | |
+| 28 | GET | /routines/{id}/exercises/{exId}/paper | Yes | ✅ | |
+| 29 | GET | /home | Yes | ✅ | |
+| 30 | POST | /sessions | Yes | ✅ | |
+| 31 | POST | /sessions/{id}/sets | Yes | ✅ | |
+| 32 | PATCH | /sessions/{id}/finish | Yes | ✅ | |
+| 33 | GET | /sessions?year=&month= | Yes | ✅ | |
+| 34 | GET | /sessions/stats | Yes | ✅ | |
+| 35 | GET | /sessions/analysis/volume | Yes | ✅ | |
+| 36 | GET | /sessions/{id}/rest-timer | Yes | ✅ | |
+| 37 | POST | /chat/messages (SSE) | Yes | ⚠️ | 메시지 저장은 되나 RAG 응답 미구현 |
+| 38 | GET | /chat/messages | Yes | ✅ | |
+| 39 | GET | /chat/recommended-routines | Yes | ⚠️ | 빈 배열 반환 스텁 |
+| 40 | GET | /notifications | Yes | ✅ | |
+| 41 | PATCH | /notifications/{id}/read | Yes | ✅ | |
+| 42 | POST | /auth/refresh | No | ✅ | |
+| 43 | GET | /users/me/1rm | Yes | ✅ | |
+| 44 | POST | /gyms | Yes | ✅ | |
+| 45 | POST | /gyms/{id}/equipment | Yes | ✅ | |
+| 46 | GET | /equipment | Yes | ✅ | |
+| 47 | GET | /exercises | Yes | ✅ | |
+| 48 | GET | /sessions/{id} | Yes | ✅ | |
+| 49 | GET | /health | No | ✅ | |
+| 50 | GET | /users/me/equipment | Yes | ✅ | |

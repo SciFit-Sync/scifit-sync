@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,8 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import UnauthorizedError
 from app.models.user import User
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(plain: str) -> str:
@@ -61,6 +64,7 @@ def verify_token(token: str, expected_type: str = "access") -> dict:
 
 async def get_current_user(
     request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     auth_header = request.headers.get("Authorization")
