@@ -42,7 +42,7 @@ _load_env()
 _SERVICES_DIR = Path(__file__).resolve().parent
 if str(_SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVICES_DIR))
-from llm import generate as llm_generate  # noqa: E402
+from llm import generate as llm_generate  # noqa: E402, I001
 
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
