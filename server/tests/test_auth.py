@@ -307,10 +307,19 @@ class TestWithdraw:
         db = _make_db(_exec_scalars_all([rt]))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await auth_client.delete("/api/v1/auth/withdraw")
+        resp = await auth_client.request("DELETE", "/api/v1/auth/withdraw", json={"password": "password123"})
 
         assert resp.status_code == 200
-        assert resp.json()["data"]["success"] is True
+        assert resp.json()["data"]["message"] == "회원 탈퇴가 완료되었습니다."
+
+    @pytest.mark.asyncio
+    async def test_wrong_password(self, auth_client):
+        db = _make_db(_exec_scalars_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await auth_client.request("DELETE", "/api/v1/auth/withdraw", json={"password": "wrong"})
+
+        assert resp.status_code == 401
 
 
 # ── POST /auth/password/reset-email ──────────────────────────────────────────
