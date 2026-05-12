@@ -23,6 +23,7 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models import (
     Equipment,
+    EquipmentBrand,
     Exercise,
     Paper,
     RoutineDay,
@@ -37,13 +38,15 @@ from app.schemas.routines import (
     GenerateRoutineRequest,
     PaperItem,
     RegenerateRoutineRequest,
+    ReplacedExerciseData,
+    ReplaceRoutineExerciseData,
+    ReplaceRoutineExerciseRequest,
     RoutineDayItem,
     RoutineDetail,
     RoutineExerciseItem,
     RoutineExercisePapersData,
     RoutineListData,
     RoutineSummary,
-    UpdateRoutineExerciseRequest,
     UpdateRoutineNameRequest,
 )
 
@@ -222,13 +225,13 @@ async def rename_routine(
 # ── PATCH /routines/{id}/exercises/{exId} ─────────────────────────────────────
 @router.patch(
     "/{routine_id}/exercises/{routine_exercise_id}",
-    response_model=SuccessResponse[RoutineExerciseItem],
-    summary="루틴 운동 수정",
+    response_model=SuccessResponse[ReplaceRoutineExerciseData],
+    summary="루틴 종목 교체",
 )
-async def update_routine_exercise(
+async def replace_routine_exercise(
     routine_id: str,
     routine_exercise_id: str,
-    body: UpdateRoutineExerciseRequest,
+    body: ReplaceRoutineExerciseRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -238,27 +241,41 @@ async def update_routine_exercise(
     if rex is None:
         raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
 
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(rex, field, value)
+    new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
+    new_exercise = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
+    if new_exercise is None:
+        raise NotFoundError(message="교체할 종목을 찾을 수 없습니다.")
+
+    rex.exercise_id = new_ex_id
     await db.commit()
     await db.refresh(rex)
 
-    ex_name = (await db.execute(select(Exercise.name).where(Exercise.id == rex.exercise_id))).scalar_one_or_none() or ""
+    # 장비 이름 및 브랜드 조회
+    equipment_name: str | None = None
+    brand_name: str | None = None
+    if rex.equipment_id:
+        eq_row = (
+            await db.execute(
+                select(Equipment.name, EquipmentBrand.name)
+                .outerjoin(EquipmentBrand, Equipment.brand_id == EquipmentBrand.id)
+                .where(Equipment.id == rex.equipment_id)
+            )
+        ).one_or_none()
+        if eq_row:
+            equipment_name, brand_name = eq_row
 
     return SuccessResponse(
-        data=RoutineExerciseItem(
-            routine_exercise_id=str(rex.id),
-            exercise_id=str(rex.exercise_id),
-            exercise_name=ex_name,
-            equipment_id=str(rex.equipment_id) if rex.equipment_id else None,
-            equipment_name=None,
-            order_index=rex.order_index,
-            sets=rex.sets,
-            reps_min=rex.reps_min,
-            reps_max=rex.reps_max,
-            weight_kg=rex.weight_kg,
-            rest_seconds=rex.rest_seconds,
-            note=rex.note,
+        data=ReplaceRoutineExerciseData(
+            message="종목이 교체되었습니다.",
+            new_exercise=ReplacedExerciseData(
+                exercise_id=str(new_exercise.id),
+                name=new_exercise.name,
+                equipment=equipment_name,
+                brand=brand_name,
+                sets=rex.sets,
+                reps_min=rex.reps_min,
+                reps_max=rex.reps_max,
+            ),
         )
     )
 

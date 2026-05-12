@@ -93,3 +93,23 @@ class PaperItem(BaseModel):
 class RoutineExercisePapersData(BaseModel):
     routine_exercise_id: str
     items: list[PaperItem]
+
+
+# ── 종목 교체 ─────────────────────────────────────────────────────────────────
+class ReplaceRoutineExerciseRequest(BaseModel):
+    new_exercise_id: str
+
+
+class ReplacedExerciseData(BaseModel):
+    exercise_id: str
+    name: str
+    equipment: str | None = None
+    brand: str | None = None
+    sets: int
+    reps_min: int | None = None
+    reps_max: int | None = None
+
+
+class ReplaceRoutineExerciseData(BaseModel):
+    message: str
+    new_exercise: ReplacedExerciseData
