@@ -54,10 +54,11 @@ class RoutineListData(BaseModel):
 # ── 생성/재생성 ───────────────────────────────────────────────────────────────
 class GenerateRoutineRequest(BaseModel):
     goals: list[str]
-    split_type: str | None = None
-    session_duration_minutes: int | None = None
     target_muscle_group_ids: list[str] = Field(default_factory=list)
+    session_duration_minutes: int | None = None
+    split_type: str | None = None
     gym_id: str | None = None
+    injury: str | None = Field(default=None, description="부상 정보 (예: 허리 통증으로 하체 운동 제외)")
 
 
 class RegenerateRoutineRequest(BaseModel):
