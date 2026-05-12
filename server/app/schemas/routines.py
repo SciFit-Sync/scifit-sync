@@ -19,6 +19,7 @@ class RoutineExerciseItem(BaseModel):
     weight_kg: float | None = None
     rest_seconds: int
     note: str | None = None
+    has_paper: bool = False
 
 
 class RoutineDayItem(BaseModel):

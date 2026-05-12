@@ -94,6 +94,15 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         rows = (await db.execute(select(Equipment.id, Equipment.name).where(Equipment.id.in_(eq_ids)))).all()
         eq_name_map = {str(eid): name for eid, name in rows}
 
+    # 논문이 연결된 routine_exercise_id 집합
+    paper_rows = await db.execute(
+        select(RoutinePaper.routine_exercise_id).where(
+            RoutinePaper.routine_id == r.id,
+            RoutinePaper.routine_exercise_id.isnot(None),
+        )
+    )
+    exercise_ids_with_papers: set[str] = {str(row[0]) for row in paper_rows.all()}
+
     day_dtos: list[RoutineDayItem] = []
     for d in days:
         ex_dtos = [
@@ -110,6 +119,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 weight_kg=ex.weight_kg,
                 rest_seconds=ex.rest_seconds,
                 note=ex.note,
+                has_paper=str(ex.id) in exercise_ids_with_papers,
             )
             for ex in sorted(d.exercises, key=lambda e: e.order_index)
         ]
