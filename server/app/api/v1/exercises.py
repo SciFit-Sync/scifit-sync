@@ -46,9 +46,7 @@ async def list_exercises(
         )
         stmt = stmt.where(Exercise.id.in_(muscle_ex_subq))
 
-    total_count: int = (
-        await db.execute(select(func.count()).select_from(stmt.subquery()))
-    ).scalar_one()
+    total_count: int = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
 
     total_pages = (total_count + size - 1) // size
 
@@ -86,8 +84,9 @@ async def list_exercises(
     # 종목별 첫 번째 equipment_id
     eq_rows = (
         await db.execute(
-            select(ExerciseEquipmentMap.exercise_id, ExerciseEquipmentMap.equipment_id)
-            .where(ExerciseEquipmentMap.exercise_id.in_(ex_ids))
+            select(ExerciseEquipmentMap.exercise_id, ExerciseEquipmentMap.equipment_id).where(
+                ExerciseEquipmentMap.exercise_id.in_(ex_ids)
+            )
         )
     ).all()
 
