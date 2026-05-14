@@ -248,7 +248,7 @@ class TestGet1RM:
         orm = MagicMock(spec=UserExercise1RM)
         orm.weight_kg = 100.0
 
-        db = _make_db(_exec_all([(orm, "벤치프레스")]))
+        db = _make_db(_exec_all([(orm, "벤치 프레스")]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/users/me/1rm")
@@ -268,10 +268,10 @@ class TestGet1RM:
         db = _make_db(
             _exec_all(
                 [
-                    (_orm(80.0), "벤치프레스"),
+                    (_orm(80.0), "벤치 프레스"),
                     (_orm(100.0), "스쿼트"),
                     (_orm(120.0), "데드리프트"),
-                    (_orm(60.0), "오버헤드프레스"),
+                    (_orm(60.0), "오버헤드 프레스"),
                 ]
             )
         )
@@ -295,7 +295,7 @@ class TestSet1RM:
     async def test_success_single_field(self, client):
         exercise = MagicMock(spec=Exercise)
         exercise.id = _EXERCISE_ID
-        exercise.name = "벤치프레스"
+        exercise.name = "벤치 프레스"
 
         db = _make_db(_exec_scalar(exercise))
         app.dependency_overrides[get_db] = _db_override(db)
@@ -319,10 +319,10 @@ class TestSet1RM:
             return e
 
         db = _make_db(
-            _exec_scalar(_ex("벤치프레스")),
+            _exec_scalar(_ex("벤치 프레스")),
             _exec_scalar(_ex("스쿼트")),
             _exec_scalar(_ex("데드리프트")),
-            _exec_scalar(_ex("오버헤드프레스")),
+            _exec_scalar(_ex("오버헤드 프레스")),
         )
         app.dependency_overrides[get_db] = _db_override(db)
 

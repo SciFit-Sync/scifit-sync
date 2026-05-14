@@ -237,10 +237,10 @@ async def change_primary_gym(
 # ── 1RM (Big 4) ───────────────────────────────────────────────────────────────
 # API 명세서 기준 4대 운동 필드명 ↔ DB 운동명 매핑
 _BIG_LIFT_MAP: dict[str, str] = {
-    "bench_press": "벤치프레스",
+    "bench_press": "벤치 프레스",
     "squat": "스쿼트",
     "deadlift": "데드리프트",
-    "overhead_press": "오버헤드프레스",
+    "overhead_press": "오버헤드 프레스",
 }
 
 
