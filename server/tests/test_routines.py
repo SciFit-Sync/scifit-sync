@@ -15,7 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.main import app
-from app.models import User
+from app.models import Paper, RoutinePaper, User
 from app.models.routine import (
     GeneratedBy,
     RoutineExercise,
@@ -543,5 +543,63 @@ class TestRegenerateRoutine:
             f"/api/v1/routines/{_ROUTINE_ID}/regenerate",
             json={},
         )
+
+        assert resp.status_code == 404
+
+
+# ── GET /routines/{id}/exercises/{exId}/paper (논문 근거 조회) ─────────────────
+
+
+class TestGetRoutineExercisePapers:
+    @pytest.mark.asyncio
+    async def test_success_with_papers(self, client):
+        r = _routine()
+        rp = MagicMock(spec=RoutinePaper)
+        rp.relevance_summary = "근비대에 효과적임"
+        p = MagicMock(spec=Paper)
+        p.id = _PAPER_ID
+        p.title = "Effect of resistance training on hypertrophy"
+        p.authors = "Smith et al."
+        p.journal = "JSCR"
+        p.year = 2023
+        p.doi = None
+        p.pmid = None
+
+        db = _make_db(
+            _exec_scalar(r),  # _get_my_routine
+            _exec_all([(rp, p)]),  # RoutinePaper + Paper 조인
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["routine_exercise_id"] == str(_REX_ID)
+        assert len(data["items"]) == 1
+        assert data["items"][0]["title"] == "Effect of resistance training on hypertrophy"
+        assert data["items"][0]["relevance_summary"] == "근비대에 효과적임"
+
+    @pytest.mark.asyncio
+    async def test_empty_papers(self, client):
+        r = _routine()
+        db = _make_db(
+            _exec_scalar(r),
+            _exec_all([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["items"] == []
+
+    @pytest.mark.asyncio
+    async def test_routine_not_found(self, client):
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
 
         assert resp.status_code == 404
