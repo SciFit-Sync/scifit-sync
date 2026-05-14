@@ -252,19 +252,17 @@ async def replace_routine_exercise(
         await db.commit()
         await db.refresh(rex)
         return SuccessResponse(
-            data=RoutineExerciseItem(
-                routine_exercise_id=str(rex.id),
-                exercise_id=str(rex.exercise_id),
-                exercise_name=new_ex.name,
-                equipment_id=None,
-                equipment_name=None,
-                order_index=rex.order_index,
-                sets=rex.sets,
-                reps_min=rex.reps_min,
-                reps_max=rex.reps_max,
-                weight_kg=rex.weight_kg,
-                rest_seconds=rex.rest_seconds,
-                note=rex.note,
+            data=ReplaceRoutineExerciseData(
+                message="종목이 교체되었습니다.",
+                new_exercise=ReplacedExerciseData(
+                    exercise_id=str(new_ex.id),
+                    name=new_ex.name,
+                    equipment=None,
+                    brand=None,
+                    sets=rex.sets,
+                    reps_min=rex.reps_min,
+                    reps_max=rex.reps_max,
+                ),
             )
         )
 
@@ -275,7 +273,8 @@ async def replace_routine_exercise(
     await db.commit()
     await db.refresh(rex)
 
-    # 장비 이름 및 브랜드 조회
+    # 현재 종목 및 장비 정보 조회
+    cur_ex = (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
     equipment_name: str | None = None
     brand_name: str | None = None
     if rex.equipment_id:
@@ -291,10 +290,10 @@ async def replace_routine_exercise(
 
     return SuccessResponse(
         data=ReplaceRoutineExerciseData(
-            message="종목이 교체되었습니다.",
+            message="세부 정보가 수정되었습니다.",
             new_exercise=ReplacedExerciseData(
-                exercise_id=str(new_exercise.id),
-                name=new_exercise.name,
+                exercise_id=str(rex.exercise_id),
+                name=cur_ex.name if cur_ex else "",
                 equipment=equipment_name,
                 brand=brand_name,
                 sets=rex.sets,
