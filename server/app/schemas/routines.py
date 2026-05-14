@@ -71,6 +71,7 @@ class UpdateRoutineNameRequest(BaseModel):
 
 
 class UpdateRoutineExerciseRequest(BaseModel):
+    new_exercise_id: str | None = None
     sets: int | None = Field(default=None, ge=1)
     reps_min: int | None = Field(default=None, ge=1)
     reps_max: int | None = Field(default=None, ge=1)
