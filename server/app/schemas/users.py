@@ -1,6 +1,6 @@
 """사용자 도메인 Pydantic 스키마."""
 
-from datetime import date, datetime
+from datetime import date
 
 from pydantic import BaseModel, Field
 
@@ -67,24 +67,21 @@ class SetPrimaryGymRequest(BaseModel):
     gym_id: str
 
 
-# ── 1RM ───────────────────────────────────────────────────────────────────────
-class Add1RMRequest(BaseModel):
-    exercise_id: str
-    weight_kg: float
-    reps: int | None = Field(default=None, description="제공 시 Epley 공식으로 1RM 추정")
+# ── 1RM (Big 4) ───────────────────────────────────────────────────────────────
+class Set1RMRequest(BaseModel):
+    unit: str = Field(default="KG", description="중량 단위 (KG)")
+    bench_press: float | None = Field(default=None, ge=0, description="벤치프레스 1RM (kg)")
+    squat: float | None = Field(default=None, ge=0, description="스쿼트 1RM (kg)")
+    deadlift: float | None = Field(default=None, ge=0, description="데드리프트 1RM (kg)")
+    overhead_press: float | None = Field(default=None, ge=0, description="오버헤드프레스 1RM (kg)")
 
 
-class OneRMData(BaseModel):
-    id: str
-    exercise_id: str
-    exercise_name: str | None = None
-    weight_kg: float
-    source: str
-    estimated_at: datetime
-
-
-class OneRMListData(BaseModel):
-    items: list[OneRMData]
+class OneRM4BigLiftData(BaseModel):
+    unit: str
+    bench_press: float | None = None
+    squat: float | None = None
+    deadlift: float | None = None
+    overhead_press: float | None = None
 
 
 # ── /users/me/equipment ───────────────────────────────────────────────────────
