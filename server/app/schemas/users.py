@@ -1,6 +1,7 @@
 """사용자 도메인 Pydantic 스키마."""
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -69,11 +70,11 @@ class SetPrimaryGymRequest(BaseModel):
 
 # ── 1RM (Big 4) ───────────────────────────────────────────────────────────────
 class Set1RMRequest(BaseModel):
-    unit: str = Field(default="KG", description="중량 단위 (KG)")
-    bench_press: float | None = Field(default=None, ge=0, description="벤치프레스 1RM (kg)")
-    squat: float | None = Field(default=None, ge=0, description="스쿼트 1RM (kg)")
-    deadlift: float | None = Field(default=None, ge=0, description="데드리프트 1RM (kg)")
-    overhead_press: float | None = Field(default=None, ge=0, description="오버헤드프레스 1RM (kg)")
+    unit: Literal["KG"] = Field(default="KG", description="중량 단위 (KG만 지원)")
+    bench_press: float | None = Field(default=None, gt=0, description="벤치프레스 1RM (kg)")
+    squat: float | None = Field(default=None, gt=0, description="스쿼트 1RM (kg)")
+    deadlift: float | None = Field(default=None, gt=0, description="데드리프트 1RM (kg)")
+    overhead_press: float | None = Field(default=None, gt=0, description="오버헤드프레스 1RM (kg)")
 
 
 class OneRM4BigLiftData(BaseModel):

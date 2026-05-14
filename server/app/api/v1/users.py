@@ -244,31 +244,43 @@ _BIG_LIFT_MAP: dict[str, str] = {
 }
 
 
+async def _save_1rm_records(body: Set1RMRequest, user_id: uuid.UUID, db: AsyncSession) -> dict[str, float | None]:
+    """4대 운동 1RM을 DB에 저장하고 저장된 필드별 weight를 반환한다.
+
+    IN 쿼리 1회로 필요한 운동을 일괄 조회하여 N+1 쿼리를 방지한다.
+    """
+    # 요청에 포함된 필드만 필터링
+    requested: dict[str, float] = {
+        field: getattr(body, field) for field in _BIG_LIFT_MAP if getattr(body, field) is not None
+    }
+    result_weights: dict[str, float | None] = {k: None for k in _BIG_LIFT_MAP}
+    if not requested:
+        return result_weights
+
+    # 필요한 운동명만 IN 쿼리로 일괄 조회 (N+1 방지)
+    needed_names = [_BIG_LIFT_MAP[f] for f in requested]
+    exercises = (await db.execute(select(Exercise).where(Exercise.name.in_(needed_names)))).scalars().all()
+    ex_by_name = {e.name: e for e in exercises}
+
+    for field_name, weight in requested.items():
+        exercise = ex_by_name.get(_BIG_LIFT_MAP[field_name])
+        if exercise is None:
+            continue
+        db.add(UserExercise1RM(user_id=user_id, exercise_id=exercise.id, weight_kg=weight, source=OnermSource.MANUAL))
+        result_weights[field_name] = weight
+
+    await db.commit()
+    return result_weights
+
+
 @router.post("/me/1rm", response_model=SuccessResponse[OneRM4BigLiftData], status_code=201, summary="1RM 설정")
 async def set_1rm(
     body: Set1RMRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result_weights: dict[str, float | None] = {k: None for k in _BIG_LIFT_MAP}
-    for field_name, exercise_name in _BIG_LIFT_MAP.items():
-        weight = getattr(body, field_name)
-        if weight is None:
-            continue
-        exercise = (await db.execute(select(Exercise).where(Exercise.name == exercise_name))).scalar_one_or_none()
-        if exercise is None:
-            continue
-        db.add(
-            UserExercise1RM(
-                user_id=current_user.id,
-                exercise_id=exercise.id,
-                weight_kg=weight,
-                source=OnermSource.MANUAL,
-            )
-        )
-        result_weights[field_name] = weight
-    await db.commit()
-    return SuccessResponse(data=OneRM4BigLiftData(unit=body.unit, **result_weights))
+    result_weights = await _save_1rm_records(body, current_user.id, db)
+    return SuccessResponse(data=OneRM4BigLiftData(unit="KG", **result_weights))
 
 
 @router.patch("/me/1rm", response_model=SuccessResponse[OneRM4BigLiftData], summary="1RM 수정")
@@ -277,7 +289,8 @@ async def update_1rm(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await set_1rm(body, current_user, db)
+    result_weights = await _save_1rm_records(body, current_user.id, db)
+    return SuccessResponse(data=OneRM4BigLiftData(unit="KG", **result_weights))
 
 
 @router.get("/me/1rm", response_model=SuccessResponse[OneRM4BigLiftData], summary="1RM 데이터 조회")

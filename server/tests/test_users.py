@@ -297,7 +297,8 @@ class TestSet1RM:
         exercise.id = _EXERCISE_ID
         exercise.name = "벤치 프레스"
 
-        db = _make_db(_exec_scalar(exercise))
+        # IN 쿼리 1회 → scalars().all() 반환
+        db = _make_db(_exec_scalars_all([exercise]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(
@@ -318,11 +319,16 @@ class TestSet1RM:
             e.name = name
             return e
 
+        # IN 쿼리 1회로 4개 운동 일괄 반환
         db = _make_db(
-            _exec_scalar(_ex("벤치 프레스")),
-            _exec_scalar(_ex("스쿼트")),
-            _exec_scalar(_ex("데드리프트")),
-            _exec_scalar(_ex("오버헤드 프레스")),
+            _exec_scalars_all(
+                [
+                    _ex("벤치 프레스"),
+                    _ex("스쿼트"),
+                    _ex("데드리프트"),
+                    _ex("오버헤드 프레스"),
+                ]
+            )
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -341,7 +347,7 @@ class TestSet1RM:
     @pytest.mark.asyncio
     async def test_exercise_not_in_db_skipped(self, client):
         # 운동이 DB에 없으면 해당 항목은 None으로 응답
-        db = _make_db(_exec_scalar(None))
+        db = _make_db(_exec_scalars_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(
@@ -374,7 +380,7 @@ class TestUpdate1RM:
         exercise.id = _EXERCISE_ID
         exercise.name = "스쿼트"
 
-        db = _make_db(_exec_scalar(exercise))
+        db = _make_db(_exec_scalars_all([exercise]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(
