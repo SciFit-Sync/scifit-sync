@@ -176,10 +176,10 @@ class TestListExercises:
     async def test_success_returns_list(self, client):
         ex = _exercise()
         db = _make_db(
-            _exec_scalar_one(1),            # total_count
-            _exec_scalars_unique_all([ex]), # exercises
-            _exec_all([]),                  # muscle_rows
-            _exec_all([]),                  # eq_rows
+            _exec_scalar_one(1),  # total_count
+            _exec_scalars_unique_all([ex]),  # exercises
+            _exec_all([]),  # muscle_rows
+            _exec_all([]),  # eq_rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -197,7 +197,7 @@ class TestListExercises:
     @pytest.mark.asyncio
     async def test_empty_list(self, client):
         db = _make_db(
-            _exec_scalar_one(0),           # total_count
+            _exec_scalar_one(0),  # total_count
             _exec_scalars_unique_all([]),  # exercises (빈 목록 → early return)
         )
         app.dependency_overrides[get_db] = _db_override(db)
@@ -226,6 +226,7 @@ class TestListExercises:
     @pytest.mark.asyncio
     async def test_with_primary_muscles(self, client):
         from app.models import MuscleInvolvement
+
         ex = _exercise()
         db = _make_db(
             _exec_scalar_one(1),
@@ -243,7 +244,7 @@ class TestListExercises:
     @pytest.mark.asyncio
     async def test_muscle_filter(self, client):
         db = _make_db(
-            _exec_scalar_one(0),           # total_count
+            _exec_scalar_one(0),  # total_count
             _exec_scalars_unique_all([]),  # exercises (빈 목록 → early return)
         )
         app.dependency_overrides[get_db] = _db_override(db)

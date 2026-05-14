@@ -319,8 +319,8 @@ class TestUpdateRoutineExercise:
         new_ex.name = "스쿼트"
 
         db = _make_db(
-            _exec_scalar(r),     # _get_my_routine
-            _exec_scalar(rex),   # RoutineExercise 조회
+            _exec_scalar(r),  # _get_my_routine
+            _exec_scalar(rex),  # RoutineExercise 조회
             _exec_scalar(new_ex),  # 교체할 Exercise 조회
         )
         db.refresh = AsyncMock(side_effect=lambda obj: None)
@@ -354,7 +354,7 @@ class TestUpdateRoutineExercise:
     async def test_exercise_not_found(self, client):
         r = _routine()
         db = _make_db(
-            _exec_scalar(r),     # _get_my_routine
+            _exec_scalar(r),  # _get_my_routine
             _exec_scalar(None),  # RoutineExercise 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
