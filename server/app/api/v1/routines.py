@@ -228,7 +228,36 @@ async def update_routine_exercise(
     if rex is None:
         raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    # 종목 교체 처리
+    if body.new_exercise_id is not None:
+        new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
+        new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
+        if new_ex is None:
+            raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
+        rex.exercise_id = new_ex_id
+        rex.equipment_id = None  # 새 종목에 맞는 기구는 초기화
+        await db.commit()
+        await db.refresh(rex)
+        return SuccessResponse(
+            data=RoutineExerciseItem(
+                routine_exercise_id=str(rex.id),
+                exercise_id=str(rex.exercise_id),
+                exercise_name=new_ex.name,
+                equipment_id=None,
+                equipment_name=None,
+                order_index=rex.order_index,
+                sets=rex.sets,
+                reps_min=rex.reps_min,
+                reps_max=rex.reps_max,
+                weight_kg=rex.weight_kg,
+                rest_seconds=rex.rest_seconds,
+                note=rex.note,
+            )
+        )
+
+    # 세부 정보 수정 처리
+    update_fields = body.model_dump(exclude_unset=True, exclude={"new_exercise_id"})
+    for field, value in update_fields.items():
         setattr(rex, field, value)
     await db.commit()
     await db.refresh(rex)
