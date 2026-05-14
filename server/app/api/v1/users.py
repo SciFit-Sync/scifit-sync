@@ -255,17 +255,17 @@ async def set_1rm(
         weight = getattr(body, field_name)
         if weight is None:
             continue
-        exercise = (
-            await db.execute(select(Exercise).where(Exercise.name == exercise_name))
-        ).scalar_one_or_none()
+        exercise = (await db.execute(select(Exercise).where(Exercise.name == exercise_name))).scalar_one_or_none()
         if exercise is None:
             continue
-        db.add(UserExercise1RM(
-            user_id=current_user.id,
-            exercise_id=exercise.id,
-            weight_kg=weight,
-            source=OnermSource.MANUAL,
-        ))
+        db.add(
+            UserExercise1RM(
+                user_id=current_user.id,
+                exercise_id=exercise.id,
+                weight_kg=weight,
+                source=OnermSource.MANUAL,
+            )
+        )
         result_weights[field_name] = weight
     await db.commit()
     return SuccessResponse(data=OneRM4BigLiftData(unit=body.unit, **result_weights))
@@ -304,9 +304,7 @@ async def get_1rm(
         if ex_name not in latest:
             latest[ex_name] = record.weight_kg
 
-    result_weights: dict[str, float | None] = {
-        field: latest.get(ex_name) for field, ex_name in _BIG_LIFT_MAP.items()
-    }
+    result_weights: dict[str, float | None] = {field: latest.get(ex_name) for field, ex_name in _BIG_LIFT_MAP.items()}
     return SuccessResponse(data=OneRM4BigLiftData(unit="KG", **result_weights))
 
 

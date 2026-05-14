@@ -266,12 +266,14 @@ class TestGet1RM:
             return o
 
         db = _make_db(
-            _exec_all([
-                (_orm(80.0), "벤치프레스"),
-                (_orm(100.0), "스쿼트"),
-                (_orm(120.0), "데드리프트"),
-                (_orm(60.0), "오버헤드프레스"),
-            ])
+            _exec_all(
+                [
+                    (_orm(80.0), "벤치프레스"),
+                    (_orm(100.0), "스쿼트"),
+                    (_orm(120.0), "데드리프트"),
+                    (_orm(60.0), "오버헤드프레스"),
+                ]
+            )
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
