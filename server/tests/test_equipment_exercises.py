@@ -68,6 +68,13 @@ def _exec_all(rows):
     return r
 
 
+def _exec_scalar_one(value):
+    """scalar_one() 반환 (COUNT 쿼리용)."""
+    r = MagicMock()
+    r.scalar_one.return_value = value
+    return r
+
+
 def _exec_scalars_unique_all(values):
     r = MagicMock()
     r.scalars.return_value.unique.return_value.all.return_value = values
@@ -169,22 +176,30 @@ class TestListExercises:
     async def test_success_returns_list(self, client):
         ex = _exercise()
         db = _make_db(
-            _exec_scalars_unique_all([ex]),
-            _exec_all([]),  # muscle_rows (primary muscles)
+            _exec_scalar_one(1),            # total_count
+            _exec_scalars_unique_all([ex]), # exercises
+            _exec_all([]),                  # muscle_rows
+            _exec_all([]),                  # eq_rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/exercises")
 
         assert resp.status_code == 200
-        items = resp.json()["data"]["items"]
+        data = resp.json()["data"]
+        items = data["items"]
         assert len(items) == 1
         assert items[0]["name"] == "벤치프레스"
         assert items[0]["primary_muscle_groups"] == []
+        assert data["total_count"] == 1
+        assert data["page"] == 0
 
     @pytest.mark.asyncio
     async def test_empty_list(self, client):
-        db = _make_db(_exec_scalars_unique_all([]))
+        db = _make_db(
+            _exec_scalar_one(0),           # total_count
+            _exec_scalars_unique_all([]),  # exercises (빈 목록 → early return)
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/exercises")
@@ -196,8 +211,10 @@ class TestListExercises:
     async def test_keyword_filter(self, client):
         ex = _exercise("스쿼트")
         db = _make_db(
+            _exec_scalar_one(1),
             _exec_scalars_unique_all([ex]),
-            _exec_all([]),
+            _exec_all([]),  # muscle_rows
+            _exec_all([]),  # eq_rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -208,12 +225,13 @@ class TestListExercises:
 
     @pytest.mark.asyncio
     async def test_with_primary_muscles(self, client):
+        from app.models import MuscleInvolvement
         ex = _exercise()
-        em = MagicMock()
-        em.exercise_id = ex.id
         db = _make_db(
+            _exec_scalar_one(1),
             _exec_scalars_unique_all([ex]),
-            _exec_all([(em, "대흉근")]),
+            _exec_all([(ex.id, MuscleInvolvement.PRIMARY, "대흉근")]),  # muscle_rows
+            _exec_all([]),  # eq_rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -223,10 +241,13 @@ class TestListExercises:
         assert "대흉근" in resp.json()["data"]["items"][0]["primary_muscle_groups"]
 
     @pytest.mark.asyncio
-    async def test_category_filter(self, client):
-        db = _make_db(_exec_scalars_unique_all([]))
+    async def test_muscle_filter(self, client):
+        db = _make_db(
+            _exec_scalar_one(0),           # total_count
+            _exec_scalars_unique_all([]),  # exercises (빈 목록 → early return)
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.get("/api/v1/exercises?category=chest")
+        resp = await client.get("/api/v1/exercises?muscle=pectoralis_major")
 
         assert resp.status_code == 200

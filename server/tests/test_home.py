@@ -126,7 +126,7 @@ class TestHome:
         r = _routine()
         day = _routine_day("가슴")
         notif = _notification()
-        today = date.today()
+        today = datetime.now(timezone.utc).date()  # home.py와 동일한 UTC 기준
 
         db = _make_db(
             _exec_scalar(r),  # 활성 루틴
