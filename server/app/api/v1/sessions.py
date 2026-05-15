@@ -355,7 +355,7 @@ async def session_stats(
         data=SessionStatsData(
             total_sessions=total_sessions,
             total_volume_kg=round(total_volume, 2),
-            total_minutes=total_minutes,
+            total_duration_minutes=total_minutes,
             total_sets=total_sets,
             weekly_session_count=weekly_session_count,
             streak_days=streak_days,

@@ -24,7 +24,7 @@ export interface RecentSessionItem {
 export interface SessionStatsData {
   total_sessions: number;
   total_volume_kg: number;
-  total_minutes: number;
+  total_duration_minutes: number;
   total_sets: number;
   weekly_session_count: number;
   streak_days: number;

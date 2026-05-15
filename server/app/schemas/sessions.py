@@ -77,7 +77,7 @@ class RecentSessionItem(BaseModel):
 class SessionStatsData(BaseModel):
     total_sessions: int
     total_volume_kg: float
-    total_minutes: int
+    total_duration_minutes: int
     total_sets: int = 0
     weekly_session_count: int = 0
     streak_days: int

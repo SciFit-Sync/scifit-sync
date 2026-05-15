@@ -148,7 +148,7 @@ export default function WL01Record({ navigation }: { navigation: any }) {
             <View style={styles.statsGrid}>
               <StatCard
                 label="총 운동 시간"
-                value={`${Math.floor((statsData?.total_minutes ?? 0) / 60)}시간 ${(statsData?.total_minutes ?? 0) % 60}분`}
+                value={`${Math.floor((statsData?.total_duration_minutes ?? 0) / 60)}시간 ${(statsData?.total_duration_minutes ?? 0) % 60}분`}
               />
               <StatCard
                 label="총 볼륨"
