@@ -7,8 +7,16 @@ from pydantic import BaseModel, Field
 
 # ── 세션 생성 ─────────────────────────────────────────────────────────────────
 class StartSessionRequest(BaseModel):
-    routine_day_id: str | None = None
+    routine_id: str
     gym_id: str | None = None
+
+
+class SessionStartData(BaseModel):
+    session_id: str
+    routine_id: str
+    routine_name: str
+    started_at: datetime
+    message: str = "운동을 시작합니다!"
 
 
 class SessionData(BaseModel):

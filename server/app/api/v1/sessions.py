@@ -33,6 +33,7 @@ from app.schemas.sessions import (
     SessionData,
     SessionDetail,
     SessionListData,
+    SessionStartData,
     SessionStatsData,
     StartSessionRequest,
     VolumeAnalysisData,
@@ -103,25 +104,54 @@ async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
 
 
 # ── POST /sessions ────────────────────────────────────────────────────────────
-@router.post("", response_model=SuccessResponse[SessionData], status_code=201, summary="세션 시작")
+@router.post("", response_model=SuccessResponse[SessionStartData], status_code=201, summary="세션 시작")
 async def start_session(
     body: StartSessionRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id") if body.routine_day_id else None
+    routine_id = _parse_uuid(body.routine_id, "routine_id")
     gym_id = _parse_uuid(body.gym_id, "gym_id") if body.gym_id else None
+
+    routine = (
+        await db.execute(
+            select(WorkoutRoutine).where(
+                WorkoutRoutine.id == routine_id,
+                WorkoutRoutine.user_id == current_user.id,
+                WorkoutRoutine.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if routine is None:
+        raise NotFoundError(message="루틴을 찾을 수 없습니다.")
+
+    first_day = (
+        await db.execute(
+            select(RoutineDay)
+            .where(RoutineDay.routine_id == routine_id)
+            .order_by(RoutineDay.day_number)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
 
     s = WorkoutLog(
         user_id=current_user.id,
-        routine_day_id=routine_day_id,
+        routine_day_id=first_day.id if first_day else None,
         gym_id=gym_id,
         status=WorkoutStatus.IN_PROGRESS,
     )
     db.add(s)
     await db.commit()
     await db.refresh(s)
-    return SuccessResponse(data=_session_to_dto(s))
+
+    return SuccessResponse(
+        data=SessionStartData(
+            session_id=str(s.id),
+            routine_id=str(routine_id),
+            routine_name=routine.name,
+            started_at=s.started_at,
+        )
+    )
 
 
 # ── POST /sessions/{id}/sets ──────────────────────────────────────────────────
