@@ -24,7 +24,6 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
-    EquipmentBrand,
     Exercise,
     Paper,
     RoutineDay,
@@ -43,8 +42,8 @@ from app.schemas.routines import (
     ReplacedExerciseData,
     ReplaceRoutineExerciseData,
     ReplaceRoutineExerciseRequest,
-    RoutineDeleteData,
     RoutineDayItem,
+    RoutineDeleteData,
     RoutineDetail,
     RoutineExerciseItem,
     RoutineExercisePapersData,
