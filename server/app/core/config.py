@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
 
     # Environment
     ENV: str = "development"
+
+    def model_post_init(self, _: Any) -> None:
+        if self.ENV == "production" and self.JWT_SECRET_KEY == "change-me-in-production":
+            raise RuntimeError("프로덕션에서 JWT_SECRET_KEY 기본값 사용 금지")
 
 
 @lru_cache

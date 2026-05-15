@@ -1,7 +1,9 @@
 """BAAI/bge-large-en-v1.5 임베딩 모듈.
 
 sentence-transformers로 논문 청크를 1024차원 벡터로 변환한다.
-BGE 모델은 instruction prefix가 필요하다.
+BGE-v1.5: document(passage)는 prefix 없이 임베딩한다.
+query prefix("Represent this sentence for searching relevant passages: ")는
+서버 RAG 검색 시 query 측에만 적용한다.
 """
 
 import logging
@@ -10,8 +12,6 @@ from mlops.pipeline.config import EMBEDDING_DIM, EMBEDDING_MODEL
 from mlops.pipeline.models import Chunk
 
 logger = logging.getLogger(__name__)
-
-BGE_INSTRUCTION = "Represent this document for retrieval: "
 
 _model = None
 
@@ -39,8 +39,7 @@ def embed_texts(texts: list[str], batch_size: int = 32) -> list[list[float]]:
         1024차원 float 벡터 리스트
     """
     model = _get_model()
-    prefixed = [BGE_INSTRUCTION + t for t in texts]
-    embeddings = model.encode(prefixed, batch_size=batch_size, show_progress_bar=len(texts) > 100)
+    embeddings = model.encode(texts, batch_size=batch_size, show_progress_bar=len(texts) > 100)
     return embeddings.tolist()
 
 
