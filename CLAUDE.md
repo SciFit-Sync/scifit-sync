@@ -507,7 +507,21 @@ ChipSelector:  선택 시 bg=#000 text white
 
 ---
 
-## 15. 절대 금지 사항
+## 15. 작업 전 필수 체크리스트
+
+Claude Code로 작업을 시작하기 전에 반드시 수행:
+
+```bash
+git fetch --prune
+git pull origin <현재-브랜치>   # 또는 git merge origin/develop
+```
+
+- 최신 코드 없이 작업 시작 금지 — 충돌 및 중복 작업 방지
+- 본인 브랜치가 develop 기반이면 `git merge origin/develop` 으로 최신 develop 반영
+
+---
+
+## 16. 절대 금지 사항
 
 - Supabase 대시보드 직접 DB 스키마 수정 → Alembic만 사용
 - `.env` 파일 커밋 → `.gitignore` 확인 필수
@@ -523,7 +537,7 @@ ChipSelector:  선택 시 bg=#000 text white
 
 ---
 
-## 16. 미결정 사항 (D-issue)
+## 17. 미결정 사항 (D-issue)
 
 | ID | 주제 | 현재 상태 |
 |---|---|---|
@@ -536,7 +550,7 @@ ChipSelector:  선택 시 bg=#000 text white
 
 ---
 
-## 17. 참조 문서
+## 18. 참조 문서
 
 | 문서 | 경로 |
 |---|---|
