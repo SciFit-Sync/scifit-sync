@@ -67,6 +67,7 @@ def upsert_chunks(
                 "section_name": chunk.section_name,
                 "chunk_index": chunk.chunk_index,
                 "token_count": chunk.token_count,
+                "search_categories": ",".join(chunk.search_categories),
             }
             for chunk, _ in batch
         ]

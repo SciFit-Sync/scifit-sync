@@ -24,7 +24,8 @@ CHUNK_MAX_TOKENS: int = int(os.getenv("CHUNK_MAX_TOKENS", "512"))
 CHUNK_OVERLAP_TOKENS: int = int(os.getenv("CHUNK_OVERLAP_TOKENS", "50"))
 
 # 파이프라인
-MAX_PAPERS_PER_RUN: int = int(os.getenv("MAX_PAPERS_PER_RUN", "100"))
+MAX_PAPERS_PER_RUN: int = int(os.getenv("MAX_PAPERS_PER_RUN", "300"))
+MAX_PAPERS_PER_CATEGORY: int = int(os.getenv("MAX_PAPERS_PER_CATEGORY", "20"))
 
 # API 연동 (GitHub Actions → 서버 ChromaDB 적재)
 API_BASE_URL: str = os.getenv("API_BASE_URL", "")

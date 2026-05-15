@@ -45,6 +45,7 @@ class ChunkItem(BaseModel):
     content: str
     token_count: int
     embedding: list[float]
+    search_categories: list[str] = []
 
 
 class IngestRequest(BaseModel):
@@ -77,6 +78,7 @@ async def ingest_papers(
                     "section_name": c.section_name,
                     "chunk_index": c.chunk_index,
                     "token_count": c.token_count,
+                    "search_categories": ",".join(c.search_categories),
                 }
                 for c in batch
             ],
