@@ -138,9 +138,12 @@ if __name__ == "__main__":
     parser.add_argument("--min-date", default=None, help="YYYY/MM/DD")
     parser.add_argument("--max-date", default=None, help="YYYY/MM/DD")
     parser.add_argument(
-        "--no-manifest-update",
+        "--update-manifest",
         action="store_true",
-        help="manifest.json 갱신 생략 (적재 완료 전에는 갱신하지 않는 편이 안전)",
+        default=False,
+        help="export 완료 후 manifest.json 즉시 갱신 "
+        "(기본 OFF — 적재 검증 완료 후 별도로 갱신하는 것이 안전. "
+        "적재 도중 실패해도 manifest가 깨끗하면 동일 PMID로 재시도 가능)",
     )
     args = parser.parse_args()
 
@@ -154,5 +157,5 @@ if __name__ == "__main__":
         dry_run=args.dry_run,
         min_date=args.min_date,
         max_date=args.max_date,
-        update_manifest=not args.no_manifest_update,
+        update_manifest=args.update_manifest,
     )

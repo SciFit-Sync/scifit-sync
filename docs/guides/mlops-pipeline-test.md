@@ -119,9 +119,13 @@ INFO  [__main__] [DRY RUN] 임베딩/파일 출력 생략
 ```bash
 python mlops/scripts/export_embeddings.py \
     --max-papers 100 \
-    --output mlops/data/embeddings.jsonl.gz \
-    --no-manifest-update
+    --output mlops/data/embeddings.jsonl.gz
 ```
+
+manifest.json은 기본적으로 갱신되지 **않는다**. export 결과 파일을 ChromaDB에
+실제로 적재 완료한 뒤, 별도로 `--update-manifest`를 명시해 호출해야 manifest가
+업데이트된다 (또는 적재 검증 후 수동으로 manifest를 갱신). 이렇게 분리해두면
+적재 도중 실패해도 manifest가 깨끗하게 남아 동일 PMID로 재시도할 수 있다.
 
 | 옵션 | 효과 |
 |---|---|
@@ -131,7 +135,7 @@ python mlops/scripts/export_embeddings.py \
 | `--dry-run` | 임베딩/파일 생략 (크롤링+청킹만) |
 | `--min-date YYYY/MM/DD` | PubMed 출판일 하한 |
 | `--max-date YYYY/MM/DD` | PubMed 출판일 상한 |
-| `--no-manifest-update` | manifest.json 갱신 생략 (**적재 완료 전 권장**) |
+| `--update-manifest` | export 완료 후 즉시 manifest.json 갱신 (**기본 OFF — 적재 검증 후 수동 갱신 권장**) |
 
 기대 출력 (마지막 줄):
 ```
@@ -193,6 +197,18 @@ INFO  [__main__] === 적재 완료: N청크 (mode=local) ===
 
 이 단계에서 `./mlops/data/chroma-data/` 디렉토리가 처음 생성된다 (sqlite + HNSW 인덱스 바이너리).
 
+오류 처리 정책: 기본은 **fail-fast** — 단일 라인 파싱 실패(JSON 깨짐, 임베딩
+차원 불일치 등)에서 즉시 raise하여 적재를 중단한다. 수천 청크 중 소수 라인만
+오염되어도 나머지를 살리고 싶으면 `--skip-errors` 플래그를 명시한다:
+
+```bash
+python mlops/scripts/load_embeddings.py \
+    --input mlops/data/embeddings.jsonl.gz \
+    --mode local --skip-errors
+```
+
+skip된 라인은 WARNING 로그로 남고, 종료 시 총 skip 라인 수가 요약된다.
+
 ## 9단계: 운영 ChromaDB 적재 (AWS admin endpoint 경유)
 
 ```bash
@@ -203,7 +219,18 @@ python mlops/scripts/load_embeddings.py \
     --mode api
 ```
 
-서버측 `server/app/api/v1/admin.py:55`의 `POST /api/v1/admin/rag/ingest`로 batch upsert. X-Admin-Token 인증.
+서버측 `server/app/api/v1/admin.py:55`의 `POST /api/v1/admin/rag/ingest`로 batch upsert. X-Admin-Token 인증. 운영 시에도 `--skip-errors`로 부분 적재 허용 가능.
+
+적재 검증 완료 후 manifest를 갱신하려면:
+
+```bash
+python mlops/scripts/export_embeddings.py \
+    --max-papers 100 \
+    --output mlops/data/embeddings.jsonl.gz \
+    --update-manifest
+```
+
+또는 별도 스크립트로 적재된 PMID를 추출해 `mlops/data/manifest.json`에 머지해도 된다.
 
 ## 10단계: RAG 검색 시뮬레이션 (로컬 ChromaDB 한정)
 
@@ -249,7 +276,7 @@ PY
 |---|---|---|
 | PMC 전문 fetch 일부 실패 (JSONDecodeError 케이스) | abstract fallback으로 자동 처리, RAG 동작 무영향 | parse-error retry 별도 PR |
 | BGE prefix 정책 부정확 | 검색 품질 ~10% 손실 가능성 (document/query 같은 prefix 사용) | embedder.py + rag.py 동시 PR |
-| `--update-manifest` 기본 True | export 직후 적재 실패 시 PMID 영구 누락 위험 | `--no-manifest-update` 사용 (현재 권장) |
+| ~~`--update-manifest` 기본 True~~ | ~~export 직후 적재 실패 시 PMID 영구 누락 위험~~ | **PR #63 리뷰 반영으로 해결** — `--update-manifest`가 기본 OFF로 변경됨. export 단독으로는 manifest 변경 없음 |
 | `MAX_PAPERS_PER_RUN=300`이 `29 × 20 = 580` 후보보다 작음 | 큰 영향 없음 (round-robin이 균등 분배 보장) | 필요 시 환경변수로 상향 |
 
 ## 트러블슈팅
