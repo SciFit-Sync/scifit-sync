@@ -32,6 +32,8 @@ from app.schemas.users import (
     Add1RMRequest,
     AddUserEquipmentRequest,
     BodyMeasurementData,
+    BulkAdd1RMRequest,
+    BulkOneRMData,
     GymData,
     MeData,
     OneRMData,
@@ -292,6 +294,73 @@ async def update_1rm(
     """가장 최근 기록을 갱신하는 대신, 새 기록을 추가하는 방식.
     기록 추적이 가능하도록 단순히 add를 호출한다."""
     return await add_1rm(body, current_user, db)
+
+
+# ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
+@router.post(
+    "/me/1rm/bulk",
+    response_model=SuccessResponse[BulkOneRMData],
+    status_code=201,
+    summary="1RM 일괄 등록 (온보딩용)",
+)
+async def bulk_add_1rm(
+    body: BulkAdd1RMRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """온보딩 1RM 설정 화면(W-A04)에서 벤치/스쿼트/데드/OHP 등을 한번에 등록한다.
+
+    각 item 은 `exercise_id` 또는 `exercise_code` 중 하나 필수.
+    code 매핑은 services.core_lifts.CORE_LIFTS_NAME_EN_MAP 참고.
+    """
+    from app.services.core_lifts import resolve_exercise_id_by_code
+
+    created: list[tuple[UserExercise1RM, str]] = []
+
+    for item in body.items:
+        # exercise_id 결정
+        if item.exercise_id:
+            try:
+                ex_uuid = uuid.UUID(item.exercise_id)
+            except ValueError as e:
+                raise ValidationError(message=f"잘못된 exercise_id 형식입니다: {item.exercise_id}") from e
+        elif item.exercise_code:
+            ex_uuid = await resolve_exercise_id_by_code(item.exercise_code, db)
+            if ex_uuid is None:
+                raise NotFoundError(
+                    message=f"운동을 찾을 수 없습니다 (code={item.exercise_code}). "
+                    "GET /exercises/core-lifts 로 사용 가능한 code 확인."
+                )
+        else:
+            raise ValidationError(message="exercise_id 또는 exercise_code 중 하나는 필수입니다.")
+
+        exercise = (await db.execute(select(Exercise).where(Exercise.id == ex_uuid))).scalar_one_or_none()
+        if exercise is None:
+            raise NotFoundError(message=f"운동을 찾을 수 없습니다: {ex_uuid}")
+
+        # reps 있으면 Epley, 없으면 manual
+        if item.reps is not None and item.reps > 1:
+            weight = estimate_1rm(item.weight_kg, item.reps)
+            source = OnermSource.EPLEY
+        else:
+            weight = item.weight_kg
+            source = OnermSource.MANUAL
+
+        record = UserExercise1RM(
+            user_id=current_user.id,
+            exercise_id=ex_uuid,
+            weight_kg=weight,
+            source=source,
+        )
+        db.add(record)
+        created.append((record, exercise.name))
+
+    await db.commit()
+    for record, _ in created:
+        await db.refresh(record)
+
+    items = [_onerm_to_dto(rec, name) for rec, name in created]
+    return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
 
 
 @router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
