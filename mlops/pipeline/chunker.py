@@ -124,6 +124,7 @@ def chunk_paper(paper: PaperFull) -> list[Chunk]:
                     chunk_index=chunk_idx,
                     content=content,
                     token_count=token_count,
+                    search_categories=list(paper.meta.search_categories),
                 )
             )
             chunk_idx += 1
@@ -140,6 +141,7 @@ def chunk_paper(paper: PaperFull) -> list[Chunk]:
                         chunk_index=chunk_idx,
                         content=sub_text,
                         token_count=tc,
+                        search_categories=list(paper.meta.search_categories),
                     )
                 )
                 chunk_idx += 1
