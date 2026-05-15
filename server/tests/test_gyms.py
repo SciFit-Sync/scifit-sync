@@ -164,9 +164,9 @@ class TestSearchGyms:
         assert resp.status_code == 200
         body = resp.json()
         assert body["success"] is True
-        assert len(body["data"]["items"]) == 1
-        assert body["data"]["items"][0]["name"] == "테스트 헬스장"
-        assert body["data"]["items"][0]["kakao_place_id"] == "12345"
+        assert len(body["data"]["gyms"]) == 1
+        assert body["data"]["gyms"][0]["name"] == "테스트 헬스장"
+        assert body["data"]["gyms"][0]["kakao_place_id"] == "12345"
 
     @pytest.mark.asyncio
     async def test_kakao_api_failure(self, client):
