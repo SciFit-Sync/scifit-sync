@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 # ── 세션 생성 ─────────────────────────────────────────────────────────────────
 class StartSessionRequest(BaseModel):
     routine_id: str
-    gym_id: str | None = None
 
 
 class SessionStartData(BaseModel):

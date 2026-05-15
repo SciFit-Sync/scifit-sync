@@ -111,7 +111,6 @@ async def start_session(
     db: AsyncSession = Depends(get_db),
 ):
     routine_id = _parse_uuid(body.routine_id, "routine_id")
-    gym_id = _parse_uuid(body.gym_id, "gym_id") if body.gym_id else None
 
     routine = (
         await db.execute(
@@ -137,7 +136,6 @@ async def start_session(
     s = WorkoutLog(
         user_id=current_user.id,
         routine_day_id=first_day.id if first_day else None,
-        gym_id=gym_id,
         status=WorkoutStatus.IN_PROGRESS,
     )
     db.add(s)
