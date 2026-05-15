@@ -28,7 +28,7 @@ export interface RoutineDetail {
   split_type: string | null;
   generated_by: string;
   status: string;
-  session_duration_minutes: number | null;
+  session_minutes: number | null;
   ai_reasoning: string | null;
   days: RoutineDayItem[];
   created_at: string;

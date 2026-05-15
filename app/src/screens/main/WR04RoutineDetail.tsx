@@ -201,10 +201,10 @@ export default function WR04RoutineDetail({ navigation, route }: { navigation: a
               <Text style={styles.metaValue}>{data.split_type}</Text>
             </View>
           )}
-          {data.session_duration_minutes && (
+          {data.session_minutes && (
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>세션 시간</Text>
-              <Text style={styles.metaValue}>{data.session_duration_minutes}분</Text>
+              <Text style={styles.metaValue}>{data.session_minutes}분</Text>
             </View>
           )}
           <View style={styles.metaRow}>
