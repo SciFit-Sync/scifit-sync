@@ -1,6 +1,10 @@
 # API 명세 (50개)
 
 > **상세 명세 (Request/Response 포함)**: [Notion API 명세서](https://www.notion.so/32eaebb23ee081dda33ee792957dd16d?v=335aebb23ee0808d9ad6000c2c7c2d30)
+>
+> **상세 명세 보완 문서**:
+> - `docs/spec/api-routine-generate.md` — AI 루틴 생성 (#21) SSE 이벤트/RAG 파이프라인/논문 수집 상세
+> - `docs/spec/api-exercise-swap.md` — 운동 변경 조회(#47) + 선택(#25) Request/Response 상세
 
 **Base URL**: `/api/v1`
 **인증**: `Authorization: Bearer {access_token}`
