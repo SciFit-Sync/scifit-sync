@@ -33,6 +33,7 @@ from app.models import (
     User,
     WorkoutRoutine,
 )
+from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
     GenerateRoutineRequest,
@@ -145,7 +146,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         created_at=r.created_at,
         updated_at=r.updated_at,
         target_muscle_group_ids=r.target_muscle_group_ids,
-        session_duration_minutes=r.session_duration_minutes,
+        session_minutes=r.session_minutes,
         ai_reasoning=r.ai_reasoning,
         days=day_dtos,
     )
@@ -357,13 +358,14 @@ async def get_routine_exercise_papers(
 
 
 # ── POST /routines/generate (SSE) ─────────────────────────────────────────────
-async def _generate_routine_stream(_user: User, body: GenerateRoutineRequest):
+async def _generate_routine_stream(_user: User, body: GenerateRoutineRequest, routine_id: str):
     """⚠️ TODO: 실제 RAG 파이프라인 (한→영 번역 → 임베딩 → ChromaDB 검색 → LLM 스트리밍).
     현재는 SSE 포맷만 시연하는 스텁. CLAUDE.md §6 RAG 파이프라인 참고.
     """
     yield f"id: evt_001\ndata: {json.dumps({'type': 'started', 'goals': body.goals})}\n\n"
     await asyncio.sleep(0)
-    yield (f"id: evt_002\ndata: {json.dumps({'type': 'message', 'content': 'RAG 파이프라인 미구현 — TODO'})}\n\n")
+    yield f"id: evt_002\ndata: {json.dumps({'type': 'message', 'content': 'RAG 파이프라인 미구현 — TODO'})}\n\n"
+    yield f"id: evt_final\ndata: {json.dumps({'type': 'done', 'routine_id': routine_id})}\n\n"
     yield "data: [DONE]\n\n"
 
 
@@ -371,9 +373,24 @@ async def _generate_routine_stream(_user: User, body: GenerateRoutineRequest):
 async def generate_routine(
     body: GenerateRoutineRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    split = SplitType(body.split_type) if body.split_type else None
+    routine = WorkoutRoutine(
+        user_id=current_user.id,
+        name=f"AI 루틴 ({', '.join(body.goals)})",
+        fitness_goals=body.goals,
+        split_type=split,
+        target_muscle_group_ids=body.target_muscle_group_ids or [],
+        session_minutes=body.session_minutes,
+        generated_by=GeneratedBy.AI,
+        status=RoutineStatus.ACTIVE,
+    )
+    db.add(routine)
+    await db.commit()
+    await db.refresh(routine)
     return StreamingResponse(
-        _generate_routine_stream(current_user, body),
+        _generate_routine_stream(current_user, body, str(routine.id)),
         media_type="text/event-stream",
     )
 

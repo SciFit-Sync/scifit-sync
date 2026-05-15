@@ -42,7 +42,7 @@ class RoutineSummary(BaseModel):
 
 class RoutineDetail(RoutineSummary):
     target_muscle_group_ids: list | None = None
-    session_duration_minutes: int | None = None
+    session_minutes: int | None = None
     ai_reasoning: str | None = None
     days: list[RoutineDayItem] = Field(default_factory=list)
 
@@ -55,7 +55,7 @@ class RoutineListData(BaseModel):
 class GenerateRoutineRequest(BaseModel):
     goals: list[str]
     target_muscle_group_ids: list[str] = Field(default_factory=list)
-    session_duration_minutes: int | None = None
+    session_minutes: int | None = None
     split_type: str | None = None
     gym_id: str | None = None
     injury: str | None = Field(default=None, description="부상 정보 (예: 허리 통증으로 하체 운동 제외)")

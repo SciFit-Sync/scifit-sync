@@ -56,7 +56,7 @@ def _routine() -> WorkoutRoutine:
     r.updated_at = _NOW
     r.deleted_at = None
     r.target_muscle_group_ids = []
-    r.session_duration_minutes = 60
+    r.session_minutes = 60
     r.ai_reasoning = None
     return r
 
@@ -228,7 +228,7 @@ class TestGetRoutine:
         data = resp.json()["data"]
         assert data["routine_id"] == str(_ROUTINE_ID)
         assert data["days"] == []
-        assert data["session_duration_minutes"] == 60
+        assert data["session_minutes"] == 60
 
     @pytest.mark.asyncio
     async def test_success_with_exercises(self, client):
@@ -468,10 +468,21 @@ class TestGetRoutineExercisePapers:
 # ── POST /routines/generate (SSE) ─────────────────────────────────────────────
 
 
+def _generate_db():
+    """generate_routine 용 DB mock: add/commit/refresh만 필요."""
+    db = _make_db()
+
+    async def _set_id(obj):
+        obj.id = _ROUTINE_ID
+
+    db.refresh = AsyncMock(side_effect=_set_id)
+    return db
+
+
 class TestGenerateRoutine:
     @pytest.mark.asyncio
     async def test_returns_sse_content_type(self, client):
-        # generate는 DB 불필요 (get_current_user만 필요)
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
         resp = await client.post(
             "/api/v1/routines/generate",
             json={"goals": ["hypertrophy"], "split_type": "2split"},
@@ -482,6 +493,7 @@ class TestGenerateRoutine:
 
     @pytest.mark.asyncio
     async def test_stream_contains_started_event(self, client):
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
         resp = await client.post(
             "/api/v1/routines/generate",
             json={"goals": ["strength"]},
@@ -490,6 +502,18 @@ class TestGenerateRoutine:
         body = resp.text
         assert "started" in body
         assert "[DONE]" in body
+
+    @pytest.mark.asyncio
+    async def test_stream_contains_routine_id(self, client):
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        assert "routine_id" in body
+        assert str(_ROUTINE_ID) in body
 
     @pytest.mark.asyncio
     async def test_missing_goals_returns_400(self, client):
