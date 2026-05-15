@@ -18,6 +18,8 @@ class SessionData(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     status: str
+    routine_name: str | None = None
+    duration_minutes: int | None = None
 
 
 # ── 세트 기록 ─────────────────────────────────────────────────────────────────
@@ -59,11 +61,20 @@ class SessionListData(BaseModel):
 
 
 # ── 통계 ──────────────────────────────────────────────────────────────────────
+class RecentSessionItem(BaseModel):
+    session_id: str
+    routine_name: str | None = None
+    date: str  # YYYY-MM-DD
+
+
 class SessionStatsData(BaseModel):
     total_sessions: int
     total_volume_kg: float
     total_minutes: int
+    total_sets: int = 0
+    weekly_session_count: int = 0
     streak_days: int
+    recent_session: RecentSessionItem | None = None
 
 
 class VolumeAnalysisItem(BaseModel):
