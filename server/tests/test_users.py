@@ -15,7 +15,7 @@ from app.models import (
     CareerLevel,
     Exercise,
     Gender,
-    OnermSource,
+    Gym,
     User,
     UserBodyMeasurement,
     UserExercise1RM,
@@ -36,6 +36,13 @@ def _mock_user() -> User:
     u.provider = MagicMock()
     u.provider.value = "local"
     return u
+
+
+def _mock_gym() -> Gym:
+    g = MagicMock(spec=Gym)
+    g.id = uuid.uuid4()
+    g.name = "테스트 헬스장"
+    return g
 
 
 def _mock_profile() -> UserProfile:
@@ -111,9 +118,10 @@ class TestGetMe:
     @pytest.mark.asyncio
     async def test_success_with_profile(self, client):
         db = _make_db(
-            _exec_scalar(_mock_profile()),
-            _exec_scalar(_mock_measurement()),
-            _exec_all([]),  # gyms join result
+            _exec_scalar(_mock_profile()),  # profile
+            _exec_scalar(_mock_measurement()),  # latest measurement
+            _exec_scalar(_mock_gym()),  # primary gym
+            _exec_all([]),  # 1RM rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -123,21 +131,25 @@ class TestGetMe:
         body = resp.json()
         assert body["success"] is True
         assert body["data"]["username"] == "testuser"
-        assert body["data"]["profile"]["height_cm"] == 175.0
+        assert body["data"]["body"]["height_cm"] == 175.0
 
     @pytest.mark.asyncio
     async def test_success_no_profile(self, client):
         db = _make_db(
             _exec_scalar(None),  # no profile
             _exec_scalar(None),  # no measurement
-            _exec_all([]),  # gyms
+            _exec_scalar(None),  # no primary gym
+            _exec_all([]),  # 1RM rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/users/me")
 
         assert resp.status_code == 200
-        assert resp.json()["data"]["profile"] is None
+        data = resp.json()["data"]
+        assert data["body"]["height_cm"] is None
+        assert data["career"] is None
+        assert data["gym"] is None
 
 
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
@@ -155,13 +167,15 @@ class TestUpdateBody:
         assert resp.json()["success"] is True
 
     @pytest.mark.asyncio
-    async def test_update_height_requires_profile(self, client):
-        db = _make_db(_exec_scalar(None))  # no profile
+    async def test_update_height_no_profile_creates_profile(self, client):
+        # 프로필 없으면 upsert로 신규 생성 (400 아님)
+        db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch("/api/v1/users/me/body", json={"height_cm": 180.0})
 
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        assert resp.json()["data"]["height_cm"] == 180.0
 
     @pytest.mark.asyncio
     async def test_update_height_success(self, client):
@@ -191,13 +205,14 @@ class TestUpdateGoal:
         assert resp.json()["success"] is True
 
     @pytest.mark.asyncio
-    async def test_profile_not_found(self, client):
+    async def test_profile_not_found_creates_profile(self, client):
+        # 프로필 없으면 upsert로 신규 생성 (400 아님)
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch("/api/v1/users/me/goal", json={"goals": ["strength"]})
 
-        assert resp.status_code == 400
+        assert resp.status_code == 200
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
@@ -213,6 +228,9 @@ class TestUpdateCareer:
         resp = await client.patch("/api/v1/users/me/career", json={"career_level": "advanced"})
 
         assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["career_level"] == "advanced"
+        assert "message" in data
 
     @pytest.mark.asyncio
     async def test_invalid_career_level(self, client):
@@ -231,74 +249,163 @@ class TestUpdateCareer:
 class TestGet1RM:
     @pytest.mark.asyncio
     async def test_success_empty(self, client):
-        db = _make_db(_exec_scalars_all([]))
+        db = _make_db(_exec_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/users/me/1rm")
 
         assert resp.status_code == 200
-        assert resp.json()["data"]["items"] == []
+        data = resp.json()["data"]
+        assert data["unit"] == "KG"
+        assert data["bench_press"] is None
+        assert data["squat"] is None
+        assert data["deadlift"] is None
+        assert data["overhead_press"] is None
 
     @pytest.mark.asyncio
-    async def test_success_with_data(self, client):
-        exercise = MagicMock(spec=Exercise)
-        exercise.id = _EXERCISE_ID
-        exercise.name = "벤치프레스"
-        exercise.name_en = "Bench Press"
-
+    async def test_success_with_bench_press(self, client):
         orm = MagicMock(spec=UserExercise1RM)
-        orm.id = uuid.uuid4()
-        orm.exercise_id = _EXERCISE_ID
         orm.weight_kg = 100.0
-        orm.source = OnermSource.MANUAL
-        orm.estimated_at = _NOW
-        orm.exercise = exercise
 
-        db = _make_db(_exec_all([(orm, "벤치프레스")]))
+        db = _make_db(_exec_all([(orm, "벤치 프레스")]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/users/me/1rm")
 
         assert resp.status_code == 200
-        items = resp.json()["data"]["items"]
-        assert len(items) == 1
-        assert items[0]["weight_kg"] == 100.0
+        data = resp.json()["data"]
+        assert data["bench_press"] == 100.0
+        assert data["squat"] is None
+
+    @pytest.mark.asyncio
+    async def test_success_with_all_lifts(self, client):
+        def _orm(weight):
+            o = MagicMock(spec=UserExercise1RM)
+            o.weight_kg = weight
+            return o
+
+        db = _make_db(
+            _exec_all(
+                [
+                    (_orm(80.0), "벤치 프레스"),
+                    (_orm(100.0), "스쿼트"),
+                    (_orm(120.0), "데드리프트"),
+                    (_orm(60.0), "오버헤드 프레스"),
+                ]
+            )
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/users/me/1rm")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["bench_press"] == 80.0
+        assert data["squat"] == 100.0
+        assert data["deadlift"] == 120.0
+        assert data["overhead_press"] == 60.0
 
 
 # ── POST /users/me/1rm ────────────────────────────────────────────────────────
 
 
-class TestAdd1RM:
+class TestSet1RM:
     @pytest.mark.asyncio
-    async def test_success_manual(self, client):
+    async def test_success_single_field(self, client):
         exercise = MagicMock(spec=Exercise)
         exercise.id = _EXERCISE_ID
-        exercise.name = "벤치프레스"
+        exercise.name = "벤치 프레스"
 
-        db = _make_db(_exec_scalar(exercise))
-
-        async def _set_fields(obj):
-            obj.estimated_at = _NOW
-
-        db.refresh = AsyncMock(side_effect=_set_fields)
+        # IN 쿼리 1회 → scalars().all() 반환
+        db = _make_db(_exec_scalars_all([exercise]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(
             "/api/v1/users/me/1rm",
-            json={"exercise_id": str(_EXERCISE_ID), "weight_kg": 120.0, "source": "manual"},
+            json={"unit": "KG", "bench_press": 80.0},
         )
 
         assert resp.status_code == 201
-        assert resp.json()["data"]["weight_kg"] == 120.0
+        data = resp.json()["data"]
+        assert data["unit"] == "KG"
+        assert data["bench_press"] == 80.0
 
     @pytest.mark.asyncio
-    async def test_exercise_not_found(self, client):
-        db = _make_db(_exec_scalar(None))
+    async def test_success_all_four_fields(self, client):
+        def _ex(name):
+            e = MagicMock(spec=Exercise)
+            e.id = uuid.uuid4()
+            e.name = name
+            return e
+
+        # IN 쿼리 1회로 4개 운동 일괄 반환
+        db = _make_db(
+            _exec_scalars_all(
+                [
+                    _ex("벤치 프레스"),
+                    _ex("스쿼트"),
+                    _ex("데드리프트"),
+                    _ex("오버헤드 프레스"),
+                ]
+            )
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(
             "/api/v1/users/me/1rm",
-            json={"exercise_id": str(uuid.uuid4()), "weight_kg": 100.0, "source": "manual"},
+            json={"unit": "KG", "bench_press": 80.0, "squat": 100.0, "deadlift": 120.0, "overhead_press": 60.0},
         )
 
-        assert resp.status_code == 404
+        assert resp.status_code == 201
+        data = resp.json()["data"]
+        assert data["bench_press"] == 80.0
+        assert data["squat"] == 100.0
+        assert data["deadlift"] == 120.0
+        assert data["overhead_press"] == 60.0
+
+    @pytest.mark.asyncio
+    async def test_exercise_not_in_db_skipped(self, client):
+        # 운동이 DB에 없으면 해당 항목은 None으로 응답
+        db = _make_db(_exec_scalars_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            "/api/v1/users/me/1rm",
+            json={"unit": "KG", "bench_press": 80.0},
+        )
+
+        assert resp.status_code == 201
+        assert resp.json()["data"]["bench_press"] is None
+
+    @pytest.mark.asyncio
+    async def test_empty_body_still_succeeds(self, client):
+        db = _make_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post("/api/v1/users/me/1rm", json={"unit": "KG"})
+
+        assert resp.status_code == 201
+        data = resp.json()["data"]
+        assert all(data[k] is None for k in ("bench_press", "squat", "deadlift", "overhead_press"))
+
+
+# ── PATCH /users/me/1rm ───────────────────────────────────────────────────────
+
+
+class TestUpdate1RM:
+    @pytest.mark.asyncio
+    async def test_success(self, client):
+        exercise = MagicMock(spec=Exercise)
+        exercise.id = _EXERCISE_ID
+        exercise.name = "스쿼트"
+
+        db = _make_db(_exec_scalars_all([exercise]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch(
+            "/api/v1/users/me/1rm",
+            json={"unit": "KG", "squat": 110.0},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["squat"] == 110.0
