@@ -56,6 +56,7 @@ def _mock_equipment() -> Equipment:
     e.category.value = "back"
     e.equipment_type = MagicMock()
     e.equipment_type.value = "cable"
+    e.brand = None
     e.pulley_ratio = 1.0
     e.bar_weight_kg = None
     e.has_weight_assist = False
