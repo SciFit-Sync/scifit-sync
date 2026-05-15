@@ -499,6 +499,52 @@ def _parse_pmc_sections(root: ET.Element) -> list[PaperSection]:
     return sections
 
 
+def _round_robin_dedup(
+    per_category: list[tuple[str, list[str]]],
+    existing: set[str],
+    max_total: int,
+) -> tuple[list[str], dict[str, set[str]]]:
+    """카테고리별 PMID 리스트를 round-robin으로 dedup하며 cap까지 누적한다.
+
+    각 round에서 카테고리를 한 바퀴 돌며 그 round 위치의 PMID를 하나씩 가져온다.
+    단순 FIFO cap(앞쪽 카테고리가 cap을 모두 채우는 방식)이 카테고리 다양성을
+    무너뜨리는 문제를 해결한다.
+
+    동작 규칙:
+      - 동일 PMID가 여러 카테고리에 매칭되면 카테고리 메타를 합집합으로 누적한다.
+      - cap 도달 후에도 기존 PMID에 대한 카테고리 메타 추가는 계속된다 (신규 PMID만 거부).
+      - existing 집합의 PMID는 어떤 경우에도 제외한다.
+
+    Args:
+        per_category: (카테고리명, 해당 카테고리에서 검색된 PMID 리스트) 튜플들.
+        existing: 이미 수집된 PMID 집합 (중복 방지).
+        max_total: 신규 PMID 누적 상한.
+
+    Returns:
+        (PMID 추가 순서 리스트, PMID → 카테고리명 set 매핑) 튜플.
+    """
+    pmid_to_categories: dict[str, set[str]] = defaultdict(set)
+    pmid_order: list[str] = []
+
+    max_len = max((len(pmids) for _, pmids in per_category), default=0)
+    for i in range(max_len):
+        for name, pmids in per_category:
+            if i >= len(pmids):
+                continue
+            pmid = pmids[i]
+            if pmid in existing:
+                continue
+            if pmid in pmid_to_categories:
+                pmid_to_categories[pmid].add(name)
+                continue
+            if len(pmid_to_categories) >= max_total:
+                continue
+            pmid_order.append(pmid)
+            pmid_to_categories[pmid].add(name)
+
+    return pmid_order, dict(pmid_to_categories)
+
+
 def crawl_papers(
     *,
     queries: list[tuple[str, str, bool]] | None = None,
@@ -534,9 +580,8 @@ def crawl_papers(
     max_total = max_total or MAX_PAPERS_PER_RUN
     existing = existing_pmids or set()
 
-    pmid_to_categories: dict[str, set[str]] = defaultdict(set)
-    pmid_order: list[str] = []
-
+    # 1) 카테고리별 검색 결과 사전 수집
+    per_category: list[tuple[str, list[str]]] = []
     for name, query, strict in queries:
         full_query = query + (COMMON_PUBLICATION_FILTER if strict else "")
         logger.info("카테고리 '%s' 검색 (strict=%s)", name, strict)
@@ -545,25 +590,18 @@ def crawl_papers(
         except Exception as e:
             logger.warning("카테고리 '%s' 검색 실패: %s", name, e)
             continue
+        per_category.append((name, pmids))
+        logger.info("카테고리 '%s' 검색 결과: %d건", name, len(pmids))
 
-        added_this_cat = 0
-        for pmid in pmids:
-            if pmid in existing:
-                continue
-            if pmid not in pmid_to_categories and len(pmid_to_categories) >= max_total:
-                continue
-            if pmid not in pmid_to_categories:
-                pmid_order.append(pmid)
-            pmid_to_categories[pmid].add(name)
-            added_this_cat += 1
-        logger.info("카테고리 '%s': %d건 누적 (이 카테고리에서 %d건)", name, len(pmid_to_categories), added_this_cat)
+    # 2) round-robin으로 dedup + cap (카테고리 다양성 유지)
+    pmid_order, pmid_to_categories = _round_robin_dedup(per_category, existing, max_total)
 
     if not pmid_to_categories:
         logger.info("모든 카테고리에서 신규 논문 없음")
         return []
 
     logger.info(
-        "전체 신규 PMID %d건 (카테고리 다중 매칭 분포: 평균 %.1f카테고리/논문)",
+        "round-robin 결과: 신규 PMID %d건 (카테고리 다중 매칭 분포: 평균 %.1f카테고리/논문)",
         len(pmid_to_categories),
         sum(len(v) for v in pmid_to_categories.values()) / len(pmid_to_categories),
     )
