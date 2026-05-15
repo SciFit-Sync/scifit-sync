@@ -1,18 +1,17 @@
 import { apiFetch } from './api';
 
-export interface SessionItem {
+export interface SessionCalendarItem {
+  date: string;
   session_id: string;
-  routine_day_id: string | null;
-  gym_id: string | null;
-  started_at: string;
-  finished_at: string | null;
-  status: string;
   routine_name: string | null;
   duration_minutes: number | null;
 }
 
-export interface SessionListData {
-  items: SessionItem[];
+export interface SessionCalendarData {
+  year: number;
+  month: number;
+  records: SessionCalendarItem[];
+  total_session_count: number;
 }
 
 export interface RecentSessionItem {
@@ -31,9 +30,9 @@ export interface SessionStatsData {
   recent_session: RecentSessionItem | null;
 }
 
-export function getSessions(token: string, year?: number, month?: number): Promise<SessionListData> {
+export function getSessions(token: string, year?: number, month?: number): Promise<SessionCalendarData> {
   const params = year != null && month != null ? `?year=${year}&month=${month}` : '';
-  return apiFetch<SessionListData>(`/api/v1/sessions${params}`, { token });
+  return apiFetch<SessionCalendarData>(`/api/v1/sessions${params}`, { token });
 }
 
 export function getSessionStats(token: string): Promise<SessionStatsData> {

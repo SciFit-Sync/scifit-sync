@@ -61,7 +61,7 @@ export default function WL01Record({ navigation }: { navigation: any }) {
   }
 
   const workoutDates = new Set(
-    (sessionData?.items ?? []).map((s) => s.started_at.slice(0, 10)),
+    (sessionData?.records ?? []).map((s) => s.date),
   );
   const cells = buildCalendar(year, month, workoutDates);
 

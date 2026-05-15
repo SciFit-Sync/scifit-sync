@@ -63,6 +63,20 @@ class SessionDetail(SessionData):
     total_volume_kg: float = 0.0
 
 
+class SessionCalendarItem(BaseModel):
+    date: str  # YYYY-MM-DD
+    session_id: str
+    routine_name: str | None = None
+    duration_minutes: int | None = None
+
+
+class SessionCalendarData(BaseModel):
+    year: int
+    month: int
+    records: list[SessionCalendarItem]
+    total_session_count: int
+
+
 class SessionListData(BaseModel):
     items: list[SessionData]
 

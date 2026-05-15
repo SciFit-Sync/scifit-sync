@@ -30,9 +30,10 @@ from app.schemas.sessions import (
     LogSetRequest,
     RecentSessionItem,
     RestTimerData,
+    SessionCalendarData,
+    SessionCalendarItem,
     SessionData,
     SessionDetail,
-    SessionListData,
     SessionStartData,
     SessionStatsData,
     StartSessionRequest,
@@ -223,22 +224,32 @@ async def finish_session(
 
 
 # ── GET /sessions?year=&month= ────────────────────────────────────────────────
-@router.get("", response_model=SuccessResponse[SessionListData], summary="월별 세션 목록")
+@router.get("", response_model=SuccessResponse[SessionCalendarData], summary="월별 세션 목록")
 async def list_sessions(
     year: int | None = Query(None, ge=2020, le=2100),
     month: int | None = Query(None, ge=1, le=12),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(WorkoutLog).where(WorkoutLog.user_id == current_user.id)
-    if year is not None and month is not None:
-        start = datetime(year, month, 1)
-        end = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
-        stmt = stmt.where(WorkoutLog.started_at >= start, WorkoutLog.started_at < end)
+    now = datetime.utcnow()
+    q_year = year or now.year
+    q_month = month or now.month
 
-    rows = (await db.execute(stmt.order_by(WorkoutLog.started_at.desc()))).scalars().all()
+    start = datetime(q_year, q_month, 1)
+    end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
 
-    # routine_name 일괄 조회
+    rows = (
+        await db.execute(
+            select(WorkoutLog)
+            .where(
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLog.started_at >= start,
+                WorkoutLog.started_at < end,
+            )
+            .order_by(WorkoutLog.started_at.desc())
+        )
+    ).scalars().all()
+
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
     routine_name_by_day: dict[str, str] = {}
     if day_ids:
@@ -251,11 +262,27 @@ async def list_sessions(
         ).all()
         routine_name_by_day = {str(did): name for did, name in name_rows}
 
-    items = [
-        _session_to_dto(s, routine_name_by_day.get(str(s.routine_day_id)))
+    records = [
+        SessionCalendarItem(
+            date=s.started_at.date().isoformat(),
+            session_id=str(s.id),
+            routine_name=routine_name_by_day.get(str(s.routine_day_id)),
+            duration_minutes=(
+                max(0, int((s.finished_at - s.started_at).total_seconds() // 60))
+                if s.finished_at and s.started_at
+                else None
+            ),
+        )
         for s in rows
     ]
-    return SuccessResponse(data=SessionListData(items=items))
+    return SuccessResponse(
+        data=SessionCalendarData(
+            year=q_year,
+            month=q_month,
+            records=records,
+            total_session_count=len(records),
+        )
+    )
 
 
 # ── GET /sessions/stats ───────────────────────────────────────────────────────
