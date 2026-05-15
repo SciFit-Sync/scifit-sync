@@ -26,23 +26,23 @@ Accept: text/event-stream
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| goals | Array<String> | ✅ | 운동 목표 (STRENGTH / DIET / ENDURANCE / HYPERTROPHY), 복수 선택 가능 |
-| targetMuscles | Array<String> | ✅ | 운동 부위 (CHEST / BACK / SHOULDER / LEGS / ABS / BICEPS / TRICEPS) |
-| sessionMinutes | Integer | ✅ | 세션 시간 (30 / 60 / 90 / 120) |
-| splitType | String | ❌ | 분할 방식 (2split / 3split / 4split / 5split), 미지정 시 AI 추천 |
+| goals | Array<String> | ✅ | 운동 목표 (hypertrophy / strength / endurance / rehabilitation / weight_loss), 복수 선택 가능 |
+| target_muscles | Array<String> | ✅ | 운동 부위 (CHEST / BACK / SHOULDER / LEGS / ABS / BICEPS / TRICEPS) |
+| session_minutes | Integer | ✅ | 세션 시간 (30 / 60 / 90 / 120) |
+| split_type | String | ❌ | 분할 방식 (2split / 3split / 4split / 5split), 미지정 시 AI 추천 |
 | injury | String | ❌ | 부상 정보 (예: 허리 통증으로 데드리프트 제외) |
-| gymId | String (UUID) | ❌ | 사용할 헬스장 ID, 미지정 시 기본 헬스장 사용 |
+| gym_id | String (UUID) | ❌ | 사용할 헬스장 ID, 미지정 시 기본 헬스장 사용 |
 
 **Example**
 
 ```json
 {
-  "goals": ["HYPERTROPHY", "STRENGTH"],
-  "targetMuscles": ["CHEST", "TRICEPS"],
-  "sessionMinutes": 75,
-  "splitType": "3split",
+  "goals": ["hypertrophy", "strength"],
+  "target_muscles": ["CHEST", "TRICEPS"],
+  "session_minutes": 75,
+  "split_type": "3split",
   "injury": null,
-  "gymId": "550e8400-e29b-41d4-a716-446655440002"
+  "gym_id": "550e8400-e29b-41d4-a716-446655440002"
 }
 ```
 
@@ -67,16 +67,16 @@ id: evt_001
 data: {"type": "started", "message": "루틴 생성을 시작합니다."}
 
 id: evt_002
-data: {"type": "paper_found", "papers": [{"paperId": "uuid", "title": "Effects of strength training frequency on muscle hypertrophy", "pmid": "31141878", "similarity": 0.84}]}
+data: {"type": "paper_found", "papers": [{"paper_id": "uuid", "title": "Effects of strength training frequency on muscle hypertrophy", "pmid": "31141878", "similarity": 0.84}]}
 
 id: evt_003
 data: {"type": "chunk", "content": "사용자 1RM과 보유 기구를 고려해 3분할을 추천합니다..."}
 
 id: evt_004
-data: {"type": "day_complete", "day": 1, "data": {"dayNumber": 1, "label": "가슴 / 삼두", "exercises": [{"exerciseId": "a1b2c3d4-...", "name": "인클라인 덤벨 프레스", "equipment": "덤벨", "sets": 4, "repsMin": 8, "repsMax": 12, "weightKg": 22.5, "restSeconds": 90, "hasPaper": true}]}}
+data: {"type": "day_complete", "day": 1, "data": {"day_number": 1, "label": "가슴 / 삼두", "exercises": [{"exercise_id": "a1b2c3d4-...", "name": "인클라인 덤벨 프레스", "equipment": "덤벨", "sets": 4, "reps_min": 8, "reps_max": 12, "weight_kg": 22.5, "rest_seconds": 90, "has_paper": true}]}}
 
 id: evt_005
-data: {"type": "day_complete", "day": 2, "data": {"dayNumber": 2, "label": "등 / 이두", "exercises": [...]}}
+data: {"type": "day_complete", "day": 2, "data": {"day_number": 2, "label": "등 / 이두", "exercises": [...]}}
 
 id: evt_final
 data: {"type": "done", "routine_id": "550e8400-e29b-41d4-a716-446655440000", "name": "AI 추천 3분할 (근비대)", "ai_reasoning": "..."}

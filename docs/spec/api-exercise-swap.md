@@ -7,7 +7,7 @@
 **Endpoint**
 
 ```
-PATCH /api/v1/routines/{routineId}/exercises/{routineExerciseId}
+PATCH /api/v1/routines/{routine_id}/exercises/{routine_exercise_id}
 ```
 
 > ⚠️ Notion에 적힌 `POST /api/v1/exercises` 는 실제 구현과 다릅니다. 위 PATCH 가 정본.
@@ -27,33 +27,33 @@ Content-Type: application/json
 
 | 파라미터 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| routineId | String (UUID) | ✅ | 본인 소유 루틴 ID (soft delete 제외) |
-| routineExerciseId | String (UUID) | ✅ | `routine_exercises.id` (루틴 내 운동 인스턴스 ID) |
+| routine_id | String (UUID) | ✅ | 본인 소유 루틴 ID (soft delete 제외) |
+| routine_exercise_id | String (UUID) | ✅ | `routine_exercises.id` (루틴 내 운동 인스턴스 ID) |
 
 **Body** — 보낸 필드만 부분 업데이트 (PATCH semantics)
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| exerciseId | String (UUID) | ❌ | **종목 자체 교체** 시 새 운동 ID. 없으면 기존 유지 |
-| equipmentId | String (UUID) | ❌ | 사용 기구 변경. 사용자 헬스장 보유 검증 |
+| exercise_id | String (UUID) | ❌ | **종목 자체 교체** 시 새 운동 ID. 없으면 기존 유지 |
+| equipment_id | String (UUID) | ❌ | 사용 기구 변경. 사용자 헬스장 보유 검증 |
 | sets | Integer | ❌ | 세트 수 (≥ 1) |
-| repsMin | Integer | ❌ | 최소 반복 (≥ 1, ≤ repsMax) |
-| repsMax | Integer | ❌ | 최대 반복 (≥ 1) |
-| weightKg | Float | ❌ | 표시 중량 (도르래 보정 전, ≥ 0). 누락 시 1RM × 목표비율로 자동 계산 |
-| restSeconds | Integer | ❌ | 휴식 시간 (초, ≥ 0) |
+| reps_min | Integer | ❌ | 최소 반복 (≥ 1, ≤ reps_max) |
+| reps_max | Integer | ❌ | 최대 반복 (≥ 1) |
+| weight_kg | Float | ❌ | 표시 중량 (도르래 보정 전, ≥ 0). 누락 시 1RM × 목표비율로 자동 계산 |
+| rest_seconds | Integer | ❌ | 휴식 시간 (초, ≥ 0) |
 | note | String | ❌ | 메모 (≤ 500자) |
 
 **Example**
 
 ```json
 {
-  "exerciseId": "550e8400-e29b-41d4-a716-446655440100",
-  "equipmentId": "550e8400-e29b-41d4-a716-446655440200",
+  "exercise_id": "550e8400-e29b-41d4-a716-446655440100",
+  "equipment_id": "550e8400-e29b-41d4-a716-446655440200",
   "sets": 4,
-  "repsMin": 8,
-  "repsMax": 12,
-  "weightKg": 22.5,
-  "restSeconds": 90,
+  "reps_min": 8,
+  "reps_max": 12,
+  "weight_kg": 22.5,
+  "rest_seconds": 90,
   "note": "어깨 통증으로 인클라인 덤벨로 교체"
 }
 ```
@@ -68,17 +68,17 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "routineExerciseId": "550e8400-e29b-41d4-a716-446655440300",
-    "exerciseId": "550e8400-e29b-41d4-a716-446655440100",
-    "exerciseName": "인클라인 덤벨 프레스",
-    "equipmentId": "550e8400-e29b-41d4-a716-446655440200",
-    "equipmentName": "PowerBlock Pro 90",
-    "orderIndex": 0,
+    "routine_exercise_id": "550e8400-e29b-41d4-a716-446655440300",
+    "exercise_id": "550e8400-e29b-41d4-a716-446655440100",
+    "exercise_name": "인클라인 덤벨 프레스",
+    "equipment_id": "550e8400-e29b-41d4-a716-446655440200",
+    "equipment_name": "PowerBlock Pro 90",
+    "order_index": 0,
     "sets": 4,
-    "repsMin": 8,
-    "repsMax": 12,
-    "weightKg": 22.5,
-    "restSeconds": 90,
+    "reps_min": 8,
+    "reps_max": 12,
+    "weight_kg": 22.5,
+    "rest_seconds": 90,
     "note": "어깨 통증으로 인클라인 덤벨로 교체"
   }
 }
@@ -91,7 +91,7 @@ Content-Type: application/json
   "success": false,
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "repsMin은 repsMax보다 작거나 같아야 합니다.",
+    "message": "reps_min은 reps_max보다 작거나 같아야 합니다.",
     "request_id": "req_abc123"
   }
 }
