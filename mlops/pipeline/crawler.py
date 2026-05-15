@@ -301,9 +301,7 @@ def _request_with_rate_limit(url: str, params: dict, max_retries: int = 3) -> re
             time.sleep(NCBI_RATE_LIMIT)
         else:
             backoff = NCBI_RATE_LIMIT * (2**attempt)
-            logger.warning(
-                "NCBI 요청 재시도 %d/%d (%.1fs 백오프): %s", attempt + 1, max_retries, backoff, last_exc
-            )
+            logger.warning("NCBI 요청 재시도 %d/%d (%.1fs 백오프): %s", attempt + 1, max_retries, backoff, last_exc)
             time.sleep(backoff)
 
         try:

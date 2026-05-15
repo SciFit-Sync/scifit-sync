@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-
 from mlops.pipeline.crawler import (
     _get_text,
     _parse_pmc_sections,
@@ -314,9 +313,7 @@ class TestRequestWithRateLimit:
     def test_does_not_retry_on_4xx_http_error(self, mock_get, _mock_sleep):
         bad_resp = MagicMock()
         bad_resp.status_code = 404
-        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
-            "404 Not Found", response=bad_resp
-        )
+        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found", response=bad_resp)
         mock_get.return_value = bad_resp
 
         with pytest.raises(requests.exceptions.HTTPError):
