@@ -272,14 +272,57 @@ COMMON_PUBLICATION_FILTER = (
 )
 
 
-def _request_with_rate_limit(url: str, params: dict) -> requests.Response:
-    """Rate limit을 준수하며 HTTP GET 요청."""
+_RETRYABLE_EXCEPTIONS = (
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+)
+
+
+def _request_with_rate_limit(url: str, params: dict, max_retries: int = 3) -> requests.Response:
+    """Rate limit 준수 + transient 에러에 대해 지수 백오프 재시도.
+
+    Retry 대상:
+      - ChunkedEncodingError: NCBI eutils가 HTTP body 도중 끊김 (WSL→NCBI 환경에서 실측 빈번)
+      - ConnectionError: 일시적 connection refused/reset
+      - Timeout: read timeout
+      - HTTPError 429: rate limit 초과
+      - HTTPError 5xx: 서버 장애 (transient)
+
+    Retry 비대상:
+      - HTTPError 4xx (404 등): 영구 에러 — 재시도 의미 없음
+    """
     if NCBI_API_KEY:
         params["api_key"] = NCBI_API_KEY
-    time.sleep(NCBI_RATE_LIMIT)
-    resp = requests.get(url, params=params, timeout=30)
-    resp.raise_for_status()
-    return resp
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        if attempt == 0:
+            time.sleep(NCBI_RATE_LIMIT)
+        else:
+            backoff = NCBI_RATE_LIMIT * (2**attempt)
+            logger.warning(
+                "NCBI 요청 재시도 %d/%d (%.1fs 백오프): %s", attempt + 1, max_retries, backoff, last_exc
+            )
+            time.sleep(backoff)
+
+        try:
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            _ = resp.content  # body 강제 fetch — chunked 응답 중간 끊김도 여기서 raise
+            return resp
+        except _RETRYABLE_EXCEPTIONS as e:
+            last_exc = e
+            continue
+        except requests.exceptions.HTTPError as e:
+            status = getattr(e.response, "status_code", None)
+            if status is not None and (status == 429 or 500 <= status < 600):
+                last_exc = e
+                continue
+            raise
+
+    assert last_exc is not None
+    raise last_exc
 
 
 def search_pmids(

@@ -6,10 +6,14 @@ PubMed API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
 import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock, patch
 
+import pytest
+import requests
+
 from mlops.pipeline.crawler import (
     _get_text,
     _parse_pmc_sections,
     _parse_pubmed_article,
+    _request_with_rate_limit,
     _round_robin_dedup,
     search_pmids,
 )
@@ -227,3 +231,112 @@ class TestRoundRobinDedup:
         order, mapping = _round_robin_dedup(per_category, existing=set(), max_total=0)
         assert order == []
         assert mapping == {}
+
+
+class TestRequestWithRateLimit:
+    """`_request_with_rate_limit`의 transient 에러 재시도 동작 검증.
+
+    실제 환경에서 NCBI eutils API는 가끔 ChunkedEncodingError(HTTP body 도중 끊김),
+    Timeout, ConnectionError를 반환한다. 재시도 없이 즉시 실패하면 PMC fulltext
+    수집 성공률이 떨어지므로 (실측: dry-run 3편 중 0편 성공, 재호출 시 1편 성공),
+    HTTP layer에서 transient 에러에 한해 N회 재시도가 필요하다.
+
+    4xx 같은 영구 에러는 retry하지 않는다 (PMID 없음 등 재시도 의미 없음).
+    """
+
+    @patch("mlops.pipeline.crawler.time.sleep")  # 테스트 속도 위해 sleep 무력화
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_succeeds_on_first_try(self, mock_get, _mock_sleep):
+        mock_resp = MagicMock()
+        mock_resp.content = b'{"ok": true}'
+        mock_resp.raise_for_status = MagicMock()
+        mock_get.return_value = mock_resp
+
+        result = _request_with_rate_limit("http://x", {})
+        assert result is mock_resp
+        assert mock_get.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_retries_on_chunked_encoding_error_then_succeeds(self, mock_get, _mock_sleep):
+        good_resp = MagicMock()
+        good_resp.content = b'{"ok": true}'
+        good_resp.raise_for_status = MagicMock()
+        # 첫 2번 ChunkedEncodingError, 3번째 성공
+        mock_get.side_effect = [
+            requests.exceptions.ChunkedEncodingError("body truncated"),
+            requests.exceptions.ChunkedEncodingError("body truncated"),
+            good_resp,
+        ]
+        result = _request_with_rate_limit("http://x", {})
+        assert result is good_resp
+        assert mock_get.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_retries_on_connection_error(self, mock_get, _mock_sleep):
+        good_resp = MagicMock()
+        good_resp.content = b'{"ok": true}'
+        good_resp.raise_for_status = MagicMock()
+        mock_get.side_effect = [
+            requests.exceptions.ConnectionError("refused"),
+            good_resp,
+        ]
+        result = _request_with_rate_limit("http://x", {})
+        assert result is good_resp
+        assert mock_get.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_retries_on_timeout(self, mock_get, _mock_sleep):
+        good_resp = MagicMock()
+        good_resp.content = b"ok"
+        good_resp.raise_for_status = MagicMock()
+        mock_get.side_effect = [
+            requests.exceptions.Timeout("read timeout"),
+            good_resp,
+        ]
+        result = _request_with_rate_limit("http://x", {})
+        assert result is good_resp
+        assert mock_get.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_raises_after_max_retries(self, mock_get, _mock_sleep):
+        mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
+        # max_retries=3 (default) → 3회 시도 후 마지막 예외 raise
+        with pytest.raises(requests.exceptions.ChunkedEncodingError):
+            _request_with_rate_limit("http://x", {})
+        assert mock_get.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_does_not_retry_on_4xx_http_error(self, mock_get, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.status_code = 404
+        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "404 Not Found", response=bad_resp
+        )
+        mock_get.return_value = bad_resp
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            _request_with_rate_limit("http://x", {})
+        # 4xx는 영구 에러라 retry 안 함 (한 번만 시도)
+        assert mock_get.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_retries_on_5xx_http_error(self, mock_get, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.status_code = 503
+        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "503 Service Unavailable", response=bad_resp
+        )
+        good_resp = MagicMock()
+        good_resp.content = b"ok"
+        good_resp.raise_for_status = MagicMock()
+        mock_get.side_effect = [bad_resp, good_resp]
+
+        result = _request_with_rate_limit("http://x", {})
+        assert result is good_resp
+        assert mock_get.call_count == 2
