@@ -59,6 +59,7 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
                 "content": chunk.content,
                 "token_count": chunk.token_count,
                 "embedding": vec,
+                "search_categories": chunk.search_categories,
             }
             for chunk, vec in chunk_vectors
         ]
@@ -83,7 +84,7 @@ def main(max_papers: int = MAX_PAPERS_PER_RUN, dry_run: bool = False) -> None:
     logger.info("기존 적재: %d건", len(existing))
 
     # 1. 크롤링
-    papers = crawl_papers(max_results=max_papers, existing_pmids=existing)
+    papers = crawl_papers(max_total=max_papers, existing_pmids=existing)
     if not papers:
         logger.info("신규 논문 없음. 종료.")
         return
