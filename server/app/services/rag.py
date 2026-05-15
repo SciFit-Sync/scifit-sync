@@ -59,7 +59,7 @@ def _resolve_chroma_path() -> str:
 CHROMA_PERSIST_PATH = _resolve_chroma_path()
 CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
-BGE_INSTRUCTION = "Represent this document for retrieval: "
+BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 TOP_K = 10
 SIMILARITY_THRESHOLD = 0.70
 
@@ -109,7 +109,7 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     model = _get_embed_model()
     collection = _get_collection()
 
-    query_vec = model.encode(BGE_INSTRUCTION + query).tolist()
+    query_vec = model.encode(BGE_QUERY_INSTRUCTION + query).tolist()
     results = collection.query(
         query_embeddings=[query_vec],
         n_results=top_k,
