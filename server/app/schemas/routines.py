@@ -93,3 +93,8 @@ class PaperItem(BaseModel):
 class RoutineExercisePapersData(BaseModel):
     routine_exercise_id: str
     items: list[PaperItem]
+
+
+class RoutineDeleteData(BaseModel):
+    routine_id: str
+    deleted_at: datetime

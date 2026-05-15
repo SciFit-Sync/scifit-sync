@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -37,6 +37,7 @@ from app.schemas.routines import (
     GenerateRoutineRequest,
     PaperItem,
     RegenerateRoutineRequest,
+    RoutineDeleteData,
     RoutineDayItem,
     RoutineDetail,
     RoutineExerciseItem,
@@ -283,17 +284,22 @@ async def update_routine_exercise(
 
 
 # ── DELETE /routines/{id} ─────────────────────────────────────────────────────
-@router.delete("/{routine_id}", response_model=SuccessResponse[None], summary="루틴 삭제 (soft delete)")
+@router.delete("/{routine_id}", response_model=SuccessResponse[RoutineDeleteData], summary="루틴 삭제 (soft delete)")
 async def delete_routine(
     routine_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
-    routine.deleted_at = datetime.now(timezone.utc)
+    routine.deleted_at = datetime.utcnow()
     routine.status = RoutineStatus.ARCHIVED
     await db.commit()
-    return SuccessResponse(data=None)
+    return SuccessResponse(
+        data=RoutineDeleteData(
+            routine_id=str(routine.id),
+            deleted_at=routine.deleted_at,
+        )
+    )
 
 
 # ── GET /routines/{id}/exercises/{exId}/paper ─────────────────────────────────
