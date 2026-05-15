@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Any
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +41,16 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     RATE_LIMIT_ENABLED: bool = True
+
+    # CORS — 쉼표 구분 문자열 또는 JSON 배열. 기본값: 전체 허용(개발용)
+    ALLOWED_ORIGINS: list[str] = ["*"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
 
     # Environment
     ENV: str = "development"
