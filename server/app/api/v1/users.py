@@ -5,7 +5,6 @@ CLAUDE.md / api-endpoints.md #9-17, #43, #50.
 
 import logging
 import uuid
-from datetime import date as date_type
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
@@ -30,53 +29,29 @@ from app.models import (
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.users import (
+    Add1RMRequest,
     AddUserEquipmentRequest,
     BodyMeasurementData,
+    BulkAdd1RMRequest,
+    BulkOneRMData,
     GymData,
     MeData,
-    OneRM4BigLiftData,
+    OneRMData,
+    OneRMListData,
     ProfileData,
-    Set1RMRequest,
     SetPrimaryGymRequest,
     UpdateBodyData,
     UpdateBodyRequest,
-    UpdateCareerData,
     UpdateCareerRequest,
     UpdateGoalRequest,
-    UserBodyData,
-    UserCareerData,
     UserEquipmentItem,
     UserEquipmentListData,
-    UserGymData,
 )
+from app.services.load_calc import estimate_1rm
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-# ── 경력 레벨 설명 매핑 ───────────────────────────────────────────────────────
-_CAREER_DESCRIPTIONS: dict[str, str] = {
-    "beginner": "초보자",
-    "novice": "초보자 · 1-2년",
-    "intermediate": "중급자 · 3년",
-    "advanced": "고급자 · 5년+",
-}
-
-# ── 4대 운동 필드명 ↔ DB 운동명 매핑 ─────────────────────────────────────────
-_BIG_LIFT_MAP: dict[str, str] = {
-    "bench_press": "벤치 프레스",
-    "squat": "스쿼트",
-    "deadlift": "데드리프트",
-    "overhead_press": "오버헤드 프레스",
-}
-_REVERSE_BIG_LIFT_MAP: dict[str, str] = {v: k for k, v in _BIG_LIFT_MAP.items()}
-
-
-def _calc_age(birth_date: date_type | None) -> int | None:
-    if birth_date is None:
-        return None
-    today = date_type.today()
-    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
 
 def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
@@ -109,82 +84,34 @@ async def get_me(
     db: AsyncSession = Depends(get_db),
 ):
     # 프로필
-    profile = (await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))).scalar_one_or_none()
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
 
-    # 최신 체측
-    latest_m = (
-        await db.execute(
-            select(UserBodyMeasurement)
-            .where(UserBodyMeasurement.user_id == current_user.id)
-            .order_by(UserBodyMeasurement.measured_at.desc(), UserBodyMeasurement.created_at.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-
-    # 주 헬스장
-    primary_gym = (
-        await db.execute(
-            select(Gym)
-            .join(UserGym, UserGym.gym_id == Gym.id)
-            .where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True))
-        )
-    ).scalar_one_or_none()
-
-    # 1RM (4대 운동 최신)
-    one_rm_rows = (
-        await db.execute(
-            select(UserExercise1RM, Exercise.name)
-            .join(Exercise, UserExercise1RM.exercise_id == Exercise.id)
-            .where(
-                UserExercise1RM.user_id == current_user.id,
-                Exercise.name.in_(list(_BIG_LIFT_MAP.values())),
-            )
-            .order_by(UserExercise1RM.estimated_at.desc())
-        )
-    ).all()
-
-    # 운동별 최신 1RM만 유지
-    latest_1rm: dict[str, float] = {}
-    for record, ex_name in one_rm_rows:
-        if ex_name not in latest_1rm:
-            latest_1rm[ex_name] = record.weight_kg
-
-    # body 서브오브젝트
-    body_data = UserBodyData(
-        gender=profile.gender.value if profile and profile.gender else None,
-        age=_calc_age(profile.birth_date if profile else None),
-        height_cm=profile.height_cm if profile else None,
-        weight_kg=latest_m.weight_kg if latest_m else None,
+    # 최신 체측 (measured_at desc)
+    m_result = await db.execute(
+        select(UserBodyMeasurement)
+        .where(UserBodyMeasurement.user_id == current_user.id)
+        .order_by(UserBodyMeasurement.measured_at.desc(), UserBodyMeasurement.created_at.desc())
+        .limit(1)
     )
+    latest_m = m_result.scalar_one_or_none()
 
-    # career 서브오브젝트
-    career_level = profile.career_level.value if profile and profile.career_level else None
-    career_data = (
-        UserCareerData(
-            level=career_level,
-            description=_CAREER_DESCRIPTIONS.get(career_level),
-        )
-        if career_level
-        else None
+    # 등록 헬스장
+    gyms_result = await db.execute(
+        select(UserGym, Gym).join(Gym, UserGym.gym_id == Gym.id).where(UserGym.user_id == current_user.id)
     )
-
-    # gym 서브오브젝트
-    gym_data = UserGymData(gym_id=str(primary_gym.id), name=primary_gym.name) if primary_gym else None
-
-    # one_rm 서브오브젝트
-    one_rm_weights = {_REVERSE_BIG_LIFT_MAP[name]: weight for name, weight in latest_1rm.items()}
-    one_rm_data = OneRM4BigLiftData(unit="KG", **one_rm_weights) if one_rm_weights else None
+    gyms = [GymData(gym_id=str(ug.gym_id), name=g.name, is_primary=ug.is_primary) for ug, g in gyms_result.all()]
 
     return SuccessResponse(
         data=MeData(
             user_id=str(current_user.id),
             email=current_user.email,
-            name=current_user.name,
             username=current_user.username,
-            body=body_data,
-            career=career_data,
-            gym=gym_data,
-            one_rm=one_rm_data,
+            name=current_user.name,
+            provider=current_user.provider.value if current_user.provider else "local",
+            profile=_profile_to_dto(profile),
+            latest_measurement=_measurement_to_dto(latest_m),
+            gyms=gyms,
         )
     )
 
@@ -198,16 +125,13 @@ async def update_body(
 ):
     measurement_dto: BodyMeasurementData | None = None
 
-    # 키는 UserProfile.height_cm에 저장 (upsert)
+    # 키는 UserProfile.height_cm에 저장
     if body.height_cm is not None:
-        profile = (
-            await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
-        ).scalar_one_or_none()
+        profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+        profile = profile_result.scalar_one_or_none()
         if profile is None:
-            profile = UserProfile(user_id=current_user.id, height_cm=body.height_cm)
-            db.add(profile)
-        else:
-            profile.height_cm = body.height_cm
+            raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
+        profile.height_cm = body.height_cm
 
     # 체중/근육량/체지방률은 새 측정 기록으로 추가
     if any(v is not None for v in (body.weight_kg, body.skeletal_muscle_kg, body.body_fat_pct)):
@@ -235,18 +159,17 @@ async def update_goal(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = (await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))).scalar_one_or_none()
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
     if profile is None:
-        profile = UserProfile(user_id=current_user.id, default_goals=body.goals or None)
-        db.add(profile)
-    else:
-        profile.default_goals = body.goals or None
+        raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
+    profile.default_goals = body.goals or None
     await db.commit()
     return SuccessResponse(data=_profile_to_dto(profile))  # type: ignore[arg-type]
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
-@router.patch("/me/career", response_model=SuccessResponse[UpdateCareerData], summary="경력 수정")
+@router.patch("/me/career", response_model=SuccessResponse[ProfileData], summary="경력 수정")
 async def update_career(
     body: UpdateCareerRequest,
     current_user: User = Depends(get_current_user),
@@ -257,19 +180,13 @@ async def update_career(
     except ValueError as e:
         raise ValidationError(message=f"알 수 없는 경력 레벨입니다: {body.career_level}") from e
 
-    profile = (await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))).scalar_one_or_none()
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
     if profile is None:
-        profile = UserProfile(user_id=current_user.id, career_level=career)
-        db.add(profile)
-    else:
-        profile.career_level = career
+        raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
+    profile.career_level = career
     await db.commit()
-    return SuccessResponse(
-        data=UpdateCareerData(
-            message="운동 경력이 수정되었습니다.",
-            career_level=career.value,
-        )
-    )
+    return SuccessResponse(data=_profile_to_dto(profile))  # type: ignore[arg-type]
 
 
 # ── POST /users/me/gym ────────────────────────────────────────────────────────
@@ -321,79 +238,144 @@ async def change_primary_gym(
     return await add_primary_gym(body, current_user, db)
 
 
-# ── 1RM (Big 4) ───────────────────────────────────────────────────────────────
-async def _save_1rm_records(body: Set1RMRequest, user_id: uuid.UUID, db: AsyncSession) -> dict[str, float | None]:
-    """4대 운동 1RM을 DB에 저장하고 저장된 필드별 weight를 반환한다.
+# ── 1RM ───────────────────────────────────────────────────────────────────────
+def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> OneRMData:
+    return OneRMData(
+        id=str(record.id),
+        exercise_id=str(record.exercise_id),
+        exercise_name=exercise_name,
+        weight_kg=record.weight_kg,
+        source=record.source.value if record.source else "manual",
+        estimated_at=record.estimated_at,
+    )
 
-    IN 쿼리 1회로 필요한 운동을 일괄 조회하여 N+1 쿼리를 방지한다.
+
+@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 추가")
+async def add_1rm(
+    body: Add1RMRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        exercise_uuid = uuid.UUID(body.exercise_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 exercise_id 형식입니다.") from e
+
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == exercise_uuid))).scalar_one_or_none()
+    if exercise is None:
+        raise NotFoundError(message="운동을 찾을 수 없습니다.")
+
+    # reps가 주어지면 Epley로 추정, 아니면 manual
+    if body.reps is not None and body.reps > 1:
+        weight = estimate_1rm(body.weight_kg, body.reps)
+        source = OnermSource.EPLEY
+    else:
+        weight = body.weight_kg
+        source = OnermSource.MANUAL
+
+    record = UserExercise1RM(
+        user_id=current_user.id,
+        exercise_id=exercise_uuid,
+        weight_kg=weight,
+        source=source,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
+
+
+@router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
+async def update_1rm(
+    body: Add1RMRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """가장 최근 기록을 갱신하는 대신, 새 기록을 추가하는 방식.
+    기록 추적이 가능하도록 단순히 add를 호출한다."""
+    return await add_1rm(body, current_user, db)
+
+
+# ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
+@router.post(
+    "/me/1rm/bulk",
+    response_model=SuccessResponse[BulkOneRMData],
+    status_code=201,
+    summary="1RM 일괄 등록 (온보딩용)",
+)
+async def bulk_add_1rm(
+    body: BulkAdd1RMRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """온보딩 1RM 설정 화면(W-A04)에서 벤치/스쿼트/데드/OHP 등을 한번에 등록한다.
+
+    각 item 은 `exercise_id` 또는 `exercise_code` 중 하나 필수.
+    code 매핑은 services.core_lifts.CORE_LIFTS_NAME_EN_MAP 참고.
     """
-    requested: dict[str, float] = {
-        field: getattr(body, field) for field in _BIG_LIFT_MAP if getattr(body, field) is not None
-    }
-    result_weights: dict[str, float | None] = {k: None for k in _BIG_LIFT_MAP}
-    if not requested:
-        return result_weights
+    from app.services.core_lifts import resolve_exercise_id_by_code
 
-    needed_names = [_BIG_LIFT_MAP[f] for f in requested]
-    exercises = (await db.execute(select(Exercise).where(Exercise.name.in_(needed_names)))).scalars().all()
-    ex_by_name = {e.name: e for e in exercises}
+    created: list[tuple[UserExercise1RM, str]] = []
 
-    for field_name, weight in requested.items():
-        exercise = ex_by_name.get(_BIG_LIFT_MAP[field_name])
+    for item in body.items:
+        # exercise_id 결정
+        if item.exercise_id:
+            try:
+                ex_uuid = uuid.UUID(item.exercise_id)
+            except ValueError as e:
+                raise ValidationError(message=f"잘못된 exercise_id 형식입니다: {item.exercise_id}") from e
+        elif item.exercise_code:
+            ex_uuid = await resolve_exercise_id_by_code(item.exercise_code, db)
+            if ex_uuid is None:
+                raise NotFoundError(
+                    message=f"운동을 찾을 수 없습니다 (code={item.exercise_code}). "
+                    "GET /exercises/core-lifts 로 사용 가능한 code 확인."
+                )
+        else:
+            raise ValidationError(message="exercise_id 또는 exercise_code 중 하나는 필수입니다.")
+
+        exercise = (await db.execute(select(Exercise).where(Exercise.id == ex_uuid))).scalar_one_or_none()
         if exercise is None:
-            continue
-        db.add(UserExercise1RM(user_id=user_id, exercise_id=exercise.id, weight_kg=weight, source=OnermSource.MANUAL))
-        result_weights[field_name] = weight
+            raise NotFoundError(message=f"운동을 찾을 수 없습니다: {ex_uuid}")
+
+        # reps 있으면 Epley, 없으면 manual
+        if item.reps is not None and item.reps > 1:
+            weight = estimate_1rm(item.weight_kg, item.reps)
+            source = OnermSource.EPLEY
+        else:
+            weight = item.weight_kg
+            source = OnermSource.MANUAL
+
+        record = UserExercise1RM(
+            user_id=current_user.id,
+            exercise_id=ex_uuid,
+            weight_kg=weight,
+            source=source,
+        )
+        db.add(record)
+        created.append((record, exercise.name))
 
     await db.commit()
-    return result_weights
+    for record, _ in created:
+        await db.refresh(record)
+
+    items = [_onerm_to_dto(rec, name) for rec, name in created]
+    return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
 
 
-@router.post("/me/1rm", response_model=SuccessResponse[OneRM4BigLiftData], status_code=201, summary="1RM 설정")
-async def set_1rm(
-    body: Set1RMRequest,
+@router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
+async def list_1rms(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result_weights = await _save_1rm_records(body, current_user.id, db)
-    return SuccessResponse(data=OneRM4BigLiftData(unit="KG", **result_weights))
-
-
-@router.patch("/me/1rm", response_model=SuccessResponse[OneRM4BigLiftData], summary="1RM 수정")
-async def update_1rm(
-    body: Set1RMRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result_weights = await _save_1rm_records(body, current_user.id, db)
-    return SuccessResponse(data=OneRM4BigLiftData(unit="KG", **result_weights))
-
-
-@router.get("/me/1rm", response_model=SuccessResponse[OneRM4BigLiftData], summary="1RM 데이터 조회")
-async def get_1rm(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    exercise_names = list(_BIG_LIFT_MAP.values())
-    rows = (
-        await db.execute(
-            select(UserExercise1RM, Exercise.name)
-            .join(Exercise, UserExercise1RM.exercise_id == Exercise.id)
-            .where(
-                UserExercise1RM.user_id == current_user.id,
-                Exercise.name.in_(exercise_names),
-            )
-            .order_by(UserExercise1RM.estimated_at.desc())
-        )
-    ).all()
-
-    latest: dict[str, float] = {}
-    for record, ex_name in rows:
-        if ex_name not in latest:
-            latest[ex_name] = record.weight_kg
-
-    weights = {_REVERSE_BIG_LIFT_MAP[name]: weight for name, weight in latest.items()}
-    return SuccessResponse(data=OneRM4BigLiftData(unit="KG", **weights))
+    result = await db.execute(
+        select(UserExercise1RM, Exercise.name)
+        .join(Exercise, UserExercise1RM.exercise_id == Exercise.id)
+        .where(UserExercise1RM.user_id == current_user.id)
+        .order_by(UserExercise1RM.estimated_at.desc())
+    )
+    items = [_onerm_to_dto(rec, name) for rec, name in result.all()]
+    return SuccessResponse(data=OneRMListData(items=items))
 
 
 # ── /users/me/equipment ───────────────────────────────────────────────────────
@@ -402,12 +384,16 @@ async def list_my_equipment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """주 헬스장 보유 장비를 반환한다.
+    별도 user_equipment 테이블이 없어 user_gyms.is_primary 기반으로 조회.
+    """
     primary = (
         await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
     ).scalar_one_or_none()
     if primary is None:
         return SuccessResponse(data=UserEquipmentListData(items=[]))
 
+    # primary gym의 equipments
     result = await db.execute(select(Gym).where(Gym.id == primary.gym_id).options(selectinload(Gym.gym_equipments)))
     gym = result.scalar_one_or_none()
     if gym is None:
@@ -445,6 +431,7 @@ async def add_my_equipment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """주 헬스장에 장비를 추가 등록 — 헬스장에 없는 경우 보고/추가용."""
     try:
         eq_uuid = uuid.UUID(body.equipment_id)
     except ValueError as e:
@@ -460,6 +447,7 @@ async def add_my_equipment(
     if primary is None:
         raise ValidationError(message="주 헬스장이 등록되어 있지 않습니다.")
 
+    # 중복 체크
     from app.models import GymEquipment
 
     exists = (

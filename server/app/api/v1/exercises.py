@@ -1,4 +1,4 @@
-"""운동 카탈로그 엔드포인트 (#47 GET /exercises)."""
+"""운동 카탈로그 엔드포인트 (#47 GET /exercises + GET /exercises/core-lifts)."""
 
 import logging
 
@@ -18,10 +18,28 @@ from app.models import (
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import ExerciseItem, ExerciseListData
+from app.schemas.users import CoreLiftItem, CoreLiftsData
+from app.services.core_lifts import list_core_lifts
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
+
+
+# ── GET /exercises/core-lifts ─────────────────────────────────────────────────
+@router.get(
+    "/core-lifts",
+    response_model=SuccessResponse[CoreLiftsData],
+    summary="핵심 4대 운동 (벤치/스쿼트/데드/OHP) 식별자",
+)
+async def get_core_lifts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """온보딩 1RM 설정 화면에서 사용할 4대 운동의 exercise_id 를 한번에 반환한다."""
+    rows = await list_core_lifts(db)
+    items = [CoreLiftItem(**r) for r in rows]
+    return SuccessResponse(data=CoreLiftsData(items=items))
 
 
 @router.get("", response_model=SuccessResponse[ExerciseListData], summary="운동 목록")
