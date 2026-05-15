@@ -13,6 +13,7 @@ class PaperMeta(BaseModel):
     published_year: int | None = None
     doi: str = ""
     abstract: str = ""
+    search_categories: list[str] = []
 
 
 class PaperSection(BaseModel):
@@ -38,3 +39,4 @@ class Chunk(BaseModel):
     chunk_index: int
     content: str
     token_count: int
+    search_categories: list[str] = []

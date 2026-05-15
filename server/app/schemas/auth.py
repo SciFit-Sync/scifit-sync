@@ -1,4 +1,5 @@
 import re
+from datetime import date
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -11,7 +12,7 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     gender: str | None = None
-    age: int | None = None
+    birth_date: date | None = None
     height: float | None = None
     weight: float | None = None
     career_level: str | None = None
@@ -43,11 +44,19 @@ class RegisterRequest(BaseModel):
             raise ValueError("gender는 'male' 또는 'female'이어야 합니다")
         return v
 
-    @field_validator("age")
+    @field_validator("birth_date")
     @classmethod
-    def validate_age(cls, v: int | None) -> int | None:
-        if v is not None and not (10 <= v <= 100):
-            raise ValueError("나이는 10~100 사이여야 합니다")
+    def validate_birth_date(cls, v: date | None) -> date | None:
+        if v is None:
+            return v
+        today = date.today()
+        # 미래 날짜 불가
+        if v > today:
+            raise ValueError("생년월일은 오늘보다 이전이어야 합니다")
+        # 만 나이 10~100세 범위만 허용 (실용적 한계)
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 10 or age > 100:
+            raise ValueError("만 나이가 10~100세 범위여야 합니다")
         return v
 
     @field_validator("career_level")

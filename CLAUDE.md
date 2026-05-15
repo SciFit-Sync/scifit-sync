@@ -312,13 +312,37 @@ Chat & RAG: chat_sessions, chat_messages, papers, paper_chunks      (4)
 
 ### equipment 분류 (API-12: category와 equipment_type 분리)
 - `equipments.category` (근육 부위 대표 1개): `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
+- `equipments.sub_category` (세부 영역, v2.1): `varchar(50)` NULL. 값 예: `upper_back`, `lower_back`, `front_delt`, `side_delt`, `rear_delt`, `upper_chest`, `mid_chest`, `lower_chest`, `biceps`, `triceps`, `quads`, `hamstrings`, `abs`. enum이 아니므로 데이터 진화로 어휘 세분화 가능 (예: `front_delt` → `front_delt_anterior`). 스키마 변경 불요.
 - `equipments.equipment_type` (물리 타입): `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
 - 중량 계산 엔진은 `equipment_type` 기준 (이전 버전의 `category` 분기 코드는 마이그레이션 필요)
-- 위 허용 값 외 다른 값 사용 금지
+- 위 `category` / `equipment_type` 허용 값 외 다른 값 사용 금지
+
+### 무게 단위 정책 (v2.1, weightunit enum: kg | lb)
+**DB는 CSV에 표기된 원본 단위 그대로 저장한다.** 단위 변환을 storage time에 강제하지 않는다. 각 값의 단위는 같은 행의 `*_unit` 컬럼에서 즉시 확인할 수 있으며, 비교·합산이 필요한 컴포넌트(`load_calc.py` 등)가 compute time에 환산 책임을 진다.
+
+v2.1에서 컬럼명에서 `_kg` 접미사를 제거 — 컬럼명이 kg 단일 단위를 시사하지 않도록 정정:
+- `bar_weight_kg → bar_weight`, `min_stack_kg → min_stack`, `max_stack_kg → max_stack`, `stack_weight_kg → stack_weight`
+
+두 종류의 무게가 의미적으로 분리된다:
+1. **바/레버 그룹** (`bar_weight`, `bar_weight_unit`): 제조사가 하드웨어에 새겨놓은 기구 자체의 무게. 미국 브랜드(Hammer Strength 등)는 `lb` 표기로 출고됨.
+2. **스택/원판 그룹** (`min_stack`, `max_stack`, `stack_weight`, `stack_unit`):
+   - selectorized 머신: 제조사 내장 스택 → 제조사 표기 단위 그대로 기록.
+   - plate-loaded 머신: 사용자가 끼우는 원판 → 국내 헬스장 표준 kg.
+
+같은 행에 `bar_weight_unit='lb'`, `stack_unit='kg'` 조합이 정상이며 ETL은 두 그룹을 독립 처리한다. `equipment_brands.default_bar_unit` / `default_stack_unit`은 신규 import 시 명시값이 없을 때 fallback.
+
+**값과 단위의 동기성은 CHECK 제약(`chk_bar_unit_synced`, `chk_stack_unit_synced`)으로 DB 레벨에서 강제**된다 — 무게 값이 NOT NULL이면 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나. "값 있는데 단위 NULL" 같은 모순 상태 절대 금지.
+
+### `stack_weight` JSONB (v2.1, RENAME + decimal → jsonb)
+값의 단위는 같은 행의 `stack_unit`이 결정하며 JSONB 내부에는 단위를 두지 않는다.
+- 균일 스택: `{"value": 5}` (stack_unit이 'kg'이면 5kg, 'lb'이면 5lb)
+- 변동 스택(예: Hammer Strength Select): `{"pattern": [{"from": 1, "to": 5, "value": 10}, {"from": 6, "to": 15, "value": 15}]}`
+- `value`와 `pattern`은 상호 배타. `pattern[0].from == 1`, 구간은 인접해야 한다.
+- 블록 번호 → 실제 값 해석은 `services/load_calc.py:resolve_block_weight(stack_weight, block_index)` 사용 (후속 PR에서 도입). 단위 환산은 `to_kg(value, unit)` 헬퍼가 별도 책임.
 
 ### 중량 기록
-- `weight_kg` = 기구 표시값 (사용자 입력)
-- 실효 부하 = `weight_kg × pulley_ratio`
+- `workout_log_sets.weight_kg` = 사용자가 입력한 기구 표시값 (사용자 입력은 항상 kg 가정 — 국내 사용자 UI 정책)
+- 실효 부하 계산 (`load_calc.calculate_effective_weight`)은 `bar_weight + bar_weight_unit`, `stack + stack_unit`을 받아 내부적으로 kg로 환산 후 `weight_kg × pulley_ratio` 등을 적용
 
 ### 삭제 정책
 - 루틴: soft delete (`deleted_at` nullable), 복구 불가
@@ -334,18 +358,21 @@ Chat & RAG: chat_sessions, chat_messages, papers, paper_chunks      (4)
 ### 도르래 비율 보정 (`load_calc.py` 참조)
 
 ```python
+# v2.1: 컬럼 RENAME 적용 + 단위 환산 처리. to_kg(value, unit) 헬퍼가 kg로 환산.
 def calculate_effective_weight(equipment, stack, added, body_weight):
     # API-12: category는 근육 부위, 물리 분기는 equipment_type
+    bar_kg = to_kg(equipment.bar_weight, equipment.bar_weight_unit) or 0
+    stack_kg = to_kg(stack, equipment.stack_unit) or 0
     match equipment.equipment_type:
         case "cable" | "machine":
-            return stack * equipment.pulley_ratio + (equipment.bar_weight_kg or 0)
+            return stack_kg * equipment.pulley_ratio + bar_kg
         case "barbell":
-            return equipment.bar_weight_kg + (added or 0)
+            return bar_kg + (added or 0)
         case "dumbbell":
             return added or 0
         case "bodyweight":
             if equipment.has_weight_assist:
-                return body_weight - stack
+                return body_weight - stack_kg
             return body_weight + (added or 0)
 ```
 

@@ -62,6 +62,7 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
                 "content": chunk.content,
                 "token_count": chunk.token_count,
                 "embedding": vec,
+                "search_categories": chunk.search_categories,
             }
             for chunk, vec in chunk_vectors
         ]
@@ -91,7 +92,7 @@ def main() -> None:
 
     # 1. 크롤링 (최근 35일)
     papers = crawl_papers(
-        max_results=MAX_PAPERS_PER_RUN,
+        max_total=MAX_PAPERS_PER_RUN,
         min_date=min_date,
         max_date=max_date,
         existing_pmids=existing,

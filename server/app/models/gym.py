@@ -164,4 +164,21 @@ class EquipmentMuscle(Base):
     muscle_group: Mapped["MuscleGroup"] = relationship()  # noqa: F821
 
 
+class EquipmentSuggestion(Base):
+    __tablename__ = "equipment_suggestions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    gym_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("gyms.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(200))
+    brand: Mapped[str | None] = mapped_column(String(100), default=None)
+    description: Mapped[str | None] = mapped_column(Text, default=None)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default=text("'pending'"))
+
+
 from app.models.exercise import MuscleGroup  # noqa: E402, F401
