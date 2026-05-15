@@ -90,6 +90,7 @@ class OneRMListData(BaseModel):
 class BulkOneRMItem(BaseModel):
     """exercise_id 또는 exercise_code 중 하나는 필수.
     code 예시: 'bench_press', 'squat', 'deadlift', 'overhead_press'"""
+
     exercise_id: str | None = None
     exercise_code: str | None = None
     weight_kg: float = Field(ge=0)
@@ -107,9 +108,9 @@ class BulkOneRMData(BaseModel):
 
 # ── 핵심 4대 운동 ────────────────────────────────────────────────────────────
 class CoreLiftItem(BaseModel):
-    code: str           # 'bench_press' / 'squat' / 'deadlift' / 'overhead_press'
+    code: str  # 'bench_press' / 'squat' / 'deadlift' / 'overhead_press'
     exercise_id: str
-    name: str           # 한글 이름
+    name: str  # 한글 이름
     name_en: str | None = None
 
 

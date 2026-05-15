@@ -115,9 +115,7 @@ async def search_gyms(
     existing: dict[str, Gym] = {}
     if place_ids:
         result = await db.execute(
-            select(Gym)
-            .where(Gym.kakao_place_id.in_(place_ids))
-            .options(selectinload(Gym.gym_equipments))
+            select(Gym).where(Gym.kakao_place_id.in_(place_ids)).options(selectinload(Gym.gym_equipments))
         )
         for g in result.scalars().all():
             if g.kakao_place_id:
@@ -152,9 +150,7 @@ async def create_gym(
     if body.kakao_place_id:
         existing = (
             await db.execute(
-                select(Gym)
-                .where(Gym.kakao_place_id == body.kakao_place_id)
-                .options(selectinload(Gym.gym_equipments))
+                select(Gym).where(Gym.kakao_place_id == body.kakao_place_id).options(selectinload(Gym.gym_equipments))
             )
         ).scalar_one_or_none()
         if existing is not None:
@@ -221,18 +217,22 @@ async def list_gym_equipment(
         return SuccessResponse(data=GymEquipmentListData(gym_id=gym_id, gym_name=gym.name, equipment=[]))
 
     equipments = (
-        await db.execute(
-            select(Equipment)
-            .where(Equipment.id.in_(equipment_ids))
-            .options(selectinload(Equipment.brand))
+        (
+            await db.execute(
+                select(Equipment).where(Equipment.id.in_(equipment_ids)).options(selectinload(Equipment.brand))
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
-    return SuccessResponse(data=GymEquipmentListData(
-        gym_id=gym_id,
-        gym_name=gym.name,
-        equipment=[_equipment_to_dto(e) for e in equipments],
-    ))
+    return SuccessResponse(
+        data=GymEquipmentListData(
+            gym_id=gym_id,
+            gym_name=gym.name,
+            equipment=[_equipment_to_dto(e) for e in equipments],
+        )
+    )
 
 
 # ── POST /gyms/{id}/equipment ─────────────────────────────────────────────────
@@ -259,9 +259,7 @@ async def add_gym_equipment(
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
 
     equipment = (
-        await db.execute(
-            select(Equipment).where(Equipment.id == eq_uuid).options(selectinload(Equipment.brand))
-        )
+        await db.execute(select(Equipment).where(Equipment.id == eq_uuid).options(selectinload(Equipment.brand)))
     ).scalar_one_or_none()
     if equipment is None:
         raise NotFoundError(message="장비를 찾을 수 없습니다.")
@@ -312,18 +310,20 @@ async def bulk_add_gym_equipment(
     existing_ids: set[uuid.UUID] = set()
     if eq_uuids:
         rows = (
-            await db.execute(
-                select(GymEquipment.equipment_id).where(
-                    GymEquipment.gym_id == gym_uuid,
-                    GymEquipment.equipment_id.in_(eq_uuids),
+            (
+                await db.execute(
+                    select(GymEquipment.equipment_id).where(
+                        GymEquipment.gym_id == gym_uuid,
+                        GymEquipment.equipment_id.in_(eq_uuids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         existing_ids = set(rows)
 
-    valid_ids = (
-        await db.execute(select(Equipment.id).where(Equipment.id.in_(eq_uuids)))
-    ).scalars().all()
+    valid_ids = (await db.execute(select(Equipment.id).where(Equipment.id.in_(eq_uuids)))).scalars().all()
     valid_id_set = set(valid_ids)
 
     linked_count = 0
@@ -335,11 +335,13 @@ async def bulk_add_gym_equipment(
 
     await db.commit()
 
-    return SuccessResponse(data=BulkLinkData(
-        gym_id=gym_id,
-        linked_count=linked_count,
-        message="기구가 헬스장에 연결되었습니다.",
-    ))
+    return SuccessResponse(
+        data=BulkLinkData(
+            gym_id=gym_id,
+            linked_count=linked_count,
+            message="기구가 헬스장에 연결되었습니다.",
+        )
+    )
 
 
 # ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
@@ -402,13 +404,15 @@ async def suggest_gym_equipment(
     if gym is None:
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
 
-    db.add(EquipmentSuggestion(
-        user_id=current_user.id,
-        gym_id=gym_uuid,
-        name=body.name,
-        brand=body.brand,
-        description=body.description,
-    ))
+    db.add(
+        EquipmentSuggestion(
+            user_id=current_user.id,
+            gym_id=gym_uuid,
+            name=body.name,
+            brand=body.brand,
+            description=body.description,
+        )
+    )
     await db.commit()
 
     return SuccessResponse(data=SuggestEquipmentData(message="기구 제보가 접수되었습니다. 검토 후 반영됩니다."))

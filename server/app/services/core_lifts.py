@@ -46,20 +46,14 @@ async def resolve_exercise_id_by_code(code: str, db: AsyncSession) -> uuid.UUID 
         return None
 
     # 1) 정확 일치
-    exact = (
-        await db.execute(
-            select(Exercise.id).where(Exercise.name_en.in_(candidates))
-        )
-    ).scalar_one_or_none()
+    exact = (await db.execute(select(Exercise.id).where(Exercise.name_en.in_(candidates)))).scalar_one_or_none()
     if exact:
         return exact
 
     # 2) 부분 일치 (첫 후보 기준)
     for cand in candidates:
         partial = (
-            await db.execute(
-                select(Exercise.id).where(Exercise.name_en.ilike(f"%{cand}%"))
-            )
+            await db.execute(select(Exercise.id).where(Exercise.name_en.ilike(f"%{cand}%")))
         ).scalar_one_or_none()
         if partial:
             return partial
@@ -77,9 +71,7 @@ async def list_core_lifts(db: AsyncSession) -> list[dict]:
         ex_id = await resolve_exercise_id_by_code(code, db)
         if ex_id is None:
             continue
-        row = (
-            await db.execute(select(Exercise.name, Exercise.name_en).where(Exercise.id == ex_id))
-        ).one_or_none()
+        row = (await db.execute(select(Exercise.name, Exercise.name_en).where(Exercise.id == ex_id))).one_or_none()
         if row is None:
             continue
         name_ko, name_en = row
