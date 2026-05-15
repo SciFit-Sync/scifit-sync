@@ -42,7 +42,7 @@ async def list_exercises(
         muscle_ex_subq = (
             select(ExerciseMuscle.exercise_id)
             .join(MuscleGroup, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
-            .where(MuscleGroup.name == muscle)
+            .where(MuscleGroup.name_en == muscle)
         )
         stmt = stmt.where(Exercise.id.in_(muscle_ex_subq))
 
