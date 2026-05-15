@@ -7,6 +7,49 @@ from pydantic import BaseModel, Field
 
 
 # ── 응답: GET /users/me ────────────────────────────────────────────────────────
+class UserBodyData(BaseModel):
+    """신체 정보 (Notion 스펙 #9)."""
+
+    gender: str | None = None
+    age: int | None = None
+    height: float | None = None  # 키 (cm)
+    weight: float | None = None  # 체중 (kg)
+
+
+class UserCareerData(BaseModel):
+    """운동 경력 정보."""
+
+    level: str | None = None
+    description: str | None = None
+
+
+class UserGymData(BaseModel):
+    """주 헬스장 정보."""
+
+    gym_id: str
+    name: str
+
+
+class MeData(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    username: str
+    body: UserBodyData | None = None
+    career: UserCareerData | None = None
+    gym: UserGymData | None = None
+    one_rm: "OneRM4BigLiftData | None" = None
+
+
+# ── 체측 내부 응답용 ───────────────────────────────────────────────────────────
+class BodyMeasurementData(BaseModel):
+    weight: float | None = None  # weight_kg → weight
+    skeletal_muscle_kg: float | None = None
+    body_fat_pct: float | None = None
+    measured_at: date | None = None
+
+
+# 프로필 업데이트 응답 (goal 수정용)
 class ProfileData(BaseModel):
     gender: str | None = None
     birth_date: date | None = None
@@ -15,41 +58,17 @@ class ProfileData(BaseModel):
     career_level: str | None = None
 
 
-class BodyMeasurementData(BaseModel):
-    weight_kg: float | None = None
-    skeletal_muscle_kg: float | None = None
-    body_fat_pct: float | None = None
-    measured_at: date | None = None
-
-
-class GymData(BaseModel):
-    gym_id: str
-    name: str
-    is_primary: bool
-
-
-class MeData(BaseModel):
-    user_id: str
-    email: str
-    username: str
-    name: str
-    provider: str
-    profile: ProfileData | None = None
-    latest_measurement: BodyMeasurementData | None = None
-    gyms: list[GymData] = Field(default_factory=list)
-
-
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
 class UpdateBodyRequest(BaseModel):
-    height_cm: float | None = None
-    weight_kg: float | None = None
+    height: float | None = None  # 키 (cm) — was height_cm
+    weight: float | None = None  # 체중 (kg) — was weight_kg
     skeletal_muscle_kg: float | None = None
     body_fat_pct: float | None = None
     measured_at: date | None = None
 
 
 class UpdateBodyData(BaseModel):
-    height_cm: float | None = None
+    height: float | None = None
     measurement: BodyMeasurementData | None = None
 
 
@@ -63,9 +82,21 @@ class UpdateCareerRequest(BaseModel):
     career_level: str
 
 
+class UpdateCareerData(BaseModel):
+    message: str
+    career_level: str
+
+
 # ── /users/me/gym ─────────────────────────────────────────────────────────────
 class SetPrimaryGymRequest(BaseModel):
     gym_id: str
+
+
+# ── GymData (list_gyms 등 내부 사용) ──────────────────────────────────────────
+class GymData(BaseModel):
+    gym_id: str
+    name: str
+    is_primary: bool
 
 
 # ── 1RM (Big 4) ───────────────────────────────────────────────────────────────
