@@ -108,10 +108,13 @@ class ExerciseItem(BaseModel):
     exercise_id: str
     name: str
     name_en: str | None = None
-    description: str | None = None
-    image_url: str | None = None
     primary_muscle_groups: list[str] = Field(default_factory=list)
+    secondary_muscle_groups: list[str] = Field(default_factory=list)
+    equipment_id: str | None = None
 
 
 class ExerciseListData(BaseModel):
     items: list[ExerciseItem]
+    total_count: int
+    page: int
+    total_pages: int

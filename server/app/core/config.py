@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Admin
     ADMIN_API_TOKEN: str = ""
 
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+
     # Environment
     ENV: str = "development"
 

@@ -12,7 +12,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,8 +21,10 @@ from sqlalchemy.orm import selectinload
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
+    EquipmentBrand,
     Exercise,
     Paper,
     RoutineDay,
@@ -32,18 +34,21 @@ from app.models import (
     User,
     WorkoutRoutine,
 )
+from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
     GenerateRoutineRequest,
     PaperItem,
     RegenerateRoutineRequest,
+    ReplacedExerciseData,
+    ReplaceRoutineExerciseData,
+    ReplaceRoutineExerciseRequest,
     RoutineDayItem,
     RoutineDetail,
     RoutineExerciseItem,
     RoutineExercisePapersData,
     RoutineListData,
     RoutineSummary,
-    UpdateRoutineExerciseRequest,
     UpdateRoutineNameRequest,
 )
 
@@ -94,6 +99,15 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         rows = (await db.execute(select(Equipment.id, Equipment.name).where(Equipment.id.in_(eq_ids)))).all()
         eq_name_map = {str(eid): name for eid, name in rows}
 
+    # 논문이 연결된 routine_exercise_id 집합
+    paper_rows = await db.execute(
+        select(RoutinePaper.routine_exercise_id).where(
+            RoutinePaper.routine_id == r.id,
+            RoutinePaper.routine_exercise_id.isnot(None),
+        )
+    )
+    exercise_ids_with_papers: set[str] = {str(row[0]) for row in paper_rows.all()}
+
     day_dtos: list[RoutineDayItem] = []
     for d in days:
         ex_dtos = [
@@ -110,6 +124,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 weight_kg=ex.weight_kg,
                 rest_seconds=ex.rest_seconds,
                 note=ex.note,
+                has_paper=str(ex.id) in exercise_ids_with_papers,
             )
             for ex in sorted(d.exercises, key=lambda e: e.order_index)
         ]
@@ -132,7 +147,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         created_at=r.created_at,
         updated_at=r.updated_at,
         target_muscle_group_ids=r.target_muscle_group_ids,
-        session_duration_minutes=r.session_duration_minutes,
+        session_minutes=r.session_minutes,
         ai_reasoning=r.ai_reasoning,
         days=day_dtos,
     )
@@ -212,13 +227,13 @@ async def rename_routine(
 # ── PATCH /routines/{id}/exercises/{exId} ─────────────────────────────────────
 @router.patch(
     "/{routine_id}/exercises/{routine_exercise_id}",
-    response_model=SuccessResponse[RoutineExerciseItem],
-    summary="루틴 운동 수정",
+    response_model=SuccessResponse[ReplaceRoutineExerciseData],
+    summary="루틴 종목 교체",
 )
-async def update_routine_exercise(
+async def replace_routine_exercise(
     routine_id: str,
     routine_exercise_id: str,
-    body: UpdateRoutineExerciseRequest,
+    body: ReplaceRoutineExerciseRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -239,19 +254,17 @@ async def update_routine_exercise(
         await db.commit()
         await db.refresh(rex)
         return SuccessResponse(
-            data=RoutineExerciseItem(
-                routine_exercise_id=str(rex.id),
-                exercise_id=str(rex.exercise_id),
-                exercise_name=new_ex.name,
-                equipment_id=None,
-                equipment_name=None,
-                order_index=rex.order_index,
-                sets=rex.sets,
-                reps_min=rex.reps_min,
-                reps_max=rex.reps_max,
-                weight_kg=rex.weight_kg,
-                rest_seconds=rex.rest_seconds,
-                note=rex.note,
+            data=ReplaceRoutineExerciseData(
+                message="종목이 교체되었습니다.",
+                new_exercise=ReplacedExerciseData(
+                    exercise_id=str(new_ex.id),
+                    name=new_ex.name,
+                    equipment=None,
+                    brand=None,
+                    sets=rex.sets,
+                    reps_min=rex.reps_min,
+                    reps_max=rex.reps_max,
+                ),
             )
         )
 
@@ -262,22 +275,33 @@ async def update_routine_exercise(
     await db.commit()
     await db.refresh(rex)
 
-    ex_name = (await db.execute(select(Exercise.name).where(Exercise.id == rex.exercise_id))).scalar_one_or_none() or ""
+    # 현재 종목 및 장비 정보 조회
+    cur_ex = (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
+    equipment_name: str | None = None
+    brand_name: str | None = None
+    if rex.equipment_id:
+        eq_row = (
+            await db.execute(
+                select(Equipment.name, EquipmentBrand.name)
+                .outerjoin(EquipmentBrand, Equipment.brand_id == EquipmentBrand.id)
+                .where(Equipment.id == rex.equipment_id)
+            )
+        ).one_or_none()
+        if eq_row:
+            equipment_name, brand_name = eq_row
 
     return SuccessResponse(
-        data=RoutineExerciseItem(
-            routine_exercise_id=str(rex.id),
-            exercise_id=str(rex.exercise_id),
-            exercise_name=ex_name,
-            equipment_id=str(rex.equipment_id) if rex.equipment_id else None,
-            equipment_name=None,
-            order_index=rex.order_index,
-            sets=rex.sets,
-            reps_min=rex.reps_min,
-            reps_max=rex.reps_max,
-            weight_kg=rex.weight_kg,
-            rest_seconds=rex.rest_seconds,
-            note=rex.note,
+        data=ReplaceRoutineExerciseData(
+            message="세부 정보가 수정되었습니다.",
+            new_exercise=ReplacedExerciseData(
+                exercise_id=str(rex.exercise_id),
+                name=cur_ex.name if cur_ex else "",
+                equipment=equipment_name,
+                brand=brand_name,
+                sets=rex.sets,
+                reps_min=rex.reps_min,
+                reps_max=rex.reps_max,
+            ),
         )
     )
 
@@ -335,30 +359,50 @@ async def get_routine_exercise_papers(
 
 
 # ── POST /routines/generate (SSE) ─────────────────────────────────────────────
-async def _generate_routine_stream(_user: User, body: GenerateRoutineRequest):
+async def _generate_routine_stream(_user: User, body: GenerateRoutineRequest, routine_id: str):
     """⚠️ TODO: 실제 RAG 파이프라인 (한→영 번역 → 임베딩 → ChromaDB 검색 → LLM 스트리밍).
     현재는 SSE 포맷만 시연하는 스텁. CLAUDE.md §6 RAG 파이프라인 참고.
     """
     yield f"id: evt_001\ndata: {json.dumps({'type': 'started', 'goals': body.goals})}\n\n"
     await asyncio.sleep(0)
-    yield (f"id: evt_002\ndata: {json.dumps({'type': 'message', 'content': 'RAG 파이프라인 미구현 — TODO'})}\n\n")
+    yield f"id: evt_002\ndata: {json.dumps({'type': 'message', 'content': 'RAG 파이프라인 미구현 — TODO'})}\n\n"
+    yield f"id: evt_final\ndata: {json.dumps({'type': 'done', 'routine_id': routine_id})}\n\n"
     yield "data: [DONE]\n\n"
 
 
 @router.post("/generate", summary="AI 루틴 생성 (SSE)")
+@rate_limit("5/minute")
 async def generate_routine(
+    request: Request,
     body: GenerateRoutineRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    split = SplitType(body.split_type) if body.split_type else None
+    routine = WorkoutRoutine(
+        user_id=current_user.id,
+        name=f"AI 루틴 ({', '.join(body.goals)})",
+        fitness_goals=body.goals,
+        split_type=split,
+        target_muscle_group_ids=body.target_muscle_group_ids or [],
+        session_minutes=body.session_minutes,
+        generated_by=GeneratedBy.AI,
+        status=RoutineStatus.ACTIVE,
+    )
+    db.add(routine)
+    await db.commit()
+    await db.refresh(routine)
     return StreamingResponse(
-        _generate_routine_stream(current_user, body),
+        _generate_routine_stream(current_user, body, str(routine.id)),
         media_type="text/event-stream",
     )
 
 
 # ── POST /routines/{id}/regenerate ────────────────────────────────────────────
 @router.post("/{routine_id}/regenerate", summary="루틴 재생성 (SSE)")
+@rate_limit("5/minute")
 async def regenerate_routine(
+    request: Request,
     routine_id: str,
     body: RegenerateRoutineRequest,
     current_user: User = Depends(get_current_user),

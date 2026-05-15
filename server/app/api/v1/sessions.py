@@ -154,7 +154,8 @@ async def finish_session(
     s = await _get_my_session(session_id, current_user, db)
     if s.status == WorkoutStatus.COMPLETED:
         raise ConflictError(message="이미 종료된 세션입니다.")
-    s.finished_at = body.finished_at or datetime.now(timezone.utc)
+    dt = body.finished_at or datetime.now(timezone.utc)
+    s.finished_at = dt.replace(tzinfo=None)
     s.status = WorkoutStatus.COMPLETED
     await db.commit()
     await db.refresh(s)

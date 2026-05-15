@@ -56,7 +56,7 @@ def _routine() -> WorkoutRoutine:
     r.updated_at = _NOW
     r.deleted_at = None
     r.target_muscle_group_ids = []
-    r.session_duration_minutes = 60
+    r.session_minutes = 60
     r.ai_reasoning = None
     return r
 
@@ -214,10 +214,11 @@ class TestGetRoutine:
     @pytest.mark.asyncio
     async def test_success_no_days(self, client):
         r = _routine()
-        # _get_my_routine, RoutineDay 쿼리 (일수 없음)
+        # _get_my_routine, RoutineDay 쿼리 (일수 없음), RoutinePaper 쿼리
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([]),
+            _exec_all([]),  # RoutinePaper (has_paper)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -227,7 +228,7 @@ class TestGetRoutine:
         data = resp.json()["data"]
         assert data["routine_id"] == str(_ROUTINE_ID)
         assert data["days"] == []
-        assert data["session_duration_minutes"] == 60
+        assert data["session_minutes"] == 60
 
     @pytest.mark.asyncio
     async def test_success_with_exercises(self, client):
@@ -313,22 +314,28 @@ class TestUpdateRoutineExercise:
     async def test_success(self, client):
         r = _routine()
         rex = _routine_exercise()
+        new_ex = MagicMock()
+        new_ex.id = _EXERCISE_ID
+        new_ex.name = "스쿼트"
 
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
-            _exec_scalar("벤치프레스"),  # Exercise.name
+            _exec_scalar(new_ex),  # 교체할 Exercise 조회
         )
+        db.refresh = AsyncMock(side_effect=lambda obj: None)
         app.dependency_overrides[get_db] = _db_override(db)
 
+        new_exercise_id = str(uuid.uuid4())
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 4, "weight_kg": 70.0},
+            json={"new_exercise_id": new_exercise_id},
         )
 
         assert resp.status_code == 200
-        assert rex.sets == 4
-        assert rex.weight_kg == 70.0
+        data = resp.json()["data"]
+        assert data["message"] == "종목이 교체되었습니다."
+        assert data["new_exercise"]["name"] == "스쿼트"
         db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -338,7 +345,7 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 4},
+            json={"new_exercise_id": str(uuid.uuid4())},
         )
 
         assert resp.status_code == 404
@@ -354,19 +361,19 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 4},
+            json={"new_exercise_id": str(uuid.uuid4())},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_sets_must_be_positive(self, client):
+    async def test_missing_new_exercise_id_returns_400(self, client):
         db = _make_db()
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 0},
+            json={},
         )
 
         assert resp.status_code == 400
@@ -461,10 +468,21 @@ class TestGetRoutineExercisePapers:
 # ── POST /routines/generate (SSE) ─────────────────────────────────────────────
 
 
+def _generate_db():
+    """generate_routine 용 DB mock: add/commit/refresh만 필요."""
+    db = _make_db()
+
+    async def _set_id(obj):
+        obj.id = _ROUTINE_ID
+
+    db.refresh = AsyncMock(side_effect=_set_id)
+    return db
+
+
 class TestGenerateRoutine:
     @pytest.mark.asyncio
     async def test_returns_sse_content_type(self, client):
-        # generate는 DB 불필요 (get_current_user만 필요)
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
         resp = await client.post(
             "/api/v1/routines/generate",
             json={"goals": ["hypertrophy"], "split_type": "2split"},
@@ -475,6 +493,7 @@ class TestGenerateRoutine:
 
     @pytest.mark.asyncio
     async def test_stream_contains_started_event(self, client):
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
         resp = await client.post(
             "/api/v1/routines/generate",
             json={"goals": ["strength"]},
@@ -483,6 +502,18 @@ class TestGenerateRoutine:
         body = resp.text
         assert "started" in body
         assert "[DONE]" in body
+
+    @pytest.mark.asyncio
+    async def test_stream_contains_routine_id(self, client):
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        assert "routine_id" in body
+        assert str(_ROUTINE_ID) in body
 
     @pytest.mark.asyncio
     async def test_missing_goals_returns_400(self, client):
