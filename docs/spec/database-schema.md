@@ -39,8 +39,8 @@
 |--------|------|
 | `gyms` | 헬스장 (카카오 Local API 연동, `kakao_place_id` UK) |
 | `user_gyms` | 사용자↔헬스장 매핑. `is_primary`로 주 이용 헬스장 1개 |
-| `equipment_brands` | 기구 제조사 (Life Fitness, Technogym 등) |
-| `equipments` | 기구 상세. `category` (근육 부위 대표 1개) + `equipment_type` (물리 타입) 분리. 중량 계산 엔진의 핵심 참조 |
+| `equipment_brands` | 기구 제조사 (Life Fitness, Technogym, Hammer Strength, Newtech, Panatta 등). `default_bar_unit` / `default_stack_unit`로 브랜드별 기본 단위 정책 보유 (v2.1) |
+| `equipments` | 기구 상세. `category` (근육 부위 대표 1개) + `sub_category` (세부 영역, v2.1) + `equipment_type` (물리 타입) 분리. 중량 계산 엔진의 핵심 참조. 무게 컬럼(`bar_weight`, `min_stack`, `max_stack`, `stack_weight`)은 원본 단위 그대로 저장하며 단위는 `bar_weight_unit` / `stack_unit`에 보존 (v2.1) |
 | `gym_equipments` | 헬스장↔기구 매핑 (복합 PK). 헬스장마다 복수 기구 |
 | `equipment_reports` | 기구 데이터 사용자 제보 (missing / incorrect_data) + status 워크플로우 |
 | `equipment_muscles` | 기구↔근육 N:M. 한 기구가 여러 근육 활성 (예: 체스트 프레스 → chest + triceps) |
@@ -180,20 +180,26 @@ erDiagram
         UUID id PK
         varchar name UK "NOT NULL"
         varchar logo_url "NULL"
+        enum default_bar_unit "weightunit kg|lb, NOT NULL DEFAULT kg (v2.1)"
+        enum default_stack_unit "weightunit kg|lb, NOT NULL DEFAULT kg (v2.1)"
     }
 
     equipments {
         UUID id PK
         UUID brand_id FK "equipment_brands.id SET NULL, NULL"
         varchar name "NOT NULL"
+        varchar name_en "영문명 (NULL, v2.1 ERD 문서 보정)"
         enum category "chest|back|shoulders|arms|core|legs (근육 부위, API-12)"
+        varchar sub_category "category 세부 영역 (NULL, v2.1 — upper_back/front_delt 등)"
         enum equipment_type "cable|machine|barbell|dumbbell|bodyweight (물리 타입, API-12)"
         decimal pulley_ratio "NOT NULL DEFAULT 1.0"
-        decimal bar_weight_kg "바벨/케이블 바 무게 (NULL)"
+        decimal bar_weight "바/레버 무게 (NULL). 값은 bar_weight_unit 단위 그대로. v2.1 RENAME(from bar_weight_kg)"
+        enum bar_weight_unit "weightunit kg|lb (NULL only when bar_weight NULL, v2.1) — CHECK 동기성"
         boolean has_weight_assist "어시스트 기구, NOT NULL DEFAULT false"
-        decimal min_stack_kg "최소 스택 중량 (NULL) (API-6)"
-        decimal max_stack_kg "최대 스택 중량 (NULL)"
-        decimal stack_weight_kg "스택 한 블록 무게 (NULL) (API-11)"
+        decimal min_stack "최소 스택 중량 (NULL). 단위는 stack_unit. v2.1 RENAME(from min_stack_kg)"
+        decimal max_stack "최대 스택 중량 (NULL). 단위는 stack_unit. v2.1 RENAME(from max_stack_kg)"
+        jsonb stack_weight "스택 한 블록 무게 (NULL, v2.1 RENAME + decimal→jsonb). 단순:{value:5} / 변동:{pattern:[...]}"
+        enum stack_unit "weightunit kg|lb (NULL only when all 3 stack fields NULL, v2.1) — CHECK 동기성"
         varchar image_url "기구 이미지 (NULL) (M-6)"
         timestamp updated_at "NOT NULL DEFAULT NOW()"
     }
@@ -483,8 +489,55 @@ erDiagram
 
 ### 기구 분류 (API-12: category와 equipment_type 분리)
 - `equipments.category` = 근육 부위 대표 1개: `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
+- `equipments.sub_category` = 세부 영역 (v2.1): `'upper_back' | 'lower_back' | 'front_delt' | 'side_delt' | 'rear_delt' | 'upper_chest' | 'mid_chest' | 'lower_chest' | 'biceps' | 'triceps' | 'quads' | 'hamstrings' | 'abs'` 등. enum이 아닌 `varchar` — 향후 어휘 세분화는 스키마 변경 없이 데이터 값 진화로 대응.
 - `equipments.equipment_type` = 물리 타입: `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
 - 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight_kg` + `has_weight_assist` 기준
+
+### 무게 단위 정책 (v2.1)
+**DB는 CSV에 표기된 원본 단위 그대로 저장하며, 단위 변환을 storage time에 강제하지 않는다.** 각 값의 단위는 같은 행의 `*_unit` 컬럼에서 즉시 확인할 수 있다. 단위 변환은 비교·합산이 필요한 컴포넌트(예: `load_calc.py`)가 compute time에 책임진다.
+
+두 종류의 무게가 의미적으로 분리된다:
+
+1. **바/레버 그룹** (`bar_weight`, `bar_weight_unit`): 제조사가 하드웨어에 표기한 기구 자체의 무게.
+   - 미국 브랜드(Hammer Strength, Life Fitness 등) → `bar_weight_unit='lb'`
+   - 한국·유럽 브랜드(Newtech, Panatta 등) → `bar_weight_unit='kg'`
+2. **스택/원판 그룹** (`min_stack`, `max_stack`, `stack_weight`, `stack_unit`):
+   - selectorized 머신(MTS 시리즈 등): 제조사 내장 스택 → 제조사 표기 단위 그대로 `stack_unit` 기록 (보통 'lb').
+   - plate-loaded 머신: 사용자가 끼우는 원판 → 국내 헬스장 표준 kg (`stack_unit='kg'`).
+
+같은 행에서 `bar_weight_unit='lb'`이고 `stack_unit='kg'`인 조합이 정상이며, ETL은 두 그룹을 독립 처리한다. `equipment_brands.default_bar_unit` / `default_stack_unit`은 신규 import 시 명시값이 없을 때의 fallback이다.
+
+**CHECK 제약 (v2.1)** — 값과 단위의 동기성을 DB가 강제:
+
+```sql
+ALTER TABLE equipments ADD CONSTRAINT chk_bar_unit_synced CHECK (
+  (bar_weight IS NULL AND bar_weight_unit IS NULL)
+  OR (bar_weight IS NOT NULL AND bar_weight_unit IS NOT NULL)
+);
+ALTER TABLE equipments ADD CONSTRAINT chk_stack_unit_synced CHECK (
+  (min_stack IS NULL AND max_stack IS NULL AND stack_weight IS NULL AND stack_unit IS NULL)
+  OR ((min_stack IS NOT NULL OR max_stack IS NOT NULL OR stack_weight IS NOT NULL) AND stack_unit IS NOT NULL)
+);
+```
+
+즉, 무게 값이 존재할 때 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나로 결정된다 — "값은 있는데 단위 NULL" 같은 모순 상태 금지.
+
+### `stack_weight` JSONB 스키마 (v2.1)
+타입을 `decimal`에서 `jsonb`로 변경. 값의 **단위는 같은 행의 `stack_unit`**이 결정하며 JSONB 내부에는 단위를 넣지 않는다(단일 진실 원칙). 두 가지 형태를 허용:
+
+```jsonc
+// 균일 스택
+{ "value": 5 }                            // stack_unit='kg' → 5kg
+{ "value": 10 }                           // stack_unit='lb' → 10lb
+
+// 변동 스택 (예: Hammer Strength Select 시리즈, 1~5번 블록 10lb, 6~15번 블록 15lb)
+{ "pattern": [
+    { "from": 1, "to": 5,  "value": 10 },
+    { "from": 6, "to": 15, "value": 15 }
+]}                                        // 위 예시는 stack_unit='lb'
+```
+
+앱 레이어 검증: `value`와 `pattern`은 상호 배타. `pattern[0].from == 1`, 인접 구간 (`prev.to + 1 == curr.from`).
 
 ### 중량 기록
 - `weight_kg` = 기구 표시값 (사용자 입력)
@@ -522,5 +575,6 @@ erDiagram
 
 | 버전 | 변경 내용 |
 |------|----------|
+| v2.1 (29테이블, docs-only) | 수집 데이터셋(Hammer Strength / Newtech / Panatta CSV) 정합화. `equipments`에 `name_en` 문서 보정, `sub_category` 신규, `bar_weight_unit` / `stack_unit` 신규. **컬럼 RENAME**: `bar_weight_kg → bar_weight`, `min_stack_kg → min_stack`, `max_stack_kg → max_stack`, `stack_weight_kg → stack_weight`(추가로 `decimal → jsonb`). `equipment_brands`에 `default_bar_unit` / `default_stack_unit` 신규. 신규 enum `weightunit('kg','lb')`. 신규 CHECK 제약 `chk_bar_unit_synced`, `chk_stack_unit_synced` — 값과 단위 동기성 보장. 무게 단위 정책 변경: **단위 변환 없이 원본 그대로 저장**. CSV 템플릿: `docs/templates/equipment_template.csv`. |
 | v2 (29테이블) | Program 도메인(`programs`, `program_routines`) 추가, `equipment_muscles` 추가, `user_equipment_selections` / `user_stats` 폐기, 운동 목표 복수 정책 (D-M6), `equipments` category 의미 재정의 + `equipment_type` 분리 (API-12) |
 | v1 (28테이블) | 초기 설계 |
