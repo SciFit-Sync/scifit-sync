@@ -95,7 +95,7 @@ def _measurement_to_dto(m: UserBodyMeasurement | None) -> BodyMeasurementData | 
     if m is None:
         return None
     return BodyMeasurementData(
-        weight=m.weight_kg,
+        weight_kg=m.weight_kg,
         skeletal_muscle_kg=m.skeletal_muscle_kg,
         body_fat_pct=m.body_fat_pct,
         measured_at=m.measured_at,
@@ -153,8 +153,8 @@ async def get_me(
     body_data = UserBodyData(
         gender=profile.gender.value if profile and profile.gender else None,
         age=_calc_age(profile.birth_date if profile else None),
-        height=profile.height_cm if profile else None,
-        weight=latest_m.weight_kg if latest_m else None,
+        height_cm=profile.height_cm if profile else None,
+        weight_kg=latest_m.weight_kg if latest_m else None,
     )
 
     # career 서브오브젝트
@@ -199,23 +199,23 @@ async def update_body(
     measurement_dto: BodyMeasurementData | None = None
 
     # 키는 UserProfile.height_cm에 저장 (upsert)
-    if body.height is not None:
+    if body.height_cm is not None:
         profile = (
             await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
         ).scalar_one_or_none()
         if profile is None:
-            profile = UserProfile(user_id=current_user.id, height_cm=body.height)
+            profile = UserProfile(user_id=current_user.id, height_cm=body.height_cm)
             db.add(profile)
         else:
-            profile.height_cm = body.height
+            profile.height_cm = body.height_cm
 
     # 체중/근육량/체지방률은 새 측정 기록으로 추가
-    if any(v is not None for v in (body.weight, body.skeletal_muscle_kg, body.body_fat_pct)):
-        if body.weight is None:
-            raise ValidationError(message="체중(weight)은 필수입니다.")
+    if any(v is not None for v in (body.weight_kg, body.skeletal_muscle_kg, body.body_fat_pct)):
+        if body.weight_kg is None:
+            raise ValidationError(message="체중(weight_kg)은 필수입니다.")
         m = UserBodyMeasurement(
             user_id=current_user.id,
-            weight_kg=body.weight,
+            weight_kg=body.weight_kg,
             skeletal_muscle_kg=body.skeletal_muscle_kg,
             body_fat_pct=body.body_fat_pct,
             measured_at=body.measured_at or datetime.now(timezone.utc).date(),
@@ -225,7 +225,7 @@ async def update_body(
         measurement_dto = _measurement_to_dto(m)
 
     await db.commit()
-    return SuccessResponse(data=UpdateBodyData(height=body.height, measurement=measurement_dto))
+    return SuccessResponse(data=UpdateBodyData(height_cm=body.height_cm, measurement=measurement_dto))
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────

@@ -12,8 +12,8 @@ class UserBodyData(BaseModel):
 
     gender: str | None = None
     age: int | None = None
-    height: float | None = None  # 키 (cm)
-    weight: float | None = None  # 체중 (kg)
+    height_cm: float | None = None
+    weight_kg: float | None = None
 
 
 class UserCareerData(BaseModel):
@@ -43,7 +43,7 @@ class MeData(BaseModel):
 
 # ── 체측 내부 응답용 ───────────────────────────────────────────────────────────
 class BodyMeasurementData(BaseModel):
-    weight: float | None = None  # weight_kg → weight
+    weight_kg: float | None = None
     skeletal_muscle_kg: float | None = None
     body_fat_pct: float | None = None
     measured_at: date | None = None
@@ -60,15 +60,15 @@ class ProfileData(BaseModel):
 
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
 class UpdateBodyRequest(BaseModel):
-    height: float | None = None  # 키 (cm) — was height_cm
-    weight: float | None = None  # 체중 (kg) — was weight_kg
+    height_cm: float | None = None
+    weight_kg: float | None = None
     skeletal_muscle_kg: float | None = None
     body_fat_pct: float | None = None
     measured_at: date | None = None
 
 
 class UpdateBodyData(BaseModel):
-    height: float | None = None
+    height_cm: float | None = None
     measurement: BodyMeasurementData | None = None
 
 

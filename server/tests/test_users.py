@@ -131,7 +131,7 @@ class TestGetMe:
         body = resp.json()
         assert body["success"] is True
         assert body["data"]["username"] == "testuser"
-        assert body["data"]["body"]["height"] == 175.0
+        assert body["data"]["body"]["height_cm"] == 175.0
 
     @pytest.mark.asyncio
     async def test_success_no_profile(self, client):
@@ -147,7 +147,7 @@ class TestGetMe:
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        assert data["body"]["height"] is None
+        assert data["body"]["height_cm"] is None
         assert data["career"] is None
         assert data["gym"] is None
 
@@ -161,7 +161,7 @@ class TestUpdateBody:
         db = _make_db()
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.patch("/api/v1/users/me/body", json={"weight": 76.5})
+        resp = await client.patch("/api/v1/users/me/body", json={"weight_kg": 76.5})
 
         assert resp.status_code == 200
         assert resp.json()["success"] is True
@@ -172,10 +172,10 @@ class TestUpdateBody:
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.patch("/api/v1/users/me/body", json={"height": 180.0})
+        resp = await client.patch("/api/v1/users/me/body", json={"height_cm": 180.0})
 
         assert resp.status_code == 200
-        assert resp.json()["data"]["height"] == 180.0
+        assert resp.json()["data"]["height_cm"] == 180.0
 
     @pytest.mark.asyncio
     async def test_update_height_success(self, client):
@@ -183,10 +183,10 @@ class TestUpdateBody:
         db = _make_db(_exec_scalar(profile))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.patch("/api/v1/users/me/body", json={"height": 178.0})
+        resp = await client.patch("/api/v1/users/me/body", json={"height_cm": 178.0})
 
         assert resp.status_code == 200
-        assert resp.json()["data"]["height"] == 178.0
+        assert resp.json()["data"]["height_cm"] == 178.0
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
