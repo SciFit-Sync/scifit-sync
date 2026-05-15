@@ -20,6 +20,7 @@ from app.models import (
     Equipment,
     EquipmentReport,
     EquipmentReportStatus,
+    EquipmentSuggestion,
     Gym,
     GymEquipment,
     User,
@@ -27,6 +28,8 @@ from app.models import (
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
+    BulkAddEquipmentRequest,
+    BulkLinkData,
     CreateGymRequest,
     EquipmentItem,
     GymEquipmentListData,
@@ -34,6 +37,8 @@ from app.schemas.gyms import (
     GymSearchData,
     ReportData,
     ReportEquipmentRequest,
+    SuggestEquipmentData,
+    SuggestEquipmentRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,21 +46,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/gyms", tags=["gyms"])
 
 
-def _equipment_to_dto(e: Equipment, brand_name: str | None = None) -> EquipmentItem:
+def _ratio_str(pulley_ratio: float) -> str:
+    n = int(pulley_ratio) if pulley_ratio == int(pulley_ratio) else pulley_ratio
+    return f"{n}:1"
+
+
+def _equipment_to_dto(e: Equipment) -> EquipmentItem:
+    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    is_barbell = e.equipment_type.value == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
         name_en=e.name_en,
+        brand=e.brand.name if e.brand else None,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
-        brand=brand_name,
-        pulley_ratio=e.pulley_ratio,
-        bar_weight_kg=e.bar_weight_kg,
+        pulley_ratio=e.pulley_ratio if is_cable_machine else None,
+        bar_weight_kg=e.bar_weight_kg if is_barbell else None,
         has_weight_assist=e.has_weight_assist,
         min_stack_kg=e.min_stack_kg,
         max_stack_kg=e.max_stack_kg,
-        stack_weight_kg=e.stack_weight_kg,
+        stack_weight_kg=e.stack_weight_kg if is_cable_machine else None,
         image_url=e.image_url,
+        # 표시용 호환 필드
+        ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
+        stack_weight=e.stack_weight_kg if is_cable_machine else None,
+        bar_weight=e.bar_weight_kg if is_barbell else None,
     )
 
 
@@ -75,7 +91,7 @@ async def search_gyms(
     if not settings.KAKAO_REST_API_KEY:
         raise ExternalServiceError(message="카카오 로컬 API 키가 설정되지 않았습니다.")
 
-    params: dict[str, str | float] = {"query": keyword, "category_group_code": "AT4,SW8"}
+    params: dict[str, str | float] = {"query": keyword}
     if latitude is not None and longitude is not None:
         params.update({"x": longitude, "y": latitude, "radius": 5000, "sort": "distance"})
 
@@ -98,7 +114,11 @@ async def search_gyms(
     # 기존 DB 매칭
     existing: dict[str, Gym] = {}
     if place_ids:
-        result = await db.execute(select(Gym).where(Gym.kakao_place_id.in_(place_ids)))
+        result = await db.execute(
+            select(Gym)
+            .where(Gym.kakao_place_id.in_(place_ids))
+            .options(selectinload(Gym.gym_equipments))
+        )
         for g in result.scalars().all():
             if g.kakao_place_id:
                 existing[g.kakao_place_id] = g
@@ -115,10 +135,11 @@ async def search_gyms(
                 latitude=float(gym.latitude) if gym else float(d.get("y", 0)),
                 longitude=float(gym.longitude) if gym else float(d.get("x", 0)),
                 kakao_place_id=place_id,
+                equipment_count=len(gym.gym_equipments) if gym else 0,
             )
         )
 
-    return SuccessResponse(data=GymSearchData(items=items))
+    return SuccessResponse(data=GymSearchData(gyms=items))
 
 
 # ── POST /gyms ────────────────────────────────────────────────────────────────
@@ -129,7 +150,13 @@ async def create_gym(
     db: AsyncSession = Depends(get_db),
 ):
     if body.kakao_place_id:
-        existing = (await db.execute(select(Gym).where(Gym.kakao_place_id == body.kakao_place_id))).scalar_one_or_none()
+        existing = (
+            await db.execute(
+                select(Gym)
+                .where(Gym.kakao_place_id == body.kakao_place_id)
+                .options(selectinload(Gym.gym_equipments))
+            )
+        ).scalar_one_or_none()
         if existing is not None:
             return SuccessResponse(
                 data=GymItem(
@@ -139,6 +166,7 @@ async def create_gym(
                     latitude=existing.latitude,
                     longitude=existing.longitude,
                     kakao_place_id=existing.kakao_place_id,
+                    equipment_count=len(existing.gym_equipments),
                 )
             )
 
@@ -161,6 +189,7 @@ async def create_gym(
             latitude=gym.latitude,
             longitude=gym.longitude,
             kakao_place_id=gym.kakao_place_id,
+            equipment_count=0,
         )
     )
 
@@ -189,12 +218,21 @@ async def list_gym_equipment(
 
     equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
     if not equipment_ids:
-        return SuccessResponse(data=GymEquipmentListData(gym_id=gym_id, items=[]))
+        return SuccessResponse(data=GymEquipmentListData(gym_id=gym_id, gym_name=gym.name, equipment=[]))
 
-    equipments = (await db.execute(select(Equipment).where(Equipment.id.in_(equipment_ids)))).scalars().all()
+    equipments = (
+        await db.execute(
+            select(Equipment)
+            .where(Equipment.id.in_(equipment_ids))
+            .options(selectinload(Equipment.brand))
+        )
+    ).scalars().all()
 
-    items = [_equipment_to_dto(e) for e in equipments]
-    return SuccessResponse(data=GymEquipmentListData(gym_id=gym_id, items=items))
+    return SuccessResponse(data=GymEquipmentListData(
+        gym_id=gym_id,
+        gym_name=gym.name,
+        equipment=[_equipment_to_dto(e) for e in equipments],
+    ))
 
 
 # ── POST /gyms/{id}/equipment ─────────────────────────────────────────────────
@@ -220,7 +258,11 @@ async def add_gym_equipment(
     if gym is None:
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
 
-    equipment = (await db.execute(select(Equipment).where(Equipment.id == eq_uuid))).scalar_one_or_none()
+    equipment = (
+        await db.execute(
+            select(Equipment).where(Equipment.id == eq_uuid).options(selectinload(Equipment.brand))
+        )
+    ).scalar_one_or_none()
     if equipment is None:
         raise NotFoundError(message="장비를 찾을 수 없습니다.")
 
@@ -236,6 +278,68 @@ async def add_gym_equipment(
     await db.commit()
 
     return SuccessResponse(data=_equipment_to_dto(equipment))
+
+
+# ── POST /gyms/{gymId}/equipment/bulk ────────────────────────────────────────
+@router.post(
+    "/{gym_id}/equipment/bulk",
+    response_model=SuccessResponse[BulkLinkData],
+    status_code=200,
+    summary="헬스장에 기구 일괄 연결",
+)
+async def bulk_add_gym_equipment(
+    gym_id: str,
+    body: BulkAddEquipmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
+
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
+    if gym is None:
+        raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    eq_uuids: list[uuid.UUID] = []
+    for eid in body.equipment_ids:
+        try:
+            eq_uuids.append(uuid.UUID(eid))
+        except ValueError as e:
+            raise ValidationError(message=f"잘못된 equipment_id 형식입니다: {eid}") from e
+
+    existing_ids: set[uuid.UUID] = set()
+    if eq_uuids:
+        rows = (
+            await db.execute(
+                select(GymEquipment.equipment_id).where(
+                    GymEquipment.gym_id == gym_uuid,
+                    GymEquipment.equipment_id.in_(eq_uuids),
+                )
+            )
+        ).scalars().all()
+        existing_ids = set(rows)
+
+    valid_ids = (
+        await db.execute(select(Equipment.id).where(Equipment.id.in_(eq_uuids)))
+    ).scalars().all()
+    valid_id_set = set(valid_ids)
+
+    linked_count = 0
+    for eq_uuid in eq_uuids:
+        if eq_uuid not in valid_id_set or eq_uuid in existing_ids:
+            continue
+        db.add(GymEquipment(gym_id=gym_uuid, equipment_id=eq_uuid, quantity=1))
+        linked_count += 1
+
+    await db.commit()
+
+    return SuccessResponse(data=BulkLinkData(
+        gym_id=gym_id,
+        linked_count=linked_count,
+        message="기구가 헬스장에 연결되었습니다.",
+    ))
 
 
 # ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
@@ -274,3 +378,37 @@ async def report_gym_equipment(
     await db.refresh(report)
 
     return SuccessResponse(data=ReportData(report_id=str(report.id), status=report.status.value))
+
+
+# ── POST /gyms/{gymId}/equipment/suggest ─────────────────────────────────────
+@router.post(
+    "/{gym_id}/equipment/suggest",
+    response_model=SuccessResponse[SuggestEquipmentData],
+    status_code=201,
+    summary="미등록 기구 제보",
+)
+async def suggest_gym_equipment(
+    gym_id: str,
+    body: SuggestEquipmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
+
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
+    if gym is None:
+        raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    db.add(EquipmentSuggestion(
+        user_id=current_user.id,
+        gym_id=gym_uuid,
+        name=body.name,
+        brand=body.brand,
+        description=body.description,
+    ))
+    await db.commit()
+
+    return SuccessResponse(data=SuggestEquipmentData(message="기구 제보가 접수되었습니다. 검토 후 반영됩니다."))
