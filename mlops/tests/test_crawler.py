@@ -9,11 +9,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 from mlops.pipeline.crawler import (
+    _fetch_pmc_sections,
     _get_text,
     _parse_pmc_sections,
     _parse_pubmed_article,
     _request_with_rate_limit,
+    _resolve_pmc_id,
     _round_robin_dedup,
+    fetch_pmc_fulltext,
     search_pmids,
 )
 from mlops.pipeline.models import PaperMeta
@@ -303,10 +306,36 @@ class TestRequestWithRateLimit:
     @patch("mlops.pipeline.crawler.requests.get")
     def test_raises_after_max_retries(self, mock_get, _mock_sleep):
         mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
-        # max_retries=3 (default) → 3회 시도 후 마지막 예외 raise
+        # 명시적 max_retries=3로 동작 검증 (default는 5로 상향)
+        with pytest.raises(requests.exceptions.ChunkedEncodingError):
+            _request_with_rate_limit("http://x", {}, max_retries=3)
+        assert mock_get.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_default_max_retries_is_five(self, mock_get, _mock_sleep):
+        """fulltext 회수율을 위해 HTTP layer 기본 retry 횟수를 5로 상향한 상태."""
+        mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
         with pytest.raises(requests.exceptions.ChunkedEncodingError):
             _request_with_rate_limit("http://x", {})
-        assert mock_get.call_count == 3
+        assert mock_get.call_count == 5
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_backoff_is_capped(self, mock_get, _mock_sleep):
+        """지수 백오프가 무한 증가하지 않고 NCBI_HTTP_MAX_BACKOFF로 cap된다."""
+        from mlops.pipeline import crawler as _crawler
+
+        mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
+        with pytest.raises(requests.exceptions.ChunkedEncodingError):
+            _request_with_rate_limit("http://x", {})
+        # attempt 1+ 의 sleep 호출들 (attempt 0은 NCBI_RATE_LIMIT만 sleep)
+        # 모든 backoff sleep이 NCBI_HTTP_MAX_BACKOFF 이하인지 확인
+        backoff_sleeps = [
+            call.args[0] for call in _mock_sleep.call_args_list if call.args and call.args[0] > _crawler.NCBI_RATE_LIMIT
+        ]
+        assert backoff_sleeps  # 적어도 1개 이상의 backoff sleep이 있어야 함
+        assert all(s <= _crawler.NCBI_HTTP_MAX_BACKOFF for s in backoff_sleeps)
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler.requests.get")
@@ -337,3 +366,143 @@ class TestRequestWithRateLimit:
         result = _request_with_rate_limit("http://x", {})
         assert result is good_resp
         assert mock_get.call_count == 2
+
+
+class TestResolvePmcId:
+    """`_resolve_pmc_id` 함수 레벨 재시도 동작 검증.
+
+    HTTP 200인데 JSON body가 깨진 케이스(NCBI 일시 장애로 실측 발생)는
+    `_request_with_rate_limit`의 retry로는 못 잡으므로 함수 레벨 retry로 대응한다.
+    """
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_pmc_id_on_success(self, mock_request, _mock_sleep):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]}
+        mock_request.return_value = mock_resp
+
+        result = _resolve_pmc_id("12345")
+        assert result == "99999"
+        assert mock_request.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_none_when_no_pmc_version(self, mock_request, _mock_sleep):
+        """PMC 버전이 없으면 None 반환 — retry 안 함."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"linksets": [{"linksetdbs": []}]}
+        mock_request.return_value = mock_resp
+
+        result = _resolve_pmc_id("12345")
+        assert result is None
+        assert mock_request.call_count == 1  # retry 무의미하므로 1번만 호출
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retries_on_json_decode_error_then_succeeds(self, mock_request, _mock_sleep):
+        """HTTP 200인데 JSON 깨진 케이스 → 재시도 후 성공."""
+        bad_resp = MagicMock()
+        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        good_resp = MagicMock()
+        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [88888]}]}]}
+        mock_request.side_effect = [bad_resp, good_resp]
+
+        result = _resolve_pmc_id("12345")
+        assert result == "88888"
+        assert mock_request.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_raises_runtime_error_after_exhausting_retries(self, mock_request, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        mock_request.return_value = bad_resp
+
+        with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
+            _resolve_pmc_id("12345", max_attempts=3)
+        assert mock_request.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retries_on_http_failure_then_succeeds(self, mock_request, _mock_sleep):
+        """HTTP layer가 모든 retry 실패해 RequestException 던지면 함수 레벨에서 한 번 더 시도."""
+        good_resp = MagicMock()
+        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]}
+        mock_request.side_effect = [
+            requests.exceptions.ChunkedEncodingError("body cut"),
+            good_resp,
+        ]
+
+        result = _resolve_pmc_id("12345")
+        assert result == "77777"
+        assert mock_request.call_count == 2
+
+
+class TestFetchPmcSections:
+    """`_fetch_pmc_sections` 함수 레벨 재시도 동작 검증.
+
+    HTTP 200인데 XML body가 깨진 케이스 — `ET.ParseError`로 함수 레벨 retry.
+    """
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_sections_on_success(self, mock_request, _mock_sleep):
+        good_resp = MagicMock()
+        good_resp.content = SAMPLE_PMC_XML.strip().encode()
+        mock_request.return_value = good_resp
+
+        sections = _fetch_pmc_sections("12345", "PMC99999")
+        assert len(sections) == 2
+        assert sections[0].name == "Introduction"
+        assert mock_request.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retries_on_xml_parse_error_then_succeeds(self, mock_request, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.content = b"<malformed xml<<>"
+        good_resp = MagicMock()
+        good_resp.content = SAMPLE_PMC_XML.strip().encode()
+        mock_request.side_effect = [bad_resp, good_resp]
+
+        sections = _fetch_pmc_sections("12345", "PMC99999")
+        assert len(sections) == 2
+        assert mock_request.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_raises_runtime_error_after_exhausting_retries(self, mock_request, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.content = b"<malformed xml<<>"
+        mock_request.return_value = bad_resp
+
+        with pytest.raises(RuntimeError, match="efetch 재시도 한도 초과"):
+            _fetch_pmc_sections("12345", "PMC99999", max_attempts=3)
+        assert mock_request.call_count == 3
+
+
+class TestFetchPmcFulltext:
+    """`fetch_pmc_fulltext` end-to-end 흐름: PMC 버전 없음 vs 정상 vs 실패."""
+
+    @patch("mlops.pipeline.crawler._fetch_pmc_sections")
+    @patch("mlops.pipeline.crawler._resolve_pmc_id")
+    def test_returns_empty_when_no_pmc_version(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = None
+
+        result = fetch_pmc_fulltext("12345")
+        assert result == []
+        mock_fetch.assert_not_called()
+
+    @patch("mlops.pipeline.crawler._fetch_pmc_sections")
+    @patch("mlops.pipeline.crawler._resolve_pmc_id")
+    def test_full_pipeline_success(self, mock_resolve, mock_fetch):
+        from mlops.pipeline.models import PaperSection
+
+        mock_resolve.return_value = "PMC99999"
+        mock_fetch.return_value = [PaperSection(name="Introduction", content="test")]
+
+        result = fetch_pmc_fulltext("12345")
+        assert len(result) == 1
+        assert result[0].name == "Introduction"
+        mock_fetch.assert_called_once_with("12345", "PMC99999")

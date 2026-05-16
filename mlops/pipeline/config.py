@@ -10,6 +10,14 @@ NCBI_API_KEY: str = os.getenv("NCBI_API_KEY", "")
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 NCBI_RATE_LIMIT: float = 0.34 if NCBI_API_KEY else 1.0  # 초 단위 대기
 
+# PMC 전문 수집 retry 정책 (env로 조정 가능 — fulltext 회수율 ↔ 실행시간 trade-off)
+NCBI_HTTP_MAX_RETRIES: int = int(os.getenv("NCBI_HTTP_MAX_RETRIES", "5"))
+NCBI_HTTP_MAX_BACKOFF: float = float(os.getenv("NCBI_HTTP_MAX_BACKOFF", "10.0"))
+NCBI_HTTP_TIMEOUT: int = int(os.getenv("NCBI_HTTP_TIMEOUT", "60"))
+PMC_FULLTEXT_MAX_ATTEMPTS: int = int(os.getenv("PMC_FULLTEXT_MAX_ATTEMPTS", "3"))
+PMC_FULLTEXT_RETRY_BACKOFF_BASE: float = float(os.getenv("PMC_FULLTEXT_RETRY_BACKOFF_BASE", "2.0"))
+PMC_FULLTEXT_RETRY_BACKOFF_MAX: float = float(os.getenv("PMC_FULLTEXT_RETRY_BACKOFF_MAX", "10.0"))
+
 # Embedding
 EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
 EMBEDDING_DIM = 1024

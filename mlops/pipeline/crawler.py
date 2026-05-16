@@ -15,7 +15,13 @@ from mlops.pipeline.config import (
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
+    NCBI_HTTP_MAX_BACKOFF,
+    NCBI_HTTP_MAX_RETRIES,
+    NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
+    PMC_FULLTEXT_MAX_ATTEMPTS,
+    PMC_FULLTEXT_RETRY_BACKOFF_BASE,
+    PMC_FULLTEXT_RETRY_BACKOFF_MAX,
 )
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
 
@@ -279,7 +285,12 @@ _RETRYABLE_EXCEPTIONS = (
 )
 
 
-def _request_with_rate_limit(url: str, params: dict, max_retries: int = 3) -> requests.Response:
+def _request_with_rate_limit(
+    url: str,
+    params: dict,
+    max_retries: int = NCBI_HTTP_MAX_RETRIES,
+    max_backoff: float = NCBI_HTTP_MAX_BACKOFF,
+) -> requests.Response:
     """Rate limit 준수 + transient 에러에 대해 지수 백오프 재시도.
 
     Retry 대상:
@@ -291,6 +302,7 @@ def _request_with_rate_limit(url: str, params: dict, max_retries: int = 3) -> re
 
     Retry 비대상:
       - HTTPError 4xx (404 등): 영구 에러 — 재시도 의미 없음
+      - HTTP 200 + 깨진 body (JSON/XML 파싱 실패): 호출부에서 처리
     """
     if NCBI_API_KEY:
         params["api_key"] = NCBI_API_KEY
@@ -300,12 +312,12 @@ def _request_with_rate_limit(url: str, params: dict, max_retries: int = 3) -> re
         if attempt == 0:
             time.sleep(NCBI_RATE_LIMIT)
         else:
-            backoff = NCBI_RATE_LIMIT * (2**attempt)
+            backoff = min(max_backoff, NCBI_RATE_LIMIT * (2**attempt))
             logger.warning("NCBI 요청 재시도 %d/%d (%.1fs 백오프): %s", attempt + 1, max_retries, backoff, last_exc)
             time.sleep(backoff)
 
         try:
-            resp = requests.get(url, params=params, timeout=30)
+            resp = requests.get(url, params=params, timeout=NCBI_HTTP_TIMEOUT)
             resp.raise_for_status()
             _ = resp.content  # body 강제 fetch — chunked 응답 중간 끊김도 여기서 raise
             return resp
@@ -321,6 +333,11 @@ def _request_with_rate_limit(url: str, params: dict, max_retries: int = 3) -> re
 
     assert last_exc is not None
     raise last_exc
+
+
+def _fulltext_retry_backoff(attempt: int) -> float:
+    """fulltext 함수 레벨 재시도 backoff 계산."""
+    return min(PMC_FULLTEXT_RETRY_BACKOFF_MAX, PMC_FULLTEXT_RETRY_BACKOFF_BASE * (2**attempt))
 
 
 def search_pmids(
@@ -472,47 +489,142 @@ def _get_text(el: ET.Element | None) -> str:
     return "".join(el.itertext()).strip()
 
 
+def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """PMID → PMCID 변환. JSON 파싱 실패는 재시도, PMC 미존재는 None 반환.
+
+    HTTP layer retry(`_request_with_rate_limit`)는 transient 네트워크 에러만 잡으므로,
+    HTTP 200인데 body가 깨진 케이스(JSONDecodeError)는 여기서 한 번 더 retry한다.
+
+    Returns:
+        PMCID 문자열, 또는 PMC 버전이 없으면 None.
+
+    Raises:
+        RuntimeError: 모든 재시도가 실패했을 때 (마지막 예외를 cause로 포함).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        if attempt > 0:
+            wait = _fulltext_retry_backoff(attempt - 1)
+            logger.info(
+                "PMC elink 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
+                attempt + 1,
+                max_attempts,
+                wait,
+                pmid,
+                last_exc,
+            )
+            time.sleep(wait)
+
+        try:
+            params = {
+                "dbfrom": "pubmed",
+                "db": "pmc",
+                "id": pmid,
+                "retmode": "json",
+            }
+            resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/elink.fcgi", params)
+            data = resp.json()
+        except requests.exceptions.JSONDecodeError as e:
+            last_exc = e
+            logger.warning("PMC elink JSON 파싱 실패 (시도 %d/%d): PMID=%s err=%s", attempt + 1, max_attempts, pmid, e)
+            continue
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            logger.warning("PMC elink HTTP 최종 실패 (시도 %d/%d): PMID=%s err=%s", attempt + 1, max_attempts, pmid, e)
+            continue
+
+        for linkset in data.get("linksets", []):
+            for linksetdb in linkset.get("linksetdbs", []):
+                if linksetdb.get("dbto") == "pmc":
+                    links = linksetdb.get("links", [])
+                    if links:
+                        return str(links[0])
+        # 응답은 정상이지만 PMC 링크가 없음 — 진짜 미존재. retry 무의미.
+        return None
+
+    raise RuntimeError(f"PMC elink 재시도 한도 초과: PMID={pmid}") from last_exc
+
+
+def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> list[PaperSection]:
+    """PMCID로 PMC efetch XML을 받아 섹션 파싱. XML 파싱 실패는 재시도.
+
+    Raises:
+        RuntimeError: 모든 재시도가 실패했을 때 (마지막 예외를 cause로 포함).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        if attempt > 0:
+            wait = _fulltext_retry_backoff(attempt - 1)
+            logger.info(
+                "PMC efetch 재시도 %d/%d (%.1fs 대기): PMID=%s PMC=%s last_err=%s",
+                attempt + 1,
+                max_attempts,
+                wait,
+                pmid,
+                pmc_id,
+                last_exc,
+            )
+            time.sleep(wait)
+
+        try:
+            params = {
+                "db": "pmc",
+                "id": pmc_id,
+                "retmode": "xml",
+            }
+            resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/efetch.fcgi", params)
+            root = ET.fromstring(resp.content)
+            return _parse_pmc_sections(root)
+        except ET.ParseError as e:
+            last_exc = e
+            logger.warning(
+                "PMC XML 파싱 실패 (시도 %d/%d): PMID=%s PMC=%s err=%s",
+                attempt + 1,
+                max_attempts,
+                pmid,
+                pmc_id,
+                e,
+            )
+            continue
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            logger.warning(
+                "PMC efetch HTTP 최종 실패 (시도 %d/%d): PMID=%s PMC=%s err=%s",
+                attempt + 1,
+                max_attempts,
+                pmid,
+                pmc_id,
+                e,
+            )
+            continue
+
+    raise RuntimeError(f"PMC efetch 재시도 한도 초과: PMID={pmid} PMC={pmc_id}") from last_exc
+
+
 def fetch_pmc_fulltext(pmid: str) -> list[PaperSection]:
     """PMC에서 전문 XML을 가져와 섹션별로 파싱한다.
+
+    fulltext 회수율을 최대화하기 위한 두 단계 재시도 구조:
+      1. HTTP layer (`_request_with_rate_limit`): transient 네트워크/서버 에러 재시도
+      2. 함수 layer (`_resolve_pmc_id` / `_fetch_pmc_sections`): HTTP 200인데 body가
+         깨져 JSON/XML 파싱이 실패하는 케이스 재시도
+
+    모든 retry 파라미터는 config.py를 통해 환경변수로 조정 가능
+    (NCBI_HTTP_MAX_RETRIES, NCBI_HTTP_MAX_BACKOFF, NCBI_HTTP_TIMEOUT,
+    PMC_FULLTEXT_MAX_ATTEMPTS, PMC_FULLTEXT_RETRY_BACKOFF_BASE/_MAX).
 
     Args:
         pmid: PubMed ID
 
     Returns:
-        PaperSection 리스트 (전문이 없으면 빈 리스트)
+        PaperSection 리스트 (PMC 버전이 없으면 빈 리스트). HTTP 또는 파싱이 모든 재시도
+        끝에 실패하면 RuntimeError를 raise하여 호출부가 abstract fallback을 결정한다.
     """
-    # PMID → PMCID 변환
-    params = {
-        "dbfrom": "pubmed",
-        "db": "pmc",
-        "id": pmid,
-        "retmode": "json",
-    }
-    resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/elink.fcgi", params)
-    data = resp.json()
-
-    pmc_ids = []
-    for linkset in data.get("linksets", []):
-        for linksetdb in linkset.get("linksetdbs", []):
-            if linksetdb.get("dbto") == "pmc":
-                pmc_ids.extend(str(lid) for lid in linksetdb.get("links", []))
-
-    if not pmc_ids:
+    pmc_id = _resolve_pmc_id(pmid)
+    if pmc_id is None:
         logger.debug("PMC 전문 없음: PMID=%s", pmid)
         return []
-
-    pmc_id = pmc_ids[0]
-
-    # PMC 전문 XML 가져오기
-    params = {
-        "db": "pmc",
-        "id": pmc_id,
-        "retmode": "xml",
-    }
-    resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/efetch.fcgi", params)
-    root = ET.fromstring(resp.content)
-
-    return _parse_pmc_sections(root)
+    return _fetch_pmc_sections(pmid, pmc_id)
 
 
 def _parse_pmc_sections(root: ET.Element) -> list[PaperSection]:
@@ -653,15 +765,23 @@ def crawl_papers(
         meta.search_categories = sorted(pmid_to_categories.get(meta.pmid, set()))
 
     papers: list[PaperFull] = []
+    fulltext_failures = 0
     for meta in metas:
         sections = []
         if fetch_fulltext:
             try:
                 sections = fetch_pmc_fulltext(meta.pmid)
-            except Exception:
-                logger.warning("전문 수집 실패: PMID=%s", meta.pmid)
+            except Exception as e:
+                fulltext_failures += 1
+                logger.warning(
+                    "전문 수집 최종 실패 — abstract fallback: PMID=%s err=%s",
+                    meta.pmid,
+                    e,
+                )
 
         papers.append(PaperFull(meta=meta, sections=sections))
+    if fulltext_failures:
+        logger.info("전문 수집 최종 실패(abstract fallback) 누적: %d건", fulltext_failures)
 
     logger.info("크롤링 완료: %d건 (전문 포함 %d건)", len(papers), sum(1 for p in papers if p.sections))
     return papers
