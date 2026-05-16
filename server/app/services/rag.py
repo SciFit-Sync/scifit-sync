@@ -105,6 +105,16 @@ def _get_embed_model():
 # ── 핵심 함수 ─────────────────────────────────────────────────
 
 
+def _sanitize_query(text: str) -> str:
+    """UTF-8로 인코딩 불가한 surrogate 문자(U+D800–U+DFFF)를 제거한다.
+
+    WSL/Windows 콘솔의 input()이 일부 한글을 lone surrogate로 반환하는 경우
+    sentence-transformers tokenizer가 TypeError("TextEncodeInput must be ...")를 던진다.
+    Gemini API도 surrogate 포함 문자열을 거부하므로 임베딩·번역 진입 전 일괄 정화한다.
+    """
+    return text.encode("utf-8", errors="ignore").decode("utf-8").strip()
+
+
 def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     """쿼리를 임베딩하여 ChromaDB에서 유사 청크를 검색한다.
 
@@ -115,6 +125,10 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     Returns:
         [{"content": str, "pmid": str, "title": str, "section": str, "score": float}]
     """
+    query = _sanitize_query(query)
+    if not query:
+        return []
+
     model = _get_embed_model()
     collection = _get_collection()
 
@@ -151,6 +165,7 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
 
 def translate_to_english(text: str) -> str:
     """한국어 텍스트를 영어로 번역한다. 실패 시 원문을 반환한다."""
+    text = _sanitize_query(text)
     korean_chars = sum(1 for c in text if "가" <= c <= "힣")
     if korean_chars < 3:
         return text  # 영어면 번역 불필요
@@ -180,6 +195,10 @@ def chat_rag(question: str) -> dict:
             "sources": [{"pmid": str, "title": str, "section": str}]
         }
     """
+    question = _sanitize_query(question)
+    if not question:
+        return {"answer": "질문을 인식할 수 없습니다. 다시 입력해 주세요.", "sources": []}
+
     # 1. 한→영 번역 (실패 시 원문 사용)
     query_en = translate_to_english(question)
 
