@@ -13,7 +13,9 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.models import (
     Equipment,
     EquipmentBrand,
+    EquipmentMuscle,
     GymEquipment,
+    MuscleGroup,
     User,
     UserGym,
 )
@@ -36,6 +38,7 @@ router = APIRouter(prefix="/equipment", tags=["equipment"])
 def _to_item(
     e: Equipment,
     brand_name: str | None,
+    primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
 ) -> EquipmentItem:
     return EquipmentItem(
@@ -45,10 +48,29 @@ def _to_item(
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
         pulley_ratio=e.pulley_ratio,
+        min_stack_kg=e.min_stack_kg,
+        max_stack_kg=e.max_stack_kg,
         stack_weight_kg=e.stack_weight_kg,
         bar_weight_kg=e.bar_weight_kg,
+        primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
     )
+
+
+async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]:
+    if not eq_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(EquipmentMuscle.equipment_id, MuscleGroup.name)
+            .join(MuscleGroup, MuscleGroup.id == EquipmentMuscle.muscle_group_id)
+            .where(EquipmentMuscle.equipment_id.in_(eq_ids))
+        )
+    ).all()
+    result: dict[str, list[str]] = {}
+    for eid, mname in rows:
+        result.setdefault(str(eid), []).append(mname)
+    return result
 
 
 # ── GET /equipment/brands ─────────────────────────────────────────────────────
@@ -165,10 +187,11 @@ async def get_equipment(
         raise NotFoundError(message="기구를 찾을 수 없습니다.")
 
     e, brand_name = row
+    muscles = await _fetch_muscles(db, [e.id])
     image_url = e.image_url or await get_or_generate_image_url(
         str(e.id), e.name, e.name_en
     )
-    item = _to_item(e, brand_name, image_url_override=image_url)
+    item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
     return PaginatedResponse(
         data=[item],
         pagination=PaginationMeta(total=1, page=0, limit=1, has_next=False),

@@ -34,8 +34,11 @@ class EquipmentItem(BaseModel):
     category: str | None = None
     equipment_type: str | None = None
     pulley_ratio: float | None = None
+    min_stack_kg: float | None = None
+    max_stack_kg: float | None = None
     stack_weight_kg: float | None = None
     bar_weight_kg: float | None = None
+    primary_muscles: list[str] = Field(default_factory=list)
     image_url: str | None = None
 
 

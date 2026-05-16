@@ -277,7 +277,7 @@ class TestGetEquipment:
         eq_result = _exec_all([(eq, "브랜드A")])
         eq_result.one_or_none.return_value = (eq, "브랜드A")
         eq_result.all = MagicMock(return_value=[(eq, "브랜드A")])
-        db = _make_db(eq_result)
+        db = _make_db(eq_result, _exec_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get(f"/api/v1/equipment/{eq.id}")
@@ -291,6 +291,7 @@ class TestGetEquipment:
         assert data["equipment_id"] == str(eq.id)
         assert data["name"] == "바벨"
         assert data["brand"] == "브랜드A"
+        assert data["primary_muscles"] == []
 
     @pytest.mark.asyncio
     async def test_not_found(self, client):
