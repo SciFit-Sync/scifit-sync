@@ -356,6 +356,211 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         '("humans")',
         "strict",
     ),
+    (
+        "postmenopausal_women",
+        '("resistance training" OR "strength training") AND '
+        '("postmenopausal" OR "post-menopausal" OR "menopause" OR "estrogen deficiency") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "bone mineral density" OR "sarcopenia") AND '
+        '("humans")',
+        "strict",
+    ),
+    (
+        "diabetes_exercise",
+        '("resistance training" OR "strength training") AND '
+        '("type 2 diabetes" OR "diabetes mellitus" OR "insulin resistance" OR "glycemic control") AND '
+        '("muscle strength" OR "HbA1c" OR "insulin sensitivity" OR "metabolic health") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "obesity_weight_loss",
+        '("resistance training" OR "strength training") AND '
+        '("obesity" OR "overweight" OR "weight loss" OR "fat mass reduction") AND '
+        '("body composition" OR "muscle mass" OR "fat loss" OR "energy expenditure") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "hypertension_exercise",
+        '("resistance training" OR "strength training") AND '
+        '("hypertension" OR "high blood pressure" OR "arterial pressure") AND '
+        '("blood pressure" OR "cardiovascular health" OR "vascular function") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "osteoporosis_bone",
+        '("resistance training" OR "strength training" OR "weight bearing exercise") AND '
+        '("osteoporosis" OR "osteopenia" OR "bone mineral density" OR "bone health") AND '
+        '("muscle strength" OR "bone density" OR "fracture risk") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "parkinson_exercise",
+        '("resistance training" OR "strength training" OR "exercise therapy") AND '
+        '("Parkinson disease" OR "Parkinson\'s disease" OR "PD" OR "parkinsonism") AND '
+        '("muscle strength" OR "motor function" OR "balance" OR "gait") AND '
+        '("humans")',
+        "strict",
+    ),
+    (
+        "stroke_rehabilitation",
+        '("resistance training" OR "strength training" OR "exercise therapy") AND '
+        '("stroke" OR "cerebrovascular accident" OR "post-stroke" OR "hemiparesis") AND '
+        '("muscle strength" OR "motor function" OR "gait" OR "rehabilitation") AND '
+        '("humans")',
+        "strict",
+    ),
+    (
+        "cancer_survivor",
+        '("resistance training" OR "strength training" OR "exercise oncology") AND '
+        '("cancer survivors" OR "breast cancer" OR "prostate cancer" OR "cancer-related fatigue") AND '
+        '("muscle strength" OR "quality of life" OR "physical function" OR "muscle mass") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "team_sports",
+        '("resistance training" OR "strength training") AND '
+        '("team sports" OR "soccer" OR "basketball" OR "rugby" OR "handball" OR "football") AND '
+        '("muscle strength" OR "sprint performance" OR "jump performance" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "protein_synthesis_mtor",
+        '("resistance training" OR "resistance exercise") AND '
+        '("muscle protein synthesis" OR "mTOR" OR "mTORC1" OR "anabolic signaling") AND '
+        '("muscle hypertrophy" OR "muscle protein synthesis" OR "anabolism") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "testosterone_response",
+        '("resistance training" OR "resistance exercise" OR "strength training") AND '
+        '("testosterone" OR "androgen response" OR "anabolic hormone") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "growth_hormone_igf",
+        '("resistance training" OR "resistance exercise" OR "strength training") AND '
+        '("growth hormone" OR "GH response" OR "IGF-1" OR "insulin-like growth factor") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "bcaa_supplement",
+        '("BCAA" OR "branched-chain amino acids" OR "branched chain amino acid") AND '
+        '("resistance training" OR "muscle hypertrophy" OR "muscle protein synthesis" '
+        'OR "exercise performance" OR "muscle damage") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "eaa_supplement",
+        '("essential amino acids" OR "EAA supplementation") AND '
+        '("resistance training" OR "muscle hypertrophy" OR "muscle protein synthesis" '
+        'OR "anabolic response") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "beta_alanine",
+        '("beta-alanine" OR "beta alanine" OR "carnosine supplementation") AND '
+        '("resistance training" OR "muscle strength" OR "high intensity exercise" '
+        'OR "exercise performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "citrulline_supplement",
+        '("citrulline" OR "L-citrulline" OR "citrulline malate") AND '
+        '("resistance training" OR "muscle strength" OR "exercise performance" OR "muscle endurance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "hmb_supplement",
+        '("HMB" OR "beta-hydroxy-beta-methylbutyrate" OR "hydroxymethylbutyrate") AND '
+        '("resistance training" OR "muscle hypertrophy" OR "muscle strength" OR "muscle mass") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "vitamin_d_exercise",
+        '("vitamin D" OR "cholecalciferol" OR "25-hydroxyvitamin D") AND '
+        '("resistance training" OR "muscle strength" OR "muscle function" OR "muscle mass") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "omega3_exercise",
+        '("omega-3" OR "omega 3 fatty acids" OR "fish oil" OR "EPA DHA") AND '
+        '("resistance training" OR "muscle protein synthesis" OR "muscle mass" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "nitrate_beetroot",
+        '("dietary nitrate" OR "beetroot juice" OR "nitrate supplementation") AND '
+        '("resistance training" OR "exercise performance" OR "muscle strength" OR "power output") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "whey_protein_supplement",
+        '("whey protein" OR "whey supplementation" OR "milk protein") AND '
+        '("resistance training" OR "muscle hypertrophy" OR "muscle protein synthesis" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "cold_exposure_training",
+        '("cold exposure" OR "cold acclimation" OR "cold environment exercise") AND '
+        '("exercise performance" OR "muscle function" OR "recovery") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "foam_rolling",
+        '("foam rolling" OR "self-myofascial release" OR "myofascial release") AND '
+        '("muscle recovery" OR "range of motion" OR "DOMS" OR "muscle performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "velocity_based_training",
+        '("velocity-based training" OR "velocity based training" OR "VBT" OR "bar velocity" '
+        'OR "mean propulsive velocity") AND '
+        '("resistance training" OR "muscle strength" OR "power output" OR "1RM") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "rpe_perceived_exertion",
+        '("rating of perceived exertion" OR "RPE" OR "perceived exertion" OR "session RPE") AND '
+        '("resistance training" OR "training load" OR "muscle strength" OR "intensity prescription") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "functional_movement_screen",
+        '("functional movement screen" OR "FMS" OR "Y-balance test" OR "movement screening") AND '
+        '("injury risk" OR "athletic performance" OR "resistance training" OR "movement quality") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "exercise_adherence",
+        '("resistance training" OR "strength training" OR "exercise program") AND '
+        '("exercise adherence" OR "training compliance" OR "dropout" OR "behavior change") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
     # ── semi (RCT/메타/SR만, free full text 제외) ──
     (
         "failure_rir",
@@ -442,6 +647,65 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         '("static stretching" OR "dynamic stretching" OR "PNF stretching" '
         'OR "flexibility training" OR "stretching protocol") AND '
         '("muscle strength" OR "range of motion" OR "athletic performance" OR "muscle hypertrophy") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "cardiovascular_disease",
+        '("resistance training" OR "strength training") AND '
+        '("cardiovascular disease" OR "heart disease" OR "coronary artery disease" '
+        'OR "cardiac rehabilitation") AND '
+        '("cardiac function" OR "exercise capacity" OR "VO2 peak") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "military_tactical",
+        '("resistance training" OR "strength training" OR "tactical training") AND '
+        '("military" OR "soldiers" OR "tactical athlete" OR "occupational performance") AND '
+        '("muscle strength" OR "physical fitness" OR "load carriage" OR "occupational performance") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "runner_strength",
+        '("resistance training" OR "strength training" OR "concurrent training") AND '
+        '("distance runners" OR "endurance runners" OR "running economy" OR "marathon") AND '
+        '("running performance" OR "running economy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "cross_education",
+        '("resistance training" OR "unilateral training" OR "strength training") AND '
+        '("cross education" OR "cross-education" OR "contralateral effect" '
+        'OR "unilateral strength transfer") AND '
+        '("muscle strength" OR "neural adaptation") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "muscle_fiber_type",
+        '("resistance training" OR "strength training") AND '
+        '("muscle fiber type" OR "fiber type composition" OR "type I fibers" OR "type II fibers" '
+        'OR "slow twitch" OR "fast twitch" OR "myosin heavy chain") AND '
+        '("muscle hypertrophy" OR "muscle adaptation" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "neuromuscular_adaptation",
+        '("resistance training" OR "strength training") AND '
+        '("neuromuscular adaptation" OR "neural adaptation" OR "motor unit recruitment" '
+        'OR "firing rate" OR "motor unit") AND '
+        '("muscle strength" OR "force production" OR "neural drive") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "cold_water_immersion",
+        '("cold water immersion" OR "cold plunge" OR "ice bath" OR "cryotherapy") AND '
+        '("resistance training" OR "muscle recovery" OR "DOMS" OR "muscle hypertrophy") AND '
         '("humans" OR "adults")',
         "semi",
     ),
@@ -538,6 +802,63 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         'OR "stretched position training" OR "long-length training" OR "fascicle length" '
         'OR "sarcomerogenesis" OR "muscle length") AND '
         '("muscle hypertrophy" OR "muscle thickness" OR "muscle growth") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "pregnancy_postpartum",
+        '("resistance training" OR "strength training" OR "exercise training") AND '
+        '("pregnancy" OR "pregnant women" OR "postpartum" OR "perinatal") AND '
+        '("muscle strength" OR "physical fitness" OR "maternal health") AND '
+        '("humans")',
+        "loose",
+    ),
+    (
+        "cyclist_strength",
+        '("resistance training" OR "strength training") AND '
+        '("cyclists" OR "cycling performance" OR "road cyclists") AND '
+        '("cycling performance" OR "power output" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "swimmer_strength",
+        '("resistance training" OR "strength training" OR "dry-land training") AND '
+        '("swimmers" OR "swimming performance" OR "competitive swimming") AND '
+        '("swimming performance" OR "muscle strength" OR "power output") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "combat_sports",
+        '("resistance training" OR "strength training") AND '
+        '("combat sports" OR "mixed martial arts" OR "MMA" OR "boxing" OR "judo" '
+        'OR "wrestling" OR "taekwondo") AND '
+        '("muscle strength" OR "power output" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "satellite_cells",
+        '("resistance training" OR "resistance exercise" OR "strength training") AND '
+        '("satellite cells" OR "myogenic stem cells" OR "Pax7" OR "myonuclei") AND '
+        '("muscle hypertrophy" OR "muscle regeneration" OR "muscle growth") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "altitude_hypoxia",
+        '("altitude training" OR "hypoxic training" OR "intermittent hypoxia" OR "live high train low") AND '
+        '("muscle adaptation" OR "endurance performance" OR "VO2max" OR "muscle hypertrophy") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "circadian_time_of_day",
+        '("resistance training" OR "strength training" OR "exercise training") AND '
+        '("time of day" OR "circadian rhythm" OR "morning training" OR "evening training" '
+        'OR "diurnal variation") AND '
+        '("muscle strength" OR "exercise performance" OR "muscle hypertrophy") AND '
         '("humans" OR "adults")',
         "loose",
     ),
