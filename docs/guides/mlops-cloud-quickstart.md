@@ -446,6 +446,41 @@ python mlops/scripts/load_embeddings.py \
 
 ---
 
+## STEP 14-1. (선택) `search_categories` 메타 동기화
+
+`SEARCH_QUERY_CATEGORIES`가 변경된 후(카테고리 추가/삭제/어휘 수정) 기존 적재된 청크의 `search_categories` 메타를 새 카테고리 셋으로 다시 매핑한다. **임베딩/문서는 건드리지 않고 메타만 갱신**하므로 매우 빠르고 안전하다.
+
+```bash
+export API_BASE_URL=https://api.scifit-sync.example.com
+export ADMIN_API_TOKEN=<서버와_동일_값>
+
+# 먼저 dry-run으로 매핑 결과 확인 (API 호출 없음)
+python mlops/scripts/refresh_search_categories.py --dry-run
+
+# 본 실행 — 모든 카테고리 esearch 재실행 + 메타 update
+python mlops/scripts/refresh_search_categories.py
+
+# 큰 카테고리 깊이까지 풀스캔하려면
+python mlops/scripts/refresh_search_categories.py --max-per-category 9999
+```
+
+동작:
+1. `GET /api/v1/admin/rag/pmids` — ChromaDB에 적재된 unique PMID 목록 조회
+2. 100개 카테고리 모두 esearch 재실행 → PMID → 매칭 카테고리 set 빌드
+3. `POST /api/v1/admin/rag/refresh-categories` — `{pmid: [categories]}` 매핑 전송
+4. 백엔드가 `collection.update(ids=..., metadatas=...)`로 메타만 덮어씀
+
+**언제 실행하는가**:
+- crawler.py의 `SEARCH_QUERY_CATEGORIES`에 카테고리 추가 후
+- 카테고리 어휘를 더 넓혔을 때 (예: tempo_tut에 "lifting velocity" 추가)
+- 카테고리를 삭제했을 때 (메타에서 자동 제거됨)
+
+소요시간: ~3–5분 (100 카테고리 × esearch 1초 + ChromaDB update 수십초).
+
+> 주의: 새 카테고리에 매칭되는 **신규 PMID 수집**은 별도. 그건 monthly_ingest로 처리.
+
+---
+
 ## STEP 15. 대용량 적재 워크플로우 (1000편+ / 분할 + nohup 백그라운드)
 
 500편 이상 한 번에 처리하면 시간이 길어서 SSH 끊김/메모리 압박/실패 리스크가 커진다. **500편씩 분할 + 각 배치 후 manifest 갱신 + nohup 백그라운드** 패턴이 검증된 안전 흐름.
@@ -453,13 +488,22 @@ python mlops/scripts/load_embeddings.py \
 ### 15-1. 핵심 제약 — `MAX_PAPERS_PER_CATEGORY`
 
 ```
-29 카테고리 × MAX_PAPERS_PER_CATEGORY = 후보 풀 크기
+100 카테고리 × MAX_PAPERS_PER_CATEGORY = 후보 풀 크기
 ```
 
-기본값 20 → 후보 풀 580. `--max-papers 2000`을 줘봐야 580에서 멈춤. **2000편 수집하려면 카테고리당 70 이상 필요** (29 × 70 = 2030).
+기본값 20 → 후보 풀 2,000. `--max-papers 2000`이면 cap 도달 가능. **더 많이 수집하거나 같은 PMID가 여러 카테고리에 매칭될 확률(다중 매칭)을 높이려면 카테고리당 cap을 늘린다**:
+
+| 시나리오 | `MAX_PAPERS_PER_CATEGORY` | 후보 풀 | 평균 카테고리/논문 (예상) |
+|---|---|---|---|
+| 가벼운 월간 ingest | 20 (기본) | 2,000 | ~3.0 |
+| 중간 — 2k 풀 ingest | 50 | 5,000 | ~5 |
+| 대규모 — 깊이 우선 | 100 | 10,000 | ~7 |
+| 카테고리 풀 최대 | 9,999 (esearch 한도) | — | 평균 10+ |
+
+> round-robin이 큰 카테고리 독식을 막아주므로 cap이 커도 작은 카테고리(30~50건짜리)의 다양성은 유지된다. 다만 esearch 응답 크기와 메타데이터 fetch 부담은 비례 증가.
 
 ```bash
-export MAX_PAPERS_PER_CATEGORY=70
+export MAX_PAPERS_PER_CATEGORY=50  # 2,000편 ingest 시 권장
 ```
 
 ### 15-2. NCBI 키 외부 환경 파일 (보안 + 재사용)
@@ -473,7 +517,7 @@ vi ~/.scifit_env
 vi에서 `i` → 아래 입력 → `Esc` → `:wq`:
 ```bash
 export NCBI_API_KEY="발급받은_NCBI_키"
-export MAX_PAPERS_PER_CATEGORY=70
+export MAX_PAPERS_PER_CATEGORY=50  # 100 카테고리 × 50 = 후보 풀 5,000
 ```
 
 권한 제한:
