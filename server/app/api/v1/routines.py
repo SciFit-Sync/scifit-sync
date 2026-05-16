@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -24,7 +24,6 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
-    EquipmentBrand,
     Exercise,
     Paper,
     RoutineDay,
@@ -44,6 +43,7 @@ from app.schemas.routines import (
     ReplaceRoutineExerciseData,
     ReplaceRoutineExerciseRequest,
     RoutineDayItem,
+    RoutineDeleteData,
     RoutineDetail,
     RoutineExerciseItem,
     RoutineExercisePapersData,
@@ -243,61 +243,22 @@ async def replace_routine_exercise(
     if rex is None:
         raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
 
-    # 종목 교체 처리
-    if body.new_exercise_id is not None:
-        new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
-        new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
-        if new_ex is None:
-            raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
-        rex.exercise_id = new_ex_id
-        rex.equipment_id = None  # 새 종목에 맞는 기구는 초기화
-        await db.commit()
-        await db.refresh(rex)
-        return SuccessResponse(
-            data=ReplaceRoutineExerciseData(
-                message="종목이 교체되었습니다.",
-                new_exercise=ReplacedExerciseData(
-                    exercise_id=str(new_ex.id),
-                    name=new_ex.name,
-                    equipment=None,
-                    brand=None,
-                    sets=rex.sets,
-                    reps_min=rex.reps_min,
-                    reps_max=rex.reps_max,
-                ),
-            )
-        )
-
-    # 세부 정보 수정 처리
-    update_fields = body.model_dump(exclude_unset=True, exclude={"new_exercise_id"})
-    for field, value in update_fields.items():
-        setattr(rex, field, value)
+    new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
+    new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
+    if new_ex is None:
+        raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
+    rex.exercise_id = new_ex_id
+    rex.equipment_id = None
     await db.commit()
     await db.refresh(rex)
-
-    # 현재 종목 및 장비 정보 조회
-    cur_ex = (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
-    equipment_name: str | None = None
-    brand_name: str | None = None
-    if rex.equipment_id:
-        eq_row = (
-            await db.execute(
-                select(Equipment.name, EquipmentBrand.name)
-                .outerjoin(EquipmentBrand, Equipment.brand_id == EquipmentBrand.id)
-                .where(Equipment.id == rex.equipment_id)
-            )
-        ).one_or_none()
-        if eq_row:
-            equipment_name, brand_name = eq_row
-
     return SuccessResponse(
         data=ReplaceRoutineExerciseData(
-            message="세부 정보가 수정되었습니다.",
+            message="종목이 교체되었습니다.",
             new_exercise=ReplacedExerciseData(
-                exercise_id=str(rex.exercise_id),
-                name=cur_ex.name if cur_ex else "",
-                equipment=equipment_name,
-                brand=brand_name,
+                exercise_id=str(new_ex.id),
+                name=new_ex.name,
+                equipment=None,
+                brand=None,
                 sets=rex.sets,
                 reps_min=rex.reps_min,
                 reps_max=rex.reps_max,
@@ -307,17 +268,22 @@ async def replace_routine_exercise(
 
 
 # ── DELETE /routines/{id} ─────────────────────────────────────────────────────
-@router.delete("/{routine_id}", response_model=SuccessResponse[None], summary="루틴 삭제 (soft delete)")
+@router.delete("/{routine_id}", response_model=SuccessResponse[RoutineDeleteData], summary="루틴 삭제 (soft delete)")
 async def delete_routine(
     routine_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
-    routine.deleted_at = datetime.now(timezone.utc)
+    routine.deleted_at = datetime.utcnow()
     routine.status = RoutineStatus.ARCHIVED
     await db.commit()
-    return SuccessResponse(data=None)
+    return SuccessResponse(
+        data=RoutineDeleteData(
+            routine_id=str(routine.id),
+            deleted_at=routine.deleted_at,
+        )
+    )
 
 
 # ── GET /routines/{id}/exercises/{exId}/paper ─────────────────────────────────
@@ -411,9 +377,9 @@ async def regenerate_routine(
     await _get_my_routine(routine_id, current_user, db)
 
     async def stream():
-        yield (f"id: evt_001\ndata: {json.dumps({'type': 'started', 'feedback': body.feedback or ''})}\n\n")
+        yield f"id: evt_001\ndata: {json.dumps({'type': 'started', 'feedback': body.feedback or ''})}\n\n"
         await asyncio.sleep(0)
-        yield (f"id: evt_002\ndata: {json.dumps({'type': 'message', 'content': 'RAG 재생성 미구현 — TODO'})}\n\n")
+        yield f"id: evt_002\ndata: {json.dumps({'type': 'message', 'content': 'RAG 재생성 미구현 — TODO'})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")

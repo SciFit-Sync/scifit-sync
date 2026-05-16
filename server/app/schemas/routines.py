@@ -115,3 +115,9 @@ class ReplacedExerciseData(BaseModel):
 class ReplaceRoutineExerciseData(BaseModel):
     message: str
     new_exercise: ReplacedExerciseData
+
+
+# ── 삭제 ──────────────────────────────────────────────────────────────────────
+class RoutineDeleteData(BaseModel):
+    routine_id: str
+    deleted_at: datetime
