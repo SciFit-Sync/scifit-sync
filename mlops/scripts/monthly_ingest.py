@@ -23,6 +23,7 @@ from mlops.pipeline.config import (
     API_BASE_URL,
     DATA_DIR,
     MANIFEST_PATH,
+    MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
 )
 from mlops.pipeline.crawler import crawl_papers
@@ -80,19 +81,31 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
     return result["data"]["upserted"]
 
 
-def main() -> None:
+def main(max_papers: int | None = None, max_per_category: int | None = None) -> None:
+    if max_papers is None:
+        max_papers = MAX_PAPERS_PER_RUN
+    if max_per_category is None:
+        max_per_category = MAX_PAPERS_PER_CATEGORY
+
     now = datetime.now()
     min_date = (now - timedelta(days=35)).strftime("%Y/%m/%d")
     max_date = now.strftime("%Y/%m/%d")
 
-    logger.info("=== 월간 증분 적재 시작 (%s ~ %s) ===", min_date, max_date)
+    logger.info(
+        "=== 월간 증분 적재 시작 (%s ~ %s, max_papers=%d, max_per_category=%d) ===",
+        min_date,
+        max_date,
+        max_papers,
+        max_per_category,
+    )
 
     existing = load_manifest()
     logger.info("기존 적재: %d건", len(existing))
 
     # 1. 크롤링 (최근 35일)
     papers = crawl_papers(
-        max_total=MAX_PAPERS_PER_RUN,
+        max_total=max_papers,
+        max_per_category=max_per_category,
         min_date=min_date,
         max_date=max_date,
         existing_pmids=existing,
@@ -135,4 +148,20 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="SciFit-Sync 월간 증분 적재")
+    parser.add_argument(
+        "--max-papers",
+        type=int,
+        default=None,
+        help="크롤링 상한 (기본: MAX_PAPERS_PER_RUN)",
+    )
+    parser.add_argument(
+        "--max-per-category",
+        type=int,
+        default=None,
+        help="카테고리당 esearch 후보 풀 cap (기본: MAX_PAPERS_PER_CATEGORY)",
+    )
+    args = parser.parse_args()
+    main(max_papers=args.max_papers, max_per_category=args.max_per_category)

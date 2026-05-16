@@ -88,3 +88,80 @@ async def ingest_papers(
 
     logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, collection.count())
     return {"success": True, "data": {"upserted": total, "total_collection": collection.count()}}
+
+
+@router.get("/rag/pmids")
+async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
+    """ChromaDB에 적재된 모든 unique paper_pmid 목록을 반환한다.
+
+    카테고리 메타 동기화 스크립트(`refresh_search_categories`)가 호출하여
+    어떤 PMID에 대해 카테고리 재계산을 적용할지 결정한다.
+
+    NOTE: 응답이 `dict`인 것은 기존 `ingest_papers` 엔드포인트와의 일관성 때문이다
+    (모든 admin 엔드포인트가 `{success, data}` 평문 dict 패턴). OpenAPI 모델화는
+    admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
+    """
+    collection = _get_collection()
+    data = collection.get(include=["metadatas"])
+    metas = data.get("metadatas") or []
+    pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
+    return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
+
+
+class RefreshCategoriesRequest(BaseModel):
+    mapping: dict[str, list[str]]  # paper_pmid -> categories list
+
+
+@router.post("/rag/refresh-categories")
+async def refresh_categories(
+    body: RefreshCategoriesRequest,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """PMID → 카테고리 리스트 매핑을 받아 ChromaDB 청크 메타의 search_categories만 갱신한다.
+
+    임베딩/문서 본문은 건드리지 않으므로 매우 빠르다. SEARCH_QUERY_CATEGORIES가
+    변경된 후 RAG 검색 가중치를 동기화하는 용도.
+    """
+    collection = _get_collection()
+    data = collection.get(include=["metadatas"])
+    ids = data.get("ids") or []
+    metas = data.get("metadatas") or []
+
+    update_ids: list[str] = []
+    update_metas: list[dict] = []
+    for cid, meta in zip(ids, metas, strict=True):
+        if not meta:
+            continue
+        pmid = meta.get("paper_pmid")
+        if pmid not in body.mapping:
+            continue
+        new_cats = sorted(set(body.mapping[pmid]))
+        old_raw = meta.get("search_categories", "") or ""
+        old_cats = sorted(c for c in old_raw.split(",") if c)
+        if new_cats == old_cats:
+            continue
+        update_ids.append(cid)
+        update_metas.append({**meta, "search_categories": ",".join(new_cats)})
+
+    if update_ids:
+        batch_size = 500
+        for i in range(0, len(update_ids), batch_size):
+            collection.update(
+                ids=update_ids[i : i + batch_size],
+                metadatas=update_metas[i : i + batch_size],
+            )
+
+    logger.info(
+        "refresh-categories: 갱신 %d청크 (전체 %d, 매핑 PMID %d)",
+        len(update_ids),
+        len(ids),
+        len(body.mapping),
+    )
+    return {
+        "success": True,
+        "data": {
+            "updated_chunks": len(update_ids),
+            "total_chunks": len(ids),
+            "total_pmids_in_mapping": len(body.mapping),
+        },
+    }

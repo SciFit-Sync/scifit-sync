@@ -90,7 +90,11 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
     return result["data"]["upserted"]
 
 
-def main(max_papers: int | None = None, dry_run: bool = False) -> None:
+def main(
+    max_papers: int | None = None,
+    max_per_category: int | None = None,
+    dry_run: bool = False,
+) -> None:
     """retry 환경변수 override는 이 함수 호출 전에 적용되어야 한다.
 
     config/crawler 모듈을 lazy import해서 _apply_retry_overrides가 먼저 env를 set하면
@@ -98,6 +102,7 @@ def main(max_papers: int | None = None, dry_run: bool = False) -> None:
     """
     from mlops.pipeline.chunker import chunk_papers
     from mlops.pipeline.config import (
+        MAX_PAPERS_PER_CATEGORY,
         MAX_PAPERS_PER_RUN,
         NCBI_HTTP_MAX_RETRIES,
         PMC_FULLTEXT_MAX_ATTEMPTS,
@@ -107,10 +112,13 @@ def main(max_papers: int | None = None, dry_run: bool = False) -> None:
 
     if max_papers is None:
         max_papers = MAX_PAPERS_PER_RUN
+    if max_per_category is None:
+        max_per_category = MAX_PAPERS_PER_CATEGORY
 
     logger.info(
-        "=== 초기 적재 시작 (max_papers=%d, dry_run=%s, http_retries=%d, fulltext_attempts=%d) ===",
+        "=== 초기 적재 시작 (max_papers=%d, max_per_category=%d, dry_run=%s, http_retries=%d, fulltext_attempts=%d) ===",
         max_papers,
+        max_per_category,
         dry_run,
         NCBI_HTTP_MAX_RETRIES,
         PMC_FULLTEXT_MAX_ATTEMPTS,
@@ -119,7 +127,11 @@ def main(max_papers: int | None = None, dry_run: bool = False) -> None:
     existing = load_manifest()
     logger.info("기존 적재: %d건", len(existing))
 
-    papers = crawl_papers(max_total=max_papers, existing_pmids=existing)
+    papers = crawl_papers(
+        max_total=max_papers,
+        max_per_category=max_per_category,
+        existing_pmids=existing,
+    )
     if not papers:
         logger.info("신규 논문 없음. 종료.")
         return
@@ -151,6 +163,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="SciFit-Sync 초기 논문 적재")
     parser.add_argument("--max-papers", type=int, default=None, help="크롤링 상한 (기본: MAX_PAPERS_PER_RUN)")
+    parser.add_argument(
+        "--max-per-category",
+        type=int,
+        default=None,
+        help="카테고리당 esearch 후보 풀 cap (기본: MAX_PAPERS_PER_CATEGORY=20). "
+        "100 카테고리 × cap = 전체 후보 풀. cap이 클수록 PMID 다중 카테고리 매칭이 늘어 RAG 가중치 다양성 ↑",
+    )
     parser.add_argument("--dry-run", action="store_true", help="크롤링+청킹만 실행, 임베딩/적재 생략")
     parser.add_argument(
         "--http-retries",
@@ -167,4 +186,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     _apply_retry_overrides(args.http_retries, args.fulltext_attempts)
-    main(max_papers=args.max_papers, dry_run=args.dry_run)
+    main(
+        max_papers=args.max_papers,
+        max_per_category=args.max_per_category,
+        dry_run=args.dry_run,
+    )
