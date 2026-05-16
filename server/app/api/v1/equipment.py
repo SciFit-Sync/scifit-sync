@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
-from app.models import Equipment, EquipmentBrand, GymEquipment, User, UserGym
+from app.models import Equipment, EquipmentBrand, EquipmentMuscle, GymEquipment, MuscleGroup, User, UserGym
 from app.schemas.common import PaginatedResponse, PaginationMeta, SuccessResponse
 from app.schemas.gyms import (
     BrandItem,
@@ -33,7 +33,7 @@ def _ratio_str(pulley_ratio: float | None) -> str | None:
     return f"{n}:1"
 
 
-def _to_item(e: Equipment, brand_name: str | None) -> EquipmentItem:
+def _to_item(e: Equipment, brand_name: str | None, primary_muscles: list[str] | None = None) -> EquipmentItem:
     type_val = e.equipment_type.value
     return EquipmentItem(
         equipment_id=str(e.id),
@@ -49,6 +49,7 @@ def _to_item(e: Equipment, brand_name: str | None) -> EquipmentItem:
         max_stack_kg=e.max_stack_kg,
         stack_weight_kg=e.stack_weight_kg,
         image_url=e.image_url,
+        primary_muscles=primary_muscles or [],
         ratio=_ratio_str(e.pulley_ratio) if type_val in ("cable", "machine") else None,
         stack_weight=e.stack_weight_kg if type_val in ("cable", "machine") else None,
         bar_weight=e.bar_weight_kg if type_val == "barbell" else None,
@@ -64,6 +65,22 @@ async def list_brands(
     rows = (await db.execute(select(EquipmentBrand).order_by(EquipmentBrand.name))).scalars().all()
     items = [BrandItem(brand_id=str(b.id), name=b.name, logo_url=b.logo_url) for b in rows]
     return SuccessResponse(data=BrandListData(items=items))
+
+
+async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]:
+    if not eq_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(EquipmentMuscle.equipment_id, MuscleGroup.name)
+            .join(MuscleGroup, MuscleGroup.id == EquipmentMuscle.muscle_group_id)
+            .where(EquipmentMuscle.equipment_id.in_(eq_ids))
+        )
+    ).all()
+    result: dict[str, list[str]] = {}
+    for eid, mname in rows:
+        result.setdefault(str(eid), []).append(mname)
+    return result
 
 
 # ── GET /equipment ────────────────────────────────────────────────────────────
@@ -103,7 +120,8 @@ async def list_equipment(
     if page is not None:
         total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
         rows = (await db.execute(stmt.offset(page * size).limit(size))).all()
-        items = [_to_item(e, b) for e, b in rows]
+        muscles = await _fetch_muscles(db, [e.id for e, _ in rows])
+        items = [_to_item(e, b, muscles.get(str(e.id))) for e, b in rows]
         return PaginatedResponse(
             data=items,
             pagination=PaginationMeta(
@@ -115,7 +133,8 @@ async def list_equipment(
         )
 
     rows = (await db.execute(stmt)).all()
-    items = [_to_item(e, b) for e, b in rows]
+    muscles = await _fetch_muscles(db, [e.id for e, _ in rows])
+    items = [_to_item(e, b, muscles.get(str(e.id))) for e, b in rows]
     return SuccessResponse(data=EquipmentListData(items=items))
 
 

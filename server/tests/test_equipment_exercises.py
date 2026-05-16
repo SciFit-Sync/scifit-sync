@@ -128,7 +128,10 @@ class TestListEquipment:
     @pytest.mark.asyncio
     async def test_success_returns_list(self, client):
         eq = _equipment()
-        db = _make_db(_exec_all([(eq, "브랜드A")]))
+        db = _make_db(
+            _exec_all([(eq, "브랜드A")]),  # equipment rows
+            _exec_all([]),  # muscle rows
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/equipment")
@@ -138,6 +141,7 @@ class TestListEquipment:
         assert len(items) == 1
         assert items[0]["name"] == "바벨"
         assert items[0]["brand"] == "브랜드A"
+        assert items[0]["primary_muscles"] == []
 
     @pytest.mark.asyncio
     async def test_empty_list(self, client):
@@ -152,7 +156,7 @@ class TestListEquipment:
     @pytest.mark.asyncio
     async def test_keyword_filter(self, client):
         eq = _equipment("케이블 머신")
-        db = _make_db(_exec_all([(eq, None)]))
+        db = _make_db(_exec_all([(eq, None)]), _exec_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/equipment?keyword=케이블")
@@ -172,7 +176,7 @@ class TestListEquipment:
     @pytest.mark.asyncio
     async def test_no_brand_returns_none(self, client):
         eq = _equipment()
-        db = _make_db(_exec_all([(eq, None)]))
+        db = _make_db(_exec_all([(eq, None)]), _exec_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/equipment")
@@ -277,6 +281,7 @@ class TestListEquipmentPaginated:
         db = _make_db(
             _exec_scalar_one(5),  # total count
             _exec_all([(eq, "브랜드A")]),  # items
+            _exec_all([]),  # muscle rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 

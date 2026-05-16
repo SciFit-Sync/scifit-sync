@@ -41,6 +41,7 @@ class EquipmentItem(BaseModel):
     max_stack_kg: float | None = None
     stack_weight_kg: float | None = None
     image_url: str | None = None
+    primary_muscles: list[str] = Field(default_factory=list)
     # ── 표시용 호환 필드 (구버전 클라이언트) ──
     ratio: str | None = None  # "2:1", "1:1" 같은 표시용 문자열
     stack_weight: float | None = None  # = stack_weight_kg alias
