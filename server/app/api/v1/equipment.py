@@ -50,8 +50,6 @@ def _to_item(
         pulley_ratio=e.pulley_ratio,
         min_stack_kg=e.min_stack_kg,
         max_stack_kg=e.max_stack_kg,
-        stack_weight_kg=e.stack_weight_kg,
-        bar_weight_kg=e.bar_weight_kg,
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
     )
