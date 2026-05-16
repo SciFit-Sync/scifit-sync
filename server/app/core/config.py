@@ -60,9 +60,7 @@ class Settings(BaseSettings):
             key = self.JWT_SECRET_KEY.strip()
             _weak = {"change-me-in-production", "your-secret-key-here", "secret", "password", ""}
             if not key or key in _weak or len(key) < 32:
-                raise RuntimeError(
-                    "프로덕션 JWT_SECRET_KEY: 최소 32자 이상, 알려진 placeholder 사용 금지"
-                )
+                raise RuntimeError("프로덕션 JWT_SECRET_KEY: 최소 32자 이상, 알려진 placeholder 사용 금지")
 
 
 @lru_cache
