@@ -127,10 +127,7 @@ async def start_session(
 
     first_day = (
         await db.execute(
-            select(RoutineDay)
-            .where(RoutineDay.routine_id == routine_id)
-            .order_by(RoutineDay.day_number)
-            .limit(1)
+            select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
         )
     ).scalar_one_or_none()
 
@@ -239,16 +236,20 @@ async def list_sessions(
     end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
 
     rows = (
-        await db.execute(
-            select(WorkoutLog)
-            .where(
-                WorkoutLog.user_id == current_user.id,
-                WorkoutLog.started_at >= start,
-                WorkoutLog.started_at < end,
+        (
+            await db.execute(
+                select(WorkoutLog)
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLog.started_at >= start,
+                    WorkoutLog.started_at < end,
+                )
+                .order_by(WorkoutLog.started_at.desc())
             )
-            .order_by(WorkoutLog.started_at.desc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
     routine_name_by_day: dict[str, str] = {}
