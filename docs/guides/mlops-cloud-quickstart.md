@@ -503,7 +503,12 @@ python mlops/scripts/refresh_search_categories.py --max-per-category 9999
 > round-robin이 큰 카테고리 독식을 막아주므로 cap이 커도 작은 카테고리(30~50건짜리)의 다양성은 유지된다. 다만 esearch 응답 크기와 메타데이터 fetch 부담은 비례 증가.
 
 ```bash
-export MAX_PAPERS_PER_CATEGORY=50  # 2,000편 ingest 시 권장
+# 환경변수로 설정 (전역)
+export MAX_PAPERS_PER_CATEGORY=50
+
+# 또는 CLI 옵션으로 직접 지정 (env 무시, 더 명시적)
+python -m mlops.scripts.initial_ingest --max-papers 2000 --max-per-category 50
+python -m mlops.scripts.monthly_ingest  --max-papers 300  --max-per-category 30
 ```
 
 ### 15-2. NCBI 키 외부 환경 파일 (보안 + 재사용)
