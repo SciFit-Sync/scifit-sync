@@ -103,6 +103,14 @@ class SuggestEquipmentData(BaseModel):
     message: str
 
 
+class SelectEquipmentRequest(BaseModel):
+    equipment_ids: list[str]
+
+
+class SelectData(BaseModel):
+    selected_count: int
+
+
 # ── 운동 ──────────────────────────────────────────────────────────────────────
 class ExerciseItem(BaseModel):
     exercise_id: str
