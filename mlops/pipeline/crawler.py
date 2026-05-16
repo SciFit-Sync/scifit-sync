@@ -15,7 +15,13 @@ from mlops.pipeline.config import (
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
+    NCBI_HTTP_MAX_BACKOFF,
+    NCBI_HTTP_MAX_RETRIES,
+    NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
+    PMC_FULLTEXT_MAX_ATTEMPTS,
+    PMC_FULLTEXT_RETRY_BACKOFF_BASE,
+    PMC_FULLTEXT_RETRY_BACKOFF_MAX,
 )
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
 
@@ -280,12 +286,9 @@ _RETRYABLE_EXCEPTIONS = (
 
 # fulltext 회수율을 최대화하기 위한 정책. HTTP 레벨 retry는 transient 네트워크 에러만 잡고,
 # HTTP 200 + 깨진 JSON/XML body는 fulltext 함수 레벨에서 추가 retry로 대응한다.
-NCBI_HTTP_MAX_RETRIES = 5
-NCBI_HTTP_MAX_BACKOFF = 10.0  # 지수 백오프 상한 (초)
-NCBI_HTTP_TIMEOUT = 60  # PMC XML이 클 수 있어 넉넉히
-PMC_FULLTEXT_MAX_ATTEMPTS = 3  # parse 실패 시 전체 호출 재시도 횟수
-PMC_FULLTEXT_RETRY_BACKOFF_BASE = 2.0  # 함수 레벨 backoff 시작값 (초)
-PMC_FULLTEXT_RETRY_BACKOFF_MAX = 10.0  # 함수 레벨 backoff 상한 (초)
+# 모든 retry 파라미터는 config.py를 통해 환경변수로 조정 가능
+# (NCBI_HTTP_MAX_RETRIES, NCBI_HTTP_MAX_BACKOFF, NCBI_HTTP_TIMEOUT,
+#  PMC_FULLTEXT_MAX_ATTEMPTS, PMC_FULLTEXT_RETRY_BACKOFF_BASE/_MAX).
 
 
 def _request_with_rate_limit(
