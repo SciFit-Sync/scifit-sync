@@ -4,6 +4,9 @@
 > **검증 환경**: GPU 클러스터 (Ubuntu 22.04, Python 3.10/3.11 공존, NVIDIA CUDA 12.0 드라이버)
 > **기준 코드**: `develop` 브랜치, PR #63 머지 완료 (commit `4abf227`)
 >
+> 🚀 **빠른 운영 흐름** (develop pull → env → 본 ingest → 메타 동기화 → RAG 검증)만 보려면
+> [`mlops-ingest-runbook.md`](./mlops-ingest-runbook.md)를 참조하세요. 이 문서는 상세 옵션·트러블슈팅용.
+>
 > 상세 검증 절차 및 알려진 한계는 [`mlops-pipeline-test.md`](./mlops-pipeline-test.md) 참고.
 
 ---
