@@ -48,11 +48,20 @@ from llm import generate as llm_generate  # noqa: E402, I001
 
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
-    """상대 경로를 프로젝트 루트 기준 절대 경로로 변환한다."""
+    """ChromaDB 데이터 경로를 결정한다.
+
+    컨테이너 환경(/chroma-data 마운트)과 로컬 개발 환경(WSL/macOS)을 자동 분기한다:
+    - 절대 경로: 쓰기 가능하면 그대로 사용, 권한 없으면 프로젝트 루트의 chroma-data로 fallback
+    - 상대 경로: 프로젝트 루트 기준으로 변환
+    """
     raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
     p = Path(raw)
     if p.is_absolute():
-        return str(p)
+        if p.exists() and os.access(p, os.W_OK):
+            return str(p)
+        fallback = _PROJECT_ROOT / "chroma-data"
+        logger.warning("CHROMA_PERSIST_PATH=%s 접근 불가, 로컬 경로 %s로 fallback", raw, fallback)
+        return str(fallback)
     return str(_PROJECT_ROOT / raw.lstrip("./").lstrip("\\"))
 
 
