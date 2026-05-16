@@ -7,8 +7,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Non-root user (보안)
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+# Non-root user + ChromaDB 볼륨 디렉터리 권한 설정
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
+    && mkdir -p /chroma-data && chown -R appuser:appgroup /chroma-data
 USER appuser
 
 EXPOSE 8000
