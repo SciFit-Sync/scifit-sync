@@ -301,6 +301,61 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         '("humans" OR "adults")',
         "strict",
     ),
+    (
+        "cardio_aerobic",
+        '("aerobic exercise" OR "aerobic training" OR "cardiovascular exercise" '
+        'OR "endurance training" OR "running training") AND '
+        '("VO2max" OR "cardiorespiratory fitness" OR "aerobic capacity" '
+        'OR "endurance performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "hiit_training",
+        '("high intensity interval training" OR "HIIT" OR "sprint interval training" '
+        'OR "SIT" OR "interval training") AND '
+        '("VO2max" OR "cardiorespiratory fitness" OR "fat loss" OR "metabolic adaptation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "circuit_training",
+        '("circuit training" OR "circuit weight training" OR "circuit resistance training") AND '
+        '("muscle strength" OR "cardiorespiratory fitness" OR "body composition" '
+        'OR "muscle endurance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "functional_training",
+        '("functional training" OR "functional resistance training" OR "movement-based training" '
+        'OR "multi-planar exercise") AND '
+        '("muscle strength" OR "physical function" OR "balance" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "creatine_supplement",
+        '("creatine supplementation" OR "creatine monohydrate" OR "creatine loading") AND '
+        '("resistance training" OR "muscle hypertrophy" OR "muscle strength" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "caffeine_performance",
+        '("caffeine supplementation" OR "caffeine ingestion" OR "caffeine intake") AND '
+        '("resistance training" OR "muscle strength" OR "exercise performance" OR "power output") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "adolescent_youth",
+        '("resistance training" OR "strength training") AND '
+        '("adolescent" OR "youth" OR "young athletes" OR "pediatric" OR "children") AND '
+        '("muscle strength" OR "muscle hypertrophy" OR "physical fitness" OR "athletic performance") AND '
+        '("humans")',
+        "strict",
+    ),
     # ── semi (RCT/메타/SR만, free full text 제외) ──
     (
         "failure_rir",
@@ -381,6 +436,15 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         '("humans" OR "adults")',
         "semi",
     ),
+    (
+        "stretching_flexibility",
+        '("resistance training" OR "strength training" OR "exercise performance") AND '
+        '("static stretching" OR "dynamic stretching" OR "PNF stretching" '
+        'OR "flexibility training" OR "stretching protocol") AND '
+        '("muscle strength" OR "range of motion" OR "athletic performance" OR "muscle hypertrophy") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
     # ── loose (publication type 필터 없음) ──
     (
         "recommendation_system",
@@ -456,6 +520,24 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         'OR "inter-individual variability" OR "training response variability" '
         'OR "genetic factors") AND '
         '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "olympic_lifting",
+        '("olympic weightlifting" OR "olympic lifting" OR "clean and jerk" OR "snatch" '
+        'OR "weightlifting derivative") AND '
+        '("muscle strength" OR "power output" OR "athletic performance" OR "rate of force development") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "stretch_mediated_hypertrophy",
+        '("resistance training" OR "weight training") AND '
+        '("lengthened partial" OR "lengthened position" OR "long muscle length" '
+        'OR "stretched position training" OR "long-length training" OR "fascicle length" '
+        'OR "sarcomerogenesis" OR "muscle length") AND '
+        '("muscle hypertrophy" OR "muscle thickness" OR "muscle growth") AND '
         '("humans" OR "adults")',
         "loose",
     ),
