@@ -57,7 +57,10 @@ def main(max_papers: int | None = None, dry_run: bool = False) -> None:
 
     logger.info(
         "=== 초기 적재 시작 (max_papers=%d, dry_run=%s, http_retries=%d, fulltext_attempts=%d) ===",
-        max_papers, dry_run, NCBI_HTTP_MAX_RETRIES, PMC_FULLTEXT_MAX_ATTEMPTS,
+        max_papers,
+        dry_run,
+        NCBI_HTTP_MAX_RETRIES,
+        PMC_FULLTEXT_MAX_ATTEMPTS,
     )
 
     def _load_manifest() -> set[str]:
@@ -139,11 +142,15 @@ if __name__ == "__main__":
     parser.add_argument("--max-papers", type=int, default=None, help="크롤링 상한 (기본: MAX_PAPERS_PER_RUN)")
     parser.add_argument("--dry-run", action="store_true", help="크롤링+청킹만 실행, 임베딩/적재 생략")
     parser.add_argument(
-        "--http-retries", type=int, default=None,
+        "--http-retries",
+        type=int,
+        default=None,
         help="NCBI HTTP layer transient 에러 재시도 횟수 (기본: 5, env: NCBI_HTTP_MAX_RETRIES)",
     )
     parser.add_argument(
-        "--fulltext-attempts", type=int, default=None,
+        "--fulltext-attempts",
+        type=int,
+        default=None,
         help="PMC fulltext 함수 layer parse 실패 재시도 횟수 (기본: 3, env: PMC_FULLTEXT_MAX_ATTEMPTS)",
     )
     args = parser.parse_args()

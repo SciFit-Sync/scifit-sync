@@ -513,7 +513,11 @@ def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) ->
             wait = _fulltext_retry_backoff(attempt - 1)
             logger.info(
                 "PMC elink 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
-                attempt + 1, max_attempts, wait, pmid, last_exc,
+                attempt + 1,
+                max_attempts,
+                wait,
+                pmid,
+                last_exc,
             )
             time.sleep(wait)
 
@@ -559,7 +563,12 @@ def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT
             wait = _fulltext_retry_backoff(attempt - 1)
             logger.info(
                 "PMC efetch 재시도 %d/%d (%.1fs 대기): PMID=%s PMC=%s last_err=%s",
-                attempt + 1, max_attempts, wait, pmid, pmc_id, last_exc,
+                attempt + 1,
+                max_attempts,
+                wait,
+                pmid,
+                pmc_id,
+                last_exc,
             )
             time.sleep(wait)
 
@@ -576,14 +585,22 @@ def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT
             last_exc = e
             logger.warning(
                 "PMC XML 파싱 실패 (시도 %d/%d): PMID=%s PMC=%s err=%s",
-                attempt + 1, max_attempts, pmid, pmc_id, e,
+                attempt + 1,
+                max_attempts,
+                pmid,
+                pmc_id,
+                e,
             )
             continue
         except requests.exceptions.RequestException as e:
             last_exc = e
             logger.warning(
                 "PMC efetch HTTP 최종 실패 (시도 %d/%d): PMID=%s PMC=%s err=%s",
-                attempt + 1, max_attempts, pmid, pmc_id, e,
+                attempt + 1,
+                max_attempts,
+                pmid,
+                pmc_id,
+                e,
             )
             continue
 
@@ -760,7 +777,8 @@ def crawl_papers(
                 fulltext_failures += 1
                 logger.warning(
                     "전문 수집 최종 실패 — abstract fallback: PMID=%s err=%s",
-                    meta.pmid, e,
+                    meta.pmid,
+                    e,
                 )
 
         papers.append(PaperFull(meta=meta, sections=sections))

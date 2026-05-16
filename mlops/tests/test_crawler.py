@@ -332,9 +332,7 @@ class TestRequestWithRateLimit:
         # attempt 1+ 의 sleep 호출들 (attempt 0은 NCBI_RATE_LIMIT만 sleep)
         # 모든 backoff sleep이 NCBI_HTTP_MAX_BACKOFF 이하인지 확인
         backoff_sleeps = [
-            call.args[0]
-            for call in _mock_sleep.call_args_list
-            if call.args and call.args[0] > _crawler.NCBI_RATE_LIMIT
+            call.args[0] for call in _mock_sleep.call_args_list if call.args and call.args[0] > _crawler.NCBI_RATE_LIMIT
         ]
         assert backoff_sleeps  # 적어도 1개 이상의 backoff sleep이 있어야 함
         assert all(s <= _crawler.NCBI_HTTP_MAX_BACKOFF for s in backoff_sleeps)
@@ -351,11 +349,7 @@ class TestResolvePmcId:
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
     def test_returns_pmc_id_on_success(self, mock_request, _mock_sleep):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {
-            "linksets": [
-                {"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}
-            ]
-        }
+        mock_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]}
         mock_request.return_value = mock_resp
 
         result = _resolve_pmc_id("12345")
@@ -381,9 +375,7 @@ class TestResolvePmcId:
         bad_resp = MagicMock()
         bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
         good_resp = MagicMock()
-        good_resp.json.return_value = {
-            "linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [88888]}]}]
-        }
+        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [88888]}]}]}
         mock_request.side_effect = [bad_resp, good_resp]
 
         result = _resolve_pmc_id("12345")
@@ -406,9 +398,7 @@ class TestResolvePmcId:
     def test_retries_on_http_failure_then_succeeds(self, mock_request, _mock_sleep):
         """HTTP layer가 모든 retry 실패해 RequestException 던지면 함수 레벨에서 한 번 더 시도."""
         good_resp = MagicMock()
-        good_resp.json.return_value = {
-            "linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]
-        }
+        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]}
         mock_request.side_effect = [
             requests.exceptions.ChunkedEncodingError("body cut"),
             good_resp,
