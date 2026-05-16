@@ -13,9 +13,7 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.models import (
     Equipment,
     EquipmentBrand,
-    EquipmentMuscle,
     GymEquipment,
-    MuscleGroup,
     User,
     UserGym,
 )
@@ -35,38 +33,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/equipment", tags=["equipment"])
 
 
-def _ratio_str(pulley_ratio: float | None) -> str | None:
-    if pulley_ratio is None:
-        return None
-    n = int(pulley_ratio) if pulley_ratio == int(pulley_ratio) else pulley_ratio
-    return f"{n}:1"
-
-
 def _to_item(
     e: Equipment,
     brand_name: str | None,
-    primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
 ) -> EquipmentItem:
-    type_val = e.equipment_type.value
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
-        name_en=e.name_en,
         brand=brand_name,
         category=e.category.value if e.category else None,
-        equipment_type=type_val,
+        equipment_type=e.equipment_type.value,
         pulley_ratio=e.pulley_ratio,
-        bar_weight_kg=e.bar_weight_kg,
-        has_weight_assist=e.has_weight_assist,
-        min_stack_kg=e.min_stack_kg,
-        max_stack_kg=e.max_stack_kg,
         stack_weight_kg=e.stack_weight_kg,
+        bar_weight_kg=e.bar_weight_kg,
         image_url=image_url_override if image_url_override is not None else e.image_url,
-        primary_muscles=primary_muscles or [],
-        ratio=_ratio_str(e.pulley_ratio) if type_val in ("cable", "machine") else None,
-        stack_weight=e.stack_weight_kg if type_val in ("cable", "machine") else None,
-        bar_weight=e.bar_weight_kg if type_val == "barbell" else None,
     )
 
 
@@ -87,22 +68,6 @@ async def list_brands(
         BrandItem(brand_id=str(b.id), name=b.name, logo_url=b.logo_url) for b in rows
     ]
     return SuccessResponse(data=BrandListData(items=items))
-
-
-async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]:
-    if not eq_ids:
-        return {}
-    rows = (
-        await db.execute(
-            select(EquipmentMuscle.equipment_id, MuscleGroup.name)
-            .join(MuscleGroup, MuscleGroup.id == EquipmentMuscle.muscle_group_id)
-            .where(EquipmentMuscle.equipment_id.in_(eq_ids))
-        )
-    ).all()
-    result: dict[str, list[str]] = {}
-    for eid, mname in rows:
-        result.setdefault(str(eid), []).append(mname)
-    return result
 
 
 # ── GET /equipment ────────────────────────────────────────────────────────────
@@ -156,8 +121,7 @@ async def list_equipment(
             await db.execute(select(func.count()).select_from(stmt.subquery()))
         ).scalar_one()
         rows = (await db.execute(stmt.offset(page * size).limit(size))).all()
-        muscles = await _fetch_muscles(db, [e.id for e, _ in rows])
-        items = [_to_item(e, b, muscles.get(str(e.id))) for e, b in rows]
+        items = [_to_item(e, b) for e, b in rows]
         return PaginatedResponse(
             data=items,
             pagination=PaginationMeta(
@@ -169,8 +133,7 @@ async def list_equipment(
         )
 
     rows = (await db.execute(stmt)).all()
-    muscles = await _fetch_muscles(db, [e.id for e, _ in rows])
-    items = [_to_item(e, b, muscles.get(str(e.id))) for e, b in rows]
+    items = [_to_item(e, b) for e, b in rows]
     return SuccessResponse(data=EquipmentListData(items=items))
 
 
@@ -202,11 +165,10 @@ async def get_equipment(
         raise NotFoundError(message="기구를 찾을 수 없습니다.")
 
     e, brand_name = row
-    muscles = await _fetch_muscles(db, [e.id])
     image_url = e.image_url or await get_or_generate_image_url(
         str(e.id), e.name, e.name_en
     )
-    item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
+    item = _to_item(e, brand_name, image_url_override=image_url)
     return PaginatedResponse(
         data=[item],
         pagination=PaginationMeta(total=1, page=0, limit=1, has_next=False),

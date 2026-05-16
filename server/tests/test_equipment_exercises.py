@@ -128,10 +128,7 @@ class TestListEquipment:
     @pytest.mark.asyncio
     async def test_success_returns_list(self, client):
         eq = _equipment()
-        db = _make_db(
-            _exec_all([(eq, "브랜드A")]),  # equipment rows
-            _exec_all([]),  # muscle rows
-        )
+        db = _make_db(_exec_all([(eq, "브랜드A")]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/equipment")
@@ -141,7 +138,6 @@ class TestListEquipment:
         assert len(items) == 1
         assert items[0]["name"] == "바벨"
         assert items[0]["brand"] == "브랜드A"
-        assert items[0]["primary_muscles"] == []
 
     @pytest.mark.asyncio
     async def test_empty_list(self, client):
@@ -156,7 +152,7 @@ class TestListEquipment:
     @pytest.mark.asyncio
     async def test_keyword_filter(self, client):
         eq = _equipment("케이블 머신")
-        db = _make_db(_exec_all([(eq, None)]), _exec_all([]))
+        db = _make_db(_exec_all([(eq, None)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/equipment?keyword=케이블")
@@ -176,7 +172,7 @@ class TestListEquipment:
     @pytest.mark.asyncio
     async def test_no_brand_returns_none(self, client):
         eq = _equipment()
-        db = _make_db(_exec_all([(eq, None)]), _exec_all([]))
+        db = _make_db(_exec_all([(eq, None)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/equipment")
@@ -281,7 +277,7 @@ class TestGetEquipment:
         eq_result = _exec_all([(eq, "브랜드A")])
         eq_result.one_or_none.return_value = (eq, "브랜드A")
         eq_result.all = MagicMock(return_value=[(eq, "브랜드A")])
-        db = _make_db(eq_result, _exec_all([]))
+        db = _make_db(eq_result)
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get(f"/api/v1/equipment/{eq.id}")
@@ -295,7 +291,6 @@ class TestGetEquipment:
         assert data["equipment_id"] == str(eq.id)
         assert data["name"] == "바벨"
         assert data["brand"] == "브랜드A"
-        assert "primary_muscles" in data
 
     @pytest.mark.asyncio
     async def test_not_found(self, client):
@@ -328,7 +323,6 @@ class TestListEquipmentPaginated:
         db = _make_db(
             _exec_scalar_one(5),  # total count
             _exec_all([(eq, "브랜드A")]),  # items
-            _exec_all([]),  # muscle rows
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
