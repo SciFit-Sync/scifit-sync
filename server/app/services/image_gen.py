@@ -15,9 +15,7 @@ _STATIC_DIR = Path(__file__).resolve().parents[2] / "static" / "equipment_images
 _IMAGE_MODEL = "gemini-2.5-flash-image"
 
 
-def _generate_sync(
-    equipment_id: str, name: str, name_en: str | None, api_key: str
-) -> str | None:
+def _generate_sync(equipment_id: str, name: str, name_en: str | None, api_key: str) -> str | None:
     try:
         from google import genai
         from google.genai import types
@@ -44,9 +42,7 @@ def _generate_sync(
     return None
 
 
-async def get_or_generate_image_url(
-    equipment_id: str, name: str, name_en: str | None
-) -> str | None:
+async def get_or_generate_image_url(equipment_id: str, name: str, name_en: str | None) -> str | None:
     """기구 이미지 URL 반환. 캐시에 없으면 Gemini로 생성 후 저장."""
     cached_path = _STATIC_DIR / f"{equipment_id}.png"
     if cached_path.exists():

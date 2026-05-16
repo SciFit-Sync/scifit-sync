@@ -378,9 +378,7 @@ class TestSelectEquipment:
         app.dependency_overrides[get_db] = _db_override(db)
 
         eq_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
-        resp = await client.post(
-            "/api/v1/equipment/select", json={"equipment_ids": eq_ids}
-        )
+        resp = await client.post("/api/v1/equipment/select", json={"equipment_ids": eq_ids})
 
         assert resp.status_code == 200
         assert resp.json()["success"] is True

@@ -72,21 +72,13 @@ async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]
 
 
 # ── GET /equipment/brands ─────────────────────────────────────────────────────
-@router.get(
-    "/brands", response_model=SuccessResponse[BrandListData], summary="기구 브랜드 목록"
-)
+@router.get("/brands", response_model=SuccessResponse[BrandListData], summary="기구 브랜드 목록")
 async def list_brands(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    rows = (
-        (await db.execute(select(EquipmentBrand).order_by(EquipmentBrand.name)))
-        .scalars()
-        .all()
-    )
-    items = [
-        BrandItem(brand_id=str(b.id), name=b.name, logo_url=b.logo_url) for b in rows
-    ]
+    rows = (await db.execute(select(EquipmentBrand).order_by(EquipmentBrand.name))).scalars().all()
+    items = [BrandItem(brand_id=str(b.id), name=b.name, logo_url=b.logo_url) for b in rows]
     return SuccessResponse(data=BrandListData(items=items))
 
 
@@ -96,29 +88,17 @@ async def list_brands(
 @router.get("", summary="장비 카탈로그")
 async def list_equipment(
     keyword: str | None = Query(None, description="기구 이름 부분 일치 검색"),
-    brand: str | None = Query(
-        None, description="브랜드명 필터 (예: Life Fitness, 라이프피트니스)"
-    ),
+    brand: str | None = Query(None, description="브랜드명 필터 (예: Life Fitness, 라이프피트니스)"),
     brand_id: str | None = Query(None, description="브랜드 UUID 필터"),
-    equipment_type: str | None = Query(
-        None, description="cable / machine / barbell / dumbbell / bodyweight"
-    ),
-    category: str | None = Query(
-        None, description="chest / back / shoulders / arms / core / legs"
-    ),
-    muscle: str | None = Query(
-        None, description="부위 필터 — category와 동일 (예: chest / back)"
-    ),
-    page: int | None = Query(
-        None, ge=0, description="페이지 번호 (지정 시 페이지네이션 응답 반환)"
-    ),
+    equipment_type: str | None = Query(None, description="cable / machine / barbell / dumbbell / bodyweight"),
+    category: str | None = Query(None, description="chest / back / shoulders / arms / core / legs"),
+    muscle: str | None = Query(None, description="부위 필터 — category와 동일 (예: chest / back)"),
+    page: int | None = Query(None, ge=0, description="페이지 번호 (지정 시 페이지네이션 응답 반환)"),
     size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Equipment, EquipmentBrand.name).outerjoin(
-        EquipmentBrand, Equipment.brand_id == EquipmentBrand.id
-    )
+    stmt = select(Equipment, EquipmentBrand.name).outerjoin(EquipmentBrand, Equipment.brand_id == EquipmentBrand.id)
 
     if keyword:
         stmt = stmt.where(Equipment.name.ilike(f"%{keyword}%"))
@@ -137,9 +117,7 @@ async def list_equipment(
         stmt = stmt.where(Equipment.category == category_filter)
 
     if page is not None:
-        total = (
-            await db.execute(select(func.count()).select_from(stmt.subquery()))
-        ).scalar_one()
+        total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
         rows = (await db.execute(stmt.offset(page * size).limit(size))).all()
         items = [_to_item(e, b) for e, b in rows]
         return PaginatedResponse(
@@ -186,9 +164,7 @@ async def get_equipment(
 
     e, brand_name = row
     muscles = await _fetch_muscles(db, [e.id])
-    image_url = e.image_url or await get_or_generate_image_url(
-        str(e.id), e.name, e.name_en
-    )
+    image_url = e.image_url or await get_or_generate_image_url(str(e.id), e.name, e.name_en)
     item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
     return PaginatedResponse(
         data=[item],
@@ -197,9 +173,7 @@ async def get_equipment(
 
 
 # ── POST /equipment/select ────────────────────────────────────────────────────
-@router.post(
-    "/select", response_model=SuccessResponse[SelectData], summary="기구 선택 저장"
-)
+@router.post("/select", response_model=SuccessResponse[SelectData], summary="기구 선택 저장")
 async def select_equipment(
     body: SelectEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -225,9 +199,7 @@ async def select_equipment(
         try:
             valid_ids.append(uuid.UUID(eid_str))
         except ValueError as e:
-            raise ValidationError(
-                message=f"잘못된 equipment_id 형식입니다: {eid_str}"
-            ) from e
+            raise ValidationError(message=f"잘못된 equipment_id 형식입니다: {eid_str}") from e
 
     await db.execute(delete(GymEquipment).where(GymEquipment.gym_id == gym_id))
     for eid in valid_ids:

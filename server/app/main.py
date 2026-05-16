@@ -39,9 +39,7 @@ def create_app() -> FastAPI:
         if app.openapi_schema:
             return app.openapi_schema
         schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
-        schema.setdefault("components", {})["securitySchemes"] = {
-            "HTTPBearer": {"type": "http", "scheme": "bearer"}
-        }
+        schema.setdefault("components", {})["securitySchemes"] = {"HTTPBearer": {"type": "http", "scheme": "bearer"}}
         for path in schema["paths"].values():
             for operation in path.values():
                 operation["security"] = [{"HTTPBearer": []}]
