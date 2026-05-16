@@ -257,10 +257,13 @@ class TestSessionStats:
     async def test_success(self, client):
         finished_at = _NOW + timedelta(minutes=60)
         db = _make_db(
-            _exec_scalar_raw(5),  # total_sessions count
-            _exec_scalar_raw(12500.0),  # total_volume
-            _exec_all([(_NOW, finished_at)]),  # finished sessions for minutes calc
-            _exec_all([]),  # streak dates
+            _exec_scalar_raw(5),              # total_sessions count
+            _exec_scalar_raw(12500.0),        # total_volume
+            _exec_scalar_raw(30),             # total_sets
+            _exec_all([(_NOW, finished_at)]), # finished sessions for minutes calc
+            _exec_scalar_raw(2),              # weekly_session_count
+            _exec_scalar(None),               # recent_row
+            _exec_all([]),                    # streak dates
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -270,7 +273,7 @@ class TestSessionStats:
         data = resp.json()["data"]
         assert data["total_sessions"] == 5
         assert data["total_volume_kg"] == 12500.0
-        assert data["total_minutes"] == 60
+        assert data["total_duration_minutes"] == 60
 
 
 # ── GET /sessions/{id} ────────────────────────────────────────────────────────

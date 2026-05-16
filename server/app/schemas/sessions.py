@@ -7,13 +7,14 @@ from pydantic import BaseModel, Field
 
 # ── 세션 생성 ─────────────────────────────────────────────────────────────────
 class StartSessionRequest(BaseModel):
-    routine_id: str
+    routine_id: str | None = None
+    routine_day_id: str | None = None
 
 
 class SessionStartData(BaseModel):
     session_id: str
-    routine_id: str
-    routine_name: str
+    routine_id: str | None = None
+    routine_name: str | None = None
     started_at: datetime
     message: str = "운동을 시작합니다!"
 
@@ -73,7 +74,7 @@ class SessionCalendarItem(BaseModel):
 class SessionCalendarData(BaseModel):
     year: int
     month: int
-    records: list[SessionCalendarItem]
+    items: list[SessionCalendarItem]
     total_session_count: int
 
 

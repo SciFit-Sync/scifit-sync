@@ -54,13 +54,17 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
         raise ValidationError(message=f"잘못된 {name} 형식입니다.") from e
 
 
+def _strip_tz(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+
 def _session_to_dto(
     s: WorkoutLog,
     routine_name: str | None = None,
 ) -> SessionData:
     duration_minutes: int | None = None
     if s.finished_at and s.started_at:
-        duration_minutes = max(0, int((s.finished_at - s.started_at).total_seconds() // 60))
+        duration_minutes = max(0, int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60))
     return SessionData(
         session_id=str(s.id),
         routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
@@ -111,29 +115,37 @@ async def start_session(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    routine_id = _parse_uuid(body.routine_id, "routine_id")
+    session_routine_day_id = None
+    session_routine_id: str | None = None
+    session_routine_name: str | None = None
 
-    routine = (
-        await db.execute(
-            select(WorkoutRoutine).where(
-                WorkoutRoutine.id == routine_id,
-                WorkoutRoutine.user_id == current_user.id,
-                WorkoutRoutine.deleted_at.is_(None),
+    if body.routine_id:
+        routine_id = _parse_uuid(body.routine_id, "routine_id")
+        routine = (
+            await db.execute(
+                select(WorkoutRoutine).where(
+                    WorkoutRoutine.id == routine_id,
+                    WorkoutRoutine.user_id == current_user.id,
+                    WorkoutRoutine.deleted_at.is_(None),
+                )
             )
-        )
-    ).scalar_one_or_none()
-    if routine is None:
-        raise NotFoundError(message="루틴을 찾을 수 없습니다.")
-
-    first_day = (
-        await db.execute(
-            select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
-        )
-    ).scalar_one_or_none()
+        ).scalar_one_or_none()
+        if routine is None:
+            raise NotFoundError(message="루틴을 찾을 수 없습니다.")
+        session_routine_id = str(routine_id)
+        session_routine_name = routine.name
+        first_day = (
+            await db.execute(
+                select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
+            )
+        ).scalar_one_or_none()
+        session_routine_day_id = first_day.id if first_day else None
+    elif body.routine_day_id:
+        session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
 
     s = WorkoutLog(
         user_id=current_user.id,
-        routine_day_id=first_day.id if first_day else None,
+        routine_day_id=session_routine_day_id,
         status=WorkoutStatus.IN_PROGRESS,
     )
     db.add(s)
@@ -143,8 +155,8 @@ async def start_session(
     return SuccessResponse(
         data=SessionStartData(
             session_id=str(s.id),
-            routine_id=str(routine_id),
-            routine_name=routine.name,
+            routine_id=session_routine_id,
+            routine_name=session_routine_name,
             started_at=s.started_at,
         )
     )
@@ -280,7 +292,7 @@ async def list_sessions(
         data=SessionCalendarData(
             year=q_year,
             month=q_month,
-            records=records,
+            items=records,
             total_session_count=len(records),
         )
     )
