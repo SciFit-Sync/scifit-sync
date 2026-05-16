@@ -271,6 +271,52 @@ class TestListExercises:
         assert resp.status_code == 200
 
 
+# ── GET /equipment/{id} (상세 조회) ──────────────────────────────────────────
+
+
+class TestGetEquipment:
+    @pytest.mark.asyncio
+    async def test_success(self, client):
+        eq = _equipment()
+        db = _make_db(
+            _exec_all([(eq, "브랜드A")]),  # equipment + brand join
+            _exec_all([]),  # muscle rows
+        )
+        # one_or_none() 대신 all()[0] 패턴을 사용하므로 mock 조정
+        db.execute.side_effect[0].one_or_none.return_value = (eq, "브랜드A")
+        db.execute.side_effect[0].all = MagicMock(return_value=[(eq, "브랜드A")])
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/equipment/{eq.id}")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["equipment_id"] == str(eq.id)
+        assert data["name"] == "바벨"
+        assert data["brand"] == "브랜드A"
+        assert "primary_muscles" in data
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, client):
+        r = MagicMock()
+        r.one_or_none.return_value = None
+        db = _make_db(r)
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/equipment/{uuid.uuid4()}")
+
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_invalid_uuid(self, client):
+        db = _make_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/equipment/not-a-uuid")
+
+        assert resp.status_code == 400
+
+
 # ── GET /equipment?page= (페이지네이션) ───────────────────────────────────────
 
 

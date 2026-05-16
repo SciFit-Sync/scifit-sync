@@ -138,6 +138,34 @@ async def list_equipment(
     return SuccessResponse(data=EquipmentListData(items=items))
 
 
+# ── GET /equipment/{equipment_id} ────────────────────────────────────────────
+@router.get("/{equipment_id}", response_model=SuccessResponse[EquipmentItem], summary="기구 상세 조회")
+async def get_equipment(
+    equipment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        eq_uuid = uuid.UUID(equipment_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 equipment_id 형식입니다.") from e
+
+    row = (
+        await db.execute(
+            select(Equipment, EquipmentBrand.name)
+            .outerjoin(EquipmentBrand, Equipment.brand_id == EquipmentBrand.id)
+            .where(Equipment.id == eq_uuid)
+        )
+    ).one_or_none()
+
+    if row is None:
+        raise NotFoundError(message="기구를 찾을 수 없습니다.")
+
+    e, brand_name = row
+    muscles = await _fetch_muscles(db, [e.id])
+    return SuccessResponse(data=_to_item(e, brand_name, muscles.get(str(e.id))))
+
+
 # ── POST /equipment/select ────────────────────────────────────────────────────
 @router.post("/select", response_model=SuccessResponse[SelectData], summary="기구 선택 저장")
 async def select_equipment(
