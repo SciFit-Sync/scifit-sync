@@ -20,7 +20,6 @@ from app.models import (
     UserGym,
 )
 from app.schemas.common import PaginatedResponse, PaginationMeta, SuccessResponse
-from app.services.image_gen import get_or_generate_image_url
 from app.schemas.gyms import (
     BrandItem,
     BrandListData,
@@ -29,6 +28,7 @@ from app.schemas.gyms import (
     SelectData,
     SelectEquipmentRequest,
 )
+from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
 
