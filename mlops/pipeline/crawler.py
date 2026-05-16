@@ -608,7 +608,7 @@ SEMI_STRICT_PUBLICATION_FILTER = (
 )
 
 
-def _filter_for_level(filter_level: str) -> str:
+def filter_for_level(filter_level: str) -> str:
     """filter_level 문자열을 PubMed term 접미 필터로 변환."""
     if filter_level == "strict":
         return COMMON_PUBLICATION_FILTER
@@ -1078,7 +1078,7 @@ def crawl_papers(
     # 1) 카테고리별 검색 결과 사전 수집
     per_category: list[tuple[str, list[str]]] = []
     for name, query, filter_level in queries:
-        full_query = query + _filter_for_level(filter_level)
+        full_query = query + filter_for_level(filter_level)
         logger.info("카테고리 '%s' 검색 (filter=%s)", name, filter_level)
         try:
             pmids = search_pmids(full_query, max_per_category, min_date, max_date)

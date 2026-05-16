@@ -23,6 +23,7 @@ from mlops.pipeline.config import (
     API_BASE_URL,
     DATA_DIR,
     MANIFEST_PATH,
+    MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
 )
 from mlops.pipeline.crawler import crawl_papers
@@ -81,8 +82,6 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
 
 
 def main(max_papers: int | None = None, max_per_category: int | None = None) -> None:
-    from mlops.pipeline.config import MAX_PAPERS_PER_CATEGORY
-
     if max_papers is None:
         max_papers = MAX_PAPERS_PER_RUN
     if max_per_category is None:

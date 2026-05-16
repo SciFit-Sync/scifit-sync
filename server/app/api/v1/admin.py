@@ -96,6 +96,10 @@ async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
 
     카테고리 메타 동기화 스크립트(`refresh_search_categories`)가 호출하여
     어떤 PMID에 대해 카테고리 재계산을 적용할지 결정한다.
+
+    NOTE: 응답이 `dict`인 것은 기존 `ingest_papers` 엔드포인트와의 일관성 때문이다
+    (모든 admin 엔드포인트가 `{success, data}` 평문 dict 패턴). OpenAPI 모델화는
+    admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
     collection = _get_collection()
     data = collection.get(include=["metadatas"])

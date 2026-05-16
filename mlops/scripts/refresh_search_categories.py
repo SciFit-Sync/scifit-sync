@@ -13,6 +13,7 @@
     python -m mlops.scripts.refresh_search_categories
     python -m mlops.scripts.refresh_search_categories --dry-run
     python -m mlops.scripts.refresh_search_categories --max-per-category 5000
+    python -m mlops.scripts.refresh_search_categories --clear-unmatched
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ import requests
 from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
 from mlops.pipeline.crawler import (
     SEARCH_QUERY_CATEGORIES,
-    _filter_for_level,
+    filter_for_level,
     search_pmids,
 )
 
@@ -34,8 +35,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(n
 logger = logging.getLogger(__name__)
 
 
-# NCBI esearch retmax 한도. 단일 카테고리가 이 이상의 hit을 가질 가능성은 매우 낮지만,
-# 어휘 확장으로 광범위해질 경우 페이지네이션 필요 (현재는 단순 cap).
+# NCBI esearch retmax 한도. PubMed 공식 문서:
+# https://www.ncbi.nlm.nih.gov/books/NBK25499/#chapter4.ESearch — `retmax`는 9,999가 상한.
+# 단일 카테고리가 이를 초과하는 hit을 가질 가능성은 매우 낮지만(어휘 광범위 시),
+# 그 경우 페이지네이션이 필요하다 (현재는 단순 cap).
 ESEARCH_RETMAX_HARD_LIMIT = 9999
 
 
@@ -66,7 +69,7 @@ def build_pmid_to_categories(
     """카테고리 쿼리를 모두 esearch 재실행해 PMID → 매칭 카테고리 set 매핑 빌드."""
     pmid_to_cats: dict[str, set[str]] = defaultdict(set)
     for i, (name, query, level) in enumerate(queries, 1):
-        full_query = query + _filter_for_level(level)
+        full_query = query + filter_for_level(level)
         try:
             pmids = search_pmids(full_query, max_results=max_per_category)
         except Exception as e:
@@ -91,7 +94,7 @@ def post_refresh(mapping: dict[str, list[str]]) -> dict:
     return resp.json()["data"]
 
 
-def main(*, max_per_category: int, dry_run: bool) -> int:
+def main(*, max_per_category: int, dry_run: bool, clear_unmatched: bool) -> int:
     _check_env()
     if max_per_category > ESEARCH_RETMAX_HARD_LIMIT:
         logger.warning(
@@ -102,9 +105,11 @@ def main(*, max_per_category: int, dry_run: bool) -> int:
         max_per_category = ESEARCH_RETMAX_HARD_LIMIT
 
     logger.info(
-        "=== search_categories 메타 동기화 시작 (카테고리 %d개, max_per_category=%d, dry_run=%s) ===",
+        "=== search_categories 메타 동기화 시작 (카테고리 %d개, max_per_category=%d, "
+        "clear_unmatched=%s, dry_run=%s) ===",
         len(SEARCH_QUERY_CATEGORIES),
         max_per_category,
+        clear_unmatched,
         dry_run,
     )
 
@@ -128,12 +133,23 @@ def main(*, max_per_category: int, dry_run: bool) -> int:
     relevant = {pmid: sorted(cats) for pmid, cats in pmid_to_cats.items() if pmid in existing}
     logger.info("ChromaDB와 매칭된 PMID: %d / %d", len(relevant), len(existing))
 
-    unmatched_in_db = existing - set(pmid_to_cats.keys())
+    unmatched_in_db = sorted(existing - set(pmid_to_cats.keys()))
     if unmatched_in_db:
-        logger.info(
-            "주의: ChromaDB에 있지만 어떤 카테고리에도 매칭되지 않은 PMID %d개 (메타가 빈 문자열로 갱신되지 않음 — 옛 카테고리 메타 그대로 유지됨)",
-            len(unmatched_in_db),
-        )
+        if clear_unmatched:
+            # 빈 list로 mapping에 포함시켜 backend가 메타를 빈 string으로 덮도록 한다.
+            # (deprecated 카테고리 메타가 RAG 검색에 잔존하는 것을 방지)
+            for pmid in unmatched_in_db:
+                relevant[pmid] = []
+            logger.info(
+                "unmatched PMID %d개를 빈 카테고리로 clear (--clear-unmatched 적용)",
+                len(unmatched_in_db),
+            )
+        else:
+            logger.info(
+                "주의: ChromaDB에 있지만 어떤 카테고리에도 매칭되지 않은 PMID %d개 — "
+                "옛 카테고리 메타 그대로 유지됨. 모두 비우려면 --clear-unmatched 사용",
+                len(unmatched_in_db),
+            )
 
     if dry_run:
         logger.info("[DRY RUN] API 호출 생략. 샘플 (상위 5건):")
@@ -160,5 +176,17 @@ if __name__ == "__main__":
         default=2000,
         help="카테고리당 esearch retmax (기본 2000, 최대 9999). 큰 카테고리의 깊이를 결정",
     )
+    parser.add_argument(
+        "--clear-unmatched",
+        action="store_true",
+        help="ChromaDB에 있지만 현재 카테고리 매핑에 없는 PMID의 search_categories를 빈 값으로 clear "
+        "(deprecated 카테고리 메타 잔존 방지). 미지정 시 옛 메타 유지.",
+    )
     args = parser.parse_args()
-    sys.exit(main(max_per_category=args.max_per_category, dry_run=args.dry_run))
+    sys.exit(
+        main(
+            max_per_category=args.max_per_category,
+            dry_run=args.dry_run,
+            clear_unmatched=args.clear_unmatched,
+        )
+    )
