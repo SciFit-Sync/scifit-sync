@@ -278,19 +278,20 @@ class TestGetEquipment:
     @pytest.mark.asyncio
     async def test_success(self, client):
         eq = _equipment()
-        db = _make_db(
-            _exec_all([(eq, "브랜드A")]),  # equipment + brand join
-            _exec_all([]),  # muscle rows
-        )
-        # one_or_none() 대신 all()[0] 패턴을 사용하므로 mock 조정
-        db.execute.side_effect[0].one_or_none.return_value = (eq, "브랜드A")
-        db.execute.side_effect[0].all = MagicMock(return_value=[(eq, "브랜드A")])
+        eq_result = _exec_all([(eq, "브랜드A")])
+        eq_result.one_or_none.return_value = (eq, "브랜드A")
+        eq_result.all = MagicMock(return_value=[(eq, "브랜드A")])
+        db = _make_db(eq_result, _exec_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get(f"/api/v1/equipment/{eq.id}")
 
         assert resp.status_code == 200
-        data = resp.json()["data"]
+        body = resp.json()
+        assert body["pagination"]["total"] == 1
+        assert body["pagination"]["page"] == 0
+        assert body["pagination"]["has_next"] is False
+        data = body["data"][0]
         assert data["equipment_id"] == str(eq.id)
         assert data["name"] == "바벨"
         assert data["brand"] == "브랜드A"
@@ -382,7 +383,9 @@ class TestSelectEquipment:
         app.dependency_overrides[get_db] = _db_override(db)
 
         eq_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
-        resp = await client.post("/api/v1/equipment/select", json={"equipment_ids": eq_ids})
+        resp = await client.post(
+            "/api/v1/equipment/select", json={"equipment_ids": eq_ids}
+        )
 
         assert resp.status_code == 200
         assert resp.json()["success"] is True
