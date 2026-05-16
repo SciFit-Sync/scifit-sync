@@ -1,11 +1,12 @@
 # MLOps 논문 검색 쿼리 카테고리 가이드
 
-`mlops/pipeline/crawler.py`의 `SEARCH_QUERY_CATEGORIES`(100개)는 SciFit-Sync RAG가 다양한
-사용자 컨텍스트에 답할 수 있도록 PubMed에서 광범위한 근거 데이터를 수집하기 위한 카테고리별
-검색 쿼리 모음이다. 본 가이드는 카테고리를 **추가/수정/검증/적재**할 때의 표준 절차를 정리한다.
+`mlops/pipeline/crawler.py`의 `SEARCH_QUERY_CATEGORIES`(65개)는 SciFit-Sync RAG가 다양한
+사용자 컨텍스트에 답할 수 있도록 PubMed에서 운동 루틴 생성에 직접 관련된 근거 데이터를
+수집하기 위한 카테고리별 검색 쿼리 모음이다. 본 가이드는 카테고리를 **추가/수정/검증/적재**할
+때의 표준 절차를 정리한다.
 
-> 본 가이드는 브랜치 `feature/jingyu/mlops-query-expansion` 기준 commit `b3a22f4 → fdb4b38 → fdb7659`
-> (총 100개 카테고리, 50편 dry-run E2E 검증 완료) 기준이다.
+> 카테고리는 100개까지 확장됐다가 운동 루틴 생성 핵심 외 35개(영양/임상 인구/특수 보조제 등)를
+> 제거하여 65개로 정제됐다. 100개 시절 검증 history는 §5 참조.
 
 ---
 
@@ -33,22 +34,22 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
 | `semi` | RCT / 메타분석 / 시스템 리뷰만 | 좁은 임상 주제 — abstract만으로도 RAG 청크 다양성 확보 (failure_rir, periodization, 부위별 등) |
 | `loose` | 없음 (humans/adults만) | RCT가 거의 없는 영역 (메커니즘 이론, 신규 분야, 추천 시스템, 종목 특화 등) |
 
-### 현재 분포 (100개)
+### 현재 분포 (65개)
 
 | level | 카테고리 수 | 대표 예시 |
 |---|---|---|
-| strict | 66 | volume, intensity, frequency, chest/legs/arms_training, BCAA, vitamin_d, parkinson_exercise |
-| semi | 16 | failure_rir, periodization, back_training, core_training, cold_water_immersion |
-| loose | 18 | recommendation_system, exercise_order, training_split, satellite_cells, olympic_lifting |
+| strict | 41 | volume, intensity, frequency, chest/legs/arms_training, BFR, plyometric, foam_rolling, VBT, RPE |
+| semi | 12 | failure_rir, periodization, tempo_tut, back/shoulders/core_training, stretching_flexibility |
+| loose | 12 | personalized_prescription, training_split, exercise_order, advanced_techniques, olympic_lifting |
 
 ### 4축 분류 (RAG 사용 관점)
 
 | 축 | 의미 | 사용자 컨텍스트에 따른 트리거 |
 |---|---|---|
-| A. 근성장 메커니즘·원리 (≈22) | 처방의 "변수" (volume, intensity, tempo, periodization, mTOR, fiber_type 등) | `default_goals=hypertrophy/strength` |
+| A. 근성장 메커니즘·원리 (≈22) | 처방의 "변수" (volume, intensity, tempo, periodization, fiber_type, hormones 등) | `default_goals=hypertrophy/strength` |
 | B. 부위 선정 (≈8) | chest/back/legs/shoulders/arms/core_training, compound_isolation, unilateral | 사용자 분할/부위 지정 시 |
-| C. 헬스장 루틴 설계 (≈12) | machine_vs_freeweight, training_split, exercise_order, advanced_techniques 등 | 기구·분할·기법 추천 시 |
-| D. 사용자 컨텍스트 (≈58) | 인구·종목·회복·영양·환경·평가·심리 | 프로필 (나이, 성별, 질환, 종목, 보유 기구, 부상 이력) |
+| C. 헬스장 루틴 설계 (≈12) | machine_vs_freeweight, training_split, exercise_order, advanced_techniques, warm_up, BFR, plyometric 등 | 기구·분할·기법 추천 시 |
+| D. 사용자 컨텍스트 (≈23) | 종목(team/cyclist/swimmer)·회복·평가·행동·체성분·재활 | 프로필 (보유 기구, 종목, 부상, 목표) |
 
 ---
 
@@ -58,7 +59,7 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
 
 ### 2.1 후보 발굴 — 운동 루틴 RAG 관련성 우선
 
-기존 100개와 의미 중복 금지. 후보 축 예시:
+기존 65개와 의미 중복 금지. 후보 축 예시:
 - 신규 인구: 류마티스, 만성통증, 자가면역 등
 - 신규 종목: 골프, 테니스, 스키 등
 - 신규 보조제·영양: BCAA 외 EAA 변형, 단백질 타이밍 등
@@ -212,7 +213,7 @@ python3 -m mlops.scripts.export_embeddings
 **과거 검색 결과 기반**이라는 점을 인지하자. 차이가 크면 manifest를 비우고 재적재하는
 편이 검색 일관성에 좋다 (단, 신규 적재 비용 발생).
 
-### 4.4 100개를 더 늘리는 게 좋을지 판단
+### 4.4 65개를 더 늘리는 게 좋을지 판단
 
 권장: **실제 ingest 후 RAG hit rate / 챗봇 미답변 로그**를 먼저 측정. 100개 이상은
 NCBI relevance 정렬 한계로 중복 PMID 비율과 폐기율이 빠르게 증가하므로,
@@ -221,7 +222,7 @@ NCBI relevance 정렬 한계로 중복 PMID 비율과 폐기율이 빠르게 증
 
 ---
 
-## 5. 참고 — 100개 도달 과정 (재현/검토용)
+## 5. 참고 — 100개 확장 → 65개 정제 history (재현/검토용)
 
 | 라운드 | 후보 수 | 채택 | 폐기 | 비고 |
 |---|---|---|---|---|
