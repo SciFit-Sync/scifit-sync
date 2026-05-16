@@ -284,12 +284,6 @@ _RETRYABLE_EXCEPTIONS = (
     requests.exceptions.Timeout,
 )
 
-# fulltext 회수율을 최대화하기 위한 정책. HTTP 레벨 retry는 transient 네트워크 에러만 잡고,
-# HTTP 200 + 깨진 JSON/XML body는 fulltext 함수 레벨에서 추가 retry로 대응한다.
-# 모든 retry 파라미터는 config.py를 통해 환경변수로 조정 가능
-# (NCBI_HTTP_MAX_RETRIES, NCBI_HTTP_MAX_BACKOFF, NCBI_HTTP_TIMEOUT,
-#  PMC_FULLTEXT_MAX_ATTEMPTS, PMC_FULLTEXT_RETRY_BACKOFF_BASE/_MAX).
-
 
 def _request_with_rate_limit(
     url: str,
@@ -530,7 +524,7 @@ def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) ->
             }
             resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/elink.fcgi", params)
             data = resp.json()
-        except (requests.exceptions.JSONDecodeError, ValueError) as e:
+        except requests.exceptions.JSONDecodeError as e:
             last_exc = e
             logger.warning("PMC elink JSON 파싱 실패 (시도 %d/%d): PMID=%s err=%s", attempt + 1, max_attempts, pmid, e)
             continue
@@ -610,10 +604,14 @@ def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT
 def fetch_pmc_fulltext(pmid: str) -> list[PaperSection]:
     """PMC에서 전문 XML을 가져와 섹션별로 파싱한다.
 
-    두 단계 재시도 구조:
+    fulltext 회수율을 최대화하기 위한 두 단계 재시도 구조:
       1. HTTP layer (`_request_with_rate_limit`): transient 네트워크/서버 에러 재시도
       2. 함수 layer (`_resolve_pmc_id` / `_fetch_pmc_sections`): HTTP 200인데 body가
          깨져 JSON/XML 파싱이 실패하는 케이스 재시도
+
+    모든 retry 파라미터는 config.py를 통해 환경변수로 조정 가능
+    (NCBI_HTTP_MAX_RETRIES, NCBI_HTTP_MAX_BACKOFF, NCBI_HTTP_TIMEOUT,
+    PMC_FULLTEXT_MAX_ATTEMPTS, PMC_FULLTEXT_RETRY_BACKOFF_BASE/_MAX).
 
     Args:
         pmid: PubMed ID

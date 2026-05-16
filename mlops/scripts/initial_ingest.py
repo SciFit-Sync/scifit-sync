@@ -11,6 +11,7 @@ retry 관련 옵션은 환경변수로도 조정 가능 (CLI 인자가 우선):
     PMC_FULLTEXT_MAX_ATTEMPTS  fulltext parse 실패 시 함수 layer 재시도 횟수 (기본: 3)
 """
 
+import json
 import logging
 import os
 import sys
@@ -30,21 +31,73 @@ def _apply_retry_overrides(http_retries: int | None, fulltext_attempts: int | No
         os.environ["PMC_FULLTEXT_MAX_ATTEMPTS"] = str(fulltext_attempts)
 
 
+def load_manifest() -> set[str]:
+    """기 적재된 PMID 집합을 manifest 파일에서 읽는다.
+
+    config.py는 lazy import — _apply_retry_overrides가 env를 set한 뒤
+    호출되도록 모듈 상단이 아닌 함수 본문에서 import한다.
+    """
+    from mlops.pipeline.config import MANIFEST_PATH
+
+    if MANIFEST_PATH.exists():
+        data = json.loads(MANIFEST_PATH.read_text())
+        return set(data.get("pmids", []))
+    return set()
+
+
+def save_manifest(pmids: set[str]) -> None:
+    """PMID 집합을 manifest 파일에 저장한다."""
+    from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    data = {"pmids": sorted(pmids), "count": len(pmids)}
+    MANIFEST_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    logger.info("Manifest 저장: %d건 → %s", len(pmids), MANIFEST_PATH)
+
+
+def api_ingest(chunk_vectors: list[tuple]) -> int:
+    """청크+임베딩을 백엔드 admin API로 적재한다."""
+    import requests
+    from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
+
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.error("API_BASE_URL 또는 ADMIN_API_TOKEN 환경변수가 설정되지 않았습니다")
+        sys.exit(1)
+    payload = {
+        "chunks": [
+            {
+                "paper_pmid": chunk.paper_pmid,
+                "paper_title": chunk.paper_title,
+                "section_name": chunk.section_name,
+                "chunk_index": chunk.chunk_index,
+                "content": chunk.content,
+                "token_count": chunk.token_count,
+                "embedding": vec,
+                "search_categories": chunk.search_categories,
+            }
+            for chunk, vec in chunk_vectors
+        ]
+    }
+    url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
+    resp = requests.post(
+        url,
+        json=payload,
+        headers={"X-Admin-Token": ADMIN_API_TOKEN},
+        timeout=300,
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    return result["data"]["upserted"]
+
+
 def main(max_papers: int | None = None, dry_run: bool = False) -> None:
     """retry 환경변수 override는 이 함수 호출 전에 적용되어야 한다.
 
     config/crawler 모듈을 lazy import해서 _apply_retry_overrides가 먼저 env를 set하면
     그 값이 모듈 로드 시 반영되도록 한다.
     """
-    import json
-
-    import requests
     from mlops.pipeline.chunker import chunk_papers
     from mlops.pipeline.config import (
-        ADMIN_API_TOKEN,
-        API_BASE_URL,
-        DATA_DIR,
-        MANIFEST_PATH,
         MAX_PAPERS_PER_RUN,
         NCBI_HTTP_MAX_RETRIES,
         PMC_FULLTEXT_MAX_ATTEMPTS,
@@ -63,49 +116,7 @@ def main(max_papers: int | None = None, dry_run: bool = False) -> None:
         PMC_FULLTEXT_MAX_ATTEMPTS,
     )
 
-    def _load_manifest() -> set[str]:
-        if MANIFEST_PATH.exists():
-            data = json.loads(MANIFEST_PATH.read_text())
-            return set(data.get("pmids", []))
-        return set()
-
-    def _save_manifest(pmids: set[str]) -> None:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        data = {"pmids": sorted(pmids), "count": len(pmids)}
-        MANIFEST_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-        logger.info("Manifest 저장: %d건 → %s", len(pmids), MANIFEST_PATH)
-
-    def _api_ingest(chunk_vectors: list[tuple]) -> int:
-        if not API_BASE_URL or not ADMIN_API_TOKEN:
-            logger.error("API_BASE_URL 또는 ADMIN_API_TOKEN 환경변수가 설정되지 않았습니다")
-            sys.exit(1)
-        payload = {
-            "chunks": [
-                {
-                    "paper_pmid": chunk.paper_pmid,
-                    "paper_title": chunk.paper_title,
-                    "section_name": chunk.section_name,
-                    "chunk_index": chunk.chunk_index,
-                    "content": chunk.content,
-                    "token_count": chunk.token_count,
-                    "embedding": vec,
-                    "search_categories": chunk.search_categories,
-                }
-                for chunk, vec in chunk_vectors
-            ]
-        }
-        url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
-        resp = requests.post(
-            url,
-            json=payload,
-            headers={"X-Admin-Token": ADMIN_API_TOKEN},
-            timeout=300,
-        )
-        resp.raise_for_status()
-        result = resp.json()
-        return result["data"]["upserted"]
-
-    existing = _load_manifest()
+    existing = load_manifest()
     logger.info("기존 적재: %d건", len(existing))
 
     papers = crawl_papers(max_total=max_papers, existing_pmids=existing)
@@ -127,10 +138,10 @@ def main(max_papers: int | None = None, dry_run: bool = False) -> None:
         return
 
     chunk_vectors = embed_chunks(chunks)
-    count = _api_ingest(chunk_vectors)
+    count = api_ingest(chunk_vectors)
 
     new_pmids = {p.meta.pmid for p in papers}
-    _save_manifest(existing | new_pmids)
+    save_manifest(existing | new_pmids)
 
     logger.info("=== 초기 적재 완료: %d편 → %d청크 → %d upsert ===", len(papers), len(chunks), count)
 

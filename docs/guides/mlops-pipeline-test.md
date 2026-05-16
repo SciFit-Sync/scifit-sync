@@ -287,6 +287,7 @@ PY
 | BGE prefix 정책 부정확 | 검색 품질 ~10% 손실 가능성 (document/query 같은 prefix 사용) | embedder.py + rag.py 동시 PR |
 | ~~`--update-manifest` 기본 True~~ | ~~export 직후 적재 실패 시 PMID 영구 누락 위험~~ | **PR #63 리뷰 반영으로 해결** — `--update-manifest`가 기본 OFF로 변경됨. export 단독으로는 manifest 변경 없음 |
 | `MAX_PAPERS_PER_RUN=300`이 `29 × 20 = 580` 후보보다 작음 | 큰 영향 없음 (round-robin이 균등 분배 보장) | 필요 시 환경변수로 상향 |
+| PMC retry 최악 케이스 대기시간 | 단일 PMID에서 HTTP layer 재시도(5회 × 10s cap) × 함수 layer 재시도(3회) ≈ **150s/PMID** 까지 대기 가능 | 야간 cron 권장. 회수율 vs 시간 트레이드오프는 `--http-retries`/`--fulltext-attempts`로 조정 |
 
 ## 트러블슈팅
 

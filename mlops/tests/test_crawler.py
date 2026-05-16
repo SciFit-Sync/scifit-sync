@@ -337,6 +337,36 @@ class TestRequestWithRateLimit:
         assert backoff_sleeps  # 적어도 1개 이상의 backoff sleep이 있어야 함
         assert all(s <= _crawler.NCBI_HTTP_MAX_BACKOFF for s in backoff_sleeps)
 
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_does_not_retry_on_4xx_http_error(self, mock_get, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.status_code = 404
+        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found", response=bad_resp)
+        mock_get.return_value = bad_resp
+
+        with pytest.raises(requests.exceptions.HTTPError):
+            _request_with_rate_limit("http://x", {})
+        # 4xx는 영구 에러라 retry 안 함 (한 번만 시도)
+        assert mock_get.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_retries_on_5xx_http_error(self, mock_get, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.status_code = 503
+        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
+            "503 Service Unavailable", response=bad_resp
+        )
+        good_resp = MagicMock()
+        good_resp.content = b"ok"
+        good_resp.raise_for_status = MagicMock()
+        mock_get.side_effect = [bad_resp, good_resp]
+
+        result = _request_with_rate_limit("http://x", {})
+        assert result is good_resp
+        assert mock_get.call_count == 2
+
 
 class TestResolvePmcId:
     """`_resolve_pmc_id` 함수 레벨 재시도 동작 검증.
@@ -476,33 +506,3 @@ class TestFetchPmcFulltext:
         assert len(result) == 1
         assert result[0].name == "Introduction"
         mock_fetch.assert_called_once_with("12345", "PMC99999")
-
-    @patch("mlops.pipeline.crawler.time.sleep")
-    @patch("mlops.pipeline.crawler.requests.get")
-    def test_does_not_retry_on_4xx_http_error(self, mock_get, _mock_sleep):
-        bad_resp = MagicMock()
-        bad_resp.status_code = 404
-        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Not Found", response=bad_resp)
-        mock_get.return_value = bad_resp
-
-        with pytest.raises(requests.exceptions.HTTPError):
-            _request_with_rate_limit("http://x", {})
-        # 4xx는 영구 에러라 retry 안 함 (한 번만 시도)
-        assert mock_get.call_count == 1
-
-    @patch("mlops.pipeline.crawler.time.sleep")
-    @patch("mlops.pipeline.crawler.requests.get")
-    def test_retries_on_5xx_http_error(self, mock_get, _mock_sleep):
-        bad_resp = MagicMock()
-        bad_resp.status_code = 503
-        bad_resp.raise_for_status.side_effect = requests.exceptions.HTTPError(
-            "503 Service Unavailable", response=bad_resp
-        )
-        good_resp = MagicMock()
-        good_resp.content = b"ok"
-        good_resp.raise_for_status = MagicMock()
-        mock_get.side_effect = [bad_resp, good_resp]
-
-        result = _request_with_rate_limit("http://x", {})
-        assert result is good_resp
-        assert mock_get.call_count == 2
