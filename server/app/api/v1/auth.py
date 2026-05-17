@@ -115,7 +115,9 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
 
 
 @router.post("/logout", response_model=SuccessResponse[None], summary="로그아웃")
+@rate_limit("10/minute")
 async def logout(
+    request: Request,
     body: LogoutRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -366,7 +368,9 @@ async def password_reset(request: Request, body: PasswordResetRequest, db: Async
 
 
 @router.delete("/withdraw", response_model=SuccessResponse[WithdrawData], summary="회원 탈퇴")
+@rate_limit("10/minute")
 async def withdraw(
+    request: Request,
     body: WithdrawRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
