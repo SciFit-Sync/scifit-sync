@@ -28,7 +28,10 @@
           "kakaoAppKey": "31250347642127059188b6723d38cca3",
           "kotlinVersion": "1.9.25"
         }
-      ]
+      ],
+      "expo-build-properties",
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
