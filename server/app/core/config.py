@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Any
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,8 +39,28 @@ class Settings(BaseSettings):
     # Admin
     ADMIN_API_TOKEN: str = ""
 
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = True
+
+    # CORS — 쉼표 구분 문자열 또는 JSON 배열. 기본값: 전체 허용(개발용)
+    ALLOWED_ORIGINS: list[str] = ["*"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
+
     # Environment
     ENV: str = "development"
+
+    def model_post_init(self, _: Any) -> None:
+        if self.ENV == "production":
+            key = self.JWT_SECRET_KEY.strip()
+            _weak = {"change-me-in-production", "your-secret-key-here", "secret", "password", ""}
+            if not key or key in _weak or len(key) < 32:
+                raise RuntimeError("프로덕션 JWT_SECRET_KEY: 최소 32자 이상, 알려진 placeholder 사용 금지")
 
 
 @lru_cache

@@ -38,7 +38,7 @@ class WorkoutRoutine(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200))
     fitness_goals: Mapped[list[str] | None] = mapped_column(ARRAY(String), default=None)
     target_muscle_group_ids: Mapped[list | None] = mapped_column(JSONB, default=None)
-    session_duration_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
+    session_minutes: Mapped[int | None] = mapped_column("session_duration_minutes", Integer, default=None)
     split_type: Mapped[SplitType | None] = mapped_column(
         Enum(SplitType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
         default=None,

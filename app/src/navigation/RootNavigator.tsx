@@ -3,9 +3,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ActivityIndicator, View } from "react-native";
 import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
 import WA01Login from "../screens/auth/WA01Login";
-import WM01Main from "../screens/main/WM01Main";
-import { useAuthStore } from "../stores/authStore";
 import WA02Signup from "../screens/auth/WA02Signin";
+import WM01Main from "../screens/main/WM01Main";
+import WN01Notifications from "../screens/main/WN01Notifications";
+import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
+import { useAuthStore } from "../stores/authStore";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -32,6 +34,8 @@ function MainNavigator() {
   return (
     <MainStack.Navigator screenOptions={{ headerShown: false }}>
       <MainStack.Screen name="WM01Main" component={WM01Main} />
+      <MainStack.Screen name="WN01Notifications" component={WN01Notifications} />
+      <MainStack.Screen name="WR04RoutineDetail" component={WR04RoutineDetail} />
     </MainStack.Navigator>
   );
 }

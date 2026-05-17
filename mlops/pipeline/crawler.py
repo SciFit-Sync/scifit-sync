@@ -7,42 +7,683 @@ Rate limit: API 키 없으면 3 req/s, 있으면 10 req/s.
 import logging
 import time
 import xml.etree.ElementTree as ET
+from collections import defaultdict
 
 import requests
 from mlops.pipeline.config import (
+    MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
+    NCBI_HTTP_MAX_BACKOFF,
+    NCBI_HTTP_MAX_RETRIES,
+    NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
+    PMC_FULLTEXT_MAX_ATTEMPTS,
+    PMC_FULLTEXT_RETRY_BACKOFF_BASE,
+    PMC_FULLTEXT_RETRY_BACKOFF_MAX,
 )
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
 
 logger = logging.getLogger(__name__)
 
-# 스포츠 과학 관련 검색 쿼리
-DEFAULT_SEARCH_QUERY = (
-    "(exercise training[Title/Abstract] OR resistance training[Title/Abstract] "
-    "OR strength training[Title/Abstract] OR hypertrophy[Title/Abstract] "
-    "OR progressive overload[Title/Abstract]) "
-    "AND (randomized controlled trial[Publication Type] OR meta-analysis[Publication Type] "
-    "OR systematic review[Publication Type]) "
-    "AND free full text[Filter]"
+# 추천 시스템 근거 데이터를 다양한 축으로 수집하기 위한 카테고리별 쿼리.
+# 단일 광범위 쿼리는 NCBI relevance 정렬이 메타분석 한두 편에 편중되기 쉬워,
+# 추천 알고리즘이 필요로 하는 세부 결정 축(볼륨/강도/빈도 등)이 비균등하게 수집된다.
+#
+# 각 쿼리는 PubMed에서 실제 hit count를 측정해 효용성을 검증했다
+# (`mlops/scripts/verify_queries.py` 참조). filter_level에 따라 publication-type
+# 필터가 단계적으로 완화된다:
+#   - "strict": RCT/메타분석/시스템 리뷰 + free full text. 메타분석이 풍부한 주류 주제.
+#   - "semi":   RCT/메타분석/시스템 리뷰만 (free full text 제외). abstract로도 RAG에
+#               충분한 좁은 임상 주제 (failure_rir, periodization, 부위별 등).
+#   - "loose":  publication type 필터 없음 (humans/adults만). 메커니즘 이론·신규 분야·
+#               추천 시스템·프로그램 설계처럼 RCT가 거의 없는 영역.
+SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
+    # ── strict (RCT/메타/SR + free full text) ──
+    (
+        "volume",
+        '("resistance training") AND '
+        '("training volume" OR "volume load" OR "sets per muscle group" OR "weekly sets") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "intensity",
+        '("resistance training") AND '
+        '("training intensity" OR "%1RM" OR "high load" OR "low load") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "frequency",
+        '("resistance training") AND '
+        '("training frequency" OR "weekly frequency" OR "sessions per week") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "hypertrophy_strength",
+        '("resistance training" OR "strength training") AND '
+        '("muscle hypertrophy" OR "muscle thickness" OR "cross-sectional area" '
+        'OR "muscle strength" OR "maximal strength" OR "1RM") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "trained_status",
+        '("resistance training") AND '
+        '("trained individuals" OR "resistance-trained" OR "experienced lifters" '
+        'OR "untrained individuals" OR "beginners" OR "novice") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "rest_interval",
+        '("resistance training") AND '
+        '("rest interval" OR "rest period" OR "inter-set rest" OR "between-set rest" '
+        'OR "recovery between sets" OR "inter-set recovery") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "machine_vs_freeweight",
+        '("resistance training") AND '
+        '("machine" OR "free weight" OR "exercise machine" OR "selectorized" OR "plate loaded") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "biomechanics" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "emg_activation",
+        '("resistance training" OR "strength training") AND '
+        '("electromyography" OR "EMG" OR "muscle activation" OR "neural drive") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "doms_recovery",
+        '("resistance training") AND '
+        '("delayed onset muscle soreness" OR "DOMS" OR "muscle damage" OR "exercise-induced muscle damage") AND '
+        '("recovery" OR "muscle hypertrophy" OR "performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "injury_prevention",
+        '("resistance training") AND '
+        '("injury prevention" OR "lower back pain" OR "shoulder impingement" '
+        'OR "rotator cuff" OR "knee injury" OR "musculoskeletal injury") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "range_of_motion",
+        '("resistance training") AND '
+        '("range of motion" OR "ROM" OR "full range" OR "partial range" OR "lengthened position") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "contraction_mode",
+        '("resistance training") AND '
+        '("eccentric" OR "concentric" OR "isometric" OR "contraction mode") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "chest_training",
+        '("resistance training") AND '
+        '("bench press" OR "pectoral" OR "chest" OR "pectoralis major") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "legs_training",
+        '("resistance training") AND '
+        '("squat" OR "deadlift" OR "leg press" OR "quadriceps" OR "hamstring" OR "gluteus") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "arms_training",
+        '("resistance training") AND '
+        '("biceps curl" OR "triceps extension" OR "elbow flexion" OR "elbow extension" OR "arm exercise") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "load_progression",
+        '("resistance training") AND '
+        '("progressive overload" OR "load progression" OR "training progression" '
+        'OR "incremental loading" OR "weight progression" OR "progressive resistance") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "muscular_endurance",
+        '("resistance training") AND '
+        '("muscular endurance" OR "local muscular endurance" OR "muscle endurance") AND '
+        '("muscle strength" OR "performance" OR "fatigue resistance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "concurrent_training",
+        '("resistance training") AND '
+        '("concurrent training" OR "aerobic training" OR "interference effect" OR "combined training") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "exercise_rehabilitation",
+        '("resistance training" OR "exercise therapy") AND '
+        '("rehabilitation" OR "physical therapy" OR "post-injury" OR "return to sport") AND '
+        '("muscle strength" OR "muscle hypertrophy" OR "physical function") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "warm_up_cool_down",
+        '("resistance training" OR "strength training" OR "exercise performance") AND '
+        '("warm-up" OR "warm up" OR "specific warm-up" OR "general warm-up" '
+        'OR "dynamic stretching" OR "post-activation potentiation" '
+        'OR "cool-down" OR "cool down" OR "preparatory exercise") AND '
+        '("muscle strength" OR "performance" OR "injury prevention" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "exercise_variation",
+        '("resistance training") AND '
+        '("exercise variation" OR "variation" OR "different exercises" OR "exercise diversity") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "blood_flow_restriction",
+        '("resistance training") AND '
+        '("blood flow restriction" OR "BFR" OR "occlusion training" OR "KAATSU") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "explosive_power_speed",
+        '("resistance training") AND '
+        '("explosive power" OR "rate of force development" OR "ballistic training" OR "sprint performance") AND '
+        '("muscle strength" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "instability_training",
+        '("resistance training" OR "strength training") AND '
+        '("instability training" OR "unstable surface" OR "unstable training" '
+        'OR "balance training" OR "stability ball" OR "Swiss ball" OR "BOSU" '
+        'OR "wobble board") AND '
+        '("muscle strength" OR "muscle activation" OR "core stability" OR "balance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "plyometric_training",
+        '("plyometric training" OR "plyometrics" OR "jump training") AND '
+        '("muscle strength" OR "athletic performance" OR "power output") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "detraining",
+        '("resistance training") AND '
+        '("detraining" OR "training cessation" OR "muscle atrophy" OR "strength loss") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "protein_nutrition",
+        '("resistance training") AND '
+        '("protein intake" OR "protein supplementation" OR "amino acids" OR "dietary protein") AND '
+        '("muscle hypertrophy" OR "muscle protein synthesis" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "sleep_recovery",
+        '("resistance training" OR "strength training") AND '
+        '("sleep" OR "sleep deprivation" OR "sleep quality") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "recovery" OR "performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "unilateral_training",
+        '("resistance training") AND '
+        '("unilateral training" OR "single-leg" OR "single-arm" OR "bilateral deficit") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "resistance_band",
+        '("resistance band" OR "elastic band" OR "elastic resistance") AND '
+        '("muscle strength" OR "muscle activation" OR "muscle hypertrophy") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "circuit_training",
+        '("circuit training" OR "circuit weight training" OR "circuit resistance training") AND '
+        '("muscle strength" OR "cardiorespiratory fitness" OR "body composition" '
+        'OR "muscle endurance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "functional_training",
+        '("functional training" OR "functional resistance training" OR "movement-based training" '
+        'OR "multi-planar exercise") AND '
+        '("muscle strength" OR "physical function" OR "balance" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "obesity_weight_loss",
+        '("resistance training" OR "strength training") AND '
+        '("obesity" OR "overweight" OR "weight loss" OR "fat mass reduction") AND '
+        '("body composition" OR "muscle mass" OR "fat loss" OR "energy expenditure") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "team_sports",
+        '("resistance training" OR "strength training") AND '
+        '("team sports" OR "soccer" OR "basketball" OR "rugby" OR "handball" OR "football") AND '
+        '("muscle strength" OR "sprint performance" OR "jump performance" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "testosterone_response",
+        '("resistance training" OR "resistance exercise" OR "strength training") AND '
+        '("testosterone" OR "androgen response" OR "anabolic hormone") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "growth_hormone_igf",
+        '("resistance training" OR "resistance exercise" OR "strength training") AND '
+        '("growth hormone" OR "GH response" OR "IGF-1" OR "insulin-like growth factor") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "foam_rolling",
+        '("foam rolling" OR "self-myofascial release" OR "myofascial release") AND '
+        '("muscle recovery" OR "range of motion" OR "DOMS" OR "muscle performance") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "velocity_based_training",
+        '("velocity-based training" OR "velocity based training" OR "VBT" OR "bar velocity" '
+        'OR "mean propulsive velocity") AND '
+        '("resistance training" OR "muscle strength" OR "power output" OR "1RM") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "rpe_perceived_exertion",
+        '("rating of perceived exertion" OR "RPE" OR "perceived exertion" OR "session RPE") AND '
+        '("resistance training" OR "training load" OR "muscle strength" OR "intensity prescription") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "functional_movement_screen",
+        '("functional movement screen" OR "FMS" OR "Y-balance test" OR "movement screening") AND '
+        '("injury risk" OR "athletic performance" OR "resistance training" OR "movement quality") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    (
+        "exercise_adherence",
+        '("resistance training" OR "strength training" OR "exercise program") AND '
+        '("exercise adherence" OR "training compliance" OR "dropout" OR "behavior change") AND '
+        '("humans" OR "adults")',
+        "strict",
+    ),
+    # ── semi (RCT/메타/SR만, free full text 제외) ──
+    (
+        "failure_rir",
+        '("resistance training") AND '
+        '("training to failure" OR "muscular failure" OR "momentary failure" '
+        'OR "task failure" OR "volitional failure" OR "repetitions in reserve" '
+        'OR "RIR" OR "proximity to failure") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "periodization",
+        '("resistance training" OR "strength training") AND '
+        '("periodization" OR "periodized training" OR "linear periodization" '
+        'OR "undulating periodization" OR "daily undulating" OR "block periodization" '
+        'OR "non-linear periodization") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "athletic performance") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "tempo_tut",
+        '("resistance training") AND '
+        '("tempo" OR "repetition duration" OR "movement tempo" OR "lifting tempo" '
+        'OR "time under tension" OR "lifting velocity" OR "concentric tempo" '
+        'OR "eccentric tempo" OR "movement velocity" OR "repetition cadence") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "compound_isolation",
+        '("resistance training") AND '
+        '("compound exercise" OR "multi-joint exercise" OR "multi joint" '
+        'OR "single-joint exercise" OR "single joint" OR "isolation exercise" '
+        'OR "isolated exercise") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "back_training",
+        '("resistance training" OR "strength training") AND '
+        '("lat pulldown" OR "seated row" OR "barbell row" OR "pull-up" OR "chin-up" '
+        'OR "back exercise" OR "latissimus dorsi" OR "back muscle" OR "posterior chain") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "shoulders_training",
+        '("resistance training" OR "strength training") AND '
+        '("shoulder training" OR "shoulder press" OR "overhead press" OR "military press" '
+        'OR "deltoid" OR "lateral raise" OR "front raise" OR "rear delt" '
+        'OR "rotator cuff" OR "shoulder exercise") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "core_training",
+        '("resistance training" OR "core training" OR "trunk training") AND '
+        '("abdominal exercise" OR "core exercise" OR "trunk exercise" '
+        'OR "trunk stability" OR "core stability" OR "plank" '
+        'OR "rectus abdominis" OR "transverse abdominis" OR "lumbar stabilization") AND '
+        '("muscle activation" OR "muscle strength" OR "muscle hypertrophy" OR "trunk strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "minimum_effective_dose",
+        '("resistance training") AND '
+        '("minimum effective dose" OR "minimal dose" OR "low volume training" '
+        'OR "abbreviated training" OR "single set" OR "time-efficient training" '
+        'OR "low frequency training") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "stretching_flexibility",
+        '("resistance training" OR "strength training" OR "exercise performance") AND '
+        '("static stretching" OR "dynamic stretching" OR "PNF stretching" '
+        'OR "flexibility training" OR "stretching protocol") AND '
+        '("muscle strength" OR "range of motion" OR "athletic performance" OR "muscle hypertrophy") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "cross_education",
+        '("resistance training" OR "unilateral training" OR "strength training") AND '
+        '("cross education" OR "cross-education" OR "contralateral effect" '
+        'OR "unilateral strength transfer") AND '
+        '("muscle strength" OR "neural adaptation") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "muscle_fiber_type",
+        '("resistance training" OR "strength training") AND '
+        '("muscle fiber type" OR "fiber type composition" OR "type I fibers" OR "type II fibers" '
+        'OR "slow twitch" OR "fast twitch" OR "myosin heavy chain") AND '
+        '("muscle hypertrophy" OR "muscle adaptation" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    (
+        "neuromuscular_adaptation",
+        '("resistance training" OR "strength training") AND '
+        '("neuromuscular adaptation" OR "neural adaptation" OR "motor unit recruitment" '
+        'OR "firing rate" OR "motor unit") AND '
+        '("muscle strength" OR "force production" OR "neural drive") AND '
+        '("humans" OR "adults")',
+        "semi",
+    ),
+    # ── loose (publication type 필터 없음) ──
+    (
+        "personalized_prescription",
+        '("personalized exercise prescription" OR "individualized exercise program") AND '
+        '("resistance training" OR "strength training") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "deload_recovery",
+        '("resistance training" OR "strength training") AND '
+        '("deload" OR "recovery week" OR "training taper" OR "tapering" '
+        'OR "active rest" OR "training cycle" OR "rest week" OR "recovery period") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "fatigue" OR "performance") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "exercise_order",
+        '("resistance training" OR "strength training") AND '
+        '("exercise order" OR "exercise sequence" OR "exercise sequencing" '
+        'OR "training order" OR "agonist-antagonist") AND '
+        '("muscle strength" OR "muscle hypertrophy" OR "performance" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "training_split",
+        '("resistance training" OR "strength training") AND '
+        '("training split" OR "split routine" OR "push pull legs" OR "upper lower split" '
+        'OR "full body training" OR "split training" OR "training program design") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "advanced_techniques",
+        '("resistance training" OR "strength training") AND '
+        '("drop set" OR "drop-set" OR "superset" OR "rest-pause" OR "rest pause" '
+        'OR "cluster set" OR "pre-exhaustion" OR "post-exhaustion") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "bodyweight_training",
+        '("bodyweight exercise" OR "body weight exercise" OR "bodyweight training" '
+        'OR "body weight training" OR "calisthenics" OR "self-loading exercise") AND '
+        '("muscle hypertrophy" OR "muscle strength" OR "muscle activation" OR "physical fitness") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "mechanical_tension",
+        '("resistance training" OR "strength training") AND '
+        '("mechanical tension" OR "metabolic stress" OR "muscle damage" '
+        'OR "hypertrophy mechanism" OR "muscle protein synthesis") AND '
+        '("muscle hypertrophy" OR "muscle growth") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "individual_response",
+        '("resistance training" OR "strength training") AND '
+        '("individual response" OR "responders" OR "non-responders" '
+        'OR "inter-individual variability" OR "training response variability" '
+        'OR "genetic factors") AND '
+        '("muscle hypertrophy" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "olympic_lifting",
+        '("olympic weightlifting" OR "olympic lifting" OR "clean and jerk" OR "snatch" '
+        'OR "weightlifting derivative") AND '
+        '("muscle strength" OR "power output" OR "athletic performance" OR "rate of force development") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "cyclist_strength",
+        '("resistance training" OR "strength training") AND '
+        '("cyclists" OR "cycling performance" OR "road cyclists") AND '
+        '("cycling performance" OR "power output" OR "muscle strength") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "swimmer_strength",
+        '("resistance training" OR "strength training" OR "dry-land training") AND '
+        '("swimmers" OR "swimming performance" OR "competitive swimming") AND '
+        '("swimming performance" OR "muscle strength" OR "power output") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+    (
+        "circadian_time_of_day",
+        '("resistance training" OR "strength training" OR "exercise training") AND '
+        '("time of day" OR "circadian rhythm" OR "morning training" OR "evening training" '
+        'OR "diurnal variation") AND '
+        '("muscle strength" OR "exercise performance" OR "muscle hypertrophy") AND '
+        '("humans" OR "adults")',
+        "loose",
+    ),
+]
+
+# 임상 근거 강도 단계별 필터.
+# strict: RCT/메타/SR + free full text (전문 회수율 보장이 필요한 주류 주제용).
+# semi:   RCT/메타/SR만 (좁은 임상 주제 — abstract만으로도 RAG 청크 다양성 확보).
+# loose:  필터 없음 (메커니즘/신규 분야/추천 시스템 — RCT 자체가 거의 없음).
+COMMON_PUBLICATION_FILTER = (
+    ' AND ("randomized controlled trial"[Publication Type] '
+    'OR "meta-analysis"[Publication Type] '
+    'OR "systematic review"[Publication Type]) '
+    'AND "free full text"[Filter]'
+)
+SEMI_STRICT_PUBLICATION_FILTER = (
+    ' AND ("randomized controlled trial"[Publication Type] '
+    'OR "meta-analysis"[Publication Type] '
+    'OR "systematic review"[Publication Type])'
 )
 
 
-def _request_with_rate_limit(url: str, params: dict) -> requests.Response:
-    """Rate limit을 준수하며 HTTP GET 요청."""
+def filter_for_level(filter_level: str) -> str:
+    """filter_level 문자열을 PubMed term 접미 필터로 변환."""
+    if filter_level == "strict":
+        return COMMON_PUBLICATION_FILTER
+    if filter_level == "semi":
+        return SEMI_STRICT_PUBLICATION_FILTER
+    if filter_level == "loose":
+        return ""
+    raise ValueError(f"알 수 없는 filter_level: {filter_level!r} (strict|semi|loose 중 하나여야 함)")
+
+
+_RETRYABLE_EXCEPTIONS = (
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+)
+
+
+def _request_with_rate_limit(
+    url: str,
+    params: dict,
+    max_retries: int = NCBI_HTTP_MAX_RETRIES,
+    max_backoff: float = NCBI_HTTP_MAX_BACKOFF,
+) -> requests.Response:
+    """Rate limit 준수 + transient 에러에 대해 지수 백오프 재시도.
+
+    Retry 대상:
+      - ChunkedEncodingError: NCBI eutils가 HTTP body 도중 끊김 (WSL→NCBI 환경에서 실측 빈번)
+      - ConnectionError: 일시적 connection refused/reset
+      - Timeout: read timeout
+      - HTTPError 429: rate limit 초과
+      - HTTPError 5xx: 서버 장애 (transient)
+
+    Retry 비대상:
+      - HTTPError 4xx (404 등): 영구 에러 — 재시도 의미 없음
+      - HTTP 200 + 깨진 body (JSON/XML 파싱 실패): 호출부에서 처리
+    """
     if NCBI_API_KEY:
         params["api_key"] = NCBI_API_KEY
-    time.sleep(NCBI_RATE_LIMIT)
-    resp = requests.get(url, params=params, timeout=30)
-    resp.raise_for_status()
-    return resp
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        if attempt == 0:
+            time.sleep(NCBI_RATE_LIMIT)
+        else:
+            backoff = min(max_backoff, NCBI_RATE_LIMIT * (2**attempt))
+            logger.warning("NCBI 요청 재시도 %d/%d (%.1fs 백오프): %s", attempt + 1, max_retries, backoff, last_exc)
+            time.sleep(backoff)
+
+        try:
+            resp = requests.get(url, params=params, timeout=NCBI_HTTP_TIMEOUT)
+            resp.raise_for_status()
+            _ = resp.content  # body 강제 fetch — chunked 응답 중간 끊김도 여기서 raise
+            return resp
+        except _RETRYABLE_EXCEPTIONS as e:
+            last_exc = e
+            continue
+        except requests.exceptions.HTTPError as e:
+            status = getattr(e.response, "status_code", None)
+            if status is not None and (status == 429 or 500 <= status < 600):
+                last_exc = e
+                continue
+            raise
+
+    assert last_exc is not None
+    raise last_exc
+
+
+def _fulltext_retry_backoff(attempt: int) -> float:
+    """fulltext 함수 레벨 재시도 backoff 계산."""
+    return min(PMC_FULLTEXT_RETRY_BACKOFF_MAX, PMC_FULLTEXT_RETRY_BACKOFF_BASE * (2**attempt))
 
 
 def search_pmids(
-    query: str = DEFAULT_SEARCH_QUERY,
-    max_results: int = MAX_PAPERS_PER_RUN,
+    query: str,
+    max_results: int = MAX_PAPERS_PER_CATEGORY,
     min_date: str | None = None,
     max_date: str | None = None,
 ) -> list[str]:
@@ -189,47 +830,142 @@ def _get_text(el: ET.Element | None) -> str:
     return "".join(el.itertext()).strip()
 
 
+def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """PMID → PMCID 변환. JSON 파싱 실패는 재시도, PMC 미존재는 None 반환.
+
+    HTTP layer retry(`_request_with_rate_limit`)는 transient 네트워크 에러만 잡으므로,
+    HTTP 200인데 body가 깨진 케이스(JSONDecodeError)는 여기서 한 번 더 retry한다.
+
+    Returns:
+        PMCID 문자열, 또는 PMC 버전이 없으면 None.
+
+    Raises:
+        RuntimeError: 모든 재시도가 실패했을 때 (마지막 예외를 cause로 포함).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        if attempt > 0:
+            wait = _fulltext_retry_backoff(attempt - 1)
+            logger.info(
+                "PMC elink 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
+                attempt + 1,
+                max_attempts,
+                wait,
+                pmid,
+                last_exc,
+            )
+            time.sleep(wait)
+
+        try:
+            params = {
+                "dbfrom": "pubmed",
+                "db": "pmc",
+                "id": pmid,
+                "retmode": "json",
+            }
+            resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/elink.fcgi", params)
+            data = resp.json()
+        except requests.exceptions.JSONDecodeError as e:
+            last_exc = e
+            logger.warning("PMC elink JSON 파싱 실패 (시도 %d/%d): PMID=%s err=%s", attempt + 1, max_attempts, pmid, e)
+            continue
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            logger.warning("PMC elink HTTP 최종 실패 (시도 %d/%d): PMID=%s err=%s", attempt + 1, max_attempts, pmid, e)
+            continue
+
+        for linkset in data.get("linksets", []):
+            for linksetdb in linkset.get("linksetdbs", []):
+                if linksetdb.get("dbto") == "pmc":
+                    links = linksetdb.get("links", [])
+                    if links:
+                        return str(links[0])
+        # 응답은 정상이지만 PMC 링크가 없음 — 진짜 미존재. retry 무의미.
+        return None
+
+    raise RuntimeError(f"PMC elink 재시도 한도 초과: PMID={pmid}") from last_exc
+
+
+def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> list[PaperSection]:
+    """PMCID로 PMC efetch XML을 받아 섹션 파싱. XML 파싱 실패는 재시도.
+
+    Raises:
+        RuntimeError: 모든 재시도가 실패했을 때 (마지막 예외를 cause로 포함).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        if attempt > 0:
+            wait = _fulltext_retry_backoff(attempt - 1)
+            logger.info(
+                "PMC efetch 재시도 %d/%d (%.1fs 대기): PMID=%s PMC=%s last_err=%s",
+                attempt + 1,
+                max_attempts,
+                wait,
+                pmid,
+                pmc_id,
+                last_exc,
+            )
+            time.sleep(wait)
+
+        try:
+            params = {
+                "db": "pmc",
+                "id": pmc_id,
+                "retmode": "xml",
+            }
+            resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/efetch.fcgi", params)
+            root = ET.fromstring(resp.content)
+            return _parse_pmc_sections(root)
+        except ET.ParseError as e:
+            last_exc = e
+            logger.warning(
+                "PMC XML 파싱 실패 (시도 %d/%d): PMID=%s PMC=%s err=%s",
+                attempt + 1,
+                max_attempts,
+                pmid,
+                pmc_id,
+                e,
+            )
+            continue
+        except requests.exceptions.RequestException as e:
+            last_exc = e
+            logger.warning(
+                "PMC efetch HTTP 최종 실패 (시도 %d/%d): PMID=%s PMC=%s err=%s",
+                attempt + 1,
+                max_attempts,
+                pmid,
+                pmc_id,
+                e,
+            )
+            continue
+
+    raise RuntimeError(f"PMC efetch 재시도 한도 초과: PMID={pmid} PMC={pmc_id}") from last_exc
+
+
 def fetch_pmc_fulltext(pmid: str) -> list[PaperSection]:
     """PMC에서 전문 XML을 가져와 섹션별로 파싱한다.
+
+    fulltext 회수율을 최대화하기 위한 두 단계 재시도 구조:
+      1. HTTP layer (`_request_with_rate_limit`): transient 네트워크/서버 에러 재시도
+      2. 함수 layer (`_resolve_pmc_id` / `_fetch_pmc_sections`): HTTP 200인데 body가
+         깨져 JSON/XML 파싱이 실패하는 케이스 재시도
+
+    모든 retry 파라미터는 config.py를 통해 환경변수로 조정 가능
+    (NCBI_HTTP_MAX_RETRIES, NCBI_HTTP_MAX_BACKOFF, NCBI_HTTP_TIMEOUT,
+    PMC_FULLTEXT_MAX_ATTEMPTS, PMC_FULLTEXT_RETRY_BACKOFF_BASE/_MAX).
 
     Args:
         pmid: PubMed ID
 
     Returns:
-        PaperSection 리스트 (전문이 없으면 빈 리스트)
+        PaperSection 리스트 (PMC 버전이 없으면 빈 리스트). HTTP 또는 파싱이 모든 재시도
+        끝에 실패하면 RuntimeError를 raise하여 호출부가 abstract fallback을 결정한다.
     """
-    # PMID → PMCID 변환
-    params = {
-        "dbfrom": "pubmed",
-        "db": "pmc",
-        "id": pmid,
-        "retmode": "json",
-    }
-    resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/elink.fcgi", params)
-    data = resp.json()
-
-    pmc_ids = []
-    for linkset in data.get("linksets", []):
-        for linksetdb in linkset.get("linksetdbs", []):
-            if linksetdb.get("dbto") == "pmc":
-                pmc_ids.extend(str(lid) for lid in linksetdb.get("links", []))
-
-    if not pmc_ids:
+    pmc_id = _resolve_pmc_id(pmid)
+    if pmc_id is None:
         logger.debug("PMC 전문 없음: PMID=%s", pmid)
         return []
-
-    pmc_id = pmc_ids[0]
-
-    # PMC 전문 XML 가져오기
-    params = {
-        "db": "pmc",
-        "id": pmc_id,
-        "retmode": "xml",
-    }
-    resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/efetch.fcgi", params)
-    root = ET.fromstring(resp.content)
-
-    return _parse_pmc_sections(root)
+    return _fetch_pmc_sections(pmid, pmc_id)
 
 
 def _parse_pmc_sections(root: ET.Element) -> list[PaperSection]:
@@ -257,51 +993,137 @@ def _parse_pmc_sections(root: ET.Element) -> list[PaperSection]:
     return sections
 
 
+def _round_robin_dedup(
+    per_category: list[tuple[str, list[str]]],
+    existing: set[str],
+    max_total: int,
+) -> tuple[list[str], dict[str, set[str]]]:
+    """카테고리별 PMID 리스트를 round-robin으로 dedup하며 cap까지 누적한다.
+
+    각 round에서 카테고리를 한 바퀴 돌며 그 round 위치의 PMID를 하나씩 가져온다.
+    단순 FIFO cap(앞쪽 카테고리가 cap을 모두 채우는 방식)이 카테고리 다양성을
+    무너뜨리는 문제를 해결한다.
+
+    동작 규칙:
+      - 동일 PMID가 여러 카테고리에 매칭되면 카테고리 메타를 합집합으로 누적한다.
+      - cap 도달 후에도 기존 PMID에 대한 카테고리 메타 추가는 계속된다 (신규 PMID만 거부).
+      - existing 집합의 PMID는 어떤 경우에도 제외한다.
+
+    Args:
+        per_category: (카테고리명, 해당 카테고리에서 검색된 PMID 리스트) 튜플들.
+        existing: 이미 수집된 PMID 집합 (중복 방지).
+        max_total: 신규 PMID 누적 상한.
+
+    Returns:
+        (PMID 추가 순서 리스트, PMID → 카테고리명 set 매핑) 튜플.
+    """
+    pmid_to_categories: dict[str, set[str]] = defaultdict(set)
+    pmid_order: list[str] = []
+
+    max_len = max((len(pmids) for _, pmids in per_category), default=0)
+    for i in range(max_len):
+        for name, pmids in per_category:
+            if i >= len(pmids):
+                continue
+            pmid = pmids[i]
+            if pmid in existing:
+                continue
+            if pmid in pmid_to_categories:
+                pmid_to_categories[pmid].add(name)
+                continue
+            if len(pmid_to_categories) >= max_total:
+                continue
+            pmid_order.append(pmid)
+            pmid_to_categories[pmid].add(name)
+
+    return pmid_order, dict(pmid_to_categories)
+
+
 def crawl_papers(
-    query: str = DEFAULT_SEARCH_QUERY,
-    max_results: int = MAX_PAPERS_PER_RUN,
+    *,
+    queries: list[tuple[str, str, str]] | None = None,
+    max_per_category: int | None = None,
+    max_total: int | None = None,
     min_date: str | None = None,
     max_date: str | None = None,
     fetch_fulltext: bool = True,
     existing_pmids: set[str] | None = None,
 ) -> list[PaperFull]:
-    """논문 크롤링 메인 함수: 검색 → 메타데이터 → 전문 수집.
+    """카테고리별 다중 쿼리로 논문을 크롤링한다.
+
+    각 카테고리에서 검색된 PMID를 dedup하면서 합치고, 동일 PMID가 여러 카테고리에
+    매칭되면 그 카테고리 목록을 PaperMeta.search_categories에 메타로 부여한다.
+    이 메타는 청크에 전파되어 RAG 검색 단계에서 사용자 fitness_goals에 맞는
+    카테고리에 가중치를 주는 용도로 활용된다.
 
     Args:
-        query: PubMed 검색 쿼리
-        max_results: 최대 논문 수
-        min_date: 최소 출판 날짜 (YYYY/MM/DD)
-        max_date: 최대 출판 날짜 (YYYY/MM/DD)
-        fetch_fulltext: PMC 전문 수집 여부
-        existing_pmids: 이미 수집된 PMID 집합 (중복 방지)
+        queries: (카테고리명, 쿼리, filter_level) 튜플 리스트.
+            None이면 SEARCH_QUERY_CATEGORIES 기본값 사용.
+            filter_level은 "strict"|"semi"|"loose" 중 하나로 publication-type 필터
+            세기를 결정한다 (SEARCH_QUERY_CATEGORIES docstring 참조).
+        max_per_category: 카테고리당 검색 상한.
+        max_total: 전체 PMID 수집 상한 (카테고리 다양성 유지하며 cap).
+        min_date / max_date: PubMed pdat 필터 (YYYY/MM/DD).
+        fetch_fulltext: PMC 전문 수집 여부.
+        existing_pmids: 이미 수집된 PMID 집합 (중복 방지).
 
     Returns:
-        PaperFull 리스트
+        PaperFull 리스트 (각 PaperMeta에 search_categories 부여됨).
     """
+    queries = queries or SEARCH_QUERY_CATEGORIES
+    max_per_category = max_per_category or MAX_PAPERS_PER_CATEGORY
+    max_total = max_total or MAX_PAPERS_PER_RUN
     existing = existing_pmids or set()
 
-    # 1. PMID 검색
-    pmids = search_pmids(query, max_results, min_date, max_date)
-    new_pmids = [p for p in pmids if p not in existing]
-    logger.info("신규 논문: %d건 (기존 %d건 제외)", len(new_pmids), len(pmids) - len(new_pmids))
+    # 1) 카테고리별 검색 결과 사전 수집
+    per_category: list[tuple[str, list[str]]] = []
+    for name, query, filter_level in queries:
+        full_query = query + filter_for_level(filter_level)
+        logger.info("카테고리 '%s' 검색 (filter=%s)", name, filter_level)
+        try:
+            pmids = search_pmids(full_query, max_per_category, min_date, max_date)
+        except Exception as e:
+            logger.warning("카테고리 '%s' 검색 실패: %s", name, e)
+            continue
+        per_category.append((name, pmids))
+        logger.info("카테고리 '%s' 검색 결과: %d건", name, len(pmids))
 
-    if not new_pmids:
+    # 2) round-robin으로 dedup + cap (카테고리 다양성 유지)
+    pmid_order, pmid_to_categories = _round_robin_dedup(per_category, existing, max_total)
+
+    if not pmid_to_categories:
+        logger.info("모든 카테고리에서 신규 논문 없음")
         return []
 
-    # 2. 메타데이터 수집
-    metas = fetch_paper_metadata(new_pmids)
+    logger.info(
+        "round-robin 결과: 신규 PMID %d건 (카테고리 다중 매칭 분포: 평균 %.1f카테고리/논문)",
+        len(pmid_to_categories),
+        sum(len(v) for v in pmid_to_categories.values()) / len(pmid_to_categories),
+    )
 
-    # 3. 전문 수집 (선택)
+    metas = fetch_paper_metadata(pmid_order)
+
+    for meta in metas:
+        meta.search_categories = sorted(pmid_to_categories.get(meta.pmid, set()))
+
     papers: list[PaperFull] = []
+    fulltext_failures = 0
     for meta in metas:
         sections = []
         if fetch_fulltext:
             try:
                 sections = fetch_pmc_fulltext(meta.pmid)
-            except Exception:
-                logger.warning("전문 수집 실패: PMID=%s", meta.pmid)
+            except Exception as e:
+                fulltext_failures += 1
+                logger.warning(
+                    "전문 수집 최종 실패 — abstract fallback: PMID=%s err=%s",
+                    meta.pmid,
+                    e,
+                )
 
         papers.append(PaperFull(meta=meta, sections=sections))
+    if fulltext_failures:
+        logger.info("전문 수집 최종 실패(abstract fallback) 누적: %d건", fulltext_failures)
 
     logger.info("크롤링 완료: %d건 (전문 포함 %d건)", len(papers), sum(1 for p in papers if p.sections))
     return papers

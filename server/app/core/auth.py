@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.exceptions import UnauthorizedError
 from app.models.user import User
 
+# Swagger UI "Authorize" 버튼 활성화용 (auto_error=False → 토큰 없어도 라우터까지 진입)
 _bearer = HTTPBearer(auto_error=False)
 
 

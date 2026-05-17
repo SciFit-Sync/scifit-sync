@@ -1,16 +1,16 @@
-"""운동 카탈로그 엔드포인트 (#47 GET /exercises)."""
+"""운동 카탈로그 엔드포인트 (#47 GET /exercises + GET /exercises/core-lifts)."""
 
 import logging
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models import (
     Exercise,
+    ExerciseEquipmentMap,
     ExerciseMuscle,
     MuscleGroup,
     MuscleInvolvement,
@@ -18,53 +18,113 @@ from app.models import (
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import ExerciseItem, ExerciseListData
+from app.schemas.users import CoreLiftItem, CoreLiftsData
+from app.services.core_lifts import list_core_lifts
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 
 
-@router.get("", response_model=SuccessResponse[ExerciseListData], summary="운동 목록")
-async def list_exercises(
-    keyword: str | None = Query(None),
-    category: str | None = Query(None),
+# ── GET /exercises/core-lifts ─────────────────────────────────────────────────
+@router.get(
+    "/core-lifts",
+    response_model=SuccessResponse[CoreLiftsData],
+    summary="핵심 4대 운동 (벤치/스쿼트/데드/OHP) 식별자",
+)
+async def get_core_lifts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Exercise).options(selectinload(Exercise.muscle_maps))
+    """온보딩 1RM 설정 화면에서 사용할 4대 운동의 exercise_id 를 한번에 반환한다."""
+    rows = await list_core_lifts(db)
+    items = [CoreLiftItem(**r) for r in rows]
+    return SuccessResponse(data=CoreLiftsData(items=items))
+
+
+@router.get("", response_model=SuccessResponse[ExerciseListData], summary="운동 목록")
+async def list_exercises(
+    keyword: str | None = Query(None, description="운동 이름 키워드 검색"),
+    muscle: str | None = Query(None, description="근육 그룹 영문명 (name_en) 필터"),
+    page: int = Query(0, ge=0, description="페이지 번호 (0-based)"),
+    size: int = Query(20, ge=1, le=100, description="페이지 크기"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Exercise)
+
     if keyword:
         stmt = stmt.where(Exercise.name.ilike(f"%{keyword}%"))
-    if category:
-        stmt = stmt.where(Exercise.category == category)
 
+    if muscle:
+        muscle_ex_subq = (
+            select(ExerciseMuscle.exercise_id)
+            .join(MuscleGroup, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
+            .where(MuscleGroup.name == muscle)
+        )
+        stmt = stmt.where(Exercise.id.in_(muscle_ex_subq))
+
+    total_count: int = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
+
+    total_pages = (total_count + size - 1) // size
+
+    stmt = stmt.order_by(Exercise.name).offset(page * size).limit(size)
     exercises = (await db.execute(stmt)).scalars().unique().all()
 
-    # primary muscle group names per exercise
-    primary_map: dict[str, list[str]] = {}
-    if exercises:
-        ex_ids = [e.id for e in exercises]
-        muscle_rows = (
-            await db.execute(
-                select(ExerciseMuscle, MuscleGroup.name_ko)
-                .join(MuscleGroup, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
-                .where(
-                    ExerciseMuscle.exercise_id.in_(ex_ids),
-                    ExerciseMuscle.involvement == MuscleInvolvement.PRIMARY,
-                )
+    if not exercises:
+        return SuccessResponse(
+            data=ExerciseListData(items=[], total_count=total_count, page=page, total_pages=total_pages)
+        )
+
+    ex_ids = [e.id for e in exercises]
+
+    # primary / secondary 근육 그룹
+    muscle_rows = (
+        await db.execute(
+            select(ExerciseMuscle.exercise_id, ExerciseMuscle.involvement, MuscleGroup.name_ko)
+            .join(MuscleGroup, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
+            .where(
+                ExerciseMuscle.exercise_id.in_(ex_ids),
+                ExerciseMuscle.involvement.in_([MuscleInvolvement.PRIMARY, MuscleInvolvement.SECONDARY]),
             )
-        ).all()
-        for em, name_ko in muscle_rows:
-            primary_map.setdefault(str(em.exercise_id), []).append(name_ko)
+        )
+    ).all()
+
+    primary_map: dict[str, list[str]] = {}
+    secondary_map: dict[str, list[str]] = {}
+    for ex_id, involvement, name_ko in muscle_rows:
+        key = str(ex_id)
+        if involvement == MuscleInvolvement.PRIMARY:
+            primary_map.setdefault(key, []).append(name_ko)
+        else:
+            secondary_map.setdefault(key, []).append(name_ko)
+
+    # 종목별 첫 번째 equipment_id
+    eq_rows = (
+        await db.execute(
+            select(ExerciseEquipmentMap.exercise_id, ExerciseEquipmentMap.equipment_id).where(
+                ExerciseEquipmentMap.exercise_id.in_(ex_ids)
+            )
+        )
+    ).all()
+
+    eq_map: dict[str, str] = {}
+    for ex_id, eq_id in eq_rows:
+        key = str(ex_id)
+        if key not in eq_map:
+            eq_map[key] = str(eq_id)
 
     items = [
         ExerciseItem(
             exercise_id=str(e.id),
             name=e.name,
             name_en=e.name_en,
-            description=e.description,
-            image_url=None,
             primary_muscle_groups=primary_map.get(str(e.id), []),
+            secondary_muscle_groups=secondary_map.get(str(e.id), []),
+            equipment_id=eq_map.get(str(e.id)),
         )
         for e in exercises
     ]
-    return SuccessResponse(data=ExerciseListData(items=items))
+    return SuccessResponse(
+        data=ExerciseListData(items=items, total_count=total_count, page=page, total_pages=total_pages)
+    )

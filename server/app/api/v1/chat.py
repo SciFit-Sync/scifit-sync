@@ -11,7 +11,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import ChatMessage, ChatRole, ChatSession, User
 from app.schemas.chat import (
     ChatMessageItem,
@@ -43,7 +44,9 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
 
 # ── POST /chat/messages (SSE) ─────────────────────────────────────────────────
 @router.post("/messages", summary="챗봇 메시지 전송 (SSE)")
+@rate_limit("5/minute")
 async def send_chat_message(
+    request: Request,
     body: SendChatMessageRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
