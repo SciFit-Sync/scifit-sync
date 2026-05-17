@@ -7,8 +7,16 @@ from pydantic import BaseModel, Field
 
 # ── 세션 생성 ─────────────────────────────────────────────────────────────────
 class StartSessionRequest(BaseModel):
+    routine_id: str | None = None
     routine_day_id: str | None = None
-    gym_id: str | None = None
+
+
+class SessionStartData(BaseModel):
+    session_id: str
+    routine_id: str | None = None
+    routine_name: str | None = None
+    started_at: datetime
+    message: str = "운동을 시작합니다!"
 
 
 class SessionData(BaseModel):
@@ -18,6 +26,8 @@ class SessionData(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     status: str
+    routine_name: str | None = None
+    duration_minutes: int | None = None
 
 
 # ── 세트 기록 ─────────────────────────────────────────────────────────────────
@@ -54,16 +64,39 @@ class SessionDetail(SessionData):
     total_volume_kg: float = 0.0
 
 
+class SessionCalendarItem(BaseModel):
+    date: str  # YYYY-MM-DD
+    session_id: str
+    routine_name: str | None = None
+    duration_minutes: int | None = None
+
+
+class SessionCalendarData(BaseModel):
+    year: int
+    month: int
+    items: list[SessionCalendarItem]
+    total_session_count: int
+
+
 class SessionListData(BaseModel):
     items: list[SessionData]
 
 
 # ── 통계 ──────────────────────────────────────────────────────────────────────
+class RecentSessionItem(BaseModel):
+    session_id: str
+    routine_name: str | None = None
+    date: str  # YYYY-MM-DD
+
+
 class SessionStatsData(BaseModel):
     total_sessions: int
     total_volume_kg: float
-    total_minutes: int
+    total_duration_minutes: int
+    total_sets: int = 0
+    weekly_session_count: int = 0
     streak_days: int
+    recent_session: RecentSessionItem | None = None
 
 
 class VolumeAnalysisItem(BaseModel):

@@ -16,20 +16,25 @@ from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.models import (
     Exercise,
+    RoutineDay,
     RoutineExercise,
     User,
     WorkoutLog,
     WorkoutLogSet,
+    WorkoutRoutine,
     WorkoutStatus,
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
     FinishSessionRequest,
     LogSetRequest,
+    RecentSessionItem,
     RestTimerData,
+    SessionCalendarData,
+    SessionCalendarItem,
     SessionData,
     SessionDetail,
-    SessionListData,
+    SessionStartData,
     SessionStatsData,
     StartSessionRequest,
     VolumeAnalysisData,
@@ -49,7 +54,17 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
         raise ValidationError(message=f"잘못된 {name} 형식입니다.") from e
 
 
-def _session_to_dto(s: WorkoutLog) -> SessionData:
+def _strip_tz(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+
+def _session_to_dto(
+    s: WorkoutLog,
+    routine_name: str | None = None,
+) -> SessionData:
+    duration_minutes: int | None = None
+    if s.finished_at and s.started_at:
+        duration_minutes = max(0, int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60))
     return SessionData(
         session_id=str(s.id),
         routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
@@ -57,6 +72,8 @@ def _session_to_dto(s: WorkoutLog) -> SessionData:
         started_at=s.started_at,
         finished_at=s.finished_at,
         status=s.status.value if s.status else "in_progress",
+        routine_name=routine_name,
+        duration_minutes=duration_minutes,
     )
 
 
@@ -70,26 +87,79 @@ async def _get_my_session(session_id: str, user: User, db: AsyncSession) -> Work
     return s
 
 
+async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
+    rows = (
+        await db.execute(select(func.date(WorkoutLog.started_at)).where(WorkoutLog.user_id == user_id).distinct())
+    ).all()
+    dates = sorted({r[0] for r in rows}, reverse=True)
+    if not dates:
+        return 0
+    today = datetime.now(timezone.utc).date()
+    if dates[0] != today and dates[0] != today - timedelta(days=1):
+        return 0
+    streak = 1
+    cursor = dates[0]
+    for d in dates[1:]:
+        if d == cursor - timedelta(days=1):
+            streak += 1
+            cursor = d
+        else:
+            break
+    return streak
+
+
 # ── POST /sessions ────────────────────────────────────────────────────────────
-@router.post("", response_model=SuccessResponse[SessionData], status_code=201, summary="세션 시작")
+@router.post("", response_model=SuccessResponse[SessionStartData], status_code=201, summary="세션 시작")
 async def start_session(
     body: StartSessionRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id") if body.routine_day_id else None
-    gym_id = _parse_uuid(body.gym_id, "gym_id") if body.gym_id else None
+    session_routine_day_id = None
+    session_routine_id: str | None = None
+    session_routine_name: str | None = None
+
+    if body.routine_id:
+        routine_id = _parse_uuid(body.routine_id, "routine_id")
+        routine = (
+            await db.execute(
+                select(WorkoutRoutine).where(
+                    WorkoutRoutine.id == routine_id,
+                    WorkoutRoutine.user_id == current_user.id,
+                    WorkoutRoutine.deleted_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if routine is None:
+            raise NotFoundError(message="루틴을 찾을 수 없습니다.")
+        session_routine_id = str(routine_id)
+        session_routine_name = routine.name
+        first_day = (
+            await db.execute(
+                select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
+            )
+        ).scalar_one_or_none()
+        session_routine_day_id = first_day.id if first_day else None
+    elif body.routine_day_id:
+        session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
 
     s = WorkoutLog(
         user_id=current_user.id,
-        routine_day_id=routine_day_id,
-        gym_id=gym_id,
+        routine_day_id=session_routine_day_id,
         status=WorkoutStatus.IN_PROGRESS,
     )
     db.add(s)
     await db.commit()
     await db.refresh(s)
-    return SuccessResponse(data=_session_to_dto(s))
+
+    return SuccessResponse(
+        data=SessionStartData(
+            session_id=str(s.id),
+            routine_id=session_routine_id,
+            routine_name=session_routine_name,
+            started_at=s.started_at,
+        )
+    )
 
 
 # ── POST /sessions/{id}/sets ──────────────────────────────────────────────────
@@ -163,24 +233,69 @@ async def finish_session(
 
 
 # ── GET /sessions?year=&month= ────────────────────────────────────────────────
-@router.get("", response_model=SuccessResponse[SessionListData], summary="월별 세션 목록")
+@router.get("", response_model=SuccessResponse[SessionCalendarData], summary="월별 세션 목록")
 async def list_sessions(
     year: int | None = Query(None, ge=2020, le=2100),
     month: int | None = Query(None, ge=1, le=12),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(WorkoutLog).where(WorkoutLog.user_id == current_user.id)
-    if year is not None and month is not None:
-        start = datetime(year, month, 1, tzinfo=timezone.utc)
-        if month == 12:
-            end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
-        else:
-            end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
-        stmt = stmt.where(WorkoutLog.started_at >= start, WorkoutLog.started_at < end)
+    now = datetime.utcnow()
+    q_year = year or now.year
+    q_month = month or now.month
 
-    rows = (await db.execute(stmt.order_by(WorkoutLog.started_at.desc()))).scalars().all()
-    return SuccessResponse(data=SessionListData(items=[_session_to_dto(s) for s in rows]))
+    start = datetime(q_year, q_month, 1)
+    end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
+
+    rows = (
+        (
+            await db.execute(
+                select(WorkoutLog)
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLog.started_at >= start,
+                    WorkoutLog.started_at < end,
+                )
+                .order_by(WorkoutLog.started_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
+    routine_name_by_day: dict[str, str] = {}
+    if day_ids:
+        name_rows = (
+            await db.execute(
+                select(RoutineDay.id, WorkoutRoutine.name)
+                .join(WorkoutRoutine, RoutineDay.routine_id == WorkoutRoutine.id)
+                .where(RoutineDay.id.in_(day_ids))
+            )
+        ).all()
+        routine_name_by_day = {str(did): name for did, name in name_rows}
+
+    records = [
+        SessionCalendarItem(
+            date=s.started_at.date().isoformat(),
+            session_id=str(s.id),
+            routine_name=routine_name_by_day.get(str(s.routine_day_id)),
+            duration_minutes=(
+                max(0, int((s.finished_at - s.started_at).total_seconds() // 60))
+                if s.finished_at and s.started_at
+                else None
+            ),
+        )
+        for s in rows
+    ]
+    return SuccessResponse(
+        data=SessionCalendarData(
+            year=q_year,
+            month=q_month,
+            items=records,
+            total_session_count=len(records),
+        )
+    )
 
 
 # ── GET /sessions/stats ───────────────────────────────────────────────────────
@@ -189,18 +304,36 @@ async def session_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    total_sessions_q = await db.execute(select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == current_user.id))
-    total_sessions = int(total_sessions_q.scalar() or 0)
-
-    # 총 볼륨 = sum(weight_kg * reps) — null safe
-    volume_q = await db.execute(
-        select(func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0))
-        .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
-        .where(WorkoutLog.user_id == current_user.id, WorkoutLogSet.is_completed.is_(True))
+    # 총 세션 수
+    total_sessions = int(
+        (await db.execute(select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == current_user.id))).scalar() or 0
     )
-    total_volume = float(volume_q.scalar() or 0.0)
 
-    # 총 분 = sum(finished_at - started_at) — completed만
+    # 총 볼륨
+    total_volume = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0))
+                .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+                .where(WorkoutLog.user_id == current_user.id, WorkoutLogSet.is_completed.is_(True))
+            )
+        ).scalar()
+        or 0.0
+    )
+
+    # 총 세트 수
+    total_sets = int(
+        (
+            await db.execute(
+                select(func.count(WorkoutLogSet.id))
+                .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+                .where(WorkoutLog.user_id == current_user.id, WorkoutLogSet.is_completed.is_(True))
+            )
+        ).scalar()
+        or 0
+    )
+
+    # 총 운동 시간 (완료된 세션만)
     finished_rows = (
         await db.execute(
             select(WorkoutLog.started_at, WorkoutLog.finished_at).where(
@@ -212,38 +345,63 @@ async def session_stats(
     ).all()
     total_minutes = sum(int((f - s).total_seconds() // 60) for s, f in finished_rows if f and s)
 
-    # 연속 일수 — 최근 운동 날짜 기준
+    # 주간 세션 수 (최근 7일)
+    week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    weekly_session_count = int(
+        (
+            await db.execute(
+                select(func.count(WorkoutLog.id)).where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLog.started_at >= week_ago,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    # 최근 완료 세션
+    recent_row = (
+        await db.execute(
+            select(WorkoutLog)
+            .where(
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLog.status == WorkoutStatus.COMPLETED,
+            )
+            .order_by(WorkoutLog.started_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    recent_session: RecentSessionItem | None = None
+    if recent_row:
+        routine_name: str | None = None
+        if recent_row.routine_day_id:
+            routine_name = (
+                await db.execute(
+                    select(WorkoutRoutine.name)
+                    .join(RoutineDay, RoutineDay.routine_id == WorkoutRoutine.id)
+                    .where(RoutineDay.id == recent_row.routine_day_id)
+                )
+            ).scalar_one_or_none()
+        recent_session = RecentSessionItem(
+            session_id=str(recent_row.id),
+            routine_name=routine_name,
+            date=recent_row.started_at.date().isoformat(),
+        )
+
     streak_days = await _compute_streak(current_user.id, db)
 
     return SuccessResponse(
         data=SessionStatsData(
             total_sessions=total_sessions,
             total_volume_kg=round(total_volume, 2),
-            total_minutes=total_minutes,
+            total_duration_minutes=total_minutes,
+            total_sets=total_sets,
+            weekly_session_count=weekly_session_count,
             streak_days=streak_days,
+            recent_session=recent_session,
         )
     )
-
-
-async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
-    rows = (
-        await db.execute(select(func.date(WorkoutLog.started_at)).where(WorkoutLog.user_id == user_id).distinct())
-    ).all()
-    dates = sorted({r[0] for r in rows}, reverse=True)
-    if not dates:
-        return 0
-    today = datetime.now(timezone.utc).date()
-    if dates[0] != today and dates[0] != today - timedelta(days=1):
-        return 0
-    streak = 1
-    cursor = dates[0]
-    for d in dates[1:]:
-        if d == cursor - timedelta(days=1):
-            streak += 1
-            cursor = d
-        else:
-            break
-    return streak
 
 
 # ── GET /sessions/analysis/volume ─────────────────────────────────────────────
@@ -306,7 +464,18 @@ async def session_detail(
         )
         for setrec, ex_name in sets_rows
     ]
-    total_volume = sum((s.weight_kg or 0) * s.reps for s in set_dtos if s.is_completed)
+    total_volume = sum((ws.weight_kg or 0) * ws.reps for ws in set_dtos if ws.is_completed)
+
+    routine_name: str | None = None
+    if s.routine_day_id:
+        routine_name = (
+            await db.execute(
+                select(WorkoutRoutine.name)
+                .join(RoutineDay, RoutineDay.routine_id == WorkoutRoutine.id)
+                .where(RoutineDay.id == s.routine_day_id)
+            )
+        ).scalar_one_or_none()
+
     return SuccessResponse(
         data=SessionDetail(
             session_id=str(s.id),
@@ -315,6 +484,7 @@ async def session_detail(
             started_at=s.started_at,
             finished_at=s.finished_at,
             status=s.status.value if s.status else "in_progress",
+            routine_name=routine_name,
             sets=set_dtos,
             total_volume_kg=round(total_volume, 2),
         )
@@ -336,20 +506,13 @@ async def rest_timer(
 ):
     await _get_my_session(session_id, current_user, db)
 
-    # 1순위: 루틴 운동에 정의된 rest_seconds
     if routine_exercise_id:
         rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
         rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
         if rex is not None:
             return SuccessResponse(data=RestTimerData(rest_seconds=rex.rest_seconds, based_on="routine"))
 
-    # 2순위: 목표별 디폴트
-    defaults = {
-        "hypertrophy": 90,
-        "strength": 180,
-        "endurance": 60,
-        "rehabilitation": 60,
-    }
+    defaults = {"hypertrophy": 90, "strength": 180, "endurance": 60, "rehabilitation": 60}
     return SuccessResponse(
         data=RestTimerData(rest_seconds=defaults.get(goal or "hypertrophy", 90), based_on="goal_default")
     )
