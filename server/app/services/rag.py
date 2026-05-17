@@ -44,6 +44,7 @@ _SERVICES_DIR = Path(__file__).resolve().parent
 if str(_SERVICES_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVICES_DIR))
 from llm import generate as llm_generate  # noqa: E402, I001
+from llm import generate_stream as llm_generate_stream  # noqa: E402, I001
 
 
 # ── 설정 ──────────────────────────────────────────────────────
@@ -255,42 +256,41 @@ def chat_rag(question: str) -> dict:
 
 @dataclass
 class UserProfile:
-    """루틴 생성에 필요한 사용자 프로필."""
+    """루틴 생성에 필요한 사용자 프로필.
 
-    goal: str  # hypertrophy / strength / endurance / rehabilitation
-    body_weight: float  # kg
-    fitness_career: str  # beginner / intermediate / advanced
-    days_per_week: int  # 주당 운동 일수
-    available_equipment: list[str] = field(default_factory=list)  # 사용 가능한 기구
-
-
-def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
-    """루틴 생성 RAG: 프로필 → 논문 검색 → LLM → day별 JSON 스트리밍.
-
-    Args:
-        profile: 사용자 프로필
-
-    Yields:
-        {"type": "day_complete", "day": int, "focus": str, "exercises": [...]}
-        {"type": "done"}
-        {"type": "error", "message": str}
+    `goals`는 복수 선택 (D-M6, CLAUDE.md §6). 첫 번째 목표가 검색 쿼리의 기준이 되고
+    나머지는 LLM 프롬프트에 함께 전달된다.
     """
-    # 1. 목표별 검색 쿼리
-    goal_queries = {
-        "hypertrophy": "muscle hypertrophy resistance training volume sets reps",
-        "strength": "strength training progressive overload 1RM powerlifting",
-        "endurance": "muscular endurance high repetition aerobic training",
-        "rehabilitation": "rehabilitation exercise low intensity recovery injury",
-    }
-    query = goal_queries.get(profile.goal, profile.goal)
 
-    # 2. ChromaDB 검색
-    chunks = search_chunks(query)
-    if not chunks:
-        yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다."}
-        return
+    goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
+    body_weight: float  # kg
+    fitness_career: str  # beginner / novice / intermediate / advanced
+    days_per_week: int  # 주당 운동 일수 (split_type에서 derive)
+    available_equipment: list[str] = field(default_factory=list)  # 사용 가능한 기구명
+    target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
+    session_minutes: int | None = None  # 1회 세션 목표 시간
+    injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
+    feedback: str | None = None  # 재생성 시 이전 루틴 대비 변경 요청
 
-    # 3. 컨텍스트 구성
+    @property
+    def primary_goal(self) -> str:
+        """검색 쿼리·중량 계산용 대표 목표 (목록 첫 번째, 소문자)."""
+        if not self.goals:
+            return "hypertrophy"
+        return self.goals[0].lower()
+
+
+_GOAL_QUERIES = {
+    "hypertrophy": "muscle hypertrophy resistance training volume sets reps",
+    "strength": "strength training progressive overload 1RM powerlifting",
+    "endurance": "muscular endurance high repetition aerobic training",
+    "rehabilitation": "rehabilitation exercise low intensity recovery injury",
+    "weight_loss": "fat loss body composition energy expenditure resistance training",
+}
+
+
+def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
+    """루틴 생성 프롬프트를 조합한다. 외부 청크는 별도 섹션으로 분리한다."""
     context = ""
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
@@ -298,42 +298,147 @@ def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
     equipment_str = (
         ", ".join(profile.available_equipment) if profile.available_equipment else "barbell, dumbbell, bodyweight"
     )
+    goals_str = ", ".join(g.lower() for g in profile.goals) if profile.goals else "hypertrophy"
+    muscles_str = ", ".join(profile.target_muscles) if profile.target_muscles else "balanced full-body"
 
-    # 4. 루틴 생성 프롬프트
-    prompt = (
+    extras = []
+    if profile.session_minutes:
+        extras.append(f"- Target session duration: ~{profile.session_minutes} minutes")
+    if profile.injury:
+        # 사용자 입력은 <user_query> 태그로 격리 (CLAUDE.md §12 프롬프트 인젝션 방어)
+        safe = profile.injury.replace("</user_query>", "</ user_query>")
+        extras.append(f"- Injury/exclusion constraints (from user): <user_query>{safe}</user_query>")
+    if profile.feedback:
+        safe = profile.feedback.replace("</user_query>", "</ user_query>")
+        extras.append(f"- Regenerate feedback (from user): <user_query>{safe}</user_query>")
+    extras_str = ("\n" + "\n".join(extras)) if extras else ""
+
+    return (
         f"You are a sports science expert. Create a {profile.days_per_week}-day workout routine "
-        f"based on the research papers below.\n\n"
+        f"based ONLY on the research papers below.\n\n"
         f"User Profile:\n"
-        f"- Goal: {profile.goal}\n"
+        f"- Goals (primary first): {goals_str}\n"
+        f"- Target muscles to emphasize: {muscles_str}\n"
         f"- Body weight: {profile.body_weight}kg\n"
         f"- Fitness level: {profile.fitness_career}\n"
-        f"- Available equipment: {equipment_str}\n\n"
+        f"- Available equipment: {equipment_str}"
+        f"{extras_str}\n\n"
         f"Research papers:\n{context}\n\n"
         f"Output a JSON array of exactly {profile.days_per_week} day objects.\n"
         f"Each object format:\n"
         f'{{"day": <number>, "focus": "<muscle group>", "exercises": ['
-        f'{{"name": "<exercise>", "sets": <number>, "reps": "<e.g. 8-12>", '
-        f'"rest_seconds": <number>, "notes": "<paper-based rationale>"}}]}}\n\n'
-        f"Output ONLY valid JSON array. No markdown, no explanation."
+        f'{{"name": "<English exercise name>", "sets": <number>, '
+        f'"reps_min": <number>, "reps_max": <number>, '
+        f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
+        f'"notes": "<paper-based rationale, mention paper number>"}}]}}\n\n'
+        f"Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
+        f"endurance 15-20, rehabilitation 20-30).\n"
+        f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
 
-    raw = llm_generate(prompt)
+
+def _strip_markdown_fence(raw: str) -> str:
+    """LLM이 ```json ... ``` 코드블록을 감싸서 보내는 경우 제거."""
+    raw = raw.strip()
+    if raw.startswith("```"):
+        lines = raw.split("\n")
+        # 첫 줄(```json) 제거
+        lines = lines[1:]
+        # 마지막 ``` 제거
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        raw = "\n".join(lines).strip()
+    return raw
+
+
+def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
+    """루틴 생성 RAG (스트리밍): 프로필 → 논문 검색 → LLM 토큰 스트림 → day별 JSON.
+
+    CLAUDE.md §11 RAG 파이프라인 6단계 + §7 SSE 포맷 (chunk/day_complete/done)을 따른다.
+
+    Yields:
+        {"type": "chunk", "content": str}              # LLM delta 토큰 (실시간)
+        {"type": "day_complete", "day": int, "focus": str, "exercises": [...]}
+        {"type": "papers", "sources": [{"pmid", "title", "section", "score"}]}
+        {"type": "done"}
+        {"type": "error", "message": str}
+    """
+    # 1. 목표별 검색 쿼리 (1차 목표 기준)
+    primary = profile.primary_goal
+    query = _GOAL_QUERIES.get(primary, primary)
+    # 보조 목표 + 타겟 근육이 있으면 쿼리에 추가
+    extras = [g.lower() for g in profile.goals[1:]] + profile.target_muscles
+    if extras:
+        query = f"{query} {' '.join(extras)}"
+
+    # 2. ChromaDB 검색
+    chunks = search_chunks(query)
+    if not chunks:
+        yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다."}
+        return
+
+    # 3. 프롬프트 조합
+    prompt = _build_routine_prompt(profile, chunks)
+
+    # 4. LLM 토큰 스트리밍
+    raw_parts: list[str] = []
+    try:
+        for token in llm_generate_stream(prompt):
+            raw_parts.append(token)
+            yield {"type": "chunk", "content": token}
+    except Exception as e:
+        logger.error("LLM 스트리밍 실패: %s", e)
+        yield {"type": "error", "message": "AI 응답 생성 중 오류가 발생했습니다."}
+        return
+
+    raw = "".join(raw_parts)
 
     # 5. JSON 파싱 및 day별 yield
     try:
-        # 마크다운 코드블록 제거
-        if raw.startswith("```"):
-            raw = "\n".join(raw.split("\n")[1:])
-            raw = raw.rsplit("```", 1)[0].strip()
-
-        days = json.loads(raw)
-        for day_data in days:
-            yield {"type": "day_complete", **day_data}
-        yield {"type": "done"}
-
+        days = json.loads(_strip_markdown_fence(raw))
     except json.JSONDecodeError as e:
         logger.error("루틴 JSON 파싱 실패: %s\n원문: %.200s", e, raw)
-        yield {"type": "error", "message": "루틴 생성 중 오류가 발생했습니다."}
+        yield {"type": "error", "message": "루틴 생성 결과를 해석할 수 없습니다."}
+        return
+
+    if not isinstance(days, list):
+        logger.error("루틴 JSON이 배열이 아님: %r", days)
+        yield {"type": "error", "message": "루틴 생성 결과 형식이 올바르지 않습니다."}
+        return
+
+    for day_data in days:
+        if isinstance(day_data, dict):
+            yield {"type": "day_complete", **day_data}
+
+    # 6. 사용된 논문 출처 (중복 pmid 제거)
+    seen: set[str] = set()
+    sources: list[dict] = []
+    for chunk in chunks[:5]:
+        pmid = chunk.get("pmid") or ""
+        if pmid and pmid not in seen:
+            seen.add(pmid)
+            sources.append(
+                {
+                    "pmid": pmid,
+                    "title": chunk.get("title", ""),
+                    "section": chunk.get("section", ""),
+                    "score": chunk.get("score"),
+                }
+            )
+    if sources:
+        yield {"type": "papers", "sources": sources}
+
+    yield {"type": "done"}
+
+
+def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
+    """루틴 생성 RAG (비스트리밍 호환): routine_rag_stream에서 chunk 이벤트만 제외.
+
+    기존 CLI 테스트 (`python rag.py routine`)와 하위 호환을 위해 유지한다.
+    """
+    for event in routine_rag_stream(profile):
+        if event.get("type") != "chunk":
+            yield event
 
 
 # ── 로컬 테스트 ───────────────────────────────────────────────
@@ -378,30 +483,40 @@ if __name__ == "__main__":
         # ── 루틴 생성 테스트 (LLM 필요) ───────────────────
         print("\n=== 루틴 생성 RAG 테스트 ===\n")
         profile = UserProfile(
-            goal="hypertrophy",
+            goals=["hypertrophy", "strength"],
             body_weight=75.0,
             fitness_career="intermediate",
             days_per_week=3,
             available_equipment=["barbell", "dumbbell", "cable"],
+            target_muscles=["chest", "triceps"],
+            session_minutes=75,
         )
         print(
-            f"프로필: 목표={profile.goal}, 체중={profile.body_weight}kg, "
+            f"프로필: 목표={profile.goals}, 체중={profile.body_weight}kg, "
             f"레벨={profile.fitness_career}, 주{profile.days_per_week}일\n"
         )
 
         for event in routine_rag(profile):
-            if event["type"] == "day_complete":
+            etype = event["type"]
+            if etype == "day_complete":
                 print(f"[Day {event['day']}] {event.get('focus', '')}")
                 for ex in event.get("exercises", []):
+                    reps = f"{ex.get('reps_min', '?')}-{ex.get('reps_max', '?')}"
                     print(
-                        f"  - {ex['name']}: {ex['sets']}세트 × {ex['reps']}회  (휴식 {ex.get('rest_seconds', '?')}초)"
+                        f"  - {ex['name']}: {ex['sets']}세트 × {reps}회  "
+                        f"(휴식 {ex.get('rest_seconds', '?')}초)"
                     )
                     if ex.get("notes"):
                         print(f"    근거: {ex['notes'][:80]}")
                 print()
-            elif event["type"] == "done":
+            elif etype == "papers":
+                print("[근거 논문]")
+                for s in event["sources"]:
+                    print(f"  - {s['title']} / {s['section']} (PMID: {s['pmid']})")
+                print()
+            elif etype == "done":
                 print("루틴 생성 완료")
-            elif event["type"] == "error":
+            elif etype == "error":
                 print(f"오류: {event['message']}")
 
     else:
