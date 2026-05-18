@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "count": 2,
+    "db_response_time_ms": 30,
+    "page": 1,
+    "per_page": 25
+  },
+  "results": [
+    {
+      "id": "https://openalex.org/W2018473023",
+      "doi": "https://doi.org/10.1519/JSC.0000000000003456",
+      "title": "Effects of training volume on muscle hypertrophy",
+      "publication_year": 2019,
+      "type": "journal-article",
+      "open_access": {"is_oa": true, "oa_status": "gold"},
+      "authorships": [
+        {"author": {"display_name": "Schoenfeld B"}},
+        {"author": {"display_name": "Grgic J"}}
+      ],
+      "primary_location": {
+        "source": {"display_name": "Journal of Strength and Conditioning Research"}
+      },
+      "abstract_inverted_index": {"Resistance": [0], "training": [1, 5]},
+      "biblio": {},
+      "publication_types": [],
+      "ids": {
+        "openalex": "https://openalex.org/W2018473023",
+        "doi": "https://doi.org/10.1519/JSC.0000000000003456",
+        "pmid": "https://pubmed.ncbi.nlm.nih.gov/31034459",
+        "pmcid": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6520849"
+      },
+      "concepts": [
+        {"id": "https://openalex.org/C2779017737", "display_name": "Resistance training", "level": 3, "score": 0.85}
+      ]
+    },
+    {
+      "id": "https://openalex.org/W2999999999",
+      "doi": null,
+      "title": "Paper without DOI",
+      "publication_year": 1995,
+      "type": "journal-article",
+      "open_access": {"is_oa": false},
+      "authorships": [],
+      "primary_location": {"source": {"display_name": "Old Journal"}},
+      "abstract_inverted_index": {},
+      "ids": {"openalex": "https://openalex.org/W2999999999"},
+      "concepts": []
+    }
+  ]
+}

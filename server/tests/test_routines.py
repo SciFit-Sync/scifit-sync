@@ -437,7 +437,7 @@ class TestGetRoutineExercisePapers:
         paper.title = "운동 효과 논문"
         paper.authors = "Kim et al."
         paper.journal = "JSCR"
-        paper.year = 2023
+        paper.published_year = 2023
         paper.doi = "10.1000/test"
         paper.pmid = "12345"
 

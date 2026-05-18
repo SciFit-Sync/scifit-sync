@@ -279,6 +279,75 @@ PY
 - [ ] RAG 검색 결과 metadata에 `search_categories` CSV string 포함
 - [ ] 검색 sim 값이 0.5+ 범위 (resistance training 도메인 쿼리 기준)
 
+## 다중 소스 어댑터 테스트 (Phase 1)
+
+### OpenAlex 검색 어댑터
+
+mailto polite pool 설정 후 단위 테스트:
+
+```bash
+export OPENALEX_MAILTO=your-email@example.com
+pytest mlops/tests/test_openalex.py -v
+```
+
+실제 API 호출은 mock으로 격리됨 — 키 불필요.
+
+### Europe PMC fulltext 어댑터
+
+```bash
+pytest mlops/tests/test_europepmc.py -v
+```
+
+XXE/billion-laughs 방어용 defusedxml 사용 — 의존성 확인:
+
+```bash
+pip show defusedxml
+```
+
+### PMC 어댑터
+
+기존 NCBI eutils 호환:
+
+```bash
+export NCBI_API_KEY=your-key  # 선택, 없으면 3 req/s
+pytest mlops/tests/test_pmc.py -v
+```
+
+### 통합 시나리오 테스트
+
+```bash
+pytest mlops/tests/test_integration.py -v
+```
+
+cascading 흐름 (PMC → EuropePMC) 네 가지 시나리오 + manifest 흐름 + payload 빌더 검증:
+
+- `TestCascadingScenarios::test_pmc_success` — PMC 본문 확보 성공
+- `TestCascadingScenarios::test_europepmc_fallback` — PMC 실패 → EuropePMC fallback
+- `TestCascadingScenarios::test_all_sources_fail` — 모든 소스 not_available → sections=[]
+- `TestCascadingScenarios::test_all_transient_keeps_open` — transient 시그널 propagate
+- `TestManifestIntegration::test_success_paper_marked_indexed` — 성공 paper indexed 마킹
+- `TestManifestIntegration::test_failed_paper_retry_candidate_when_new_source` — Phase 2 소스 추가 시 retry 후보
+- `TestEndToEndPayload::test_payload_propagates_fulltext_source` — payload 빌더 메타 직렬화
+
+### Dry-run (전체 파이프라인)
+
+실제 OpenAlex/Europe PMC 호출 + 로컬 manifest 갱신:
+
+```bash
+export NCBI_API_KEY=...
+export OPENALEX_MAILTO=your-email@example.com
+python mlops/scripts/initial_ingest.py --dry-run --max-papers 20
+```
+
+검증 체크리스트:
+- [ ] 카테고리 분포: 65개 모두 비어있지 않음
+- [ ] publication_types 분포: meta/RCT/observational 혼재
+- [ ] fulltext_source 분포: pmc / europepmc 비율 확인
+- [ ] DOI 누락률 < 10%
+- [ ] chunks=0 paper 비율 (본문 실패 건수)
+
+---
+
 ## 알려진 한계 (본 브랜치 기준)
 
 | 한계 | 영향 | 후속 대응 |

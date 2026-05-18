@@ -152,6 +152,6 @@ class ProgramRoutine(Base):
     routine: Mapped["WorkoutRoutine"] = relationship()
 
 
-from app.models.chat import Paper  # noqa: E402, F401
 from app.models.exercise import Exercise  # noqa: E402, F401
 from app.models.gym import Equipment, Gym  # noqa: E402, F401
+from app.models.paper import Paper  # noqa: E402, F401

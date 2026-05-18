@@ -1,7 +1,7 @@
 """ChromaDB Upsert 모듈.
 
 PersistentClient로 청크+임베딩을 ChromaDB에 저장한다.
-document ID는 `{pmid}_{chunk_index}`로 중복 방지.
+document ID는 DOI 기반 `{doi-safe}_{chunk_index}` (DOI 없으면 pmid fallback).
 """
 
 import logging
@@ -31,7 +31,13 @@ def _get_collection() -> chromadb.Collection:
 
 
 def _make_doc_id(chunk: Chunk) -> str:
-    """청크의 고유 document ID를 생성한다."""
+    """청크의 고유 document ID를 생성한다.
+
+    DOI가 있으면 DOI 기반 (/ → _, . → -), 없으면 PMID 기반 fallback.
+    """
+    if chunk.paper_doi:
+        safe = chunk.paper_doi.replace("/", "_").replace(".", "-")
+        return f"{safe}_{chunk.chunk_index}"
     return f"{chunk.paper_pmid}_{chunk.chunk_index}"
 
 
@@ -62,12 +68,17 @@ def upsert_chunks(
         embeddings = [vec for _, vec in batch]
         metadatas = [
             {
-                "paper_pmid": chunk.paper_pmid,
+                "paper_doi": chunk.paper_doi,
+                "paper_pmid": chunk.paper_pmid or "",
                 "paper_title": chunk.paper_title,
                 "section_name": chunk.section_name,
                 "chunk_index": chunk.chunk_index,
                 "token_count": chunk.token_count,
                 "search_categories": ",".join(chunk.search_categories),
+                "publication_types": ",".join(chunk.publication_types),
+                "evidence_weight": float(chunk.evidence_weight),
+                "fulltext_source": chunk.fulltext_source or "",
+                "published_year": chunk.published_year or 0,
             }
             for chunk, _ in batch
         ]
