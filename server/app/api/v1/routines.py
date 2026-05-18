@@ -398,9 +398,7 @@ async def _build_rag_profile(
 ) -> RagUserProfile:
     """User + UserProfile + 최신 BodyMeasurement + gym_equipments를 모아 RAG 프로필 구성."""
     # 1. UserProfile (필수)
-    profile = (
-        await db.execute(select(DBUserProfile).where(DBUserProfile.user_id == user.id))
-    ).scalar_one_or_none()
+    profile = (await db.execute(select(DBUserProfile).where(DBUserProfile.user_id == user.id))).scalar_one_or_none()
     if profile is None:
         raise ValidationError(message="신체 프로필 정보가 없습니다. 회원가입 신체정보 입력을 완료해 주세요.")
 
@@ -416,9 +414,7 @@ async def _build_rag_profile(
     body_weight = float(body_row.weight_kg) if body_row else 70.0  # fallback (성인 평균)
 
     # 3. days_per_week ← split_type
-    req: GenerateRoutineRequest | None = overrides or (
-        body if isinstance(body, GenerateRoutineRequest) else None
-    )
+    req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
     days_per_week = 3
     if req and req.split_type:
         try:
@@ -467,25 +463,19 @@ async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
     from sqlalchemy import func as sa_func
 
     row = (
-        await db.execute(
-            select(Exercise.id).where(sa_func.lower(Exercise.name_en) == name_lc).limit(1)
-        )
+        await db.execute(select(Exercise.id).where(sa_func.lower(Exercise.name_en) == name_lc).limit(1))
     ).scalar_one_or_none()
     if row is not None:
         return row
 
     # 2) name (한글) 정확 매치
-    row = (
-        await db.execute(select(Exercise.id).where(Exercise.name == name.strip()).limit(1))
-    ).scalar_one_or_none()
+    row = (await db.execute(select(Exercise.id).where(Exercise.name == name.strip()).limit(1))).scalar_one_or_none()
     if row is not None:
         return row
 
     # 3) name_en ILIKE %name% (부분 매치)
     row = (
-        await db.execute(
-            select(Exercise.id).where(Exercise.name_en.ilike(f"%{name.strip()}%")).limit(1)
-        )
+        await db.execute(select(Exercise.id).where(Exercise.name_en.ilike(f"%{name.strip()}%")).limit(1))
     ).scalar_one_or_none()
     return row
 
@@ -494,9 +484,7 @@ async def _fetch_user_1rms(user_id: uuid.UUID, db: AsyncSession) -> dict[uuid.UU
     """사용자의 운동별 1RM 매핑. exercise_id → weight_kg."""
     rows = (
         await db.execute(
-            select(UserExercise1RM.exercise_id, UserExercise1RM.weight_kg).where(
-                UserExercise1RM.user_id == user_id
-            )
+            select(UserExercise1RM.exercise_id, UserExercise1RM.weight_kg).where(UserExercise1RM.user_id == user_id)
         )
     ).all()
     return {ex_id: float(w) for ex_id, w in rows}
@@ -571,9 +559,7 @@ async def _persist_papers(
     if not pmids:
         return 0
 
-    rows = (
-        await db.execute(select(Paper.id, Paper.pmid).where(Paper.pmid.in_(pmids)))
-    ).all()
+    rows = (await db.execute(select(Paper.id, Paper.pmid).where(Paper.pmid.in_(pmids)))).all()
     pmid_to_id: dict[str, uuid.UUID] = {pmid: pid for pid, pmid in rows}
 
     inserted = 0
@@ -760,17 +746,11 @@ async def regenerate_routine(
     routine = await _get_my_routine(routine_id, current_user, db)
 
     # 기존 day/exercise/paper 제거 (cascade로 exercise는 함께 삭제됨)
-    existing_days = (
-        (await db.execute(select(RoutineDay).where(RoutineDay.routine_id == routine.id)))
-        .scalars()
-        .all()
-    )
+    existing_days = (await db.execute(select(RoutineDay).where(RoutineDay.routine_id == routine.id))).scalars().all()
     for d in existing_days:
         await db.delete(d)
     existing_papers = (
-        (await db.execute(select(RoutinePaper).where(RoutinePaper.routine_id == routine.id)))
-        .scalars()
-        .all()
+        (await db.execute(select(RoutinePaper).where(RoutinePaper.routine_id == routine.id))).scalars().all()
     )
     for p in existing_papers:
         await db.delete(p)
