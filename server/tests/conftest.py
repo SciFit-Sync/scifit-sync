@@ -1,7 +1,15 @@
+import os
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
+os.environ["RATE_LIMIT_ENABLED"] = "false"
+
+from app.core.config import get_settings  # noqa: E402
+
+get_settings.cache_clear()
+
+from app.main import app  # noqa: E402
 
 
 @pytest_asyncio.fixture
