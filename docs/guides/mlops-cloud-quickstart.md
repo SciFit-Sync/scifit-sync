@@ -170,7 +170,7 @@ NCBI eutils가 일시 장애를 자주 일으키는 환경(WSL, 일부 클라우
 | `NCBI_HTTP_MAX_RETRIES` | `5` | HTTP transient 에러(ChunkedEncoding/Timeout/5xx/429) 재시도 횟수 |
 | `NCBI_HTTP_MAX_BACKOFF` | `10.0` | HTTP 지수 백오프 초당 상한 (이걸 키우면 NCBI 장애 시 더 오래 기다림) |
 | `NCBI_HTTP_TIMEOUT` | `60` | HTTP read timeout 초 |
-| `PMC_FULLTEXT_MAX_ATTEMPTS` | `3` | HTTP 200인데 body 깨진(`JSONDecodeError`/`ParseError`) 케이스의 함수 layer 재시도 횟수 |
+| `PMC_FULLTEXT_MAX_ATTEMPTS` | `5` | HTTP 200인데 body 깨진(`JSONDecodeError`/`ParseError`) 케이스의 함수 layer 재시도 횟수 |
 | `PMC_FULLTEXT_RETRY_BACKOFF_BASE` | `2.0` | 함수 layer backoff 시작 초 |
 | `PMC_FULLTEXT_RETRY_BACKOFF_MAX` | `10.0` | 함수 layer backoff 상한 초 |
 
@@ -701,7 +701,7 @@ CPU 인스턴스는 임베딩 단계만 ~4배 더 걸려 총 3-4시간 예상.
 | HuggingFace 다운로드 느림 | rate limit | `export HF_TOKEN=<token>` 추가 |
 | BGE OOM | RAM < 2GB | 더 큰 인스턴스 또는 GPU |
 | `col.count() == 0` | 적재 실패 | `--skip-errors` 없이 다시 실행 → 정확한 에러 라인 확인 |
-| `PMC elink JSON 파싱 실패 (시도 N/3)` 로그 | NCBI가 HTTP 200으로 응답했지만 body가 깨진 케이스 | 함수 layer가 **3회** 자동 재시도 (50편 dry-run 기준 92%가 1-2회 재시도 내 복구). 끝까지 실패하면 abstract fallback. 더 강하게 → `--fulltext-attempts 5` 또는 `PMC_FULLTEXT_MAX_ATTEMPTS=5` |
+| `PMC elink JSON 파싱 실패 (시도 N/5)` 로그 | NCBI가 HTTP 200으로 응답했지만 body가 깨진 케이스 | 함수 layer가 **5회** 자동 재시도 (50편 dry-run 기준 대부분 1-2회 재시도 내 복구). 끝까지 실패하면 cascading 다음 소스로 진행. 더 강하게 → `--fulltext-attempts 8` 또는 `PMC_FULLTEXT_MAX_ATTEMPTS=8` |
 | `NCBI 요청 재시도 N/5 (... 백오프): Response ended prematurely` 반복 | NCBI 측 throttling 또는 chunked response 끊김 | 자동 재시도(5회) 후에도 실패하면 abstract fallback 작동 — 그대로 진행. 빈도 높으면 시간대 바꿔 재실행 (한국 낮 = 미국 새벽 = NCBI 한산) |
 | `전문 수집 최종 실패 — abstract fallback` 로그 | HTTP/함수 layer retry를 모두 소진한 PMID | 정상 동작 (abstract만 청킹). 끝부분 `전문 수집 최종 실패(abstract fallback) 누적: N건` 라인으로 batch 단위 카운트 확인 |
 | `bash: line N: python: command not found` (nohup 안에서) | nohup이 새 셸이라 venv 미상속 + wd 다름 | 스크립트 안에 `cd ~/capstone/scifit-sync && source .venv/bin/activate` 명시 (STEP 15-3) |

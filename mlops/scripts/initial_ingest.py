@@ -8,7 +8,7 @@ retry 관련 옵션은 환경변수로도 조정 가능 (CLI 인자가 우선):
     NCBI_HTTP_MAX_RETRIES      HTTP layer transient 에러 재시도 횟수 (기본: 5)
     NCBI_HTTP_MAX_BACKOFF      HTTP backoff 상한 초 (기본: 10.0)
     NCBI_HTTP_TIMEOUT          HTTP read timeout 초 (기본: 60)
-    PMC_FULLTEXT_MAX_ATTEMPTS  fulltext parse 실패 시 함수 layer 재시도 횟수 (기본: 3)
+    PMC_FULLTEXT_MAX_ATTEMPTS  fulltext parse 실패 시 함수 layer 재시도 횟수 (기본: 5)
 """
 
 import argparse
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         "--fulltext-attempts",
         type=int,
         default=None,
-        help="PMC fulltext 함수 layer parse 실패 재시도 횟수 (기본: 3, env: PMC_FULLTEXT_MAX_ATTEMPTS)",
+        help="PMC fulltext 함수 layer parse 실패 재시도 횟수 (기본: 5, env: PMC_FULLTEXT_MAX_ATTEMPTS)",
     )
     args = parser.parse_args()
 
