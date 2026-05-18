@@ -1,13 +1,14 @@
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
-import WO01GymSetup from '../screens/onboarding/WO01GymSetup';
-import WA01Login from '../screens/auth/WA01Login';
-import WM01Main from '../screens/main/WM01Main';
-import WN01Notifications from '../screens/main/WN01Notifications';
-import WR04RoutineDetail from '../screens/main/WR04RoutineDetail';
-import WL01Record from '../screens/main/WL01Record';
-import { useAuthStore } from '../stores/authStore';
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { ActivityIndicator, View } from "react-native";
+import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
+import WA01Login from "../screens/auth/WA01Login";
+import WA02Signup from "../screens/auth/WA02Signin";
+import WM01Main from "../screens/main/WM01Main";
+import WN01Notifications from "../screens/main/WN01Notifications";
+import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
+import WL01Record from "../screens/main/WL01Record";
+import { useAuthStore } from "../stores/authStore";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -17,6 +18,7 @@ function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="WA01Login" component={WA01Login} />
+      <AuthStack.Screen name="WA02Signup" component={WA02Signup} />
     </AuthStack.Navigator>
   );
 }
@@ -45,7 +47,14 @@ export default function RootNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <ActivityIndicator color="#FEE500" size="large" />
       </View>
     );

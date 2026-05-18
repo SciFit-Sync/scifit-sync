@@ -83,8 +83,8 @@
 |--------|------|
 | `chat_sessions` | 챗봇 대화 세션 |
 | `chat_messages` | 메시지 (user/assistant). `paper_ids` JSONB 배열로 복수 논문 인용 |
-| `papers` | PubMed 논문 메타데이터 (`doi`, `pmid` UK). `year`, `abstract`, `summary` (한국어 요약) |
-| `paper_chunks` | RAG 청크 (Section-Aware). `chroma_id`로 ChromaDB 벡터 연결 |
+| `papers` | 다중 소스 논문 메타데이터 (Task 12 v3). `doi` UNIQUE NOT NULL (primary lookup). `pmid` / `pmcid` / `openalex_id` nullable 식별자. `publication_types` TEXT[] + `evidence_weight` NUMERIC(3,2) — RAG 가중치 정렬. `fulltext_source` — 본문 확보 경로(pmc/europepmc 등). `search_categories` TEXT[] GIN 인덱스 |
+| `paper_chunks` | RAG 청크 (Section-Aware). `(paper_id, chunk_index)` UNIQUE 보장. `evidence_weight` / `publication_types` 청크 레벨 보존. `chroma_id` 제거 — ChromaDB doc_id는 `{doi}_{chunk_index}` 형태로 upserter가 관리 |
 
 ### 기타 (1개)
 
@@ -375,25 +375,32 @@ erDiagram
 
     papers {
         UUID id PK
-        varchar doi UK "NULL (S-1: UNIQUE)"
-        varchar pmid UK "NULL (S-1: UNIQUE)"
-        varchar title "NOT NULL"
-        text authors "NOT NULL"
-        varchar journal "NOT NULL"
-        int year "발행 연도 NOT NULL (API-9)"
-        text abstract "NOT NULL"
-        text summary "한국어 요약 (NULL, API-8)"
+        varchar doi "NOT NULL UNIQUE (uq_papers_doi) — primary lookup"
+        varchar pmid "NULL, index (ix_papers_pmid)"
+        varchar pmcid "NULL"
+        varchar openalex_id "NULL, index (ix_papers_openalex_id)"
+        text title "NOT NULL"
+        text authors "NULL"
+        varchar journal "NULL"
+        int published_year "NULL, index (ix_papers_published_year)"
+        text abstract "NULL"
+        text[] publication_types "NOT NULL DEFAULT '{}' — GIN 인덱스"
+        numeric evidence_weight "NOT NULL DEFAULT 0.50 — NUMERIC(3,2)"
+        varchar fulltext_source "NOT NULL — pmc / europepmc 등"
+        text[] search_categories "NOT NULL DEFAULT '{}' — GIN 인덱스"
         timestamp created_at "NOT NULL DEFAULT NOW()"
+        timestamp updated_at "NOT NULL DEFAULT NOW()"
     }
 
     paper_chunks {
         UUID id PK
         UUID paper_id FK "papers.id CASCADE"
-        int chunk_index "NOT NULL"
+        int chunk_index "NOT NULL — (paper_id, chunk_index) UNIQUE"
         varchar section_name "Introduction, Methods 등 (NULL)"
         text content "NOT NULL"
-        int token_count "NOT NULL"
-        varchar chroma_id "ChromaDB 벡터 ID, NOT NULL"
+        int token_count "NULL"
+        numeric evidence_weight "NULL — NUMERIC(3,2), 청크 레벨 가중치"
+        text[] publication_types "NULL — 청크 레벨 publication_types 보존"
         timestamp created_at "NOT NULL DEFAULT NOW()"
     }
 
@@ -575,6 +582,7 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_unit_synced CHECK (
 
 | 버전 | 변경 내용 |
 |------|----------|
+| v3 (29테이블, Task 12 multi-source ingestion) | `papers` / `paper_chunks` clean slate 재설계. `papers`: `doi` NOT NULL UNIQUE (primary lookup 전환), `pmcid` / `openalex_id` 신규, `publication_types` TEXT[] + `evidence_weight` NUMERIC(3,2) + `fulltext_source` + `search_categories` TEXT[] 신규. GIN 인덱스 (`publication_types`, `search_categories`), 단순 인덱스 (`pmid`, `openalex_id`, `published_year`). `paper_chunks`: `evidence_weight` / `publication_types` 청크 레벨 신규, `chroma_id` 제거, `(paper_id, chunk_index)` UNIQUE 보장. Alembic migration: `007_clean_slate_papers_multi_source.py`. |
 | v2.1 (29테이블, docs-only) | 수집 데이터셋(Hammer Strength / Newtech / Panatta CSV) 정합화. `equipments`에 `name_en` 문서 보정, `sub_category` 신규, `bar_weight_unit` / `stack_unit` 신규. **컬럼 RENAME**: `bar_weight_kg → bar_weight`, `min_stack_kg → min_stack`, `max_stack_kg → max_stack`, `stack_weight_kg → stack_weight`(추가로 `decimal → jsonb`). `equipment_brands`에 `default_bar_unit` / `default_stack_unit` 신규. 신규 enum `weightunit('kg','lb')`. 신규 CHECK 제약 `chk_bar_unit_synced`, `chk_stack_unit_synced` — 값과 단위 동기성 보장. 무게 단위 정책 변경: **단위 변환 없이 원본 그대로 저장**. CSV 템플릿: `docs/templates/equipment_template.csv`. |
 | v2 (29테이블) | Program 도메인(`programs`, `program_routines`) 추가, `equipment_muscles` 추가, `user_equipment_selections` / `user_stats` 폐기, 운동 목표 복수 정책 (D-M6), `equipments` category 의미 재정의 + `equipment_type` 분리 (API-12) |
 | v1 (28테이블) | 초기 설계 |
