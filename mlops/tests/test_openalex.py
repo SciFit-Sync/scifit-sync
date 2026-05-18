@@ -36,9 +36,9 @@ def test_build_search_params_filters_oa_and_lang():
     params = build_search_params(
         keywords=["x"], concept_ids=["C1"], per_page=25, mailto="a@b.com"
     )
-    assert "is_oa:true" in params["filter"]
+    assert "open_access.is_oa:true" in params["filter"]
     assert "language:en" in params["filter"]
-    assert "type:journal-article" in params["filter"]
+    assert "type:article" in params["filter"]
 
 
 def test_parse_work_extracts_doi_pmid_pmcid(search_resp):
