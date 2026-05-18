@@ -1,5 +1,5 @@
 from app.models.base import Base
-from app.models.chat import ChatMessage, ChatRole, ChatSession, Paper, PaperChunk
+from app.models.chat import ChatMessage, ChatRole, ChatSession
 from app.models.exercise import (
     Exercise,
     ExerciseEquipmentMap,
@@ -21,6 +21,8 @@ from app.models.gym import (
     UserGym,
 )
 from app.models.notification import Notification, NotificationType
+from app.models.paper import Paper
+from app.models.paper_chunk import PaperChunk
 from app.models.routine import (
     GeneratedBy,
     Program,
