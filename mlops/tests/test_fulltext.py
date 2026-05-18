@@ -119,3 +119,18 @@ def test_europepmc_pmid_fallback_to_doi_lookup():
     europepmc.fetch_by_pmid.assert_not_called()
     europepmc.fetch_by_doi.assert_called_once_with("10.1/x")
     assert result.fulltext_source == "europepmc"
+
+
+def test_no_pmcid_no_pmid_uses_doi_only():
+    """pmcid와 pmid 둘 다 None인 경우 EuropePMC fetch_by_doi만 호출."""
+    pmc = MagicMock()
+    europepmc = MagicMock()
+    europepmc.fetch_by_doi = MagicMock(return_value=_success())
+
+    result = fetch_cascading(pmcid=None, pmid=None, doi="10.1/x",
+                             pmc_client=pmc, europepmc_client=europepmc)
+
+    pmc.fetch.assert_not_called()
+    europepmc.fetch_by_doi.assert_called_once_with("10.1/x")
+    assert result.tried_sources == ["europepmc"]
+    assert result.fulltext_source == "europepmc"

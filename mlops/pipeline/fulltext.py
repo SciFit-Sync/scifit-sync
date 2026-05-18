@@ -12,9 +12,19 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Protocol
 
-from mlops.pipeline.europepmc import FulltextStatus
+from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
 from mlops.pipeline.models import PaperSection
+
+
+class PMCFetcher(Protocol):
+    def fetch(self, pmcid: str) -> FulltextResult: ...
+
+
+class EuropePMCFetcher(Protocol):
+    def fetch_by_pmid(self, pmid: str) -> FulltextResult: ...
+    def fetch_by_doi(self, doi: str) -> FulltextResult: ...
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +42,8 @@ def fetch_cascading(
     pmcid: str | None,
     pmid: str | None,
     doi: str,
-    pmc_client,
-    europepmc_client,
+    pmc_client: PMCFetcher,
+    europepmc_client: EuropePMCFetcher,
 ) -> CascadingFulltextResult:
     """PMC → Europe PMC 순으로 본문 시도.
 
