@@ -16,12 +16,17 @@
 
 JSON Lines 출력 포맷 (1청크당 1줄):
     {
+      "paper_doi": "10.1234/example",
       "paper_pmid": "12345678",
       "paper_title": "Effects of ...",
       "section_name": "Methods",
       "chunk_index": 0,
       "content": "...",
       "token_count": 487,
+      "publication_types": ["Randomized Controlled Trial"],
+      "evidence_weight": 0.90,
+      "fulltext_source": "pmc",
+      "published_year": 2022,
       "embedding": [0.012, -0.034, ...]   # 1024개 float (BGE-large-en-v1.5)
     }
 """
@@ -39,23 +44,12 @@ from mlops.pipeline.chunker import chunk_papers
 from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH, MAX_PAPERS_PER_RUN
 from mlops.pipeline.crawler import crawl_papers
 from mlops.pipeline.embedder import embed_chunks
+from mlops.pipeline.manifest import Manifest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-
-def load_manifest() -> set[str]:
-    if MANIFEST_PATH.exists():
-        data = json.loads(MANIFEST_PATH.read_text())
-        return set(data.get("pmids", []))
-    return set()
-
-
-def save_manifest(pmids: set[str]) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    data = {"pmids": sorted(pmids), "count": len(pmids)}
-    MANIFEST_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    logger.info("Manifest 저장: %d건 → %s", len(pmids), MANIFEST_PATH)
+ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
 
 
 def _open_writer(path: Path, use_gzip: bool):
@@ -77,25 +71,34 @@ def main(
     logger.info("=== Embedding Export 시작 ===")
     logger.info("max_papers=%d, output=%s, gzip=%s, dry_run=%s", max_papers, output, use_gzip, dry_run)
 
-    existing = load_manifest()
-    logger.info("기존 manifest: %d건", len(existing))
+    manifest = Manifest.load(MANIFEST_PATH)
+
+    # 이미 indexed된 DOI + 모든 active source를 시도한 fail DOI는 skip
+    existing_dois: set[str] = set()
+    for doi, entry in manifest.papers.items():
+        if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+            existing_dois.add(doi)
+    logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
 
     papers = crawl_papers(
         max_total=max_papers,
         min_date=min_date,
         max_date=max_date,
-        existing_pmids=existing,
+        existing_dois=existing_dois,
     )
     if not papers:
         logger.info("신규 논문 없음. 종료.")
         return
 
-    chunks = chunk_papers(papers)
+    indexed_papers = [p for p in papers if p.sections]
+    logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
+
+    chunks = chunk_papers(indexed_papers) if indexed_papers else []
     if not chunks:
         logger.info("청크 없음. 종료.")
         return
 
-    logger.info("크롤링 %d편 → 청크 %d개", len(papers), len(chunks))
+    logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
 
     if dry_run:
         logger.info("[DRY RUN] 임베딩/파일 출력 생략")
@@ -118,10 +121,18 @@ def main(
     logger.info("Export 완료: %d청크 → %s (%.2f MB)", written, output, size_mb)
 
     if update_manifest:
-        new_pmids = {p.meta.pmid for p in papers}
-        save_manifest(existing | new_pmids)
+        for p in papers:
+            manifest.record_attempt(
+                doi=p.meta.doi,
+                pmid=p.meta.pmid or None,
+                pmcid=p.meta.pmcid,
+                openalex_id=p.meta.openalex_id,
+                fulltext_source=p.meta.fulltext_source,
+                tried_sources=list(ACTIVE_SOURCES),
+            )
+        manifest.save(MANIFEST_PATH)
 
-    logger.info("=== Export 완료: %d편 → %d청크 ===", len(papers), written)
+    logger.info("=== Export 완료: %d편 → %d청크 ===", len(indexed_papers), written)
 
 
 if __name__ == "__main__":
@@ -143,7 +154,7 @@ if __name__ == "__main__":
         default=False,
         help="export 완료 후 manifest.json 즉시 갱신 "
         "(기본 OFF — 적재 검증 완료 후 별도로 갱신하는 것이 안전. "
-        "적재 도중 실패해도 manifest가 깨끗하면 동일 PMID로 재시도 가능)",
+        "적재 도중 실패해도 manifest가 깨끗하면 동일 DOI로 재시도 가능)",
     )
     args = parser.parse_args()
 

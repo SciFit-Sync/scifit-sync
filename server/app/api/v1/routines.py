@@ -326,7 +326,7 @@ async def get_routine_exercise_papers(
             title=p.title,
             authors=p.authors,
             journal=p.journal,
-            year=p.year,
+            year=p.published_year,
             doi=p.doi,
             pmid=p.pmid,
             relevance_summary=rp.relevance_summary,

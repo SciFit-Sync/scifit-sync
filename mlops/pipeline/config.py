@@ -5,6 +5,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_bool(key: str, default: str = "false") -> bool:
+    """ENV var를 bool로 파싱. 'true'/'1'/'yes'/'on' (대소문자 무관) 모두 True."""
+    return os.getenv(key, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
 # PubMed
 NCBI_API_KEY: str = os.getenv("NCBI_API_KEY", "")
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -43,3 +49,16 @@ ADMIN_API_TOKEN: str = os.getenv("ADMIN_API_TOKEN", "")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 MANIFEST_PATH = DATA_DIR / "manifest.json"
+
+# OpenAlex
+OPENALEX_BASE_URL: str = os.getenv("OPENALEX_BASE_URL", "https://api.openalex.org")
+OPENALEX_MAILTO: str = os.getenv("OPENALEX_MAILTO", "")
+OPENALEX_MAX_PER_CATEGORY: int = int(os.getenv("OPENALEX_MAX_PER_CATEGORY", "500"))
+PUBMED_MAX_PER_CATEGORY: int = int(os.getenv("PUBMED_MAX_PER_CATEGORY", "50"))
+
+# Europe PMC
+EUROPEPMC_BASE_URL: str = os.getenv("EUROPEPMC_BASE_URL", "https://www.ebi.ac.uk/europepmc/webservices/rest")
+EUROPEPMC_RATE_LIMIT: float = float(os.getenv("EUROPEPMC_RATE_LIMIT", "1.0"))
+
+# Publication-type 필터 토글
+STRICT_PUBLICATION_FILTER: bool = _env_bool("STRICT_PUBLICATION_FILTER")

@@ -1,7 +1,14 @@
-"""PubMed/PMC 스포츠 과학 논문 크롤러.
+"""스포츠 과학 논문 크롤러 (OpenAlex 메인 + PubMed 보조 + cascading fulltext).
 
-NCBI E-utilities API를 사용하여 논문 검색 → 메타데이터 수집 → PMC 전문 파싱.
-Rate limit: API 키 없으면 3 req/s, 있으면 10 req/s.
+Task 10에서 단일 PubMed 소스 의존을 OpenAlex 메인 검색으로 전환하고, PubMed는
+publication_types 메타 보강 + PMID 식별자 확보용 보조 소스로 격하했다.
+본문은 PMC → Europe PMC cascading으로 회수율을 끌어올린다.
+
+흐름:
+  카테고리별 OpenAlex 검색 + PubMed 보조 검색 → DOI 기반 merge →
+  round-robin dedup → cascading fulltext → evidence_weight 산출.
+
+Rate limit: NCBI는 API 키 없으면 3 req/s, 있으면 10 req/s. OpenAlex는 polite pool.
 """
 
 import logging
@@ -11,6 +18,8 @@ from collections import defaultdict
 
 import requests
 from mlops.pipeline.config import (
+    EUROPEPMC_BASE_URL,
+    EUROPEPMC_RATE_LIMIT,
     MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
@@ -19,11 +28,21 @@ from mlops.pipeline.config import (
     NCBI_HTTP_MAX_RETRIES,
     NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
+    OPENALEX_BASE_URL,
+    OPENALEX_MAILTO,
+    OPENALEX_MAX_PER_CATEGORY,
     PMC_FULLTEXT_MAX_ATTEMPTS,
     PMC_FULLTEXT_RETRY_BACKOFF_BASE,
     PMC_FULLTEXT_RETRY_BACKOFF_MAX,
+    PUBMED_MAX_PER_CATEGORY,
+    STRICT_PUBLICATION_FILTER,
 )
+from mlops.pipeline.europepmc import EuropePMCClient
+from mlops.pipeline.evidence import calculate_evidence_weight
+from mlops.pipeline.fulltext import fetch_cascading
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+from mlops.pipeline.openalex import OpenAlexClient
+from mlops.pipeline.pmc import PMCClient
 
 logger = logging.getLogger(__name__)
 
@@ -591,16 +610,20 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
     ),
 ]
 
-# 임상 근거 강도 단계별 필터.
-# strict: RCT/메타/SR + free full text (전문 회수율 보장이 필요한 주류 주제용).
-# semi:   RCT/메타/SR만 (좁은 임상 주제 — abstract만으로도 RAG 청크 다양성 확보).
-# loose:  필터 없음 (메커니즘/신규 분야/추천 시스템 — RCT 자체가 거의 없음).
-COMMON_PUBLICATION_FILTER = (
+# Task 10: publication-type 필터는 환경변수 토글로 단일화.
+# STRICT_PUBLICATION_FILTER=true면 PubMed 보조 검색에 strict RCT/메타/SR + free full text 필터를 붙인다.
+# 기본은 False — 65개 카테고리 baseline에서 회수율을 위해 필터를 완전히 끄는 정책.
+# OpenAlex 메인 검색으로 메타분석을 충분히 확보하므로 PubMed strict 필터의 의미가 약해졌다.
+_STRICT_PUB_FILTER = (
     ' AND ("randomized controlled trial"[Publication Type] '
     'OR "meta-analysis"[Publication Type] '
     'OR "systematic review"[Publication Type]) '
     'AND "free full text"[Filter]'
 )
+
+# 기존 심볼 deprecated alias (refresh_search_categories.py / verify_queries.py 호환).
+# Task 11 이후 호출부 정리 시 함께 제거 예정.
+COMMON_PUBLICATION_FILTER = _STRICT_PUB_FILTER
 SEMI_STRICT_PUBLICATION_FILTER = (
     ' AND ("randomized controlled trial"[Publication Type] '
     'OR "meta-analysis"[Publication Type] '
@@ -608,10 +631,25 @@ SEMI_STRICT_PUBLICATION_FILTER = (
 )
 
 
+def get_publication_filter() -> str:
+    """STRICT_PUBLICATION_FILTER가 True일 때만 PubMed strict 필터를 반환.
+
+    환경변수 토글 기반 — 모듈 import 시점에 캡처된 config 값이 아니라 현재 모듈의
+    전역을 본다(테스트에서 `patch.object(crawler_mod, "STRICT_PUBLICATION_FILTER", ...)`로
+    덮어쓸 수 있도록).
+    """
+    return _STRICT_PUB_FILTER if STRICT_PUBLICATION_FILTER else ""
+
+
 def filter_for_level(filter_level: str) -> str:
-    """filter_level 문자열을 PubMed term 접미 필터로 변환."""
+    """filter_level 문자열을 PubMed term 접미 필터로 변환 (deprecated).
+
+    Task 10 이후 publication-type 필터는 STRICT_PUBLICATION_FILTER 토글로 통일됐다.
+    이 함수는 `refresh_search_categories.py` 등 기존 스크립트 호환을 위해 유지하며,
+    Task 11 이후 일괄 제거 예정.
+    """
     if filter_level == "strict":
-        return COMMON_PUBLICATION_FILTER
+        return _STRICT_PUB_FILTER
     if filter_level == "semi":
         return SEMI_STRICT_PUBLICATION_FILTER
     if filter_level == "loose":
@@ -959,7 +997,8 @@ def fetch_pmc_fulltext(pmid: str) -> list[PaperSection]:
 
     Returns:
         PaperSection 리스트 (PMC 버전이 없으면 빈 리스트). HTTP 또는 파싱이 모든 재시도
-        끝에 실패하면 RuntimeError를 raise하여 호출부가 abstract fallback을 결정한다.
+        끝에 실패하면 RuntimeError를 raise한다. Task 8 이후 abstract fallback은 제거됐고,
+        본문 없는 paper는 cascading의 다음 소스로 넘어가거나 폐기된다.
     """
     pmc_id = _resolve_pmc_id(pmid)
     if pmc_id is None:
@@ -1039,91 +1078,348 @@ def _round_robin_dedup(
     return pmid_order, dict(pmid_to_categories)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 10: OpenAlex 통합 + DOI 기반 dedup + cascading fulltext
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CATEGORY_OPENALEX_MAPPING: SEARCH_QUERY_CATEGORIES 65개 카테고리에 대응되는
+# OpenAlex 검색 파라미터 (concept_ids + keywords).
+#
+# OpenAlex 2024 schema 변경으로 concepts deprecated → topics 사용.
+# Phase 1은 keyword search만으로 동작 (concept_ids=[]).
+# Topics 마이그레이션은 후속 D-issue로 분리 (T-prefix ID 매핑 필요).
+#
+# keywords는 OpenAlex `search` 파라미터에 join되어 텍스트 검색으로 사용된다.
+CATEGORY_OPENALEX_MAPPING: dict[str, dict] = {
+    "volume": {"concept_ids": [], "keywords": ["training volume", "volume load", "weekly sets", "sets per muscle"]},
+    "intensity": {"concept_ids": [], "keywords": ["training intensity", "%1RM", "high load", "low load"]},
+    "frequency": {"concept_ids": [], "keywords": ["training frequency", "weekly frequency", "sessions per week"]},
+    "hypertrophy_strength": {"concept_ids": [], "keywords": ["muscle hypertrophy", "muscle strength", "1RM"]},
+    "trained_status": {"concept_ids": [], "keywords": ["trained individuals", "untrained", "novice", "beginners"]},
+    "rest_interval": {"concept_ids": [], "keywords": ["rest interval", "inter-set rest"]},
+    "failure_rir": {"concept_ids": [], "keywords": ["training to failure", "repetitions in reserve", "RIR"]},
+    "exercise_order": {"concept_ids": [], "keywords": ["exercise order", "exercise sequence"]},
+    "recommendation_system": {
+        "concept_ids": [],
+        "keywords": ["exercise recommendation system", "fitness recommendation", "workout recommendation"],
+    },
+    "personalized_prescription": {
+        "concept_ids": [],
+        "keywords": ["personalized exercise prescription", "individualized exercise program"],
+    },
+    "machine_vs_freeweight": {
+        "concept_ids": [],
+        "keywords": ["machine", "free weight", "selectorized", "plate loaded"],
+    },
+    "emg_activation": {"concept_ids": [], "keywords": ["electromyography", "EMG", "muscle activation"]},
+    "periodization": {"concept_ids": [], "keywords": ["periodization", "linear periodization", "undulating", "block"]},
+    "deload_recovery": {"concept_ids": [], "keywords": ["deload", "recovery week", "tapering"]},
+    "doms_recovery": {"concept_ids": [], "keywords": ["delayed onset muscle soreness", "DOMS", "muscle damage"]},
+    "older_adults": {"concept_ids": [], "keywords": ["older adults", "elderly", "sarcopenia", "aging"]},
+    "women_resistance": {"concept_ids": [], "keywords": ["women", "female", "menstrual cycle"]},
+    "injury_prevention": {"concept_ids": [], "keywords": ["injury prevention", "lower back pain", "rotator cuff"]},
+    "range_of_motion": {"concept_ids": [], "keywords": ["range of motion", "ROM", "full range", "partial range"]},
+    "tempo_tut": {
+        "concept_ids": [],
+        "keywords": ["tempo", "time under tension", "lifting cadence", "movement velocity"],
+    },
+    "contraction_mode": {"concept_ids": [], "keywords": ["eccentric", "concentric", "isometric"]},
+    "compound_isolation": {
+        "concept_ids": [],
+        "keywords": ["compound exercise", "multi-joint", "single-joint", "isolation exercise"],
+    },
+    "chest_training": {"concept_ids": [], "keywords": ["bench press", "pectoral", "chest", "pectoralis"]},
+    "back_training": {"concept_ids": [], "keywords": ["row", "pull-down", "latissimus", "pull-up"]},
+    "legs_training": {"concept_ids": [], "keywords": ["squat", "deadlift", "leg press", "quadriceps", "hamstring"]},
+    "shoulders_training": {
+        "concept_ids": [],
+        "keywords": ["shoulder press", "overhead press", "deltoid", "lateral raise"],
+    },
+    "arms_training": {"concept_ids": [], "keywords": ["biceps curl", "triceps extension", "elbow flexion"]},
+    "core_training": {
+        "concept_ids": [],
+        "keywords": ["abdominal", "trunk stability", "core stability", "rectus abdominis"],
+    },
+    "load_progression": {
+        "concept_ids": [],
+        "keywords": ["progressive overload", "load progression", "training progression"],
+    },
+    "muscular_endurance": {"concept_ids": [], "keywords": ["muscular endurance", "endurance training"]},
+    "concurrent_training": {"concept_ids": [], "keywords": ["concurrent training", "endurance and strength"]},
+    "exercise_rehabilitation": {"concept_ids": [], "keywords": ["exercise rehabilitation", "rehabilitation exercise"]},
+    "warm_up_cool_down": {"concept_ids": [], "keywords": ["warm-up", "cool-down", "pre-exercise warm up"]},
+    "exercise_variation": {"concept_ids": [], "keywords": ["exercise variation", "exercise selection"]},
+    "blood_flow_restriction": {
+        "concept_ids": [],
+        "keywords": ["blood flow restriction", "BFR training", "occlusion training"],
+    },
+    "explosive_power_speed": {"concept_ids": [], "keywords": ["explosive power", "power training", "speed strength"]},
+    "instability_training": {
+        "concept_ids": [],
+        "keywords": ["instability training", "unstable surface", "balance training"],
+    },
+    "plyometric_training": {
+        "concept_ids": [],
+        "keywords": ["plyometric training", "jump training", "stretch-shortening cycle"],
+    },
+    "detraining": {"concept_ids": [], "keywords": ["detraining", "training cessation", "loss of strength"]},
+    "protein_nutrition": {"concept_ids": [], "keywords": ["protein intake", "protein supplementation", "amino acid"]},
+    "sleep_recovery": {"concept_ids": [], "keywords": ["sleep recovery", "sleep and exercise"]},
+    "unilateral_training": {"concept_ids": [], "keywords": ["unilateral training", "single leg", "single arm"]},
+    "resistance_band": {"concept_ids": [], "keywords": ["resistance band", "elastic resistance"]},
+    "circuit_training": {"concept_ids": [], "keywords": ["circuit training"]},
+    "functional_training": {"concept_ids": [], "keywords": ["functional training", "functional fitness"]},
+    "obesity_weight_loss": {"concept_ids": [], "keywords": ["obesity", "weight loss", "fat loss"]},
+    "team_sports": {"concept_ids": [], "keywords": ["team sports", "soccer", "basketball", "football"]},
+    "testosterone_response": {"concept_ids": [], "keywords": ["testosterone response", "hormonal response"]},
+    "growth_hormone_igf": {"concept_ids": [], "keywords": ["growth hormone", "IGF-1", "anabolic hormones"]},
+    "foam_rolling": {"concept_ids": [], "keywords": ["foam rolling", "self-myofascial release"]},
+    "velocity_based_training": {"concept_ids": [], "keywords": ["velocity based training", "VBT", "bar velocity"]},
+    "rpe_perceived_exertion": {"concept_ids": [], "keywords": ["rate of perceived exertion", "RPE"]},
+    "functional_movement_screen": {"concept_ids": [], "keywords": ["functional movement screen", "FMS"]},
+    "exercise_adherence": {"concept_ids": [], "keywords": ["exercise adherence", "exercise compliance"]},
+    "training_split": {"concept_ids": [], "keywords": ["training split", "push pull legs", "upper lower split"]},
+    "advanced_techniques": {"concept_ids": [], "keywords": ["drop set", "supersets", "advanced training techniques"]},
+    "bodyweight_training": {"concept_ids": [], "keywords": ["bodyweight training", "calisthenics"]},
+    "mechanical_tension": {"concept_ids": [], "keywords": ["mechanical tension", "muscle tension"]},
+    "individual_response": {"concept_ids": [], "keywords": ["individual response", "responders", "non-responders"]},
+    "olympic_lifting": {"concept_ids": [], "keywords": ["olympic lifting", "clean and jerk", "snatch"]},
+    "cyclist_strength": {"concept_ids": [], "keywords": ["cyclist strength", "cycling performance"]},
+    "swimmer_strength": {"concept_ids": [], "keywords": ["swimmer strength", "swimming performance"]},
+    "circadian_time_of_day": {"concept_ids": [], "keywords": ["time of day", "circadian", "morning vs evening"]},
+    "minimum_effective_dose": {"concept_ids": [], "keywords": ["minimum effective dose", "minimal effective volume"]},
+    "stretching_flexibility": {"concept_ids": [], "keywords": ["stretching", "flexibility", "static stretching"]},
+    "cross_education": {"concept_ids": [], "keywords": ["cross education", "contralateral training effect"]},
+    "muscle_fiber_type": {"concept_ids": [], "keywords": ["muscle fiber type", "type I", "type II", "fast twitch"]},
+    "neuromuscular_adaptation": {"concept_ids": [], "keywords": ["neuromuscular adaptation", "neural drive"]},
+}
+
+
+def _get_openalex_client() -> OpenAlexClient:
+    """OpenAlexClient 인스턴스 생성. 테스트에서 monkeypatch 가능하도록 함수로 분리."""
+    return OpenAlexClient(base_url=OPENALEX_BASE_URL, mailto=OPENALEX_MAILTO)
+
+
+def search_openalex_by_category(category: str, max_results: int) -> list[PaperMeta]:
+    """카테고리명을 CATEGORY_OPENALEX_MAPPING으로 변환해 OpenAlex 검색.
+
+    매핑에 없는 카테고리는 카테고리명을 그대로 keyword로 사용한다 (fallback).
+    """
+    cfg = CATEGORY_OPENALEX_MAPPING.get(
+        category,
+        {"concept_ids": [], "keywords": [category.replace("_", " ")]},
+    )
+    client = _get_openalex_client()
+    return client.search(
+        keywords=cfg["keywords"],
+        concept_ids=cfg["concept_ids"],
+        max_results=max_results,
+    )
+
+
+def _merge_by_doi(openalex: list[PaperMeta], pubmed: list[PaperMeta]) -> list[PaperMeta]:
+    """동일 DOI는 OpenAlex 메타를 우선하고 PubMed로 pmid/publication_types를 보강한다.
+
+    OpenAlex가 abstract/journal 메타가 더 풍부하지만 publication_types와 PMID는
+    비어있는 경우가 많아 PubMed 보강이 필요하다.
+    """
+    by_doi: dict[str, PaperMeta] = {}
+    for m in openalex:
+        if m.doi:
+            by_doi[m.doi] = m
+    for m in pubmed:
+        if not m.doi:
+            continue
+        if m.doi in by_doi:
+            existing = by_doi[m.doi]
+            if not existing.pmid and m.pmid:
+                existing.pmid = m.pmid
+            if not existing.publication_types and m.publication_types:
+                existing.publication_types = m.publication_types
+        else:
+            by_doi[m.doi] = m
+    return list(by_doi.values())
+
+
+def _round_robin_dedup_metas(
+    per_category: list[tuple[str, list[PaperMeta]]],
+    existing: set[str],
+    max_total: int,
+) -> tuple[list[str], dict[str, set[str]], dict[str, PaperMeta]]:
+    """PaperMeta 리스트를 round-robin으로 DOI dedup하며 cap까지 누적.
+
+    `_round_robin_dedup`의 DOI 버전. PMID 대신 DOI를 primary key로 사용한다.
+    DOI 없는 메타는 자동 폐기 (OpenAlex가 이미 폐기하므로 PubMed-only 경로에서만 발생).
+
+    Returns:
+        (DOI 추가 순서, DOI → 카테고리명 set, DOI → PaperMeta) 3-튜플.
+    """
+    doi_to_meta: dict[str, PaperMeta] = {}
+    doi_to_categories: dict[str, set[str]] = defaultdict(set)
+    doi_order: list[str] = []
+
+    max_len = max((len(metas) for _, metas in per_category), default=0)
+    for i in range(max_len):
+        for name, metas in per_category:
+            if i >= len(metas):
+                continue
+            meta = metas[i]
+            doi = meta.doi
+            if not doi or doi in existing:
+                continue
+            if doi in doi_to_meta:
+                doi_to_categories[doi].add(name)
+                continue
+            if len(doi_to_meta) >= max_total:
+                continue
+            doi_to_meta[doi] = meta
+            doi_to_categories[doi].add(name)
+            doi_order.append(doi)
+
+    return doi_order, dict(doi_to_categories), doi_to_meta
+
+
+def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
+    """각 paper에 cascading fulltext (PMC → Europe PMC) 적용.
+
+    fulltext_source가 None으로 남으면 본문 회수 실패 — 호출부가 폐기 결정.
+    Task 8 이후 abstract fallback은 제거됐다.
+    """
+    pmc_client = PMCClient(
+        base_url=NCBI_BASE_URL,
+        api_key=NCBI_API_KEY,
+        rate_limit=NCBI_RATE_LIMIT,
+    )
+    europepmc_client = EuropePMCClient(
+        base_url=EUROPEPMC_BASE_URL,
+        rate_limit=EUROPEPMC_RATE_LIMIT,
+    )
+
+    papers: list[PaperFull] = []
+    for meta in metas:
+        result = fetch_cascading(
+            pmcid=meta.pmcid,
+            pmid=meta.pmid or None,
+            doi=meta.doi,
+            pmc_client=pmc_client,
+            europepmc_client=europepmc_client,
+        )
+        meta.fulltext_source = result.fulltext_source
+        papers.append(PaperFull(meta=meta, sections=result.sections))
+    return papers
+
+
 def crawl_papers(
     *,
-    queries: list[tuple[str, str, str]] | None = None,
+    queries: list[tuple[str, str, bool]] | None = None,
     max_per_category: int | None = None,
     max_total: int | None = None,
     min_date: str | None = None,
     max_date: str | None = None,
     fetch_fulltext: bool = True,
-    existing_pmids: set[str] | None = None,
+    existing_dois: set[str] | None = None,
 ) -> list[PaperFull]:
-    """카테고리별 다중 쿼리로 논문을 크롤링한다.
+    """65개 카테고리에 대해 OpenAlex 메인 + PubMed 보조 통합 검색.
 
-    각 카테고리에서 검색된 PMID를 dedup하면서 합치고, 동일 PMID가 여러 카테고리에
-    매칭되면 그 카테고리 목록을 PaperMeta.search_categories에 메타로 부여한다.
-    이 메타는 청크에 전파되어 RAG 검색 단계에서 사용자 fitness_goals에 맞는
-    카테고리에 가중치를 주는 용도로 활용된다.
+    Task 10 흐름:
+      1) 카테고리별 OpenAlex + PubMed 병렬 검색 → PaperMeta
+      2) 카테고리 내부에서 DOI 기준 merge (OpenAlex 메타 우선, PubMed가 pmid/publication_types 보강)
+      3) round-robin으로 카테고리 다양성 보존하며 max_total cap
+      4) evidence_weight를 publication_types에서 calculate_evidence_weight()로 산출
+      5) cascading fulltext (PMC → Europe PMC) 적용
 
     Args:
-        queries: (카테고리명, 쿼리, filter_level) 튜플 리스트.
-            None이면 SEARCH_QUERY_CATEGORIES 기본값 사용.
-            filter_level은 "strict"|"semi"|"loose" 중 하나로 publication-type 필터
-            세기를 결정한다 (SEARCH_QUERY_CATEGORIES docstring 참조).
-        max_per_category: 카테고리당 검색 상한.
-        max_total: 전체 PMID 수집 상한 (카테고리 다양성 유지하며 cap).
+        queries: (카테고리명, pubmed_query, strict) 튜플 리스트.
+            strict=True면 PubMed 보조 검색에 STRICT_PUBLICATION_FILTER 환경변수가
+            True일 때만 strict 필터를 적용한다. 환경변수 False면 strict 인자 무시.
+            None이면 SEARCH_QUERY_CATEGORIES를 (name, query, strict=True) 형태로 변환해 사용.
+        max_per_category: 카테고리당 검색 상한. 지정하면 OpenAlex/PubMed 양쪽 cap을 override.
+            None이면 OPENALEX_MAX_PER_CATEGORY / PUBMED_MAX_PER_CATEGORY 기본값 사용.
+        max_total: 전체 DOI 수집 상한 (카테고리 다양성 유지하며 cap).
         min_date / max_date: PubMed pdat 필터 (YYYY/MM/DD).
-        fetch_fulltext: PMC 전문 수집 여부.
-        existing_pmids: 이미 수집된 PMID 집합 (중복 방지).
+        fetch_fulltext: cascading fulltext 수집 여부 (테스트에서 False로 끔).
+        existing_dois: 이미 수집된 DOI 집합 (중복 방지).
 
     Returns:
-        PaperFull 리스트 (각 PaperMeta에 search_categories 부여됨).
+        PaperFull 리스트. 각 PaperMeta는 search_categories + evidence_weight + fulltext_source 부여됨.
     """
-    queries = queries or SEARCH_QUERY_CATEGORIES
-    max_per_category = max_per_category or MAX_PAPERS_PER_CATEGORY
+    if queries is None:
+        # 3-튜플 (name, query, filter_level) → 2-튜플 + strict bool 변환.
+        # 기존 SEARCH_QUERY_CATEGORIES의 filter_level은 strict/semi/loose가 있지만,
+        # Task 10에서는 strict 토글로 단일화 — strict 의도가 있는 카테고리만 True.
+        queries = [(name, query, level != "loose") for name, query, level in SEARCH_QUERY_CATEGORIES]
+    openalex_max = max_per_category if max_per_category is not None else OPENALEX_MAX_PER_CATEGORY
+    pubmed_max = max_per_category if max_per_category is not None else PUBMED_MAX_PER_CATEGORY
     max_total = max_total or MAX_PAPERS_PER_RUN
-    existing = existing_pmids or set()
+    existing = existing_dois or set()
 
-    # 1) 카테고리별 검색 결과 사전 수집
-    per_category: list[tuple[str, list[str]]] = []
-    for name, query, filter_level in queries:
-        full_query = query + filter_for_level(filter_level)
-        logger.info("카테고리 '%s' 검색 (filter=%s)", name, filter_level)
+    publication_filter = get_publication_filter()
+
+    per_category: list[tuple[str, list[PaperMeta]]] = []
+    for name, pubmed_query, strict in queries:
+        # OpenAlex 메인 검색
         try:
-            pmids = search_pmids(full_query, max_per_category, min_date, max_date)
+            openalex_results = search_openalex_by_category(
+                name,
+                max_results=openalex_max,
+            )
         except Exception as e:
-            logger.warning("카테고리 '%s' 검색 실패: %s", name, e)
-            continue
-        per_category.append((name, pmids))
-        logger.info("카테고리 '%s' 검색 결과: %d건", name, len(pmids))
+            logger.warning("OpenAlex 카테고리 '%s' 검색 실패: %s", name, e)
+            openalex_results = []
 
-    # 2) round-robin으로 dedup + cap (카테고리 다양성 유지)
-    pmid_order, pmid_to_categories = _round_robin_dedup(per_category, existing, max_total)
+        # PubMed 보조 검색 (publication_types + PMID 보강)
+        full_query = pubmed_query + (publication_filter if strict else "")
+        try:
+            pmids = search_pmids(full_query, pubmed_max, min_date, max_date)
+            pubmed_metas = fetch_paper_metadata(pmids) if pmids else []
+        except Exception as e:
+            logger.warning("PubMed 카테고리 '%s' 검색 실패: %s", name, e)
+            pubmed_metas = []
 
-    if not pmid_to_categories:
-        logger.info("모든 카테고리에서 신규 논문 없음")
-        return []
+        # 카테고리 내부 DOI merge (OpenAlex 우선 + PubMed 보강)
+        cat_metas = _merge_by_doi(openalex_results, pubmed_metas)
+        per_category.append((name, cat_metas))
+        logger.info(
+            "카테고리 '%s' 통합: OpenAlex %d + PubMed %d → %d (DOI dedup)",
+            name,
+            len(openalex_results),
+            len(pubmed_metas),
+            len(cat_metas),
+        )
 
-    logger.info(
-        "round-robin 결과: 신규 PMID %d건 (카테고리 다중 매칭 분포: 평균 %.1f카테고리/논문)",
-        len(pmid_to_categories),
-        sum(len(v) for v in pmid_to_categories.values()) / len(pmid_to_categories),
+    # round-robin dedup + cap (DOI primary key)
+    doi_order, doi_to_categories, doi_to_meta = _round_robin_dedup_metas(
+        per_category,
+        existing,
+        max_total,
     )
 
-    metas = fetch_paper_metadata(pmid_order)
+    if not doi_to_meta:
+        logger.info("모든 카테고리에서 신규 paper 없음")
+        return []
 
-    for meta in metas:
-        meta.search_categories = sorted(pmid_to_categories.get(meta.pmid, set()))
+    # search_categories + evidence_weight 부여
+    for doi, meta in doi_to_meta.items():
+        meta.search_categories = sorted(doi_to_categories[doi])
+        meta.evidence_weight = calculate_evidence_weight(meta.publication_types)
 
-    papers: list[PaperFull] = []
-    fulltext_failures = 0
-    for meta in metas:
-        sections = []
-        if fetch_fulltext:
-            try:
-                sections = fetch_pmc_fulltext(meta.pmid)
-            except Exception as e:
-                fulltext_failures += 1
-                logger.warning(
-                    "전문 수집 최종 실패 — abstract fallback: PMID=%s err=%s",
-                    meta.pmid,
-                    e,
-                )
+    logger.info(
+        "round-robin 결과: 신규 %d papers (평균 %.1f카테고리/논문)",
+        len(doi_to_meta),
+        sum(len(v) for v in doi_to_categories.values()) / len(doi_to_meta),
+    )
 
-        papers.append(PaperFull(meta=meta, sections=sections))
-    if fulltext_failures:
-        logger.info("전문 수집 최종 실패(abstract fallback) 누적: %d건", fulltext_failures)
+    if fetch_fulltext:
+        ordered_metas = [doi_to_meta[d] for d in doi_order]
+        papers = _attach_fulltext(ordered_metas)
+    else:
+        papers = [PaperFull(meta=doi_to_meta[d], sections=[]) for d in doi_order]
 
-    logger.info("크롤링 완료: %d건 (전문 포함 %d건)", len(papers), sum(1 for p in papers if p.sections))
+    indexed_count = sum(1 for p in papers if p.sections)
+    logger.info(
+        "크롤링 완료: %d papers (본문 확보 %d, 본문 미확보 %d)",
+        len(papers),
+        indexed_count,
+        len(papers) - indexed_count,
+    )
     return papers

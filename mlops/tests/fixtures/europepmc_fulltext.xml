@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>Test paper title from Europe PMC</article-title>
+      </title-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec id="s1">
+      <title>Introduction</title>
+      <p>Resistance training has been shown to increase muscle mass and strength in many populations.</p>
+      <p>This study aims to compare two volume protocols.</p>
+    </sec>
+    <sec id="s2">
+      <title>Methods</title>
+      <p>Forty trained males were randomly assigned to high-volume (30 sets/week) or moderate-volume (15 sets/week) groups.</p>
+    </sec>
+    <sec id="s3">
+      <title>Results</title>
+      <p>Both groups showed significant hypertrophy.</p>
+    </sec>
+  </body>
+</article>

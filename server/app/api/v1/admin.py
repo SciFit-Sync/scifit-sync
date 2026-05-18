@@ -9,9 +9,15 @@ import logging
 import chromadb
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
+from app.models.paper import Paper
+from app.schemas.rag import RagIngestRequest
 
 logger = logging.getLogger(__name__)
 
@@ -37,30 +43,62 @@ async def _verify_admin_token(x_admin_token: str = Header(...)) -> None:
         raise ForbiddenError(message="Admin 인증이 필요합니다")
 
 
-class ChunkItem(BaseModel):
-    paper_pmid: str
-    paper_title: str
-    section_name: str
-    chunk_index: int
-    content: str
-    token_count: int
-    embedding: list[float]
-    search_categories: list[str] = []
-
-
-class IngestRequest(BaseModel):
-    chunks: list[ChunkItem]
+def _safe_doc_id(doi: str, chunk_index: int) -> str:
+    """DOI에 포함된 슬래시/점을 ChromaDB id-safe 문자로 치환."""
+    doi_safe = doi.replace("/", "_").replace(".", "-")
+    return f"{doi_safe}_{chunk_index}"
 
 
 @router.post("/rag/ingest")
 async def ingest_papers(
-    body: IngestRequest,
+    body: RagIngestRequest,
+    db: AsyncSession = Depends(get_db),
     _: None = Depends(_verify_admin_token),
 ) -> dict:
-    """MLOps 파이프라인에서 처리된 논문 청크+임베딩을 ChromaDB에 적재한다."""
+    """MLOps 파이프라인에서 처리된 논문 청크+임베딩을 적재한다.
+
+    1) papers UPSERT (DOI ON CONFLICT) — Postgres
+    2) ChromaDB chunk upsert (확장 metadata 포함)
+    """
     if not body.chunks:
         return {"success": True, "data": {"upserted": 0}}
 
+    # ── 1) Papers UPSERT (DOI 기준 그룹화) ────────────────────
+    # 같은 DOI는 첫 청크의 메타로 한 번만 적재한다.
+    papers_by_doi: dict[str, dict] = {}
+    for c in body.chunks:
+        if c.paper_doi and c.paper_doi not in papers_by_doi:
+            papers_by_doi[c.paper_doi] = {
+                "doi": c.paper_doi,
+                "pmid": c.paper_pmid or None,
+                "title": c.paper_title,
+                "publication_types": c.publication_types,
+                "evidence_weight": c.evidence_weight,
+                "fulltext_source": c.fulltext_source or "unknown",
+                "search_categories": c.search_categories,
+                "published_year": c.published_year if c.published_year else None,
+            }
+
+    if papers_by_doi:
+        stmt = pg_insert(Paper).values(list(papers_by_doi.values()))
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["doi"],
+            set_={
+                "pmid": stmt.excluded.pmid,
+                "title": stmt.excluded.title,
+                "publication_types": stmt.excluded.publication_types,
+                "evidence_weight": stmt.excluded.evidence_weight,
+                "fulltext_source": stmt.excluded.fulltext_source,
+                "search_categories": stmt.excluded.search_categories,
+                "published_year": stmt.excluded.published_year,
+                "updated_at": func.now(),
+            },
+        )
+        await db.execute(stmt)
+        await db.commit()
+        logger.info("papers UPSERT 완료: %d편", len(papers_by_doi))
+
+    # ── 2) ChromaDB chunk upsert (확장 메타) ─────────────────
     collection = _get_collection()
     batch_size = 100
     total = 0
@@ -68,17 +106,22 @@ async def ingest_papers(
     for i in range(0, len(body.chunks), batch_size):
         batch = body.chunks[i : i + batch_size]
         collection.upsert(
-            ids=[f"{c.paper_pmid}_{c.chunk_index}" for c in batch],
+            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
             documents=[c.content for c in batch],
             embeddings=[c.embedding for c in batch],
             metadatas=[
                 {
-                    "paper_pmid": c.paper_pmid,
+                    "paper_doi": c.paper_doi,
+                    "paper_pmid": c.paper_pmid or "",
                     "paper_title": c.paper_title,
                     "section_name": c.section_name,
                     "chunk_index": c.chunk_index,
-                    "token_count": c.token_count,
+                    "token_count": c.token_count or 0,
                     "search_categories": ",".join(c.search_categories),
+                    "publication_types": ",".join(c.publication_types),
+                    "evidence_weight": float(c.evidence_weight),
+                    "fulltext_source": c.fulltext_source or "",
+                    "published_year": c.published_year or 0,
                 }
                 for c in batch
             ],
@@ -87,7 +130,14 @@ async def ingest_papers(
         logger.info("ChromaDB upsert: %d/%d", total, len(body.chunks))
 
     logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, collection.count())
-    return {"success": True, "data": {"upserted": total, "total_collection": collection.count()}}
+    return {
+        "success": True,
+        "data": {
+            "upserted": total,
+            "papers_upserted": len(papers_by_doi),
+            "total_collection": collection.count(),
+        },
+    }
 
 
 @router.get("/rag/pmids")

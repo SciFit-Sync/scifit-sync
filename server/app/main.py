@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestIdMiddleware)
+
     if settings.RATE_LIMIT_ENABLED:
         app.state.limiter = limiter
         app.add_middleware(SlowAPIMiddleware)
@@ -84,7 +85,6 @@ def create_app() -> FastAPI:
         return schema
 
     app.openapi = custom_openapi
-
     return app
 
 
