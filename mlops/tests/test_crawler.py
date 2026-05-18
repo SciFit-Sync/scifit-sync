@@ -784,8 +784,11 @@ class TestAttachFulltext:
 
         assert _attach_fulltext([]) == []
 
-    def test_pmcid_none_passed_through(self, monkeypatch):
-        """meta.pmcid가 None이면 fetch_cascading에 None 전달."""
+    def test_pmcid_none_with_pmid_triggers_elink(self, monkeypatch):
+        """meta.pmcid가 None이지만 PMID가 있으면 _resolve_pmc_id로 보강 시도.
+
+        _resolve_pmc_id가 None을 반환하면(PMC 미존재) 그대로 None을 fetch_cascading에 전달.
+        """
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
@@ -793,6 +796,11 @@ class TestAttachFulltext:
         from mlops.pipeline.models import PaperMeta
 
         captured = {}
+        resolve_calls = []
+
+        def fake_resolve(pmid):
+            resolve_calls.append(pmid)
+            return None  # PMC 미존재 시뮬레이션
 
         def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
             captured["pmcid"] = pmcid
@@ -803,6 +811,7 @@ class TestAttachFulltext:
                 had_transient_error=False,
             )
 
+        monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", fake_resolve)
         monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
@@ -813,7 +822,111 @@ class TestAttachFulltext:
             )
         ]
         _attach_fulltext(metas)
+        assert resolve_calls == ["1"]
         assert captured["pmcid"] is None
+
+    def test_pmcid_resolved_from_pmid_via_elink(self, monkeypatch):
+        """meta.pmcid가 None일 때 _resolve_pmc_id로 보강해 cascading에 PMCID 전달.
+
+        multi-source ingest 도입 후 누락됐던 PMC 회수 경로의 회귀 fix 검증.
+        """
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        captured = {}
+
+        monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", lambda pmid: "1234567")
+
+        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
+            captured["pmcid"] = pmcid
+            return CascadingFulltextResult(
+                fulltext_source="pmc", tried_sources=["pmc"], sections=[], had_transient_error=False
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [
+            PaperMeta(
+                pmid="42", title="t", authors="", journal="", published_year=2020,
+                doi="10.1/x", abstract="", pmcid=None,
+            )
+        ]
+        _attach_fulltext(metas)
+        assert captured["pmcid"] == "1234567"
+        # 후속 manifest 기록에도 반영되도록 meta.pmcid도 갱신되는지 확인
+        assert metas[0].pmcid == "1234567"
+
+    def test_resolve_runtime_error_falls_through_to_europepmc(self, monkeypatch):
+        """_resolve_pmc_id가 RuntimeError(재시도 한도 초과)를 raise해도 cascading은 진행."""
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        captured = {}
+
+        def raising_resolve(pmid):
+            raise RuntimeError("PMC elink 재시도 한도 초과")
+
+        monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", raising_resolve)
+
+        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
+            captured["pmcid"] = pmcid
+            return CascadingFulltextResult(
+                fulltext_source=None, tried_sources=["europepmc"], sections=[], had_transient_error=False
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [
+            PaperMeta(
+                pmid="9", title="t", authors="", journal="", published_year=2020,
+                doi="10.1/x", abstract="", pmcid=None,
+            )
+        ]
+        _attach_fulltext(metas)
+        assert captured["pmcid"] is None  # RuntimeError 시 cascading은 None으로 진행
+
+    def test_resolve_not_called_when_pmid_empty(self, monkeypatch):
+        """OpenAlex-only paper처럼 PMID가 빈 문자열이면 _resolve_pmc_id 호출하지 않음."""
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        resolve_calls = []
+
+        def fake_resolve(pmid):
+            resolve_calls.append(pmid)
+            return "X"
+
+        monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", fake_resolve)
+        monkeypatch.setattr(
+            "mlops.pipeline.crawler.fetch_cascading",
+            lambda **_: CascadingFulltextResult(
+                fulltext_source=None, tried_sources=[], sections=[], had_transient_error=False
+            ),
+        )
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [
+            PaperMeta(
+                pmid="", title="t", authors="", journal="", published_year=2020,
+                doi="10.1/x", abstract="", pmcid=None,
+            )
+        ]
+        _attach_fulltext(metas)
+        assert resolve_calls == []
 
 
 class TestMaxPerCategoryOverride:
