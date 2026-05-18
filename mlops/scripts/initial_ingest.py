@@ -11,16 +11,21 @@ retry 관련 옵션은 환경변수로도 조정 가능 (CLI 인자가 우선):
     PMC_FULLTEXT_MAX_ATTEMPTS  fulltext parse 실패 시 함수 layer 재시도 횟수 (기본: 3)
 """
 
-import json
+import argparse
 import logging
 import os
 import sys
 from pathlib import Path
 
+import requests
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
+CHECKPOINT_INTERVAL = 100
 
 
 def _apply_retry_overrides(http_retries: int | None, fulltext_attempts: int | None) -> None:
@@ -31,42 +36,13 @@ def _apply_retry_overrides(http_retries: int | None, fulltext_attempts: int | No
         os.environ["PMC_FULLTEXT_MAX_ATTEMPTS"] = str(fulltext_attempts)
 
 
-def load_manifest() -> set[str]:
-    """기 적재된 PMID 집합을 manifest 파일에서 읽는다.
-
-    config.py는 lazy import — _apply_retry_overrides가 env를 set한 뒤
-    호출되도록 모듈 상단이 아닌 함수 본문에서 import한다.
-    """
-    from mlops.pipeline.config import MANIFEST_PATH
-
-    if MANIFEST_PATH.exists():
-        data = json.loads(MANIFEST_PATH.read_text())
-        return set(data.get("pmids", []))
-    return set()
-
-
-def save_manifest(pmids: set[str]) -> None:
-    """PMID 집합을 manifest 파일에 저장한다."""
-    from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH
-
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    data = {"pmids": sorted(pmids), "count": len(pmids)}
-    MANIFEST_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    logger.info("Manifest 저장: %d건 → %s", len(pmids), MANIFEST_PATH)
-
-
-def api_ingest(chunk_vectors: list[tuple]) -> int:
-    """청크+임베딩을 백엔드 admin API로 적재한다."""
-    import requests
-    from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
-
-    if not API_BASE_URL or not ADMIN_API_TOKEN:
-        logger.error("API_BASE_URL 또는 ADMIN_API_TOKEN 환경변수가 설정되지 않았습니다")
-        sys.exit(1)
-    payload = {
+def _build_payload(chunk_vectors: list[tuple]) -> dict:
+    """확장된 ingest payload — Task 11 §11-3 schema."""
+    return {
         "chunks": [
             {
-                "paper_pmid": chunk.paper_pmid,
+                "paper_doi": chunk.paper_doi,
+                "paper_pmid": chunk.paper_pmid or "",
                 "paper_title": chunk.paper_title,
                 "section_name": chunk.section_name,
                 "chunk_index": chunk.chunk_index,
@@ -74,10 +50,25 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
                 "token_count": chunk.token_count,
                 "embedding": vec,
                 "search_categories": chunk.search_categories,
+                "publication_types": chunk.publication_types,
+                "evidence_weight": chunk.evidence_weight,
+                "fulltext_source": chunk.fulltext_source or "",
+                "published_year": chunk.published_year or 0,
             }
             for chunk, vec in chunk_vectors
         ]
     }
+
+
+def api_ingest(chunk_vectors: list[tuple]) -> int:
+    """청크+임베딩을 백엔드 admin API로 적재한다."""
+    from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
+
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.error("API_BASE_URL 또는 ADMIN_API_TOKEN 환경변수가 설정되지 않았습니다")
+        sys.exit(1)
+
+    payload = _build_payload(chunk_vectors)
     url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
     resp = requests.post(
         url,
@@ -86,8 +77,7 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
         timeout=300,
     )
     resp.raise_for_status()
-    result = resp.json()
-    return result["data"]["upserted"]
+    return resp.json()["data"]["upserted"]
 
 
 def main(
@@ -95,13 +85,10 @@ def main(
     max_per_category: int | None = None,
     dry_run: bool = False,
 ) -> None:
-    """retry 환경변수 override는 이 함수 호출 전에 적용되어야 한다.
-
-    config/crawler 모듈을 lazy import해서 _apply_retry_overrides가 먼저 env를 set하면
-    그 값이 모듈 로드 시 반영되도록 한다.
-    """
+    """retry 환경변수 override는 이 함수 호출 전에 적용되어야 한다."""
     from mlops.pipeline.chunker import chunk_papers
     from mlops.pipeline.config import (
+        MANIFEST_PATH,
         MAX_PAPERS_PER_CATEGORY,
         MAX_PAPERS_PER_RUN,
         NCBI_HTTP_MAX_RETRIES,
@@ -109,6 +96,7 @@ def main(
     )
     from mlops.pipeline.crawler import crawl_papers
     from mlops.pipeline.embedder import embed_chunks
+    from mlops.pipeline.manifest import Manifest
 
     if max_papers is None:
         max_papers = MAX_PAPERS_PER_RUN
@@ -116,7 +104,8 @@ def main(
         max_per_category = MAX_PAPERS_PER_CATEGORY
 
     logger.info(
-        "=== 초기 적재 시작 (max_papers=%d, max_per_category=%d, dry_run=%s, http_retries=%d, fulltext_attempts=%d) ===",
+        "=== 초기 적재 시작 (max_papers=%d, max_per_category=%d, dry_run=%s,"
+        " http_retries=%d, fulltext_attempts=%d) ===",
         max_papers,
         max_per_category,
         dry_run,
@@ -124,53 +113,82 @@ def main(
         PMC_FULLTEXT_MAX_ATTEMPTS,
     )
 
-    existing = load_manifest()
-    logger.info("기존 적재: %d건", len(existing))
+    manifest = Manifest.load(MANIFEST_PATH)
+
+    # 이미 indexed된 DOI + 모든 active source를 시도한 fail DOI는 skip
+    existing_dois: set[str] = set()
+    for doi, entry in manifest.papers.items():
+        if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+            existing_dois.add(doi)
+    logger.info("이미 처리된 DOI: %d개 (indexed + fully-tried failures)", len(existing_dois))
 
     papers = crawl_papers(
         max_total=max_papers,
         max_per_category=max_per_category,
-        existing_pmids=existing,
+        existing_dois=existing_dois,
     )
     if not papers:
         logger.info("신규 논문 없음. 종료.")
         return
 
-    chunks = chunk_papers(papers)
-    if not chunks:
-        logger.info("청크 없음. 종료.")
-        return
+    # 본문 있는 paper만 청킹/적재 대상
+    indexed_papers = [p for p in papers if p.sections]
+    logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
 
-    logger.info("크롤링 %d편 → 청크 %d개", len(papers), len(chunks))
+    chunks = chunk_papers(indexed_papers) if indexed_papers else []
+    logger.info("청크 %d개", len(chunks))
 
     if dry_run:
         logger.info("[DRY RUN] 임베딩/적재 생략")
-        for c in chunks[:3]:
-            logger.info("  샘플: PMID=%s, 섹션=%s, 토큰=%d", c.paper_pmid, c.section_name, c.token_count)
+        for p in papers:
+            manifest.record_attempt(
+                doi=p.meta.doi,
+                pmid=p.meta.pmid or None,
+                pmcid=p.meta.pmcid,
+                openalex_id=p.meta.openalex_id,
+                fulltext_source=p.meta.fulltext_source,
+                tried_sources=list(ACTIVE_SOURCES),
+            )
+        manifest.save(MANIFEST_PATH)
         return
 
-    chunk_vectors = embed_chunks(chunks)
-    count = api_ingest(chunk_vectors)
+    if chunks:
+        chunk_vectors = embed_chunks(chunks)
+        count = api_ingest(chunk_vectors)
+        logger.info("적재 완료: %d 청크 → %d upsert", len(chunks), count)
 
-    new_pmids = {p.meta.pmid for p in papers}
-    save_manifest(existing | new_pmids)
+    # manifest 기록 (100편 체크포인트)
+    for i, p in enumerate(papers, start=1):
+        manifest.record_attempt(
+            doi=p.meta.doi,
+            pmid=p.meta.pmid or None,
+            pmcid=p.meta.pmcid,
+            openalex_id=p.meta.openalex_id,
+            fulltext_source=p.meta.fulltext_source,
+            tried_sources=list(ACTIVE_SOURCES),
+        )
+        if i % CHECKPOINT_INTERVAL == 0:
+            manifest.save(MANIFEST_PATH)
+            logger.info("체크포인트: %d/%d → manifest flush", i, len(papers))
 
-    logger.info("=== 초기 적재 완료: %d편 → %d청크 → %d upsert ===", len(papers), len(chunks), count)
+    manifest.save(MANIFEST_PATH)
+    logger.info(
+        "=== 초기 적재 완료: %d편 → %d청크 ===",
+        len(papers),
+        len(chunks),
+    )
 
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(description="SciFit-Sync 초기 논문 적재")
     parser.add_argument("--max-papers", type=int, default=None, help="크롤링 상한 (기본: MAX_PAPERS_PER_RUN)")
     parser.add_argument(
         "--max-per-category",
         type=int,
         default=None,
-        help="카테고리당 esearch 후보 풀 cap (기본: MAX_PAPERS_PER_CATEGORY=20). "
-        "100 카테고리 × cap = 전체 후보 풀. cap이 클수록 PMID 다중 카테고리 매칭이 늘어 RAG 가중치 다양성 ↑",
+        help="카테고리당 esearch 후보 풀 cap (기본: MAX_PAPERS_PER_CATEGORY=20).",
     )
-    parser.add_argument("--dry-run", action="store_true", help="크롤링+청킹만 실행, 임베딩/적재 생략")
+    parser.add_argument("--dry-run", action="store_true", help="크롤링+청킹만 실행, 임베딩/적재 생략 (manifest는 기록)")
     parser.add_argument(
         "--http-retries",
         type=int,

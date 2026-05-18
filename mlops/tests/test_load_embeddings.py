@@ -137,20 +137,28 @@ class TestLoadPropagation:
 
 class TestExportManifest:
     def test_export_main_default_no_manifest_change(self, tmp_path: Path) -> None:
-        """update_manifest=False(기본)면 save_manifest 호출 안 됨."""
+        """update_manifest=False(기본)면 Manifest.save 호출 안 됨."""
         output = tmp_path / "out.jsonl"
         fake_paper = MagicMock()
         fake_paper.meta.pmid = "1"
+        fake_paper.meta.doi = "10.1/test"
+        fake_paper.meta.pmcid = None
+        fake_paper.meta.openalex_id = None
+        fake_paper.meta.fulltext_source = "pmc"
+        fake_paper.sections = [MagicMock()]
         fake_chunk = MagicMock()
         fake_chunk.model_dump.return_value = {"paper_pmid": "1"}
 
+        mock_manifest = MagicMock()
+        mock_manifest.papers = {}
+
         with (
+            patch("mlops.scripts.export_embeddings.Manifest") as mock_manifest_cls,
             patch.object(export_embeddings, "crawl_papers", return_value=[fake_paper]),
             patch.object(export_embeddings, "chunk_papers", return_value=[fake_chunk]),
             patch.object(export_embeddings, "embed_chunks", return_value=[(fake_chunk, [0.0] * 4)]),
-            patch.object(export_embeddings, "load_manifest", return_value=set()),
-            patch.object(export_embeddings, "save_manifest") as mock_save,
         ):
+            mock_manifest_cls.load.return_value = mock_manifest
             export_embeddings.main(
                 max_papers=1,
                 output=output,
@@ -160,23 +168,31 @@ class TestExportManifest:
                 max_date=None,
                 update_manifest=False,
             )
-            mock_save.assert_not_called()
+            mock_manifest.save.assert_not_called()
 
     def test_export_main_update_manifest_flag(self, tmp_path: Path) -> None:
-        """update_manifest=True면 save_manifest 호출됨."""
+        """update_manifest=True면 Manifest.save 호출됨."""
         output = tmp_path / "out.jsonl"
         fake_paper = MagicMock()
         fake_paper.meta.pmid = "1"
+        fake_paper.meta.doi = "10.1/test"
+        fake_paper.meta.pmcid = None
+        fake_paper.meta.openalex_id = None
+        fake_paper.meta.fulltext_source = "pmc"
+        fake_paper.sections = [MagicMock()]
         fake_chunk = MagicMock()
         fake_chunk.model_dump.return_value = {"paper_pmid": "1"}
 
+        mock_manifest = MagicMock()
+        mock_manifest.papers = {}
+
         with (
+            patch("mlops.scripts.export_embeddings.Manifest") as mock_manifest_cls,
             patch.object(export_embeddings, "crawl_papers", return_value=[fake_paper]),
             patch.object(export_embeddings, "chunk_papers", return_value=[fake_chunk]),
             patch.object(export_embeddings, "embed_chunks", return_value=[(fake_chunk, [0.0] * 4)]),
-            patch.object(export_embeddings, "load_manifest", return_value=set()),
-            patch.object(export_embeddings, "save_manifest") as mock_save,
         ):
+            mock_manifest_cls.load.return_value = mock_manifest
             export_embeddings.main(
                 max_papers=1,
                 output=output,
@@ -186,6 +202,5 @@ class TestExportManifest:
                 max_date=None,
                 update_manifest=True,
             )
-            mock_save.assert_called_once()
-            (saved_pmids,) = mock_save.call_args.args
-            assert saved_pmids == {"1"}
+            mock_manifest.save.assert_called_once()
+            mock_manifest.record_attempt.assert_called_once()
