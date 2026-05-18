@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from mlops.pipeline.manifest import Manifest
+from mlops.pipeline.manifest import MANIFEST_SCHEMA_VERSION, Manifest
 
 
 def test_empty_manifest_initial_state(tmp_path: Path):
@@ -108,3 +108,63 @@ def test_stats_counts(tmp_path: Path):
     assert data["stats"]["total_attempted"] == 3
     assert data["stats"]["indexed_count"] == 2
     assert data["stats"]["no_fulltext_count"] == 1
+
+
+def test_corrupt_json_clean_slate(tmp_path: Path):
+    """파싱 실패 파일은 빈 manifest로 fallback."""
+    path = tmp_path / "manifest.json"
+    path.write_text("not json {{{")
+    m = Manifest.load(path)
+    assert m.papers == {}
+
+
+def test_missing_last_tried_at_falls_back_gracefully(tmp_path: Path):
+    """v2 schema인데 last_tried_at이 빠진 entry도 load 가능 (KeyError 방지)."""
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps({
+        "version": MANIFEST_SCHEMA_VERSION,
+        "papers": {
+            "10.1/x": {
+                "pmid": "1",
+                "pmcid": None,
+                "openalex_id": None,
+                "fulltext_source": "pmc",
+                "tried_sources": ["pmc"],
+                "indexed_at": "2026-05-18T10:00:00Z",
+                # last_tried_at 누락
+            }
+        },
+        "stats": {},
+    }))
+    m = Manifest.load(path)
+    assert "10.1/x" in m.papers
+    # indexed_at으로 fallback
+    assert m.papers["10.1/x"].last_tried_at == "2026-05-18T10:00:00Z"
+
+
+def test_record_attempt_merges_tried_sources_and_preserves_ids(tmp_path: Path):
+    """두 번 record_attempt 시 tried_sources union + pmid/pmcid/openalex_id 보존."""
+    m = Manifest.load(tmp_path / "m.json")
+    m.record_attempt(
+        doi="10.1/x", pmid="111", pmcid=None, openalex_id=None,
+        fulltext_source=None, tried_sources=["pmc"],
+    )
+    m.record_attempt(
+        doi="10.1/x", pmid=None, pmcid="PMC9", openalex_id="W1",
+        fulltext_source="europepmc", tried_sources=["europepmc"],
+    )
+    e = m.papers["10.1/x"]
+    assert e.pmid == "111"
+    assert e.pmcid == "PMC9"
+    assert e.openalex_id == "W1"
+    assert e.tried_sources == ["europepmc", "pmc"]
+    assert e.fulltext_source == "europepmc"
+    assert e.indexed_at is not None
+
+
+def test_save_creates_parent_dir(tmp_path: Path):
+    """존재하지 않는 부모 디렉토리도 자동 생성."""
+    path = tmp_path / "nested" / "deep" / "manifest.json"
+    m = Manifest()
+    m.save(path)
+    assert path.exists()

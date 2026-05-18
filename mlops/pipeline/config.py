@@ -5,6 +5,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_bool(key: str, default: str = "false") -> bool:
+    """ENV var를 bool로 파싱. 'true'/'1'/'yes'/'on' (대소문자 무관) 모두 True."""
+    return os.getenv(key, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
 # PubMed
 NCBI_API_KEY: str = os.getenv("NCBI_API_KEY", "")
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -55,4 +61,4 @@ EUROPEPMC_BASE_URL: str = os.getenv("EUROPEPMC_BASE_URL", "https://www.ebi.ac.uk
 EUROPEPMC_RATE_LIMIT: float = float(os.getenv("EUROPEPMC_RATE_LIMIT", "1.0"))
 
 # Publication-type 필터 토글
-STRICT_PUBLICATION_FILTER: bool = os.getenv("STRICT_PUBLICATION_FILTER", "false").lower() == "true"
+STRICT_PUBLICATION_FILTER: bool = _env_bool("STRICT_PUBLICATION_FILTER")

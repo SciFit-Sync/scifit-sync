@@ -40,6 +40,19 @@ class ManifestEntry:
             "last_tried_at": self.last_tried_at,
         }
 
+    @classmethod
+    def from_dict(cls, d: dict) -> ManifestEntry:
+        """raw dict → ManifestEntry. 누락 필드는 안전한 기본값으로 fallback."""
+        return cls(
+            pmid=d.get("pmid"),
+            pmcid=d.get("pmcid"),
+            openalex_id=d.get("openalex_id"),
+            fulltext_source=d.get("fulltext_source"),
+            tried_sources=list(d.get("tried_sources") or []),
+            indexed_at=d.get("indexed_at"),
+            last_tried_at=d.get("last_tried_at", "") or d.get("indexed_at", ""),
+        )
+
 
 @dataclass
 class Manifest:
@@ -61,15 +74,7 @@ class Manifest:
             return cls()
 
         papers = {
-            doi: ManifestEntry(
-                pmid=entry.get("pmid"),
-                pmcid=entry.get("pmcid"),
-                openalex_id=entry.get("openalex_id"),
-                fulltext_source=entry.get("fulltext_source"),
-                tried_sources=entry.get("tried_sources", []),
-                indexed_at=entry.get("indexed_at"),
-                last_tried_at=entry["last_tried_at"],
-            )
+            doi: ManifestEntry.from_dict(entry)
             for doi, entry in data.get("papers", {}).items()
         }
         return cls(papers=papers)
@@ -89,7 +94,9 @@ class Manifest:
                 "no_fulltext_count": no_fulltext_count,
             },
         }
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        tmp.replace(path)
         logger.info(
             "manifest 저장: %d papers (%d indexed) -> %s",
             len(self.papers),
