@@ -20,7 +20,6 @@ import requests
 from mlops.pipeline.config import (
     EUROPEPMC_BASE_URL,
     EUROPEPMC_RATE_LIMIT,
-    MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
@@ -721,7 +720,7 @@ def _fulltext_retry_backoff(attempt: int) -> float:
 
 def search_pmids(
     query: str,
-    max_results: int = MAX_PAPERS_PER_CATEGORY,
+    max_results: int = PUBMED_MAX_PER_CATEGORY,
     min_date: str | None = None,
     max_date: str | None = None,
 ) -> list[str]:

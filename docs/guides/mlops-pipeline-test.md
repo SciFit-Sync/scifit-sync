@@ -77,9 +77,11 @@ export NCBI_API_KEY=<발급키>   # https://www.ncbi.nlm.nih.gov/account/setting
 export CHROMA_PERSIST_PATH=./mlops/data/chroma-data
 export CHROMA_COLLECTION_NAME=paper_chunks   # 기본값
 
-# 본 실행 사이즈 튜닝
+# 본 실행 사이즈 튜닝 (환경변수는 entry script의 fallback일 뿐 — CLI 옵션이 우선)
 export MAX_PAPERS_PER_RUN=300       # 전체 cap
-export MAX_PAPERS_PER_CATEGORY=20   # 카테고리당 검색 상한
+
+# NOTE: 카테고리당 후보 풀 cap은 환경변수가 아닌 CLI `--max-per-category`로 제어한다.
+# 생략 시 소스별 기본값(OPENALEX_MAX_PER_CATEGORY=500 / PUBMED_MAX_PER_CATEGORY=50) 사용.
 
 # (서버 admin 적재 시에만) 운영 ChromaDB 적재용
 # export API_BASE_URL=https://api.scifit-sync.example.com

@@ -67,9 +67,17 @@ def main(
     min_date: str | None,
     max_date: str | None,
     update_manifest: bool,
+    max_per_category: int | None = None,
 ) -> None:
     logger.info("=== Embedding Export 시작 ===")
-    logger.info("max_papers=%d, output=%s, gzip=%s, dry_run=%s", max_papers, output, use_gzip, dry_run)
+    logger.info(
+        "max_papers=%d, max_per_category=%s, output=%s, gzip=%s, dry_run=%s",
+        max_papers,
+        max_per_category if max_per_category is not None else "source-defaults",
+        output,
+        use_gzip,
+        dry_run,
+    )
 
     manifest = Manifest.load(MANIFEST_PATH)
 
@@ -82,6 +90,7 @@ def main(
 
     papers = crawl_papers(
         max_total=max_papers,
+        max_per_category=max_per_category,
         min_date=min_date,
         max_date=max_date,
         existing_dois=existing_dois,
@@ -139,6 +148,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SciFit-Sync 임베딩 결과 export")
     parser.add_argument("--max-papers", type=int, default=MAX_PAPERS_PER_RUN)
     parser.add_argument(
+        "--max-per-category",
+        type=int,
+        default=None,
+        help="카테고리당 후보 풀 cap. 명시 시 OpenAlex/PubMed 양쪽에 동일 적용. "
+        "생략 시 소스별 기본값 사용 (OPENALEX_MAX_PER_CATEGORY=500 / "
+        "PUBMED_MAX_PER_CATEGORY=50). 후보 풀이 클수록 round-robin이 부족 카테고리를 "
+        "다른 카테고리에서 흡수할 여유가 커진다.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=DATA_DIR / "embeddings.jsonl",
@@ -169,4 +187,5 @@ if __name__ == "__main__":
         min_date=args.min_date,
         max_date=args.max_date,
         update_manifest=args.update_manifest,
+        max_per_category=args.max_per_category,
     )

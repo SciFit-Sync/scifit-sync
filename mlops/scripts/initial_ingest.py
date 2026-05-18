@@ -89,10 +89,11 @@ def main(
     from mlops.pipeline.chunker import chunk_papers
     from mlops.pipeline.config import (
         MANIFEST_PATH,
-        MAX_PAPERS_PER_CATEGORY,
         MAX_PAPERS_PER_RUN,
         NCBI_HTTP_MAX_RETRIES,
+        OPENALEX_MAX_PER_CATEGORY,
         PMC_FULLTEXT_MAX_ATTEMPTS,
+        PUBMED_MAX_PER_CATEGORY,
     )
     from mlops.pipeline.crawler import crawl_papers
     from mlops.pipeline.embedder import embed_chunks
@@ -100,14 +101,18 @@ def main(
 
     if max_papers is None:
         max_papers = MAX_PAPERS_PER_RUN
-    if max_per_category is None:
-        max_per_category = MAX_PAPERS_PER_CATEGORY
+    # max_per_category=None이면 crawl_papers가 소스별 기본값 (OpenAlex/PubMed) 적용.
+    cap_display = (
+        f"{max_per_category}"
+        if max_per_category is not None
+        else f"openalex={OPENALEX_MAX_PER_CATEGORY}/pubmed={PUBMED_MAX_PER_CATEGORY}"
+    )
 
     logger.info(
-        "=== 초기 적재 시작 (max_papers=%d, max_per_category=%d, dry_run=%s,"
+        "=== 초기 적재 시작 (max_papers=%d, max_per_category=%s, dry_run=%s,"
         " http_retries=%d, fulltext_attempts=%d) ===",
         max_papers,
-        max_per_category,
+        cap_display,
         dry_run,
         NCBI_HTTP_MAX_RETRIES,
         PMC_FULLTEXT_MAX_ATTEMPTS,
@@ -186,7 +191,10 @@ if __name__ == "__main__":
         "--max-per-category",
         type=int,
         default=None,
-        help="카테고리당 esearch 후보 풀 cap (기본: MAX_PAPERS_PER_CATEGORY=20).",
+        help="카테고리당 후보 풀 cap. 명시 시 OpenAlex/PubMed 양쪽에 동일 적용. "
+        "생략 시 소스별 기본값 사용 (OPENALEX_MAX_PER_CATEGORY=500 / "
+        "PUBMED_MAX_PER_CATEGORY=50). 후보 풀이 클수록 round-robin이 부족 카테고리를 "
+        "다른 카테고리에서 흡수할 여유가 커진다.",
     )
     parser.add_argument("--dry-run", action="store_true", help="크롤링+청킹만 실행, 임베딩/적재 생략 (manifest는 기록)")
     parser.add_argument(

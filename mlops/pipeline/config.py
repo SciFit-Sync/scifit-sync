@@ -38,8 +38,10 @@ CHUNK_MAX_TOKENS: int = int(os.getenv("CHUNK_MAX_TOKENS", "512"))
 CHUNK_OVERLAP_TOKENS: int = int(os.getenv("CHUNK_OVERLAP_TOKENS", "50"))
 
 # 파이프라인
+# NOTE: 카테고리당 후보 풀 cap은 OPENALEX_MAX_PER_CATEGORY / PUBMED_MAX_PER_CATEGORY로
+# 소스별 분리되어 있다. legacy 단일 변수(MAX_PAPERS_PER_CATEGORY)는 crawl_papers가
+# 참조하지 않아 dead였기 때문에 제거. CLI는 `--max-per-category`로 양쪽을 동시 override.
 MAX_PAPERS_PER_RUN: int = int(os.getenv("MAX_PAPERS_PER_RUN", "300"))
-MAX_PAPERS_PER_CATEGORY: int = int(os.getenv("MAX_PAPERS_PER_CATEGORY", "20"))
 
 # API 연동 (GitHub Actions → 서버 ChromaDB 적재)
 API_BASE_URL: str = os.getenv("API_BASE_URL", "")
