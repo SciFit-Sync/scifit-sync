@@ -41,10 +41,13 @@ def _request_with_retries(url: str, params: dict, rate_limit: float, max_retries
         if attempt == 0:
             time.sleep(rate_limit)
         else:
-            backoff = min(60.0, rate_limit * (2 ** attempt))
+            backoff = min(60.0, rate_limit * (2**attempt))
             logger.warning(
                 "OpenAlex 재시도 %d/%d (%.1fs 백오프): %s",
-                attempt + 1, max_retries, backoff, last_exc,
+                attempt + 1,
+                max_retries,
+                backoff,
+                last_exc,
             )
             time.sleep(backoff)
 
@@ -106,9 +109,7 @@ def parse_work(work: dict) -> PaperMeta | None:
     openalex_id = openalex_url.rsplit("/", 1)[-1] if openalex_url else None
 
     authors_list = [
-        a.get("author", {}).get("display_name", "")
-        for a in (work.get("authorships") or [])
-        if a.get("author")
+        a.get("author", {}).get("display_name", "") for a in (work.get("authorships") or []) if a.get("author")
     ][:10]
     authors = ", ".join(filter(None, authors_list))
 
@@ -172,9 +173,7 @@ class OpenAlexClient:
 
     def __post_init__(self) -> None:
         if not self.mailto:
-            logger.warning(
-                "OpenAlexClient mailto 빈 문자열 — polite pool 미사용 (rate limit ↓)"
-            )
+            logger.warning("OpenAlexClient mailto 빈 문자열 — polite pool 미사용 (rate limit ↓)")
 
     def search(
         self,
@@ -196,7 +195,8 @@ class OpenAlexClient:
             if cursor == prev_cursor:
                 logger.warning(
                     "OpenAlex cursor stuck (%r), 페이지네이션 종료. 누적 %d papers",
-                    cursor, len(results),
+                    cursor,
+                    len(results),
                 )
                 break
             prev_cursor = cursor

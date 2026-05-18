@@ -1,4 +1,5 @@
 """Europe PMC fulltext 어댑터 단위 테스트."""
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -112,11 +113,11 @@ def test_5xx_then_success_succeeds(fulltext_xml):
 
 def test_parse_sections_extracts_title_with_inline_tags():
     """JATS title이 inline 태그(italic 등)를 포함해도 텍스트가 합쳐져야 한다."""
-    xml = b'''<?xml version="1.0"?>
+    xml = b"""<?xml version="1.0"?>
     <article><front/><body>
         <sec><title>Volume <italic>vs</italic> intensity</title>
         <p>Body content here for test.</p></sec>
-    </body></article>'''
+    </body></article>"""
     sections = parse_sections(xml)
     assert len(sections) == 1
     assert sections[0].name == "Volume vs intensity"
@@ -125,11 +126,12 @@ def test_parse_sections_extracts_title_with_inline_tags():
 def test_parse_sections_rejects_billion_laughs():
     """billion-laughs 공격 XML은 defusedxml이 차단해야 한다."""
     from defusedxml.common import EntitiesForbidden
-    malicious = b'''<?xml version="1.0"?>
+
+    malicious = b"""<?xml version="1.0"?>
     <!DOCTYPE lolz [
       <!ENTITY lol "lol">
       <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
     ]>
-    <article><body><sec><title>X</title><p>&lol2;</p></sec></body></article>'''
+    <article><body><sec><title>X</title><p>&lol2;</p></sec></body></article>"""
     with pytest.raises(EntitiesForbidden):
         parse_sections(malicious)

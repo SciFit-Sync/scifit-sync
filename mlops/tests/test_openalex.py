@@ -1,4 +1,5 @@
 """OpenAlex 검색 어댑터 단위 테스트."""
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -33,9 +34,7 @@ def test_build_search_params_includes_mailto():
 
 
 def test_build_search_params_filters_oa_and_lang():
-    params = build_search_params(
-        keywords=["x"], concept_ids=["C1"], per_page=25, mailto="a@b.com"
-    )
+    params = build_search_params(keywords=["x"], concept_ids=["C1"], per_page=25, mailto="a@b.com")
     assert "open_access.is_oa:true" in params["filter"]
     assert "language:en" in params["filter"]
     assert "type:article" in params["filter"]

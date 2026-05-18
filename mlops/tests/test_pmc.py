@@ -1,4 +1,5 @@
 """PMC fulltext 어댑터 단위 테스트."""
+
 from unittest.mock import MagicMock, patch
 
 from mlops.pipeline.europepmc import FulltextStatus
@@ -7,7 +8,7 @@ from requests.exceptions import HTTPError
 
 
 def test_fetch_success():
-    xml = b'<article><body><sec><title>Intro</title><p>Content here for the test.</p></sec></body></article>'
+    xml = b"<article><body><sec><title>Intro</title><p>Content here for the test.</p></sec></body></article>"
 
     client = PMCClient(base_url="https://example.com", rate_limit=0)
     with patch("mlops.pipeline.pmc.requests.get") as mock_get:
@@ -24,7 +25,7 @@ def test_fetch_success():
 
 
 def test_fetch_no_body_returns_not_available():
-    xml = b'<article><front/></article>'
+    xml = b"<article><front/></article>"
     client = PMCClient(base_url="https://example.com", rate_limit=0)
     with patch("mlops.pipeline.pmc.requests.get") as mock_get:
         mock_resp = MagicMock()
@@ -39,7 +40,7 @@ def test_fetch_no_body_returns_not_available():
 
 def test_fetch_pmcid_with_prefix_strips_PMC():
     """PMCID 'PMC123' 또는 '123' 둘 다 처리."""
-    xml = b'<article><body><sec><title>Intro</title><p>Body content text here.</p></sec></body></article>'
+    xml = b"<article><body><sec><title>Intro</title><p>Body content text here.</p></sec></body></article>"
     client = PMCClient(base_url="https://example.com", rate_limit=0)
     captured_params = {}
 

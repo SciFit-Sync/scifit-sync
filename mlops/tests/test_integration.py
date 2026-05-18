@@ -1,4 +1,5 @@
 """Phase 1 통합 시나리오 — cascading fulltext + manifest end-to-end mock."""
+
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -39,6 +40,7 @@ class TestCascadingScenarios:
 
     def test_pmc_success(self, monkeypatch, mock_clients):
         """PMC 본문 확보 성공 → fulltext_source='pmc'."""
+
         def fake_cascading(**_):
             return CascadingFulltextResult(
                 fulltext_source="pmc",
@@ -46,6 +48,7 @@ class TestCascadingScenarios:
                 sections=[PaperSection(name="Intro", content="content")],
                 had_transient_error=False,
             )
+
         monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
 
         papers = _attach_fulltext([_meta("10.1/a", pmcid="PMC1")])
@@ -54,6 +57,7 @@ class TestCascadingScenarios:
 
     def test_europepmc_fallback(self, monkeypatch, mock_clients):
         """PMC 실패 → EuropePMC 성공 → fulltext_source='europepmc'."""
+
         def fake_cascading(**_):
             return CascadingFulltextResult(
                 fulltext_source="europepmc",
@@ -61,6 +65,7 @@ class TestCascadingScenarios:
                 sections=[PaperSection(name="Intro", content="content")],
                 had_transient_error=False,
             )
+
         monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
 
         papers = _attach_fulltext([_meta("10.1/b", pmcid="PMC2")])
@@ -68,6 +73,7 @@ class TestCascadingScenarios:
 
     def test_all_sources_fail(self, monkeypatch, mock_clients):
         """PMC + EuropePMC 모두 not_available → paper 폐기 (sections=[])."""
+
         def fake_cascading(**_):
             return CascadingFulltextResult(
                 fulltext_source=None,
@@ -75,6 +81,7 @@ class TestCascadingScenarios:
                 sections=[],
                 had_transient_error=False,
             )
+
         monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
 
         papers = _attach_fulltext([_meta("10.1/c", pmcid="PMC3")])
@@ -83,6 +90,7 @@ class TestCascadingScenarios:
 
     def test_all_transient_keeps_open(self, monkeypatch, mock_clients):
         """모든 소스 transient → fulltext_source=None, had_transient_error=True 시그널."""
+
         def fake_cascading(**_):
             return CascadingFulltextResult(
                 fulltext_source=None,
@@ -90,6 +98,7 @@ class TestCascadingScenarios:
                 sections=[],
                 had_transient_error=True,
             )
+
         monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
 
         papers = _attach_fulltext([_meta("10.1/d", pmcid="PMC4")])

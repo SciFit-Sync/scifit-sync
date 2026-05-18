@@ -79,10 +79,13 @@ class EuropePMCClient:
             if attempt == 0:
                 time.sleep(self.rate_limit)
             else:
-                backoff = min(60.0, self.rate_limit * (2 ** attempt))
+                backoff = min(60.0, self.rate_limit * (2**attempt))
                 logger.warning(
                     "EuropePMC 재시도 %d/%d (%.1fs 백오프): %s",
-                    attempt + 1, self.max_retries, backoff, last_err,
+                    attempt + 1,
+                    self.max_retries,
+                    backoff,
+                    last_err,
                 )
                 time.sleep(backoff)
 
@@ -123,10 +126,13 @@ class EuropePMCClient:
             if attempt == 0:
                 time.sleep(self.rate_limit)
             else:
-                backoff = min(60.0, self.rate_limit * (2 ** attempt))
+                backoff = min(60.0, self.rate_limit * (2**attempt))
                 logger.warning(
                     "EuropePMC search 재시도 %d/%d (%.1fs 백오프): %s",
-                    attempt + 1, self.max_retries, backoff, last_err,
+                    attempt + 1,
+                    self.max_retries,
+                    backoff,
+                    last_err,
                 )
                 time.sleep(backoff)
 

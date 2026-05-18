@@ -37,10 +37,15 @@ def test_journal_article_only_fallback():
 def test_known_tiers_present():
     """필수 publication type이 weight 테이블에 정의되어 있다."""
     required = [
-        "Meta-Analysis", "Systematic Review",
-        "Randomized Controlled Trial", "Clinical Trial",
-        "Observational Study", "Cross-Sectional Study",
-        "Review", "Case Reports", "Journal Article",
+        "Meta-Analysis",
+        "Systematic Review",
+        "Randomized Controlled Trial",
+        "Clinical Trial",
+        "Observational Study",
+        "Cross-Sectional Study",
+        "Review",
+        "Case Reports",
+        "Journal Article",
     ]
     for pt in required:
         assert pt in EVIDENCE_WEIGHTS

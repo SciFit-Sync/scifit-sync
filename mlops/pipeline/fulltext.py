@@ -26,6 +26,7 @@ class EuropePMCFetcher(Protocol):
     def fetch_by_pmid(self, pmid: str) -> FulltextResult: ...
     def fetch_by_doi(self, doi: str) -> FulltextResult: ...
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,8 +68,7 @@ def fetch_cascading(
             )
         if r.status == FulltextStatus.TRANSIENT_ERROR:
             transient_count += 1
-            logger.warning("PMC transient error: doi=%s pmcid=%s err=%s",
-                           doi, pmcid, r.error)
+            logger.warning("PMC transient error: doi=%s pmcid=%s err=%s", doi, pmcid, r.error)
 
     # Step 2: Europe PMC
     tried.append("europepmc")

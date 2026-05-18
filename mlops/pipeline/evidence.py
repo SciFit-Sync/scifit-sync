@@ -10,31 +10,27 @@ from __future__ import annotations
 
 EVIDENCE_WEIGHTS: dict[str, float] = {
     # Tier 1: 종합 분석
-    "Meta-Analysis":               1.00,
-    "Systematic Review":           1.00,
-
+    "Meta-Analysis": 1.00,
+    "Systematic Review": 1.00,
     # Tier 2: 통제된 실험
-    "Controlled Clinical Trial":   0.80,
+    "Controlled Clinical Trial": 0.80,
     "Randomized Controlled Trial": 0.90,
-    "Clinical Trial":              0.75,
-    "Comparative Study":           0.65,
-
+    "Clinical Trial": 0.75,
+    "Comparative Study": 0.65,
     # Tier 3: 관찰
-    "Observational Study":         0.55,
-    "Cross-Sectional Study":       0.50,
-    "Cohort Study":                0.60,
-    "Case-Control Study":          0.50,
-
+    "Observational Study": 0.55,
+    "Cross-Sectional Study": 0.50,
+    "Cohort Study": 0.60,
+    "Case-Control Study": 0.50,
     # Tier 4: 약한 근거
-    "Review":                      0.40,
-    "Narrative Review":            0.35,
-    "Case Reports":                0.30,
-    "Editorial":                   0.20,
-    "Letter":                      0.15,
-    "Comment":                     0.15,
-
+    "Review": 0.40,
+    "Narrative Review": 0.35,
+    "Case Reports": 0.30,
+    "Editorial": 0.20,
+    "Letter": 0.15,
+    "Comment": 0.15,
     # 일반 라벨 (다른 type이 없을 때만 적용)
-    "Journal Article":             0.50,
+    "Journal Article": 0.50,
 }
 
 DEFAULT_WEIGHT: float = 0.50

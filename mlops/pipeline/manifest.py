@@ -73,10 +73,7 @@ class Manifest:
             logger.info("manifest v1 또는 미지원 schema 감지, clean slate로 시작")
             return cls()
 
-        papers = {
-            doi: ManifestEntry.from_dict(entry)
-            for doi, entry in data.get("papers", {}).items()
-        }
+        papers = {doi: ManifestEntry.from_dict(entry) for doi, entry in data.get("papers", {}).items()}
         return cls(papers=papers)
 
     def save(self, path: Path) -> None:
@@ -113,8 +110,7 @@ class Manifest:
         return {
             doi
             for doi, entry in self.papers.items()
-            if entry.fulltext_source is None
-            and not set(entry.tried_sources).issuperset(active_sources)
+            if entry.fulltext_source is None and not set(entry.tried_sources).issuperset(active_sources)
         }
 
     def record_attempt(

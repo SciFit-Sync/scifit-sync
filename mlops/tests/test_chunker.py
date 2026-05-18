@@ -184,9 +184,12 @@ class TestChunkEvidenceMeta:
             evidence_weight=0.90,
             fulltext_source="pmc",
         )
-        paper = PaperFull(meta=meta, sections=[
-            PaperSection(name="Intro", content="Resistance training " * 50),
-        ])
+        paper = PaperFull(
+            meta=meta,
+            sections=[
+                PaperSection(name="Intro", content="Resistance training " * 50),
+            ],
+        )
         chunks = chunk_paper(paper)
         assert len(chunks) >= 1
         chunk = chunks[0]

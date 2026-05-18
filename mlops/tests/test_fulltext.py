@@ -1,4 +1,5 @@
 """Cascading fulltext orchestrator 단위 테스트."""
+
 from unittest.mock import MagicMock
 
 from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
@@ -27,8 +28,7 @@ def test_pmc_success_stops_cascade():
     europepmc = MagicMock()
     europepmc.fetch_by_pmid = MagicMock(return_value=_success("EPMC-Intro"))
 
-    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     assert result.fulltext_source == "pmc"
     assert result.tried_sources == ["pmc"]
@@ -42,8 +42,7 @@ def test_pmc_not_available_falls_through_to_europepmc():
     europepmc = MagicMock()
     europepmc.fetch_by_pmid = MagicMock(return_value=_success("EPMC-Intro"))
 
-    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     assert result.fulltext_source == "europepmc"
     assert result.tried_sources == ["pmc", "europepmc"]
@@ -55,8 +54,7 @@ def test_all_not_available_returns_null_source():
     europepmc = MagicMock()
     europepmc.fetch_by_pmid = MagicMock(return_value=_not_available())
 
-    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     assert result.fulltext_source is None
     assert result.tried_sources == ["pmc", "europepmc"]
@@ -71,8 +69,7 @@ def test_pmc_transient_then_europepmc_success_resets_flag():
     europepmc = MagicMock()
     europepmc.fetch_by_pmid = MagicMock(return_value=_success("EPMC-Intro"))
 
-    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     assert result.fulltext_source == "europepmc"
     assert result.had_transient_error is False
@@ -84,8 +81,7 @@ def test_all_transient_marks_had_transient_error():
     europepmc = MagicMock()
     europepmc.fetch_by_pmid = MagicMock(return_value=_transient())
 
-    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid="PMC1", pmid="12", doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     assert result.fulltext_source is None
     assert result.had_transient_error is True
@@ -97,8 +93,7 @@ def test_no_pmcid_skips_pmc_step():
     europepmc = MagicMock()
     europepmc.fetch_by_pmid = MagicMock(return_value=_success())
 
-    result = fetch_cascading(pmcid=None, pmid="12", doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid=None, pmid="12", doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     pmc.fetch.assert_not_called()
     assert "pmc" not in result.tried_sources
@@ -113,8 +108,7 @@ def test_europepmc_pmid_fallback_to_doi_lookup():
     europepmc.fetch_by_doi = MagicMock(return_value=_success("EPMC-Intro"))
     europepmc.fetch_by_pmid = MagicMock()
 
-    result = fetch_cascading(pmcid="PMC1", pmid=None, doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid="PMC1", pmid=None, doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     europepmc.fetch_by_pmid.assert_not_called()
     europepmc.fetch_by_doi.assert_called_once_with("10.1/x")
@@ -127,8 +121,7 @@ def test_no_pmcid_no_pmid_uses_doi_only():
     europepmc = MagicMock()
     europepmc.fetch_by_doi = MagicMock(return_value=_success())
 
-    result = fetch_cascading(pmcid=None, pmid=None, doi="10.1/x",
-                             pmc_client=pmc, europepmc_client=europepmc)
+    result = fetch_cascading(pmcid=None, pmid=None, doi="10.1/x", pmc_client=pmc, europepmc_client=europepmc)
 
     pmc.fetch.assert_not_called()
     europepmc.fetch_by_doi.assert_called_once_with("10.1/x")

@@ -522,13 +522,23 @@ class TestMergeByDoi:
 
     def test_merge_by_doi_prefers_openalex(self):
         oa = PaperMeta(
-            pmid="", title="oa", authors="", journal="oa-journal",
-            published_year=2020, doi="10.1/x", abstract="oa-abs",
+            pmid="",
+            title="oa",
+            authors="",
+            journal="oa-journal",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="oa-abs",
             publication_types=["Randomized Controlled Trial"],
         )
         pm = PaperMeta(
-            pmid="99", title="pm", authors="", journal="pm-journal",
-            published_year=2020, doi="10.1/x", abstract="pm-abs",
+            pmid="99",
+            title="pm",
+            authors="",
+            journal="pm-journal",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="pm-abs",
             publication_types=[],
         )
 
@@ -542,13 +552,23 @@ class TestMergeByDoi:
     def test_merge_by_doi_pubmed_fills_publication_types(self):
         """OpenAlex가 publication_types 비어있으면 PubMed 값으로 보강."""
         oa = PaperMeta(
-            pmid="", title="oa", authors="", journal="",
-            published_year=2020, doi="10.1/x", abstract="",
+            pmid="",
+            title="oa",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="",
             publication_types=[],
         )
         pm = PaperMeta(
-            pmid="99", title="pm", authors="", journal="",
-            published_year=2020, doi="10.1/x", abstract="",
+            pmid="99",
+            title="pm",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="",
             publication_types=["Meta-Analysis"],
         )
 
@@ -559,8 +579,13 @@ class TestMergeByDoi:
     def test_merge_by_doi_pubmed_only_paper_passes_through(self):
         """OpenAlex에 없는 DOI는 PubMed 메타가 그대로 통과."""
         pm = PaperMeta(
-            pmid="99", title="pm", authors="", journal="",
-            published_year=2020, doi="10.1/y", abstract="",
+            pmid="99",
+            title="pm",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/y",
+            abstract="",
             publication_types=["Meta-Analysis"],
         )
         merged = _merge_by_doi([], [pm])
@@ -581,8 +606,13 @@ class TestRoundRobinDedupMetas:
     @staticmethod
     def _m(doi: str) -> PaperMeta:
         return PaperMeta(
-            pmid="", title="t", authors="", journal="",
-            published_year=2020, doi=doi, abstract="",
+            pmid="",
+            title="t",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi=doi,
+            abstract="",
         )
 
     def test_round_robin_keeps_category_diversity(self):
@@ -690,10 +720,18 @@ class TestAttachFulltext:
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
 
-        metas = [PaperMeta(
-            pmid="999", title="t", authors="", journal="", published_year=2020,
-            doi="10.1/abc", abstract="", pmcid="PMC1",
-        )]
+        metas = [
+            PaperMeta(
+                pmid="999",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/abc",
+                abstract="",
+                pmcid="PMC1",
+            )
+        ]
         papers = _attach_fulltext(metas)
 
         assert called_with == {"pmcid": "PMC1", "pmid": "999", "doi": "10.1/abc"}
@@ -721,10 +759,17 @@ class TestAttachFulltext:
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
 
-        metas = [PaperMeta(
-            pmid="1", title="t", authors="", journal="", published_year=2020,
-            doi="10.1/x", abstract="",
-        )]
+        metas = [
+            PaperMeta(
+                pmid="1",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/x",
+                abstract="",
+            )
+        ]
         papers = _attach_fulltext(metas)
         assert papers[0].meta.fulltext_source is None
         assert papers[0].sections == []
@@ -752,16 +797,21 @@ class TestAttachFulltext:
         def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
             captured["pmcid"] = pmcid
             return CascadingFulltextResult(
-                fulltext_source=None, tried_sources=[],
-                sections=[], had_transient_error=False,
+                fulltext_source=None,
+                tried_sources=[],
+                sections=[],
+                had_transient_error=False,
             )
 
         monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
 
-        metas = [PaperMeta(pmid="1", title="t", authors="", journal="",
-                           published_year=2020, doi="10.1/x", abstract="", pmcid=None)]
+        metas = [
+            PaperMeta(
+                pmid="1", title="t", authors="", journal="", published_year=2020, doi="10.1/x", abstract="", pmcid=None
+            )
+        ]
         _attach_fulltext(metas)
         assert captured["pmcid"] is None
 
