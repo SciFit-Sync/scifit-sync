@@ -137,7 +137,9 @@ git commit -m "feat: 논문 검색 쿼리 N개 추가 — <축 설명>"
 | `CHROMA_COLLECTION_NAME` | 기본 `paper_chunks` | BGE prefix 일관성 위해 `paper_chunks_v2` 권장 |
 | `EMBEDDING_MODEL` | 기본 `BAAI/bge-large-en-v1.5` | 변경 시 collection 차원 불일치 주의 |
 | `MAX_PAPERS_PER_RUN` | 기본 300 | round-robin dedup 후 신규 PMID 상한 |
-| `MAX_PAPERS_PER_CATEGORY` | 기본 20 | 카테고리당 검색 상한 |
+| `OPENALEX_MAX_PER_CATEGORY` | 기본 500 | 카테고리당 OpenAlex 후보 풀 cap |
+| `PUBMED_MAX_PER_CATEGORY` | 기본 50 | 카테고리당 PubMed 후보 풀 cap |
+| CLI `--max-per-category` | 없음 | 명시 시 위 두 변수 모두 override (양쪽 동일 적용) |
 | `API_BASE_URL` + `ADMIN_API_TOKEN` | 실제 적재 시 필수 | `initial_ingest.py`가 백엔드 `/api/v1/admin/rag/ingest`로 POST |
 
 ### 3.2 dry-run (크롤링·청킹만)
