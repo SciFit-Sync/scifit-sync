@@ -117,3 +117,82 @@ def test_client_search_handles_pagination(search_resp):
         client.search(keywords=["x"], concept_ids=["C1"], max_results=400, per_page=200)
         # 첫 페이지(cursor=*) + 두 번째 페이지(cursor=page2cursor) → 2회
         assert mock_get.call_count == 2
+
+
+def test_retry_on_5xx_eventually_succeeds(search_resp):
+    """5xx에서 재시도하여 결국 성공."""
+    from requests.exceptions import HTTPError
+
+    client = OpenAlexClient(base_url="https://api.openalex.org", mailto="t@e.com", rate_limit=0)
+
+    fail_resp = MagicMock()
+    fail_resp.status_code = 503
+    err = HTTPError("503")
+    err.response = fail_resp
+    fail_resp.raise_for_status.side_effect = err
+
+    success_resp = MagicMock()
+    success_resp.json.return_value = search_resp
+    success_resp.raise_for_status = MagicMock()
+
+    with patch("mlops.pipeline.openalex.requests.get", side_effect=[fail_resp, success_resp]):
+        results = client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+
+    assert len(results) == 1
+
+
+def test_4xx_not_retried_raises():
+    """404 등 4xx는 즉시 raise (재시도 X)."""
+    from requests.exceptions import HTTPError
+
+    client = OpenAlexClient(base_url="https://api.openalex.org", mailto="t@e.com", rate_limit=0)
+
+    bad_resp = MagicMock()
+    bad_resp.status_code = 400
+    err = HTTPError("400")
+    err.response = bad_resp
+    bad_resp.raise_for_status.side_effect = err
+
+    with patch("mlops.pipeline.openalex.requests.get", return_value=bad_resp), pytest.raises(HTTPError):
+        client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+
+
+def test_cursor_stuck_terminates_loop(search_resp):
+    """next_cursor가 같은 값으로 반복되면 종료 (무한루프 방지)."""
+    client = OpenAlexClient(base_url="https://api.openalex.org", mailto="t@e.com", rate_limit=0)
+
+    stuck_resp = dict(search_resp)
+    stuck_resp["meta"] = {"next_cursor": "samecursor"}
+
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = stuck_resp
+    mock_resp.raise_for_status = MagicMock()
+
+    with patch("mlops.pipeline.openalex.requests.get", return_value=mock_resp) as mock_get:
+        client.search(keywords=["x"], concept_ids=["C1"], max_results=1000)
+
+    # 첫 호출 (cursor=*) + 두 번째 호출 (cursor=samecursor) → 세 번째에서 stuck 감지하고 종료
+    assert mock_get.call_count == 2
+
+
+def test_parse_work_handles_null_optional_fields():
+    """primary_location/authorships/concepts/ids가 None인 work도 정상 파싱."""
+    work = {
+        "id": "https://openalex.org/W1",
+        "doi": "https://doi.org/10.1/x",
+        "title": "T",
+        "publication_year": 2020,
+        "primary_location": None,
+        "authorships": None,
+        "ids": None,
+        "abstract_inverted_index": None,
+        "concepts": None,
+        "publication_types": None,
+    }
+    meta = parse_work(work)
+    assert meta is not None
+    assert meta.doi == "10.1/x"
+    assert meta.journal == ""
+    assert meta.authors == ""
+    assert meta.abstract == ""
+    assert meta.publication_types == []

@@ -23,6 +23,48 @@ logger = logging.getLogger(__name__)
 DEFAULT_PER_PAGE = 200
 DEFAULT_RATE_LIMIT = 0.1  # 초 단위 (polite pool은 매우 관대)
 
+_RETRYABLE_EXCEPTIONS = (
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+)
+
+
+def _request_with_retries(url: str, params: dict, rate_limit: float, max_retries: int = 3) -> requests.Response:
+    """OpenAlex 요청을 transient 에러에 대해 지수 백오프 재시도.
+
+    Retry 대상: ChunkedEncodingError, ConnectionError, Timeout, 429, 5xx.
+    Retry 비대상: 4xx (404 등 영구 에러).
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        if attempt == 0:
+            time.sleep(rate_limit)
+        else:
+            backoff = min(60.0, rate_limit * (2 ** attempt))
+            logger.warning(
+                "OpenAlex 재시도 %d/%d (%.1fs 백오프): %s",
+                attempt + 1, max_retries, backoff, last_exc,
+            )
+            time.sleep(backoff)
+
+        try:
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            return resp
+        except _RETRYABLE_EXCEPTIONS as e:
+            last_exc = e
+            continue
+        except requests.exceptions.HTTPError as e:
+            status = getattr(e.response, "status_code", None)
+            if status is not None and (status == 429 or 500 <= status < 600):
+                last_exc = e
+                continue
+            raise
+
+    assert last_exc is not None
+    raise last_exc
+
 
 def abstract_from_inverted_index(inverted: dict[str, list[int]]) -> str:
     """OpenAlex abstract_inverted_index를 평문으로 재구성.
@@ -78,6 +120,8 @@ def parse_work(work: dict) -> PaperMeta | None:
     publication_types = work.get("publication_types") or []
 
     return PaperMeta(
+        # TODO(Task 9): pmid=""인 OpenAlex-only paper의 dedup 키 충돌은
+        # DOI 기반 doc_id 도입 후 자연 해소. 지금은 PaperMeta.pmid=str 계약 유지를 위해 빈 문자열.
         pmid=pmid or "",
         title=work.get("title", "") or "",
         authors=authors,
@@ -89,6 +133,8 @@ def parse_work(work: dict) -> PaperMeta | None:
         pmcid=pmcid,
         openalex_id=openalex_id,
         publication_types=publication_types,
+        # evidence_weight는 crawler.py가 publication_types를 보고 evidence.calculate_evidence_weight()로 갱신.
+        # OpenAlex API는 보통 publication_types를 비워서 반환하므로, Task 10에서 PubMed 메타와 merge 후 재계산.
         evidence_weight=0.50,
         fulltext_source=None,
     )
@@ -124,6 +170,12 @@ class OpenAlexClient:
     mailto: str
     rate_limit: float = DEFAULT_RATE_LIMIT
 
+    def __post_init__(self) -> None:
+        if not self.mailto:
+            logger.warning(
+                "OpenAlexClient mailto 빈 문자열 — polite pool 미사용 (rate limit ↓)"
+            )
+
     def search(
         self,
         *,
@@ -135,10 +187,20 @@ class OpenAlexClient:
         """주어진 keyword/concept 조합으로 검색, 최대 max_results까지 누적."""
         results: list[PaperMeta] = []
         cursor: str | None = "*"
+        prev_cursor: str | None = None
         url = f"{self.base_url}/works"
+        max_pages = 100  # 65 카테고리 × 평균 5페이지의 안전 상한
+        page = 0
 
-        while cursor and len(results) < max_results:
-            time.sleep(self.rate_limit)
+        while cursor and len(results) < max_results and page < max_pages:
+            if cursor == prev_cursor:
+                logger.warning(
+                    "OpenAlex cursor stuck (%r), 페이지네이션 종료. 누적 %d papers",
+                    cursor, len(results),
+                )
+                break
+            prev_cursor = cursor
+
             params = build_search_params(
                 keywords=keywords,
                 concept_ids=concept_ids,
@@ -147,8 +209,7 @@ class OpenAlexClient:
                 cursor=cursor,
             )
 
-            resp = requests.get(url, params=params, timeout=30)
-            resp.raise_for_status()
+            resp = _request_with_retries(url, params, self.rate_limit)
             data = resp.json()
 
             works = data.get("results", [])
@@ -160,8 +221,12 @@ class OpenAlexClient:
                     break
 
             cursor = (data.get("meta") or {}).get("next_cursor")
+            page += 1
             if not works:
                 break
+
+        if page >= max_pages:
+            logger.warning("OpenAlex max_pages(%d) 도달, 페이지네이션 종료", max_pages)
 
         logger.info(
             "OpenAlex 검색 완료: keywords=%s, %d papers (DOI 보유)",
