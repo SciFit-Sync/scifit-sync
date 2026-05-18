@@ -1,6 +1,6 @@
 """crawler 모듈 단위 테스트.
 
-PubMed API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
+PubMed/OpenAlex API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
 """
 
 import xml.etree.ElementTree as ET
@@ -9,13 +9,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 from mlops.pipeline.crawler import (
+    CATEGORY_OPENALEX_MAPPING,
+    SEARCH_QUERY_CATEGORIES,
     _fetch_pmc_sections,
     _get_text,
+    _merge_by_doi,
     _parse_pmc_sections,
     _parse_pubmed_article,
     _request_with_rate_limit,
     _resolve_pmc_id,
     _round_robin_dedup,
+    _round_robin_dedup_metas,
     fetch_pmc_fulltext,
     search_pmids,
 )
@@ -506,3 +510,156 @@ class TestFetchPmcFulltext:
         assert len(result) == 1
         assert result[0].name == "Introduction"
         mock_fetch.assert_called_once_with("12345", "PMC99999")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 10: OpenAlex 통합 + DOI 기반 dedup + 필터 토글
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestMergeByDoi:
+    """`_merge_by_doi`: 동일 DOI는 OpenAlex 메타 우선 + PubMed로 pmid/publication_types 보강."""
+
+    def test_merge_by_doi_prefers_openalex(self):
+        oa = PaperMeta(
+            pmid="", title="oa", authors="", journal="oa-journal",
+            published_year=2020, doi="10.1/x", abstract="oa-abs",
+            publication_types=["Randomized Controlled Trial"],
+        )
+        pm = PaperMeta(
+            pmid="99", title="pm", authors="", journal="pm-journal",
+            published_year=2020, doi="10.1/x", abstract="pm-abs",
+            publication_types=[],
+        )
+
+        merged = _merge_by_doi([oa], [pm])
+        assert len(merged) == 1
+        assert merged[0].title == "oa"
+        assert merged[0].journal == "oa-journal"
+        assert merged[0].pmid == "99"  # PubMed가 PMID 보강
+        assert merged[0].publication_types == ["Randomized Controlled Trial"]
+
+    def test_merge_by_doi_pubmed_fills_publication_types(self):
+        """OpenAlex가 publication_types 비어있으면 PubMed 값으로 보강."""
+        oa = PaperMeta(
+            pmid="", title="oa", authors="", journal="",
+            published_year=2020, doi="10.1/x", abstract="",
+            publication_types=[],
+        )
+        pm = PaperMeta(
+            pmid="99", title="pm", authors="", journal="",
+            published_year=2020, doi="10.1/x", abstract="",
+            publication_types=["Meta-Analysis"],
+        )
+
+        merged = _merge_by_doi([oa], [pm])
+        assert len(merged) == 1
+        assert merged[0].publication_types == ["Meta-Analysis"]
+
+    def test_merge_by_doi_pubmed_only_paper_passes_through(self):
+        """OpenAlex에 없는 DOI는 PubMed 메타가 그대로 통과."""
+        pm = PaperMeta(
+            pmid="99", title="pm", authors="", journal="",
+            published_year=2020, doi="10.1/y", abstract="",
+            publication_types=["Meta-Analysis"],
+        )
+        merged = _merge_by_doi([], [pm])
+        assert len(merged) == 1
+        assert merged[0].doi == "10.1/y"
+        assert merged[0].pmid == "99"
+
+    def test_merge_by_doi_skips_pubmed_without_doi(self):
+        """DOI 없는 PubMed 메타는 폐기 (DOI primary key 정책)."""
+        pm = PaperMeta(pmid="99", title="pm", doi="", abstract="")
+        merged = _merge_by_doi([], [pm])
+        assert merged == []
+
+
+class TestRoundRobinDedupMetas:
+    """`_round_robin_dedup_metas`: DOI 기반 round-robin dedup."""
+
+    @staticmethod
+    def _m(doi: str) -> PaperMeta:
+        return PaperMeta(
+            pmid="", title="t", authors="", journal="",
+            published_year=2020, doi=doi, abstract="",
+        )
+
+    def test_round_robin_keeps_category_diversity(self):
+        per_cat = [
+            ("volume", [self._m("10.1/a"), self._m("10.1/b"), self._m("10.1/c")]),
+            ("intensity", [self._m("10.1/d"), self._m("10.1/a")]),
+        ]
+        order, by_cat, by_doi = _round_robin_dedup_metas(per_cat, set(), 10)
+
+        assert "10.1/a" in by_doi
+        # round 0 → volume에서 a, intensity에서 d / round 1 → b, intensity의 a(메타 추가)
+        assert by_cat["10.1/a"] == {"volume", "intensity"}
+        assert order == ["10.1/a", "10.1/d", "10.1/b", "10.1/c"]
+
+    def test_round_robin_respects_max_total(self):
+        per_cat = [
+            ("volume", [self._m("10.1/a"), self._m("10.1/b"), self._m("10.1/c")]),
+            ("intensity", [self._m("10.1/d"), self._m("10.1/e")]),
+        ]
+        order, _, by_doi = _round_robin_dedup_metas(per_cat, set(), 3)
+        assert len(by_doi) == 3
+        assert len(order) == 3
+
+    def test_round_robin_excludes_existing_dois(self):
+        per_cat = [("volume", [self._m("10.1/a"), self._m("10.1/b")])]
+        order, _, by_doi = _round_robin_dedup_metas(per_cat, {"10.1/a"}, 10)
+        assert "10.1/a" not in by_doi
+        assert "10.1/b" in by_doi
+        assert order == ["10.1/b"]
+
+    def test_round_robin_skips_metas_without_doi(self):
+        """DOI 없는 메타는 무조건 폐기."""
+        per_cat = [("volume", [self._m(""), self._m("10.1/a")])]
+        order, _, by_doi = _round_robin_dedup_metas(per_cat, set(), 10)
+        assert order == ["10.1/a"]
+        assert "" not in by_doi
+
+    def test_round_robin_empty(self):
+        order, by_cat, by_doi = _round_robin_dedup_metas([], set(), 10)
+        assert order == []
+        assert by_cat == {}
+        assert by_doi == {}
+
+
+class TestCategoryOpenAlexMapping:
+    def test_mapping_covers_all_search_query_categories(self):
+        """SEARCH_QUERY_CATEGORIES의 모든 카테고리가 CATEGORY_OPENALEX_MAPPING에 존재해야 함."""
+        sq_names = {name for name, _, _ in SEARCH_QUERY_CATEGORIES}
+        mapping_names = set(CATEGORY_OPENALEX_MAPPING.keys())
+        missing = sq_names - mapping_names
+        assert not missing, f"누락 카테고리: {missing}"
+
+    def test_mapping_entries_have_required_keys(self):
+        """모든 매핑 엔트리는 concept_ids + keywords 키를 가져야 함."""
+        for name, cfg in CATEGORY_OPENALEX_MAPPING.items():
+            assert "concept_ids" in cfg, f"{name}에 concept_ids 누락"
+            assert "keywords" in cfg, f"{name}에 keywords 누락"
+            assert isinstance(cfg["concept_ids"], list)
+            assert isinstance(cfg["keywords"], list)
+            # 적어도 keyword 1개는 있어야 검색이 의미 있다
+            assert cfg["keywords"], f"{name}에 keyword 1개도 없음"
+
+
+class TestPublicationFilterToggle:
+    """STRICT_PUBLICATION_FILTER 환경변수 토글."""
+
+    def test_filter_toggle_off_returns_empty(self):
+        import mlops.pipeline.crawler as crawler_mod
+
+        with patch.object(crawler_mod, "STRICT_PUBLICATION_FILTER", False):
+            assert crawler_mod.get_publication_filter() == ""
+
+    def test_filter_toggle_on_returns_strict(self):
+        import mlops.pipeline.crawler as crawler_mod
+
+        with patch.object(crawler_mod, "STRICT_PUBLICATION_FILTER", True):
+            result = crawler_mod.get_publication_filter()
+            assert "randomized controlled trial" in result.lower()
+            assert "meta-analysis" in result.lower()
+            assert "free full text" in result.lower()
