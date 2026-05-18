@@ -43,3 +43,16 @@ ADMIN_API_TOKEN: str = os.getenv("ADMIN_API_TOKEN", "")
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 MANIFEST_PATH = DATA_DIR / "manifest.json"
+
+# OpenAlex
+OPENALEX_BASE_URL: str = os.getenv("OPENALEX_BASE_URL", "https://api.openalex.org")
+OPENALEX_MAILTO: str = os.getenv("OPENALEX_MAILTO", "")
+OPENALEX_MAX_PER_CATEGORY: int = int(os.getenv("OPENALEX_MAX_PER_CATEGORY", "500"))
+PUBMED_MAX_PER_CATEGORY: int = int(os.getenv("PUBMED_MAX_PER_CATEGORY", "50"))
+
+# Europe PMC
+EUROPEPMC_BASE_URL: str = os.getenv("EUROPEPMC_BASE_URL", "https://www.ebi.ac.uk/europepmc/webservices/rest")
+EUROPEPMC_RATE_LIMIT: float = float(os.getenv("EUROPEPMC_RATE_LIMIT", "1.0"))
+
+# Publication-type 필터 토글
+STRICT_PUBLICATION_FILTER: bool = os.getenv("STRICT_PUBLICATION_FILTER", "false").lower() == "true"
