@@ -168,6 +168,34 @@ cd app && npm test
       fitness_goal: str
   ```
 
+### ✅ D-M8 확정 — 나이 입력을 생년월일(`birth_date`)로 전환
+- 결정 배경: 나이는 매년 변하는 비정상성(non-stationary) 값. `birth_date`를 한 번 저장해 두고 응답 시점에 계산하면 매년 자동 갱신.
+- DB:
+  - `user_profiles.birth_date` `DATE NOT NULL` 추가 (Alembic 마이그레이션)
+  - 기존 `age` 컬럼은 신규 컬럼 안착 후 후속 마이그레이션에서 drop
+- 응답 시점 계산: `EXTRACT(YEAR FROM AGE(NOW(), birth_date))::int AS age`
+- API 영향 (2개):
+  - `POST /api/v1/auth/register` body: `age: int` 제거, `birth_date: "YYYY-MM-DD"` 추가
+  - `PATCH /api/v1/users/me/body` body: `age` 필드 제거 (생년월일은 register 시 1회만 입력)
+- 응답 DTO는 매번 `age`를 계산해서 함께 반환 (기존 클라이언트 호환)
+
+### ✅ D-M9 확정 — 루틴/세션의 `gym_id` 통합
+- 결정 배경: 사용자가 집·회사·여행지 헬스장을 번갈아 사용하며 각 헬스장의 가용 기구가 다르므로 루틴은 gym에 종속되어야 한다.
+- DB: `workout_routines.gym_id` `UUID NOT NULL` 추가 (`gyms.id` FK)
+- API 영향 (7개, 모든 필드 snake_case):
+  - `POST /routines/generate` — body `gym_id` 필수. 해당 gym의 `gym_equipments`를 AI 컨텍스트로 사용
+  - `GET /routines` — query `?gym_id=` 필터. 응답 각 루틴에 `gym_id`/`gym_name`
+  - `GET /routines/{routine_id}` — 응답에 `gym: { gym_id, name }`
+  - `PATCH /routines/{routine_id}/exercises/{exercise_id}` — 대체 기구는 해당 루틴의 `gym_id`에 속한 기구만 허용 (서버 검증)
+  - `POST /sessions` — body `gym_id` 선택. 생략 시 routine의 `gym_id`를 서버가 자동 복사
+  - `GET /sessions/stats` — 응답에 `by_gym[]` 집계 추가
+  - `GET /home` — 응답을 `routines_at_current_gym` / `routines_at_other_gyms`로 분리
+
+### ✅ D-M10 확정 — AI 인사이트 카드 이번 학기 폐기
+- 결정 배경: `screens.md`에 색상 토큰만 정의돼 있고 백엔드 endpoint·LLM 흐름이 없음. 이번 학기에 추가 LLM 통합을 늘릴 여력이 없으므로 폐기.
+- 화면: AI 인사이트 카드 자리는 정적 텍스트로 대체하거나 미구현 상태 유지 (W-M01 메인 화면 영향)
+- 디자인 토큰 `#F0E6FF`는 차후 재활용 가능성을 위해 §14에 보존
+
 ---
 
 ## 7. API 설계 규칙
