@@ -852,8 +852,14 @@ class TestAttachFulltext:
 
         metas = [
             PaperMeta(
-                pmid="42", title="t", authors="", journal="", published_year=2020,
-                doi="10.1/x", abstract="", pmcid=None,
+                pmid="42",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/x",
+                abstract="",
+                pmcid=None,
             )
         ]
         _attach_fulltext(metas)
@@ -888,8 +894,14 @@ class TestAttachFulltext:
 
         metas = [
             PaperMeta(
-                pmid="9", title="t", authors="", journal="", published_year=2020,
-                doi="10.1/x", abstract="", pmcid=None,
+                pmid="9",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/x",
+                abstract="",
+                pmcid=None,
             )
         ]
         _attach_fulltext(metas)
@@ -921,8 +933,14 @@ class TestAttachFulltext:
 
         metas = [
             PaperMeta(
-                pmid="", title="t", authors="", journal="", published_year=2020,
-                doi="10.1/x", abstract="", pmcid=None,
+                pmid="",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/x",
+                abstract="",
+                pmcid=None,
             )
         ]
         _attach_fulltext(metas)
