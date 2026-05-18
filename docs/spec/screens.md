@@ -38,5 +38,5 @@
 - 폰트: Pretendard
 - Primary 버튼: #000000, r=8, h=44
 - 입력 필드: h=40, bg=#F7F7F7, border=#CCC, r=6
-- AI 인사이트: #F0E6FF
+- AI 인사이트: #F0E6FF (D-M10 — 이번 학기 폐기, 토큰만 보존)
 - 1RM dot: 벤치🔵 스쿼트🟢 데드🟠
