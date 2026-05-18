@@ -663,3 +663,130 @@ class TestPublicationFilterToggle:
             assert "randomized controlled trial" in result.lower()
             assert "meta-analysis" in result.lower()
             assert "free full text" in result.lower()
+
+
+class TestAttachFulltext:
+    """_attach_fulltext가 cascading 결과를 PaperMeta에 정확히 반영하는지."""
+
+    def test_success_path_sets_source_and_sections(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta, PaperSection
+
+        called_with = {}
+
+        def fake_fetch_cascading(*, pmcid, pmid, doi, pmc_client, europepmc_client):
+            called_with.update(pmcid=pmcid, pmid=pmid, doi=doi)
+            return CascadingFulltextResult(
+                fulltext_source="pmc",
+                tried_sources=["pmc"],
+                sections=[PaperSection(name="Intro", content="x" * 50)],
+                had_transient_error=False,
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [PaperMeta(
+            pmid="999", title="t", authors="", journal="", published_year=2020,
+            doi="10.1/abc", abstract="", pmcid="PMC1",
+        )]
+        papers = _attach_fulltext(metas)
+
+        assert called_with == {"pmcid": "PMC1", "pmid": "999", "doi": "10.1/abc"}
+        assert len(papers) == 1
+        assert papers[0].meta.fulltext_source == "pmc"
+        assert len(papers[0].sections) == 1
+        assert papers[0].sections[0].name == "Intro"
+
+    def test_all_sources_fail_keeps_none(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        def fake_fetch_cascading(**_):
+            return CascadingFulltextResult(
+                fulltext_source=None,
+                tried_sources=["pmc", "europepmc"],
+                sections=[],
+                had_transient_error=False,
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [PaperMeta(
+            pmid="1", title="t", authors="", journal="", published_year=2020,
+            doi="10.1/x", abstract="",
+        )]
+        papers = _attach_fulltext(metas)
+        assert papers[0].meta.fulltext_source is None
+        assert papers[0].sections == []
+
+    def test_empty_metas_returns_empty(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        assert _attach_fulltext([]) == []
+
+    def test_pmcid_none_passed_through(self, monkeypatch):
+        """meta.pmcid가 None이면 fetch_cascading에 None 전달."""
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        captured = {}
+
+        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
+            captured["pmcid"] = pmcid
+            return CascadingFulltextResult(
+                fulltext_source=None, tried_sources=[],
+                sections=[], had_transient_error=False,
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [PaperMeta(pmid="1", title="t", authors="", journal="",
+                           published_year=2020, doi="10.1/x", abstract="", pmcid=None)]
+        _attach_fulltext(metas)
+        assert captured["pmcid"] is None
+
+
+class TestMaxPerCategoryOverride:
+    """max_per_category 명시 시 OpenAlex/PubMed cap 양쪽에 적용되는지 검증."""
+
+    def test_max_per_category_overrides_default(self, monkeypatch):
+        import mlops.pipeline.crawler as crawler_mod
+
+        captured = {}
+
+        def fake_oa(name, max_results):
+            captured["openalex_max"] = max_results
+            return []
+
+        def fake_pmid(query, retmax, *_):
+            captured["pubmed_max"] = retmax
+            return []
+
+        monkeypatch.setattr(crawler_mod, "search_openalex_by_category", fake_oa)
+        monkeypatch.setattr(crawler_mod, "search_pmids", fake_pmid)
+        monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda _: [])
+        monkeypatch.setattr(crawler_mod, "_attach_fulltext", lambda metas: [])
+
+        crawler_mod.crawl_papers(max_per_category=7, fetch_fulltext=False)
+        assert captured["openalex_max"] == 7
+        assert captured["pubmed_max"] == 7

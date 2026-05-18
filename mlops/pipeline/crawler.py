@@ -1302,7 +1302,8 @@ def crawl_papers(
             strict=True면 PubMed 보조 검색에 STRICT_PUBLICATION_FILTER 환경변수가
             True일 때만 strict 필터를 적용한다. 환경변수 False면 strict 인자 무시.
             None이면 SEARCH_QUERY_CATEGORIES를 (name, query, strict=True) 형태로 변환해 사용.
-        max_per_category: PubMed 카테고리당 검색 상한 (현재 미사용 — PUBMED_MAX_PER_CATEGORY 사용).
+        max_per_category: 카테고리당 검색 상한. 지정하면 OpenAlex/PubMed 양쪽 cap을 override.
+            None이면 OPENALEX_MAX_PER_CATEGORY / PUBMED_MAX_PER_CATEGORY 기본값 사용.
         max_total: 전체 DOI 수집 상한 (카테고리 다양성 유지하며 cap).
         min_date / max_date: PubMed pdat 필터 (YYYY/MM/DD).
         fetch_fulltext: cascading fulltext 수집 여부 (테스트에서 False로 끔).
@@ -1316,7 +1317,8 @@ def crawl_papers(
         # 기존 SEARCH_QUERY_CATEGORIES의 filter_level은 strict/semi/loose가 있지만,
         # Task 10에서는 strict 토글로 단일화 — strict 의도가 있는 카테고리만 True.
         queries = [(name, query, level != "loose") for name, query, level in SEARCH_QUERY_CATEGORIES]
-    max_per_category = max_per_category or MAX_PAPERS_PER_CATEGORY  # noqa: F841 - 호환성용
+    openalex_max = max_per_category if max_per_category is not None else OPENALEX_MAX_PER_CATEGORY
+    pubmed_max = max_per_category if max_per_category is not None else PUBMED_MAX_PER_CATEGORY
     max_total = max_total or MAX_PAPERS_PER_RUN
     existing = existing_dois or set()
 
@@ -1327,7 +1329,7 @@ def crawl_papers(
         # OpenAlex 메인 검색
         try:
             openalex_results = search_openalex_by_category(
-                name, max_results=OPENALEX_MAX_PER_CATEGORY,
+                name, max_results=openalex_max,
             )
         except Exception as e:
             logger.warning("OpenAlex 카테고리 '%s' 검색 실패: %s", name, e)
@@ -1336,7 +1338,7 @@ def crawl_papers(
         # PubMed 보조 검색 (publication_types + PMID 보강)
         full_query = pubmed_query + (publication_filter if strict else "")
         try:
-            pmids = search_pmids(full_query, PUBMED_MAX_PER_CATEGORY, min_date, max_date)
+            pmids = search_pmids(full_query, pubmed_max, min_date, max_date)
             pubmed_metas = fetch_paper_metadata(pmids) if pmids else []
         except Exception as e:
             logger.warning("PubMed 카테고리 '%s' 검색 실패: %s", name, e)
