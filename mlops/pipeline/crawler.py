@@ -20,7 +20,6 @@ import requests
 from mlops.pipeline.config import (
     EUROPEPMC_BASE_URL,
     EUROPEPMC_RATE_LIMIT,
-    MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
@@ -721,7 +720,7 @@ def _fulltext_retry_backoff(attempt: int) -> float:
 
 def search_pmids(
     query: str,
-    max_results: int = MAX_PAPERS_PER_CATEGORY,
+    max_results: int = PUBMED_MAX_PER_CATEGORY,
     min_date: str | None = None,
     max_date: str | None = None,
 ) -> list[str]:
@@ -1297,8 +1296,28 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
 
     papers: list[PaperFull] = []
     for meta in metas:
+        # PMC 시도 전 PMCID 보강. OpenAlex 메타만 `ids.pmcid`를 일부 채우고,
+        # PubMed efetch는 pmcid를 추출하지 않는다. pmcid가 비어 있고 PMID가
+        # 있으면 elink(PMID→PMCID)로 변환을 시도해 PMC fetch가 가능하도록 한다.
+        # 이 fallback이 없으면 `fetch_cascading`이 PMC 단계를 완전히 스킵하고
+        # EuropePMC만 시도해 OA 미보유 paper의 회수율이 0에 가까워진다.
+        pmcid = meta.pmcid
+        if not pmcid and meta.pmid:
+            try:
+                resolved = _resolve_pmc_id(meta.pmid)
+            except RuntimeError as e:
+                logger.debug(
+                    "PMC elink 한도 초과 → EuropePMC fallback: PMID=%s err=%s",
+                    meta.pmid,
+                    e,
+                )
+            else:
+                if resolved:
+                    pmcid = resolved
+                    meta.pmcid = resolved  # manifest 기록에도 반영
+
         result = fetch_cascading(
-            pmcid=meta.pmcid,
+            pmcid=pmcid,
             pmid=meta.pmid or None,
             doi=meta.doi,
             pmc_client=pmc_client,
