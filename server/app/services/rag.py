@@ -48,20 +48,32 @@ from llm import generate as llm_generate  # noqa: E402, I001
 
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
-    """상대 경로를 프로젝트 루트 기준 절대 경로로 변환한다."""
+    """ChromaDB 데이터 경로를 결정한다.
+
+    컨테이너 환경(/chroma-data 마운트)과 로컬 개발 환경(WSL/macOS)을 자동 분기한다:
+    - 절대 경로: 쓰기 가능하면 그대로 사용, 권한 없으면 프로젝트 루트의 chroma-data로 fallback
+    - 상대 경로: 프로젝트 루트 기준으로 변환
+    """
     raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
     p = Path(raw)
     if p.is_absolute():
-        return str(p)
+        if p.exists() and os.access(p, os.W_OK):
+            return str(p)
+        fallback = _PROJECT_ROOT / "chroma-data"
+        logger.warning("CHROMA_PERSIST_PATH=%s 접근 불가, 로컬 경로 %s로 fallback", raw, fallback)
+        return str(fallback)
     return str(_PROJECT_ROOT / raw.lstrip("./").lstrip("\\"))
 
 
 CHROMA_PERSIST_PATH = _resolve_chroma_path()
 CHROMA_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
-BGE_INSTRUCTION = "Represent this document for retrieval: "
+BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 TOP_K = 10
 SIMILARITY_THRESHOLD = 0.70
+# Task 13: evidence_weight 가중치 정렬
+OVER_FETCH_MULTIPLIER = 3
+DEFAULT_EVIDENCE_WEIGHT = 0.50
 
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
 _chroma_collection = None
@@ -96,8 +108,66 @@ def _get_embed_model():
 # ── 핵심 함수 ─────────────────────────────────────────────────
 
 
+def _sanitize_query(text: str) -> str:
+    """UTF-8로 인코딩 불가한 surrogate 문자(U+D800–U+DFFF)를 제거한다.
+
+    WSL/Windows 콘솔의 input()이 일부 한글을 lone surrogate로 반환하는 경우
+    sentence-transformers tokenizer가 TypeError("TextEncodeInput must be ...")를 던진다.
+    Gemini API도 surrogate 포함 문자열을 거부하므로 임베딩·번역 진입 전 일괄 정화한다.
+    """
+    return text.encode("utf-8", errors="ignore").decode("utf-8").strip()
+
+
+def _rank_by_evidence_weight(
+    raw_results: list[dict],
+    *,
+    similarity_threshold: float = SIMILARITY_THRESHOLD,
+) -> list[dict]:
+    """raw_results를 evidence_weight 가중 점수로 정렬한다 (Task 13).
+
+    Args:
+        raw_results: 각 항목은 ``{"distance": float, "metadata": dict, "document": str}``
+        similarity_threshold: raw similarity 컷오프 (가중 점수가 아닌 원본 유사도 기준).
+            약한 evidence_weight 청크라도 유사도가 충분히 높으면 통과시키기 위함.
+
+    Returns:
+        [{
+            "score": similarity × evidence_weight,
+            "similarity": float,
+            "weight": float,
+            "metadata": dict,
+            "document": str,
+        }] — score 내림차순.
+    """
+    ranked: list[dict] = []
+    for r in raw_results:
+        similarity = 1.0 - float(r["distance"])
+        meta = r.get("metadata") or {}
+        raw_weight = meta.get("evidence_weight", DEFAULT_EVIDENCE_WEIGHT)
+        try:
+            weight = float(raw_weight) if raw_weight is not None else DEFAULT_EVIDENCE_WEIGHT
+        except (TypeError, ValueError):
+            weight = DEFAULT_EVIDENCE_WEIGHT
+        ranked.append(
+            {
+                "score": similarity * weight,
+                "similarity": similarity,
+                "weight": weight,
+                "metadata": meta,
+                "document": r.get("document", ""),
+            }
+        )
+    ranked = [r for r in ranked if r["similarity"] >= similarity_threshold]
+    ranked.sort(key=lambda x: x["score"], reverse=True)
+    return ranked
+
+
 def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     """쿼리를 임베딩하여 ChromaDB에서 유사 청크를 검색한다.
+
+    Task 13: ``top_k × OVER_FETCH_MULTIPLIER`` 만큼 over-fetch 한 뒤
+    ``similarity × evidence_weight`` 가중 점수로 재정렬하고 상위 ``top_k`` 만 반환한다.
+    threshold 필터는 raw similarity 기준으로 유지.
 
     Args:
         query: 검색 쿼리 (영어 권장)
@@ -106,42 +176,55 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     Returns:
         [{"content": str, "pmid": str, "title": str, "section": str, "score": float}]
     """
+    query = _sanitize_query(query)
+    if not query:
+        return []
+
     model = _get_embed_model()
     collection = _get_collection()
 
-    query_vec = model.encode(BGE_INSTRUCTION + query).tolist()
+    query_vec = model.encode(BGE_QUERY_INSTRUCTION + query).tolist()
+    fetch_n = top_k * OVER_FETCH_MULTIPLIER
     results = collection.query(
         query_embeddings=[query_vec],
-        n_results=top_k,
+        n_results=fetch_n,
         include=["documents", "metadatas", "distances"],
     )
 
-    chunks = []
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-        strict=False,
-    ):
-        # ChromaDB cosine distance → similarity (1 - distance)
-        score = 1 - dist
-        if score >= SIMILARITY_THRESHOLD:
-            chunks.append(
-                {
-                    "content": doc,
-                    "pmid": meta.get("paper_pmid", ""),
-                    "title": meta.get("paper_title", ""),
-                    "section": meta.get("section_name", ""),
-                    "score": round(score, 4),
-                }
-            )
+    raw_items: list[dict] = [
+        {"distance": dist, "metadata": meta, "document": doc}
+        for doc, meta, dist in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+            strict=False,
+        )
+    ]
+    ranked = _rank_by_evidence_weight(raw_items, similarity_threshold=SIMILARITY_THRESHOLD)
 
-    logger.info("검색 결과: %d개 (threshold=%.2f 이상)", len(chunks), SIMILARITY_THRESHOLD)
+    chunks = [
+        {
+            "content": r["document"],
+            "pmid": (r["metadata"] or {}).get("paper_pmid", ""),
+            "title": (r["metadata"] or {}).get("paper_title", ""),
+            "section": (r["metadata"] or {}).get("section_name", ""),
+            "score": round(r["score"], 4),
+        }
+        for r in ranked[:top_k]
+    ]
+
+    logger.info(
+        "검색 결과: %d개 (fetched=%d, threshold=%.2f, weighted)",
+        len(chunks),
+        len(raw_items),
+        SIMILARITY_THRESHOLD,
+    )
     return chunks
 
 
 def translate_to_english(text: str) -> str:
     """한국어 텍스트를 영어로 번역한다. 실패 시 원문을 반환한다."""
+    text = _sanitize_query(text)
     korean_chars = sum(1 for c in text if "가" <= c <= "힣")
     if korean_chars < 3:
         return text  # 영어면 번역 불필요
@@ -171,6 +254,10 @@ def chat_rag(question: str) -> dict:
             "sources": [{"pmid": str, "title": str, "section": str}]
         }
     """
+    question = _sanitize_query(question)
+    if not question:
+        return {"answer": "질문을 인식할 수 없습니다. 다시 입력해 주세요.", "sources": []}
+
     # 1. 한→영 번역 (실패 시 원문 사용)
     query_en = translate_to_english(question)
 

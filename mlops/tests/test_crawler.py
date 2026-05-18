@@ -1,6 +1,6 @@
 """crawler 모듈 단위 테스트.
 
-PubMed API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
+PubMed/OpenAlex API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
 """
 
 import xml.etree.ElementTree as ET
@@ -9,11 +9,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 from mlops.pipeline.crawler import (
+    CATEGORY_OPENALEX_MAPPING,
+    SEARCH_QUERY_CATEGORIES,
+    _fetch_pmc_sections,
     _get_text,
+    _merge_by_doi,
     _parse_pmc_sections,
     _parse_pubmed_article,
     _request_with_rate_limit,
+    _resolve_pmc_id,
     _round_robin_dedup,
+    _round_robin_dedup_metas,
+    fetch_pmc_fulltext,
     search_pmids,
 )
 from mlops.pipeline.models import PaperMeta
@@ -303,10 +310,36 @@ class TestRequestWithRateLimit:
     @patch("mlops.pipeline.crawler.requests.get")
     def test_raises_after_max_retries(self, mock_get, _mock_sleep):
         mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
-        # max_retries=3 (default) → 3회 시도 후 마지막 예외 raise
+        # 명시적 max_retries=3로 동작 검증 (default는 5로 상향)
+        with pytest.raises(requests.exceptions.ChunkedEncodingError):
+            _request_with_rate_limit("http://x", {}, max_retries=3)
+        assert mock_get.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_default_max_retries_is_five(self, mock_get, _mock_sleep):
+        """fulltext 회수율을 위해 HTTP layer 기본 retry 횟수를 5로 상향한 상태."""
+        mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
         with pytest.raises(requests.exceptions.ChunkedEncodingError):
             _request_with_rate_limit("http://x", {})
-        assert mock_get.call_count == 3
+        assert mock_get.call_count == 5
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler.requests.get")
+    def test_backoff_is_capped(self, mock_get, _mock_sleep):
+        """지수 백오프가 무한 증가하지 않고 NCBI_HTTP_MAX_BACKOFF로 cap된다."""
+        from mlops.pipeline import crawler as _crawler
+
+        mock_get.side_effect = requests.exceptions.ChunkedEncodingError("persistent")
+        with pytest.raises(requests.exceptions.ChunkedEncodingError):
+            _request_with_rate_limit("http://x", {})
+        # attempt 1+ 의 sleep 호출들 (attempt 0은 NCBI_RATE_LIMIT만 sleep)
+        # 모든 backoff sleep이 NCBI_HTTP_MAX_BACKOFF 이하인지 확인
+        backoff_sleeps = [
+            call.args[0] for call in _mock_sleep.call_args_list if call.args and call.args[0] > _crawler.NCBI_RATE_LIMIT
+        ]
+        assert backoff_sleeps  # 적어도 1개 이상의 backoff sleep이 있어야 함
+        assert all(s <= _crawler.NCBI_HTTP_MAX_BACKOFF for s in backoff_sleeps)
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler.requests.get")
@@ -337,3 +370,473 @@ class TestRequestWithRateLimit:
         result = _request_with_rate_limit("http://x", {})
         assert result is good_resp
         assert mock_get.call_count == 2
+
+
+class TestResolvePmcId:
+    """`_resolve_pmc_id` 함수 레벨 재시도 동작 검증.
+
+    HTTP 200인데 JSON body가 깨진 케이스(NCBI 일시 장애로 실측 발생)는
+    `_request_with_rate_limit`의 retry로는 못 잡으므로 함수 레벨 retry로 대응한다.
+    """
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_pmc_id_on_success(self, mock_request, _mock_sleep):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]}
+        mock_request.return_value = mock_resp
+
+        result = _resolve_pmc_id("12345")
+        assert result == "99999"
+        assert mock_request.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_none_when_no_pmc_version(self, mock_request, _mock_sleep):
+        """PMC 버전이 없으면 None 반환 — retry 안 함."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"linksets": [{"linksetdbs": []}]}
+        mock_request.return_value = mock_resp
+
+        result = _resolve_pmc_id("12345")
+        assert result is None
+        assert mock_request.call_count == 1  # retry 무의미하므로 1번만 호출
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retries_on_json_decode_error_then_succeeds(self, mock_request, _mock_sleep):
+        """HTTP 200인데 JSON 깨진 케이스 → 재시도 후 성공."""
+        bad_resp = MagicMock()
+        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        good_resp = MagicMock()
+        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [88888]}]}]}
+        mock_request.side_effect = [bad_resp, good_resp]
+
+        result = _resolve_pmc_id("12345")
+        assert result == "88888"
+        assert mock_request.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_raises_runtime_error_after_exhausting_retries(self, mock_request, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        mock_request.return_value = bad_resp
+
+        with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
+            _resolve_pmc_id("12345", max_attempts=3)
+        assert mock_request.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retries_on_http_failure_then_succeeds(self, mock_request, _mock_sleep):
+        """HTTP layer가 모든 retry 실패해 RequestException 던지면 함수 레벨에서 한 번 더 시도."""
+        good_resp = MagicMock()
+        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]}
+        mock_request.side_effect = [
+            requests.exceptions.ChunkedEncodingError("body cut"),
+            good_resp,
+        ]
+
+        result = _resolve_pmc_id("12345")
+        assert result == "77777"
+        assert mock_request.call_count == 2
+
+
+class TestFetchPmcSections:
+    """`_fetch_pmc_sections` 함수 레벨 재시도 동작 검증.
+
+    HTTP 200인데 XML body가 깨진 케이스 — `ET.ParseError`로 함수 레벨 retry.
+    """
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_sections_on_success(self, mock_request, _mock_sleep):
+        good_resp = MagicMock()
+        good_resp.content = SAMPLE_PMC_XML.strip().encode()
+        mock_request.return_value = good_resp
+
+        sections = _fetch_pmc_sections("12345", "PMC99999")
+        assert len(sections) == 2
+        assert sections[0].name == "Introduction"
+        assert mock_request.call_count == 1
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retries_on_xml_parse_error_then_succeeds(self, mock_request, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.content = b"<malformed xml<<>"
+        good_resp = MagicMock()
+        good_resp.content = SAMPLE_PMC_XML.strip().encode()
+        mock_request.side_effect = [bad_resp, good_resp]
+
+        sections = _fetch_pmc_sections("12345", "PMC99999")
+        assert len(sections) == 2
+        assert mock_request.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_raises_runtime_error_after_exhausting_retries(self, mock_request, _mock_sleep):
+        bad_resp = MagicMock()
+        bad_resp.content = b"<malformed xml<<>"
+        mock_request.return_value = bad_resp
+
+        with pytest.raises(RuntimeError, match="efetch 재시도 한도 초과"):
+            _fetch_pmc_sections("12345", "PMC99999", max_attempts=3)
+        assert mock_request.call_count == 3
+
+
+class TestFetchPmcFulltext:
+    """`fetch_pmc_fulltext` end-to-end 흐름: PMC 버전 없음 vs 정상 vs 실패."""
+
+    @patch("mlops.pipeline.crawler._fetch_pmc_sections")
+    @patch("mlops.pipeline.crawler._resolve_pmc_id")
+    def test_returns_empty_when_no_pmc_version(self, mock_resolve, mock_fetch):
+        mock_resolve.return_value = None
+
+        result = fetch_pmc_fulltext("12345")
+        assert result == []
+        mock_fetch.assert_not_called()
+
+    @patch("mlops.pipeline.crawler._fetch_pmc_sections")
+    @patch("mlops.pipeline.crawler._resolve_pmc_id")
+    def test_full_pipeline_success(self, mock_resolve, mock_fetch):
+        from mlops.pipeline.models import PaperSection
+
+        mock_resolve.return_value = "PMC99999"
+        mock_fetch.return_value = [PaperSection(name="Introduction", content="test")]
+
+        result = fetch_pmc_fulltext("12345")
+        assert len(result) == 1
+        assert result[0].name == "Introduction"
+        mock_fetch.assert_called_once_with("12345", "PMC99999")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task 10: OpenAlex 통합 + DOI 기반 dedup + 필터 토글
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestMergeByDoi:
+    """`_merge_by_doi`: 동일 DOI는 OpenAlex 메타 우선 + PubMed로 pmid/publication_types 보강."""
+
+    def test_merge_by_doi_prefers_openalex(self):
+        oa = PaperMeta(
+            pmid="",
+            title="oa",
+            authors="",
+            journal="oa-journal",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="oa-abs",
+            publication_types=["Randomized Controlled Trial"],
+        )
+        pm = PaperMeta(
+            pmid="99",
+            title="pm",
+            authors="",
+            journal="pm-journal",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="pm-abs",
+            publication_types=[],
+        )
+
+        merged = _merge_by_doi([oa], [pm])
+        assert len(merged) == 1
+        assert merged[0].title == "oa"
+        assert merged[0].journal == "oa-journal"
+        assert merged[0].pmid == "99"  # PubMed가 PMID 보강
+        assert merged[0].publication_types == ["Randomized Controlled Trial"]
+
+    def test_merge_by_doi_pubmed_fills_publication_types(self):
+        """OpenAlex가 publication_types 비어있으면 PubMed 값으로 보강."""
+        oa = PaperMeta(
+            pmid="",
+            title="oa",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="",
+            publication_types=[],
+        )
+        pm = PaperMeta(
+            pmid="99",
+            title="pm",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/x",
+            abstract="",
+            publication_types=["Meta-Analysis"],
+        )
+
+        merged = _merge_by_doi([oa], [pm])
+        assert len(merged) == 1
+        assert merged[0].publication_types == ["Meta-Analysis"]
+
+    def test_merge_by_doi_pubmed_only_paper_passes_through(self):
+        """OpenAlex에 없는 DOI는 PubMed 메타가 그대로 통과."""
+        pm = PaperMeta(
+            pmid="99",
+            title="pm",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/y",
+            abstract="",
+            publication_types=["Meta-Analysis"],
+        )
+        merged = _merge_by_doi([], [pm])
+        assert len(merged) == 1
+        assert merged[0].doi == "10.1/y"
+        assert merged[0].pmid == "99"
+
+    def test_merge_by_doi_skips_pubmed_without_doi(self):
+        """DOI 없는 PubMed 메타는 폐기 (DOI primary key 정책)."""
+        pm = PaperMeta(pmid="99", title="pm", doi="", abstract="")
+        merged = _merge_by_doi([], [pm])
+        assert merged == []
+
+
+class TestRoundRobinDedupMetas:
+    """`_round_robin_dedup_metas`: DOI 기반 round-robin dedup."""
+
+    @staticmethod
+    def _m(doi: str) -> PaperMeta:
+        return PaperMeta(
+            pmid="",
+            title="t",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi=doi,
+            abstract="",
+        )
+
+    def test_round_robin_keeps_category_diversity(self):
+        per_cat = [
+            ("volume", [self._m("10.1/a"), self._m("10.1/b"), self._m("10.1/c")]),
+            ("intensity", [self._m("10.1/d"), self._m("10.1/a")]),
+        ]
+        order, by_cat, by_doi = _round_robin_dedup_metas(per_cat, set(), 10)
+
+        assert "10.1/a" in by_doi
+        # round 0 → volume에서 a, intensity에서 d / round 1 → b, intensity의 a(메타 추가)
+        assert by_cat["10.1/a"] == {"volume", "intensity"}
+        assert order == ["10.1/a", "10.1/d", "10.1/b", "10.1/c"]
+
+    def test_round_robin_respects_max_total(self):
+        per_cat = [
+            ("volume", [self._m("10.1/a"), self._m("10.1/b"), self._m("10.1/c")]),
+            ("intensity", [self._m("10.1/d"), self._m("10.1/e")]),
+        ]
+        order, _, by_doi = _round_robin_dedup_metas(per_cat, set(), 3)
+        assert len(by_doi) == 3
+        assert len(order) == 3
+
+    def test_round_robin_excludes_existing_dois(self):
+        per_cat = [("volume", [self._m("10.1/a"), self._m("10.1/b")])]
+        order, _, by_doi = _round_robin_dedup_metas(per_cat, {"10.1/a"}, 10)
+        assert "10.1/a" not in by_doi
+        assert "10.1/b" in by_doi
+        assert order == ["10.1/b"]
+
+    def test_round_robin_skips_metas_without_doi(self):
+        """DOI 없는 메타는 무조건 폐기."""
+        per_cat = [("volume", [self._m(""), self._m("10.1/a")])]
+        order, _, by_doi = _round_robin_dedup_metas(per_cat, set(), 10)
+        assert order == ["10.1/a"]
+        assert "" not in by_doi
+
+    def test_round_robin_empty(self):
+        order, by_cat, by_doi = _round_robin_dedup_metas([], set(), 10)
+        assert order == []
+        assert by_cat == {}
+        assert by_doi == {}
+
+
+class TestCategoryOpenAlexMapping:
+    def test_mapping_covers_all_search_query_categories(self):
+        """SEARCH_QUERY_CATEGORIES의 모든 카테고리가 CATEGORY_OPENALEX_MAPPING에 존재해야 함."""
+        sq_names = {name for name, _, _ in SEARCH_QUERY_CATEGORIES}
+        mapping_names = set(CATEGORY_OPENALEX_MAPPING.keys())
+        missing = sq_names - mapping_names
+        assert not missing, f"누락 카테고리: {missing}"
+
+    def test_mapping_entries_have_required_keys(self):
+        """모든 매핑 엔트리는 concept_ids + keywords 키를 가져야 함."""
+        for name, cfg in CATEGORY_OPENALEX_MAPPING.items():
+            assert "concept_ids" in cfg, f"{name}에 concept_ids 누락"
+            assert "keywords" in cfg, f"{name}에 keywords 누락"
+            assert isinstance(cfg["concept_ids"], list)
+            assert isinstance(cfg["keywords"], list)
+            # 적어도 keyword 1개는 있어야 검색이 의미 있다
+            assert cfg["keywords"], f"{name}에 keyword 1개도 없음"
+
+
+class TestPublicationFilterToggle:
+    """STRICT_PUBLICATION_FILTER 환경변수 토글."""
+
+    def test_filter_toggle_off_returns_empty(self):
+        import mlops.pipeline.crawler as crawler_mod
+
+        with patch.object(crawler_mod, "STRICT_PUBLICATION_FILTER", False):
+            assert crawler_mod.get_publication_filter() == ""
+
+    def test_filter_toggle_on_returns_strict(self):
+        import mlops.pipeline.crawler as crawler_mod
+
+        with patch.object(crawler_mod, "STRICT_PUBLICATION_FILTER", True):
+            result = crawler_mod.get_publication_filter()
+            assert "randomized controlled trial" in result.lower()
+            assert "meta-analysis" in result.lower()
+            assert "free full text" in result.lower()
+
+
+class TestAttachFulltext:
+    """_attach_fulltext가 cascading 결과를 PaperMeta에 정확히 반영하는지."""
+
+    def test_success_path_sets_source_and_sections(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta, PaperSection
+
+        called_with = {}
+
+        def fake_fetch_cascading(*, pmcid, pmid, doi, pmc_client, europepmc_client):
+            called_with.update(pmcid=pmcid, pmid=pmid, doi=doi)
+            return CascadingFulltextResult(
+                fulltext_source="pmc",
+                tried_sources=["pmc"],
+                sections=[PaperSection(name="Intro", content="x" * 50)],
+                had_transient_error=False,
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [
+            PaperMeta(
+                pmid="999",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/abc",
+                abstract="",
+                pmcid="PMC1",
+            )
+        ]
+        papers = _attach_fulltext(metas)
+
+        assert called_with == {"pmcid": "PMC1", "pmid": "999", "doi": "10.1/abc"}
+        assert len(papers) == 1
+        assert papers[0].meta.fulltext_source == "pmc"
+        assert len(papers[0].sections) == 1
+        assert papers[0].sections[0].name == "Intro"
+
+    def test_all_sources_fail_keeps_none(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        def fake_fetch_cascading(**_):
+            return CascadingFulltextResult(
+                fulltext_source=None,
+                tried_sources=["pmc", "europepmc"],
+                sections=[],
+                had_transient_error=False,
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [
+            PaperMeta(
+                pmid="1",
+                title="t",
+                authors="",
+                journal="",
+                published_year=2020,
+                doi="10.1/x",
+                abstract="",
+            )
+        ]
+        papers = _attach_fulltext(metas)
+        assert papers[0].meta.fulltext_source is None
+        assert papers[0].sections == []
+
+    def test_empty_metas_returns_empty(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        assert _attach_fulltext([]) == []
+
+    def test_pmcid_none_passed_through(self, monkeypatch):
+        """meta.pmcid가 None이면 fetch_cascading에 None 전달."""
+        from unittest.mock import MagicMock
+
+        from mlops.pipeline.crawler import _attach_fulltext
+        from mlops.pipeline.fulltext import CascadingFulltextResult
+        from mlops.pipeline.models import PaperMeta
+
+        captured = {}
+
+        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
+            captured["pmcid"] = pmcid
+            return CascadingFulltextResult(
+                fulltext_source=None,
+                tried_sources=[],
+                sections=[],
+                had_transient_error=False,
+            )
+
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+
+        metas = [
+            PaperMeta(
+                pmid="1", title="t", authors="", journal="", published_year=2020, doi="10.1/x", abstract="", pmcid=None
+            )
+        ]
+        _attach_fulltext(metas)
+        assert captured["pmcid"] is None
+
+
+class TestMaxPerCategoryOverride:
+    """max_per_category 명시 시 OpenAlex/PubMed cap 양쪽에 적용되는지 검증."""
+
+    def test_max_per_category_overrides_default(self, monkeypatch):
+        import mlops.pipeline.crawler as crawler_mod
+
+        captured = {}
+
+        def fake_oa(name, max_results):
+            captured["openalex_max"] = max_results
+            return []
+
+        def fake_pmid(query, retmax, *_):
+            captured["pubmed_max"] = retmax
+            return []
+
+        monkeypatch.setattr(crawler_mod, "search_openalex_by_category", fake_oa)
+        monkeypatch.setattr(crawler_mod, "search_pmids", fake_pmid)
+        monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda _: [])
+        monkeypatch.setattr(crawler_mod, "_attach_fulltext", lambda metas: [])
+
+        crawler_mod.crawl_papers(max_per_category=7, fetch_fulltext=False)
+        assert captured["openalex_max"] == 7
+        assert captured["pubmed_max"] == 7
