@@ -10,7 +10,7 @@
 |---|---|
 | 29개 카테고리 round-robin 분배 (FIFO cap 회피) | `pytest mlops/tests/test_crawler.py::TestRoundRobinDedup` 8건 |
 | transient NCBI 에러 재시도 (ChunkedEncoding/5xx/429, 기본 5회 backoff cap 10s) | `pytest .../TestRequestWithRateLimit` 9건, 실측 PMC 성공률 0/3→2/3 |
-| HTTP 200 + 깨진 JSON/XML body 재시도 (fulltext 함수 layer, 기본 3회) | `pytest .../TestResolvePmcId` 5건, `TestFetchPmcSections` 3건, 실측 50편 dry-run에서 fulltext 회수율 92% (46/50) |
+| HTTP 200 + 깨진 JSON/XML body 재시도 (fulltext 함수 layer, 기본 5회) | `pytest .../TestResolvePmcId` 5건, `TestFetchPmcSections` 3건, 실측 50편 dry-run에서 fulltext 회수율 92% (46/50) |
 | 카테고리 메타 합집합 (다중 매칭 시) | 실측 PMID 1편이 6개 카테고리 동시 매칭 |
 | JSON Lines round-trip (gzip 포함) | `Chunk.model_dump()` ↔ `Chunk(**data)` 라운드트립 단위 테스트 |
 | BGE 임베딩 1024 dim 보존 | export → load → query 전 구간 일관 |
@@ -77,9 +77,11 @@ export NCBI_API_KEY=<발급키>   # https://www.ncbi.nlm.nih.gov/account/setting
 export CHROMA_PERSIST_PATH=./mlops/data/chroma-data
 export CHROMA_COLLECTION_NAME=paper_chunks   # 기본값
 
-# 본 실행 사이즈 튜닝
+# 본 실행 사이즈 튜닝 (환경변수는 entry script의 fallback일 뿐 — CLI 옵션이 우선)
 export MAX_PAPERS_PER_RUN=300       # 전체 cap
-export MAX_PAPERS_PER_CATEGORY=20   # 카테고리당 검색 상한
+
+# NOTE: 카테고리당 후보 풀 cap은 환경변수가 아닌 CLI `--max-per-category`로 제어한다.
+# 생략 시 소스별 기본값(OPENALEX_MAX_PER_CATEGORY=500 / PUBMED_MAX_PER_CATEGORY=50) 사용.
 
 # (서버 admin 적재 시에만) 운영 ChromaDB 적재용
 # export API_BASE_URL=https://api.scifit-sync.example.com
@@ -356,7 +358,7 @@ python mlops/scripts/initial_ingest.py --dry-run --max-papers 20
 | BGE prefix 정책 부정확 | 검색 품질 ~10% 손실 가능성 (document/query 같은 prefix 사용) | embedder.py + rag.py 동시 PR |
 | ~~`--update-manifest` 기본 True~~ | ~~export 직후 적재 실패 시 PMID 영구 누락 위험~~ | **PR #63 리뷰 반영으로 해결** — `--update-manifest`가 기본 OFF로 변경됨. export 단독으로는 manifest 변경 없음 |
 | `MAX_PAPERS_PER_RUN=300`이 `29 × 20 = 580` 후보보다 작음 | 큰 영향 없음 (round-robin이 균등 분배 보장) | 필요 시 환경변수로 상향 |
-| PMC retry 최악 케이스 대기시간 | 단일 PMID에서 HTTP layer 재시도(5회 × 10s cap) × 함수 layer 재시도(3회) ≈ **150s/PMID** 까지 대기 가능 | 야간 cron 권장. 회수율 vs 시간 트레이드오프는 `--http-retries`/`--fulltext-attempts`로 조정 |
+| PMC retry 최악 케이스 대기시간 | 단일 PMID에서 HTTP layer 재시도(5회 × 10s cap) × 함수 layer 재시도(5회) ≈ **250s/PMID** 까지 대기 가능 | 야간 cron 권장. 회수율 vs 시간 트레이드오프는 `--http-retries`/`--fulltext-attempts`로 조정 |
 
 ## 트러블슈팅
 
@@ -387,7 +389,7 @@ pip install --user --break-system-packages -r mlops/requirements.txt
 크롤러는 fulltext 회수율을 최대화하기 위해 **2단 retry**를 적용한다:
 
 1. **HTTP layer** (`_request_with_rate_limit`): `ChunkedEncodingError` / `Timeout` / `ConnectionError` / `HTTP 5xx` / `HTTP 429`를 **기본 5회** 지수 백오프(최대 10s cap)로 재시도. `HTTP 4xx`는 영구 에러로 즉시 raise.
-2. **함수 layer** (`_resolve_pmc_id`, `_fetch_pmc_sections`): HTTP 200인데 body가 깨진 케이스(`JSONDecodeError`, `ET.ParseError`)를 **기본 3회** 재시도. NCBI가 동일 위치에서 corrupt response를 반복 반환하는 케이스가 실측되어 별도 layer로 처리.
+2. **함수 layer** (`_resolve_pmc_id`, `_fetch_pmc_sections`): HTTP 200인데 body가 깨진 케이스(`JSONDecodeError`, `ET.ParseError`)를 **기본 5회** 재시도. NCBI가 동일 위치에서 corrupt response를 반복 반환하는 케이스가 실측되어 별도 layer로 처리.
 
 두 단을 모두 소진하면 `crawl_papers`가 **abstract fallback**으로 처리 — 청크 손실 없음. 50편 dry-run 실측 결과: PMC 회수율 **92%** (46/50, 3편은 PMC 미등재 정상 케이스, 1편만 retry 한도 초과).
 
@@ -413,7 +415,7 @@ python mlops/scripts/initial_ingest.py --dry-run --max-papers 50
 | `NCBI_HTTP_MAX_RETRIES` | 5 | HTTP layer transient 에러 재시도 횟수 |
 | `NCBI_HTTP_MAX_BACKOFF` | 10.0 | HTTP 지수 백오프 초당 상한 |
 | `NCBI_HTTP_TIMEOUT` | 60 | HTTP read timeout 초 |
-| `PMC_FULLTEXT_MAX_ATTEMPTS` | 3 | parse 실패 시 함수 layer 재시도 횟수 |
+| `PMC_FULLTEXT_MAX_ATTEMPTS` | 5 | parse 실패 시 함수 layer 재시도 횟수 |
 | `PMC_FULLTEXT_RETRY_BACKOFF_BASE` | 2.0 | 함수 layer backoff 시작 초 |
 | `PMC_FULLTEXT_RETRY_BACKOFF_MAX` | 10.0 | 함수 layer backoff 상한 초 |
 

@@ -196,6 +196,17 @@ cd app && npm test
 - 화면: AI 인사이트 카드 자리는 정적 텍스트로 대체하거나 미구현 상태 유지 (W-M01 메인 화면 영향)
 - 디자인 토큰 `#F0E6FF`는 차후 재활용 가능성을 위해 §14에 보존
 
+### ✅ D-M11 확정 — 멀티 소스 논문 수집 + `evidence_weight` 도입
+- 결정 배경: PubMed 단일 소스로는 운동과학 도메인 회수율과 라이센스 커버리지가 부족하고, 논문 유형(RCT vs review 등)에 따른 근거 강도 차이가 RAG 검색·인용에 반영되지 않았음. 회의 초기에 거론된 비공식 결정 "papers/paper_chunks 테이블 폐기 → ChromaDB 단일 소스화"는 본 결정으로 대체.
+- 데이터 소스 확장: PubMed + OpenAlex + EuropePMC 세 곳에서 수집. PMC 본문 미보유 OA 논문에 대해 EuropePMC fulltext fallback으로 회수율 보완.
+- DB 영향 (Alembic 마이그레이션 `007_clean_slate_papers_multi_source.py`):
+  - `papers`: `doi`가 primary lookup이며 NOT NULL UNIQUE. `pmid`/`pmcid`/`openalex_id`는 nullable 보조 식별자.
+  - `papers` 신규 컬럼: `publication_types text[]`, `evidence_weight numeric(3,2)`, `fulltext_source`, `search_categories text[]`.
+  - `paper_chunks` 신규 컬럼: `evidence_weight`, `publication_types`. `chroma_id` 제거.
+  - 기존 데이터는 mlops 파이프라인이 재수집하므로 DROP CASCADE.
+  - `chat_messages.paper_id`, `routine_papers.paper_id` FK는 그대로 유지.
+- RAG 영향: `paper_chunks.evidence_weight`가 검색 결과 정렬과 가중치 계산에 반영됨 (`server/app/services/rag.py`). 본 PR은 결정 등록 범위만 다루며, §11 RAG 파이프라인 흐름 본문 갱신은 별도 후속 docs 작업으로 분리.
+
 ---
 
 ## 7. API 설계 규칙
@@ -356,16 +367,25 @@ v2.1에서 컬럼명에서 `_kg` 접미사를 제거 — 컬럼명이 kg 단일 
 2. **스택/원판 그룹** (`min_stack`, `max_stack`, `stack_weight`, `stack_unit`):
    - selectorized 머신: 제조사 내장 스택 → 제조사 표기 단위 그대로 기록.
    - plate-loaded 머신: 사용자가 끼우는 원판 → 국내 헬스장 표준 kg.
+   - **세 스택 필드(`min_stack`/`max_stack`/`stack_weight`)는 같은 행의 `stack_unit` 하나를 공유한다** — 한 기구 안에서 스택 범위와 블록 무게는 반드시 동일 단위로 표기된다. 단일 `stack_unit` 컬럼 구조가 이 제약을 스키마 차원에서 강제하므로 `min_stack='kg', max_stack='lb'` 같은 표상 자체가 불가능하다.
 
 같은 행에 `bar_weight_unit='lb'`, `stack_unit='kg'` 조합이 정상이며 ETL은 두 그룹을 독립 처리한다. `equipment_brands.default_bar_unit` / `default_stack_unit`은 신규 import 시 명시값이 없을 때 fallback.
 
-**값과 단위의 동기성은 CHECK 제약(`chk_bar_unit_synced`, `chk_stack_unit_synced`)으로 DB 레벨에서 강제**된다 — 무게 값이 NOT NULL이면 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나. "값 있는데 단위 NULL" 같은 모순 상태 절대 금지.
+**값과 단위의 동기성은 CHECK 제약(`chk_bar_unit_synced`, `chk_stack_unit_synced`)으로 DB 레벨에서 강제**된다 — 무게 값이 NOT NULL이면 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나. "값 있는데 단위 NULL" 같은 모순 상태 절대 금지. 추가로 **`chk_stack_weight_shape`**가 JSONB `stack_weight`의 `value`/`pattern` 키 상호 배타를 강제한다 (§ `stack_weight` JSONB 참조).
 
 ### `stack_weight` JSONB (v2.1, RENAME + decimal → jsonb)
 값의 단위는 같은 행의 `stack_unit`이 결정하며 JSONB 내부에는 단위를 두지 않는다.
 - 균일 스택: `{"value": 5}` (stack_unit이 'kg'이면 5kg, 'lb'이면 5lb)
 - 변동 스택(예: Hammer Strength Select): `{"pattern": [{"from": 1, "to": 5, "value": 10}, {"from": 6, "to": 15, "value": 15}]}`
-- `value`와 `pattern`은 상호 배타. `pattern[0].from == 1`, 구간은 인접해야 한다.
+- **`value`와 `pattern`은 상호 배타** — DB CHECK 제약 `chk_stack_weight_shape`가 top-level 키 양립을 차단한다 (Alembic 008에서 추가 예정):
+  ```sql
+  ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
+    stack_weight IS NULL
+    OR (stack_weight ? 'value' AND NOT stack_weight ? 'pattern')
+    OR (stack_weight ? 'pattern' AND NOT stack_weight ? 'value')
+  );
+  ```
+- 앱 레이어 추가 검증(JSONB CHECK로는 표현이 거추장스러움): `pattern[0].from == 1`, 구간은 인접 (`prev.to + 1 == curr.from`), 모든 `value` 양수.
 - 블록 번호 → 실제 값 해석은 `services/load_calc.py:resolve_block_weight(stack_weight, block_index)` 사용 (후속 PR에서 도입). 단위 환산은 `to_kg(value, unit)` 헬퍼가 별도 책임.
 
 ### 중량 기록
