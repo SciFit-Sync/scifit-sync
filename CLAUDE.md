@@ -367,16 +367,25 @@ v2.1에서 컬럼명에서 `_kg` 접미사를 제거 — 컬럼명이 kg 단일 
 2. **스택/원판 그룹** (`min_stack`, `max_stack`, `stack_weight`, `stack_unit`):
    - selectorized 머신: 제조사 내장 스택 → 제조사 표기 단위 그대로 기록.
    - plate-loaded 머신: 사용자가 끼우는 원판 → 국내 헬스장 표준 kg.
+   - **세 스택 필드(`min_stack`/`max_stack`/`stack_weight`)는 같은 행의 `stack_unit` 하나를 공유한다** — 한 기구 안에서 스택 범위와 블록 무게는 반드시 동일 단위로 표기된다. 단일 `stack_unit` 컬럼 구조가 이 제약을 스키마 차원에서 강제하므로 `min_stack='kg', max_stack='lb'` 같은 표상 자체가 불가능하다.
 
 같은 행에 `bar_weight_unit='lb'`, `stack_unit='kg'` 조합이 정상이며 ETL은 두 그룹을 독립 처리한다. `equipment_brands.default_bar_unit` / `default_stack_unit`은 신규 import 시 명시값이 없을 때 fallback.
 
-**값과 단위의 동기성은 CHECK 제약(`chk_bar_unit_synced`, `chk_stack_unit_synced`)으로 DB 레벨에서 강제**된다 — 무게 값이 NOT NULL이면 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나. "값 있는데 단위 NULL" 같은 모순 상태 절대 금지.
+**값과 단위의 동기성은 CHECK 제약(`chk_bar_unit_synced`, `chk_stack_unit_synced`)으로 DB 레벨에서 강제**된다 — 무게 값이 NOT NULL이면 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나. "값 있는데 단위 NULL" 같은 모순 상태 절대 금지. 추가로 **`chk_stack_weight_shape`**가 JSONB `stack_weight`의 `value`/`pattern` 키 상호 배타를 강제한다 (§ `stack_weight` JSONB 참조).
 
 ### `stack_weight` JSONB (v2.1, RENAME + decimal → jsonb)
 값의 단위는 같은 행의 `stack_unit`이 결정하며 JSONB 내부에는 단위를 두지 않는다.
 - 균일 스택: `{"value": 5}` (stack_unit이 'kg'이면 5kg, 'lb'이면 5lb)
 - 변동 스택(예: Hammer Strength Select): `{"pattern": [{"from": 1, "to": 5, "value": 10}, {"from": 6, "to": 15, "value": 15}]}`
-- `value`와 `pattern`은 상호 배타. `pattern[0].from == 1`, 구간은 인접해야 한다.
+- **`value`와 `pattern`은 상호 배타** — DB CHECK 제약 `chk_stack_weight_shape`가 top-level 키 양립을 차단한다 (Alembic 008에서 추가 예정):
+  ```sql
+  ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
+    stack_weight IS NULL
+    OR (stack_weight ? 'value' AND NOT stack_weight ? 'pattern')
+    OR (stack_weight ? 'pattern' AND NOT stack_weight ? 'value')
+  );
+  ```
+- 앱 레이어 추가 검증(JSONB CHECK로는 표현이 거추장스러움): `pattern[0].from == 1`, 구간은 인접 (`prev.to + 1 == curr.from`), 모든 `value` 양수.
 - 블록 번호 → 실제 값 해석은 `services/load_calc.py:resolve_block_weight(stack_weight, block_index)` 사용 (후속 PR에서 도입). 단위 환산은 `to_kg(value, unit)` 헬퍼가 별도 책임.
 
 ### 중량 기록
