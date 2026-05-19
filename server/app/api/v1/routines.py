@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     Exercise,
@@ -336,6 +337,7 @@ async def _generate_routine_stream(_user: User, body: GenerateRoutineRequest, ro
 
 
 @router.post("/generate", summary="AI 루틴 생성 (SSE)")
+@rate_limit("5/minute")
 async def generate_routine(
     request: Request,
     body: GenerateRoutineRequest,
@@ -364,6 +366,7 @@ async def generate_routine(
 
 # ── POST /routines/{id}/regenerate ────────────────────────────────────────────
 @router.post("/{routine_id}/regenerate", summary="루틴 재생성 (SSE)")
+@rate_limit("5/minute")
 async def regenerate_routine(
     request: Request,
     routine_id: str,
