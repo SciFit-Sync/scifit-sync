@@ -196,6 +196,17 @@ cd app && npm test
 - 화면: AI 인사이트 카드 자리는 정적 텍스트로 대체하거나 미구현 상태 유지 (W-M01 메인 화면 영향)
 - 디자인 토큰 `#F0E6FF`는 차후 재활용 가능성을 위해 §14에 보존
 
+### ✅ D-M11 확정 — 멀티 소스 논문 수집 + `evidence_weight` 도입
+- 결정 배경: PubMed 단일 소스로는 운동과학 도메인 회수율과 라이센스 커버리지가 부족하고, 논문 유형(RCT vs review 등)에 따른 근거 강도 차이가 RAG 검색·인용에 반영되지 않았음. 회의 초기에 거론된 비공식 결정 "papers/paper_chunks 테이블 폐기 → ChromaDB 단일 소스화"는 본 결정으로 대체.
+- 데이터 소스 확장: PubMed + OpenAlex + EuropePMC 세 곳에서 수집. PMC 본문 미보유 OA 논문에 대해 EuropePMC fulltext fallback으로 회수율 보완.
+- DB 영향 (Alembic 마이그레이션 `007_clean_slate_papers_multi_source.py`):
+  - `papers`: `doi`가 primary lookup이며 NOT NULL UNIQUE. `pmid`/`pmcid`/`openalex_id`는 nullable 보조 식별자.
+  - `papers` 신규 컬럼: `publication_types text[]`, `evidence_weight numeric(3,2)`, `fulltext_source`, `search_categories text[]`.
+  - `paper_chunks` 신규 컬럼: `evidence_weight`, `publication_types`. `chroma_id` 제거.
+  - 기존 데이터는 mlops 파이프라인이 재수집하므로 DROP CASCADE.
+  - `chat_messages.paper_id`, `routine_papers.paper_id` FK는 그대로 유지.
+- RAG 영향: `paper_chunks.evidence_weight`가 검색 결과 정렬과 가중치 계산에 반영됨 (`server/app/services/rag.py`). 본 PR은 결정 등록 범위만 다루며, §11 RAG 파이프라인 흐름 본문 갱신은 별도 후속 docs 작업으로 분리.
+
 ---
 
 ## 7. API 설계 규칙
