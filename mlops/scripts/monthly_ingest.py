@@ -22,8 +22,9 @@ from mlops.pipeline.config import (
     ADMIN_API_TOKEN,
     API_BASE_URL,
     MANIFEST_PATH,
-    MAX_PAPERS_PER_CATEGORY,
     MAX_PAPERS_PER_RUN,
+    OPENALEX_MAX_PER_CATEGORY,
+    PUBMED_MAX_PER_CATEGORY,
 )
 from mlops.pipeline.crawler import crawl_papers
 from mlops.pipeline.embedder import embed_chunks
@@ -86,8 +87,12 @@ def main(
 ) -> None:
     if max_papers is None:
         max_papers = MAX_PAPERS_PER_RUN
-    if max_per_category is None:
-        max_per_category = MAX_PAPERS_PER_CATEGORY
+    # max_per_category=None이면 crawl_papers가 소스별 기본값 (OpenAlex/PubMed) 적용.
+    cap_display = (
+        f"{max_per_category}"
+        if max_per_category is not None
+        else f"openalex={OPENALEX_MAX_PER_CATEGORY}/pubmed={PUBMED_MAX_PER_CATEGORY}"
+    )
 
     now = datetime.now()
     if min_date is None:
@@ -96,11 +101,11 @@ def main(
         max_date = now.strftime("%Y/%m/%d")
 
     logger.info(
-        "=== 월간 증분 적재 시작 (%s ~ %s, max_papers=%d, max_per_category=%d) ===",
+        "=== 월간 증분 적재 시작 (%s ~ %s, max_papers=%d, max_per_category=%s) ===",
         min_date,
         max_date,
         max_papers,
-        max_per_category,
+        cap_display,
     )
 
     manifest = Manifest.load(MANIFEST_PATH)
@@ -182,7 +187,9 @@ if __name__ == "__main__":
         "--max-per-category",
         type=int,
         default=None,
-        help="카테고리당 esearch 후보 풀 cap (기본: MAX_PAPERS_PER_CATEGORY)",
+        help="카테고리당 후보 풀 cap. 명시 시 OpenAlex/PubMed 양쪽에 동일 적용. "
+        "생략 시 소스별 기본값 사용 (OPENALEX_MAX_PER_CATEGORY=500 / "
+        "PUBMED_MAX_PER_CATEGORY=50).",
     )
     parser.add_argument("--min-date", default=None, help="YYYY/MM/DD (기본: 35일 전)")
     parser.add_argument("--max-date", default=None, help="YYYY/MM/DD (기본: 오늘)")

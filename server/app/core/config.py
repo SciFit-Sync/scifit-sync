@@ -52,8 +52,8 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
-    # Environment
-    ENV: str = "development"
+    # Environment — fail-safe: 기본값 production (로컬 개발 시 ENV=development 명시 필요)
+    ENV: str = "production"
 
     def model_post_init(self, _: Any) -> None:
         if self.ENV == "production":
