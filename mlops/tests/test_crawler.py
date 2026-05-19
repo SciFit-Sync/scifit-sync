@@ -3,6 +3,7 @@
 PubMed/OpenAlex API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
 """
 
+import json
 import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock, patch
 
@@ -373,17 +374,19 @@ class TestRequestWithRateLimit:
 
 
 class TestResolvePmcId:
-    """`_resolve_pmc_id` 함수 레벨 재시도 동작 검증.
+    """`_resolve_pmc_id` 동작 검증.
 
-    HTTP 200인데 JSON body가 깨진 케이스(NCBI 일시 장애로 실측 발생)는
-    `_request_with_rate_limit`의 retry로는 못 잡으므로 함수 레벨 retry로 대응한다.
+    NCBI elink는 PMC 미존재 시 가끔 ERROR 필드에 raw control character가 포함된
+    malformed JSON을 반환한다(결정론적 server-side 버그). sanitize 후 한 번만
+    재파싱하고 그래도 실패하면 PMC 미존재로 간주해 None 반환. transient HTTP
+    에러만 함수 레벨에서 재시도한다.
     """
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
     def test_returns_pmc_id_on_success(self, mock_request, _mock_sleep):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]}
+        mock_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]})
         mock_request.return_value = mock_resp
 
         result = _resolve_pmc_id("12345")
@@ -395,7 +398,7 @@ class TestResolvePmcId:
     def test_returns_none_when_no_pmc_version(self, mock_request, _mock_sleep):
         """PMC 버전이 없으면 None 반환 — retry 안 함."""
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"linksets": [{"linksetdbs": []}]}
+        mock_resp.text = json.dumps({"linksets": [{"linksetdbs": []}]})
         mock_request.return_value = mock_resp
 
         result = _resolve_pmc_id("12345")
@@ -404,35 +407,56 @@ class TestResolvePmcId:
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
-    def test_retries_on_json_decode_error_then_succeeds(self, mock_request, _mock_sleep):
-        """HTTP 200인데 JSON 깨진 케이스 → 재시도 후 성공."""
-        bad_resp = MagicMock()
-        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
-        good_resp = MagicMock()
-        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [88888]}]}]}
-        mock_request.side_effect = [bad_resp, good_resp]
+    def test_sanitizes_malformed_ncbi_error_response_with_retry(self, mock_request, _mock_sleep):
+        """NCBI ERROR 응답(raw \\n control char 포함)을 sanitize 후 파싱하고,
+        ERROR 필드가 있으면 transient 가능성(실측 33%)을 위해 1회만 재시도한다.
 
-        result = _resolve_pmc_id("12345")
-        assert result == "88888"
-        assert mock_request.call_count == 2
+        실제 PMID=27226389 응답 재현. 두 호출 모두 ERROR면 PMC 미존재로 처리.
+        """
+        malformed_body = (
+            '{"header":{"type":"elink","version":"0.3"},"linksets":[],'
+            '"ERROR":"NCBI C++ Exception:\n    Error: TXCLIENT(CException::eUnknown)"}'
+        )
+        bad_resp = MagicMock()
+        bad_resp.text = malformed_body
+        mock_request.return_value = bad_resp
+
+        result = _resolve_pmc_id("27226389")
+        assert result is None
+        assert mock_request.call_count == 2  # ERROR 응답 → 1회만 재시도
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
-    def test_raises_runtime_error_after_exhausting_retries(self, mock_request, _mock_sleep):
+    def test_retries_once_on_error_field_then_succeeds(self, mock_request, _mock_sleep):
+        """ERROR 응답(transient)이 다음 호출에서 정상 응답으로 복구되는 케이스 — 1회 retry 효과."""
+        error_resp = MagicMock()
+        error_resp.text = '{"linksets":[],"ERROR":"NCBI C++ Exception: transient"}'
+        good_resp = MagicMock()
+        good_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [55555]}]}]})
+        mock_request.side_effect = [error_resp, good_resp]
+
+        result = _resolve_pmc_id("12345")
+        assert result == "55555"
+        assert mock_request.call_count == 2  # 1번째 ERROR → 1번 retry → 성공
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_none_when_response_unparseable_even_after_sanitize(self, mock_request, _mock_sleep):
+        """sanitize 후에도 파싱 불가하면 PMC 미존재로 처리 — retry 안 함."""
         bad_resp = MagicMock()
-        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        bad_resp.text = "not a json at all{{{"
         mock_request.return_value = bad_resp
 
-        with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
-            _resolve_pmc_id("12345", max_attempts=3)
-        assert mock_request.call_count == 3
+        result = _resolve_pmc_id("12345")
+        assert result is None
+        assert mock_request.call_count == 1  # JSON parsing 실패는 결정론적 → retry 안 함
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
     def test_retries_on_http_failure_then_succeeds(self, mock_request, _mock_sleep):
         """HTTP layer가 모든 retry 실패해 RequestException 던지면 함수 레벨에서 한 번 더 시도."""
         good_resp = MagicMock()
-        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]}
+        good_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]})
         mock_request.side_effect = [
             requests.exceptions.ChunkedEncodingError("body cut"),
             good_resp,
@@ -441,6 +465,16 @@ class TestResolvePmcId:
         result = _resolve_pmc_id("12345")
         assert result == "77777"
         assert mock_request.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_raises_runtime_error_when_all_http_retries_fail(self, mock_request, _mock_sleep):
+        """HTTP 에러가 max_attempts 내내 지속되면 RuntimeError."""
+        mock_request.side_effect = requests.exceptions.ChunkedEncodingError("body cut")
+
+        with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
+            _resolve_pmc_id("12345", max_attempts=3)
+        assert mock_request.call_count == 3
 
 
 class TestFetchPmcSections:
