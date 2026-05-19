@@ -1,9 +1,11 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -45,6 +47,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(RequestIdMiddleware)
+
     if settings.RATE_LIMIT_ENABLED:
         app.state.limiter = limiter
         app.add_middleware(SlowAPIMiddleware)
@@ -56,6 +59,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_error_handler)
 
     app.include_router(v1_router)
+
+    static_dir = Path(__file__).resolve().parent.parent / "static"
+    static_dir.mkdir(exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     def custom_openapi():
         if app.openapi_schema:
@@ -78,7 +85,6 @@ def create_app() -> FastAPI:
         return schema
 
     app.openapi = custom_openapi
-
     return app
 
 
