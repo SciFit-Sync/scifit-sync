@@ -5,7 +5,7 @@ CLAUDE.md / api-endpoints.md #9-17, #43, #50.
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -54,12 +54,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def _calc_age(birth_date: date | None) -> int | None:
+    if birth_date is None:
+        return None
+    today = date.today()
+    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+
 def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
     if profile is None:
         return None
     return ProfileData(
         gender=profile.gender.value if profile.gender else None,
         birth_date=profile.birth_date,
+        age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
         default_goals=profile.default_goals,
         career_level=profile.career_level.value if profile.career_level else None,
