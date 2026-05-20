@@ -26,8 +26,8 @@
 ## 2. 구현을 시작할 때 — 새 브랜치 생성 절차
 
 ```bash
-# 0) 작업 디렉토리: /mnt/c/Users/User/Desktop/coding/Main_Project/capstone/scifit-sync
-cd /mnt/c/Users/User/Desktop/coding/Main_Project/capstone/scifit-sync
+# 0) 작업 디렉토리: scifit-sync repo root
+cd <scifit-sync-repo-root>
 
 # 1) 최신 develop으로 동기화
 git fetch origin --prune
@@ -73,7 +73,7 @@ git cherry-pick <docs/jingyu/ab-test-embedding-design HEAD commit hash>
 
 ```bash
 # 로컬 (개발용)
-cd /mnt/c/Users/User/Desktop/coding/Main_Project/capstone/scifit-sync
+cd <scifit-sync-repo-root>
 python3 -m pytest mlops/tests -v --co 2>&1 | tail -5    # 테스트 collection 깨지지 않는지
 # (전체 실행은 시간 소요 — collection만 빠르게 확인)
 
