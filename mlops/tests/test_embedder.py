@@ -6,10 +6,11 @@ sys.modules['torch']를 가짜 모듈로 대체하거나 builtins.__import__를
 """
 
 import builtins
+import logging
 import sys
 import types
 
-from mlops.pipeline.embedder import _resolve_device
+from mlops.pipeline.embedder import _resolve_device, log_device_status
 
 
 def _fake_torch(*, cuda_available: bool, mps_available: bool) -> types.SimpleNamespace:
@@ -65,3 +66,29 @@ def test_resolve_device_handles_missing_torch(monkeypatch):
     # sys.modules에 캐시된 torch도 제거 (있다면)
     monkeypatch.delitem(sys.modules, "torch", raising=False)
     assert _resolve_device() == "cpu"
+
+
+# ── log_device_status ────────────────────────────────────────
+
+
+def test_log_device_status_warns_on_cpu(monkeypatch, caplog):
+    """CPU fallback 시 WARNING + 재설치 명령 안내."""
+    monkeypatch.delenv("MLOPS_EMBED_DEVICE", raising=False)
+    monkeypatch.setitem(sys.modules, "torch", _fake_torch(cuda_available=False, mps_available=False))
+    with caplog.at_level(logging.WARNING, logger="mlops.pipeline.embedder"):
+        device = log_device_status()
+    assert device == "cpu"
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("CPU 추론" in r.message for r in warnings)
+    assert any("cu121" in r.message for r in warnings)
+
+
+def test_log_device_status_info_on_cuda(monkeypatch, caplog):
+    """GPU 감지 시 WARNING 없이 INFO만."""
+    monkeypatch.delenv("MLOPS_EMBED_DEVICE", raising=False)
+    monkeypatch.setitem(sys.modules, "torch", _fake_torch(cuda_available=True, mps_available=False))
+    with caplog.at_level(logging.INFO, logger="mlops.pipeline.embedder"):
+        device = log_device_status()
+    assert device == "cuda"
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("cuda" in r.message for r in caplog.records if r.levelno == logging.INFO)

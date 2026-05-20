@@ -43,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from mlops.pipeline.chunker import chunk_papers
 from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH, MAX_PAPERS_PER_RUN
 from mlops.pipeline.crawler import crawl_papers
-from mlops.pipeline.embedder import embed_chunks
+from mlops.pipeline.embedder import embed_chunks, log_device_status
 from mlops.pipeline.manifest import Manifest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
@@ -78,6 +78,9 @@ def main(
         use_gzip,
         dry_run,
     )
+
+    # 크롤링/청킹은 길어서 디바이스 문제 발견이 늦다 → 시작 직후 사전 확인.
+    log_device_status(logger)
 
     manifest = Manifest.load(MANIFEST_PATH)
 

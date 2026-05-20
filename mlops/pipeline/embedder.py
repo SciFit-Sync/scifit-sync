@@ -33,6 +33,28 @@ def _resolve_device() -> str:
     return "cpu"
 
 
+def log_device_status(logger_: logging.Logger | None = None) -> str:
+    """추론 device를 미리 결정하고 로깅한다.
+
+    스크립트 시작 직후(크롤링 전)에 호출해 CPU fallback 경고를 조기에 노출한다.
+    모델 로드까지 기다리지 않고 사용자가 즉시 환경 문제를 발견할 수 있다.
+
+    Returns:
+        해석된 device 문자열.
+    """
+    log = logger_ or logger
+    device = _resolve_device()
+    if device == "cpu":
+        log.warning(
+            "GPU 미감지 → CPU 추론 예정. BGE-large는 CPU에서 매우 느립니다(20s/batch+). "
+            "GPU 서버라면 CUDA torch 재설치 필요: "
+            "pip install torch --index-url https://download.pytorch.org/whl/cu121"
+        )
+    else:
+        log.info("임베딩 device 사전 확인: %s", device)
+    return device
+
+
 def _get_model():
     """sentence-transformers 모델을 싱글턴으로 로딩한다 (2GB+, lazy load)."""
     global _model
