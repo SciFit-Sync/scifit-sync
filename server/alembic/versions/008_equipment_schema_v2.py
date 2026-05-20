@@ -3,7 +3,7 @@
 변경 사항:
 - equipment_brands: default_bar_unit, default_stack_unit 신규 (v2.1)
 - equipments:
-  - name_en 신규 (v2.1 ERD 문서 보정)
+  - name_en: 003_redesign_schema에서 이미 존재 — 본 마이그레이션에서 추가 불필요
   - sub_category 신규 varchar (v2.1)
   - RENAME: bar_weight_kg -> bar_weight (v2.1)
   - RENAME: min_stack_kg -> min_stack (v2.1)
@@ -46,7 +46,7 @@ def upgrade() -> None:
     )
 
     # ── 2) equipments: 신규 컬럼 추가 ──
-    op.add_column("equipments", sa.Column("name_en", sa.String(200), nullable=True))
+    # name_en은 003_redesign_schema에서 이미 생성됨
     op.add_column("equipments", sa.Column("sub_category", sa.String(50), nullable=True))
     op.add_column("equipments", sa.Column("bar_weight_unit", sa.String(2), nullable=True))
     op.add_column("equipments", sa.Column("stack_unit", sa.String(2), nullable=True))
@@ -133,6 +133,5 @@ def downgrade() -> None:
     op.drop_column("equipments", "stack_unit")
     op.drop_column("equipments", "bar_weight_unit")
     op.drop_column("equipments", "sub_category")
-    op.drop_column("equipments", "name_en")
     op.drop_column("equipment_brands", "default_stack_unit")
     op.drop_column("equipment_brands", "default_bar_unit")
