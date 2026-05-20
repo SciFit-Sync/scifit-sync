@@ -62,7 +62,7 @@ async def home(
         )
 
     # 2) 최근 7일 볼륨
-    since = datetime.now(timezone.utc) - timedelta(days=7)
+    since = datetime.utcnow() - timedelta(days=7)
     volume_q = await db.execute(
         select(func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0))
         .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)

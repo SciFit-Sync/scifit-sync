@@ -86,22 +86,23 @@ def chunk_paper(paper: PaperFull) -> list[Chunk]:
     """논문 1편을 Section-Aware 방식으로 청킹한다.
 
     전략:
-    1. 전문 섹션이 있으면 섹션별로 청킹
-    2. 전문이 없으면 초록을 청킹
-    3. 섹션이 CHUNK_MAX_TOKENS 이하이면 분할하지 않음
-    4. 섹션이 CHUNK_MAX_TOKENS 초과이면 overlap 50으로 분할
+    1. 전문 섹션이 있어야 청킹 (섹션 없으면 폐기 — 초록 fallback 없음)
+    2. 섹션이 CHUNK_MAX_TOKENS 이하이면 분할하지 않음
+    3. 섹션이 CHUNK_MAX_TOKENS 초과이면 overlap 50으로 분할
     """
     chunks: list[Chunk] = []
     chunk_idx = 0
 
-    # 소스 텍스트 결정
-    if paper.sections:
-        text_units = [(s.name, s.content) for s in paper.sections]
-    elif paper.meta.abstract:
-        text_units = [("Abstract", paper.meta.abstract)]
-    else:
-        logger.debug("텍스트 없음: PMID=%s", paper.meta.pmid)
+    # 전문 없는 논문은 폐기
+    if not paper.sections:
+        logger.debug(
+            "본문 없음 폐기: doi=%s pmid=%s",
+            paper.meta.doi,
+            paper.meta.pmid,
+        )
         return []
+
+    text_units = [(s.name, s.content) for s in paper.sections]
 
     for section_name, content in text_units:
         content = content.strip()
@@ -124,6 +125,12 @@ def chunk_paper(paper: PaperFull) -> list[Chunk]:
                     chunk_index=chunk_idx,
                     content=content,
                     token_count=token_count,
+                    search_categories=list(paper.meta.search_categories),
+                    paper_doi=paper.meta.doi,
+                    publication_types=list(paper.meta.publication_types),
+                    evidence_weight=paper.meta.evidence_weight,
+                    fulltext_source=paper.meta.fulltext_source,
+                    published_year=paper.meta.published_year,
                 )
             )
             chunk_idx += 1
@@ -140,6 +147,12 @@ def chunk_paper(paper: PaperFull) -> list[Chunk]:
                         chunk_index=chunk_idx,
                         content=sub_text,
                         token_count=tc,
+                        search_categories=list(paper.meta.search_categories),
+                        paper_doi=paper.meta.doi,
+                        publication_types=list(paper.meta.publication_types),
+                        evidence_weight=paper.meta.evidence_weight,
+                        fulltext_source=paper.meta.fulltext_source,
+                        published_year=paper.meta.published_year,
                     )
                 )
                 chunk_idx += 1

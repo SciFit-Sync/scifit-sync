@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class ProfileData(BaseModel):
     gender: str | None = None
     birth_date: date | None = None
+    age: int | None = None
     height_cm: float | None = None
     default_goals: list[str] | None = None
     career_level: str | None = None
@@ -85,6 +86,37 @@ class OneRMData(BaseModel):
 
 class OneRMListData(BaseModel):
     items: list[OneRMData]
+
+
+class BulkOneRMItem(BaseModel):
+    """exercise_id 또는 exercise_code 중 하나는 필수.
+    code 예시: 'bench_press', 'squat', 'deadlift', 'overhead_press'"""
+
+    exercise_id: str | None = None
+    exercise_code: str | None = None
+    weight_kg: float = Field(ge=0)
+    reps: int | None = Field(default=None, ge=1)
+
+
+class BulkAdd1RMRequest(BaseModel):
+    items: list[BulkOneRMItem] = Field(min_length=1, max_length=20)
+
+
+class BulkOneRMData(BaseModel):
+    items: list[OneRMData]
+    created_count: int
+
+
+# ── 핵심 4대 운동 ────────────────────────────────────────────────────────────
+class CoreLiftItem(BaseModel):
+    code: str  # 'bench_press' / 'squat' / 'deadlift' / 'overhead_press'
+    exercise_id: str
+    name: str  # 한글 이름
+    name_en: str | None = None
+
+
+class CoreLiftsData(BaseModel):
+    items: list[CoreLiftItem]
 
 
 # ── /users/me/equipment ───────────────────────────────────────────────────────

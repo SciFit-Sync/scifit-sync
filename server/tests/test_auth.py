@@ -101,7 +101,10 @@ class TestLogin:
         db = _make_db(_exec_scalar(_MOCK_USER))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post("/api/v1/auth/login", json={"username": "testuser", "password": "password123"})
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "test@example.com", "password": "password123"},
+        )
 
         assert resp.status_code == 200
         body = resp.json()
@@ -114,7 +117,10 @@ class TestLogin:
         db = _make_db(_exec_scalar(_MOCK_USER))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post("/api/v1/auth/login", json={"username": "testuser", "password": "wrong"})
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "test@example.com", "password": "wrong"},
+        )
 
         assert resp.status_code == 401
 
@@ -123,7 +129,10 @@ class TestLogin:
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post("/api/v1/auth/login", json={"username": "nonexistent", "password": "password123"})
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "nonexistent@example.com", "password": "password123"},
+        )
 
         assert resp.status_code == 401
 
@@ -134,7 +143,10 @@ class TestLogin:
         db = _make_db(_exec_scalar(inactive))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post("/api/v1/auth/login", json={"username": "testuser", "password": "password123"})
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "test@example.com", "password": "password123"},
+        )
 
         assert resp.status_code == 401
 

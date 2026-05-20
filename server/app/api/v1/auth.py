@@ -3,10 +3,10 @@ import logging
 import random
 import uuid
 from datetime import date as date_type
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,7 @@ from app.core.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
+from app.core.limiter import rate_limit
 from app.models.user import (
     CareerLevel,
     EmailOtp,
@@ -66,17 +67,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _utcnow() -> datetime:
+    """Timezone-aware UTC `now`를 만든 뒤 naive로 변환해 반환.
+
+    `datetime.utcnow()`는 Python 3.12+에서 deprecated. 또한 본 모듈이 다루는 DB 컬럼
+    (`expires_at`, `revoked_at` 등)이 모두 `Mapped[datetime]` (timezone-naive) 이므로
+    비교 산술 시 aware datetime이 섞이면 `TypeError`. 본 헬퍼는 두 위험을 동시에 해소.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
 @router.post("/login", response_model=SuccessResponse[LoginData], summary="로그인")
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == body.username))
+@rate_limit("10/minute")
+async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
-        raise UnauthorizedError(message="아이디 또는 비밀번호가 올바르지 않습니다.")
+        raise UnauthorizedError(message="이메일 또는 비밀번호가 올바르지 않습니다.")
 
     if not user.is_active:
         raise UnauthorizedError(message="비활성화된 계정입니다")
@@ -84,7 +96,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user.is_email_verified:
         raise UnauthorizedError(message="이메일 인증이 완료되지 않았습니다. 이메일을 확인해주세요.")
 
-    now = datetime.utcnow()
+    now = _utcnow()
     settings = get_settings()
     family_id = uuid.uuid4()
     access_token = create_access_token(user.id)
@@ -113,7 +125,9 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/logout", response_model=SuccessResponse[None], summary="로그아웃")
+@rate_limit("10/minute")
 async def logout(
+    request: Request,
     body: LogoutRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -134,7 +148,7 @@ async def logout(
     token_record = result.scalar_one_or_none()
 
     if token_record:
-        token_record.revoked_at = datetime.utcnow()
+        token_record.revoked_at = _utcnow()
         await db.commit()
 
     logger.info("User %s logged out", current_user.id)
@@ -143,7 +157,8 @@ async def logout(
 
 
 @router.post("/register", response_model=SuccessResponse[RegisterData], status_code=201, summary="회원가입")
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+@rate_limit("10/minute")
+async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # 이메일 중복 확인
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
@@ -163,17 +178,19 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()  # user.id 확보
 
-    # age → birth_date 변환 (1월 1일 기준 근사값)
-    birth_date = date_type(date_type.today().year - body.age, 1, 1) if body.age is not None else None
-
     # 프로필 생성 — gender/birth_date/height_cm/career_level 모두 있을 때만 생성.
     # 없으면 온보딩 단계에서 채운다.
-    if body.gender is not None and birth_date is not None and body.height is not None and body.career_level is not None:
+    if (
+        body.gender is not None
+        and body.birth_date is not None
+        and body.height is not None
+        and body.career_level is not None
+    ):
         db.add(
             UserProfile(
                 user_id=user.id,
                 gender=Gender(body.gender),
-                birth_date=birth_date,
+                birth_date=body.birth_date,
                 height_cm=body.height,
                 default_goals=body.goals or None,
                 career_level=CareerLevel(body.career_level),
@@ -196,7 +213,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
         EmailOtp(
             email=body.email,
             code=otp_code,
-            expires_at=datetime.utcnow() + timedelta(minutes=10),
+            expires_at=_utcnow() + timedelta(minutes=10),
         )
     )
     await db.commit()
@@ -214,7 +231,9 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/kakao", response_model=SuccessResponse[KakaoLoginData], summary="카카오 소셜 로그인")
+@rate_limit("10/minute")
 async def kakao_login(
+    request: Request,
     body: KakaoLoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -271,7 +290,7 @@ async def kakao_login(
         logger.info("Kakao user %s registered (user_id=%s)", kakao_id, user.id)
 
     # JWT 발급
-    now = datetime.utcnow()
+    now = _utcnow()
     settings = get_settings()
     family_id = uuid.uuid4()
     access_token = create_access_token(user.id)
@@ -324,7 +343,8 @@ async def check_username(username: str, db: AsyncSession = Depends(get_db)):
     response_model=SuccessResponse[PasswordResetEmailData],
     summary="비밀번호 재설정 메일 발송",
 )
-async def password_reset_email(body: PasswordResetEmailRequest, db: AsyncSession = Depends(get_db)):
+@rate_limit("10/minute")
+async def password_reset_email(request: Request, body: PasswordResetEmailRequest, db: AsyncSession = Depends(get_db)):
     """⚠️ TODO: 메일 발송 인프라 연동 필요. 현재는 스텁."""
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     # 보안상 사용자 존재 여부에 무관하게 동일 응답
@@ -337,7 +357,8 @@ async def password_reset_email(body: PasswordResetEmailRequest, db: AsyncSession
     response_model=SuccessResponse[PasswordResetData],
     summary="비밀번호 재설정",
 )
-async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
+@rate_limit("10/minute")
+async def password_reset(request: Request, body: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
     """비밀번호 재설정 토큰을 검증하고 새 비밀번호로 갱신한다."""
     payload = verify_token(body.token, expected_type="reset")
     user_id = payload.get("sub")
@@ -357,7 +378,9 @@ async def password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(
 
 
 @router.delete("/withdraw", response_model=SuccessResponse[WithdrawData], summary="회원 탈퇴")
+@rate_limit("10/minute")
 async def withdraw(
+    request: Request,
     body: WithdrawRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -370,7 +393,7 @@ async def withdraw(
     refresh_tokens = (
         (await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))).scalars().all()
     )
-    now_utc = datetime.utcnow()
+    now_utc = _utcnow()
     for rt in refresh_tokens:
         rt.revoked_at = now_utc
     await db.commit()
@@ -380,8 +403,9 @@ async def withdraw(
 
 
 @router.post("/verify-email", response_model=SuccessResponse[VerifyEmailData], summary="이메일 OTP 인증")
-async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
-    now = datetime.utcnow()
+@rate_limit("10/minute")
+async def verify_email(request: Request, body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
+    now = _utcnow()
     otp = (
         await db.execute(
             select(EmailOtp).where(
@@ -410,7 +434,8 @@ async def verify_email(body: VerifyEmailRequest, db: AsyncSession = Depends(get_
 
 
 @router.post("/resend-otp", response_model=SuccessResponse[ResendOtpData], summary="OTP 재발송")
-async def resend_otp(body: ResendOtpRequest, db: AsyncSession = Depends(get_db)):
+@rate_limit("10/minute")
+async def resend_otp(request: Request, body: ResendOtpRequest, db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     # 보안상 사용자 존재 여부에 무관하게 동일 응답
     if user and not user.is_email_verified:
@@ -419,7 +444,7 @@ async def resend_otp(body: ResendOtpRequest, db: AsyncSession = Depends(get_db))
             EmailOtp(
                 email=body.email,
                 code=otp_code,
-                expires_at=datetime.utcnow() + timedelta(minutes=10),
+                expires_at=_utcnow() + timedelta(minutes=10),
             )
         )
         await db.commit()
@@ -430,7 +455,8 @@ async def resend_otp(body: ResendOtpRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/refresh", response_model=SuccessResponse[RefreshData], summary="액세스 토큰 갱신")
-async def refresh_token_endpoint(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
+@rate_limit("10/minute")
+async def refresh_token_endpoint(request: Request, body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     """Refresh Token Rotation — Grace Period 10초 + family revoke."""
     payload = verify_token(body.refresh_token, expected_type="refresh")
     user_id_str = payload.get("sub")
@@ -443,7 +469,7 @@ async def refresh_token_endpoint(body: RefreshRequest, db: AsyncSession = Depend
     if rec is None:
         raise UnauthorizedError(message="유효하지 않은 토큰입니다.")
 
-    now_utc = datetime.utcnow()
+    now_utc = _utcnow()
 
     # 이미 revoke된 토큰이면서 grace period(10초)도 지났다면 family 전체를 revoke (재사용 공격 방지)
     if rec.revoked_at is not None and (now_utc - rec.revoked_at).total_seconds() > 10:

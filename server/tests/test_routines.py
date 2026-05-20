@@ -2,6 +2,9 @@
 
 DB 커넥션과 인증을 FastAPI dependency_overrides로 대체하여
 외부 인프라 없이 CI에서 실행 가능하다.
+
+SSE 테스트는 services.rag.routine_rag_stream을 monkeypatch로 대체하여
+ChromaDB/LLM 외부 의존성 없이 흐름만 검증한다.
 """
 
 import uuid
@@ -15,7 +18,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.main import app
-from app.models import User
+from app.models import CareerLevel, User
 from app.models.routine import (
     GeneratedBy,
     RoutineExercise,
@@ -56,7 +59,7 @@ def _routine() -> WorkoutRoutine:
     r.updated_at = _NOW
     r.deleted_at = None
     r.target_muscle_group_ids = []
-    r.session_duration_minutes = 60
+    r.session_minutes = 60
     r.ai_reasoning = None
     return r
 
@@ -214,10 +217,11 @@ class TestGetRoutine:
     @pytest.mark.asyncio
     async def test_success_no_days(self, client):
         r = _routine()
-        # _get_my_routine, RoutineDay 쿼리 (일수 없음)
+        # _get_my_routine, RoutineDay 쿼리 (일수 없음), RoutinePaper 쿼리
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([]),
+            _exec_all([]),  # RoutinePaper (has_paper)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -227,7 +231,7 @@ class TestGetRoutine:
         data = resp.json()["data"]
         assert data["routine_id"] == str(_ROUTINE_ID)
         assert data["days"] == []
-        assert data["session_duration_minutes"] == 60
+        assert data["session_minutes"] == 60
 
     @pytest.mark.asyncio
     async def test_success_with_exercises(self, client):
@@ -313,22 +317,28 @@ class TestUpdateRoutineExercise:
     async def test_success(self, client):
         r = _routine()
         rex = _routine_exercise()
+        new_ex = MagicMock()
+        new_ex.id = _EXERCISE_ID
+        new_ex.name = "스쿼트"
 
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
-            _exec_scalar("벤치프레스"),  # Exercise.name
+            _exec_scalar(new_ex),  # 교체할 Exercise 조회
         )
+        db.refresh = AsyncMock(side_effect=lambda obj: None)
         app.dependency_overrides[get_db] = _db_override(db)
 
+        new_exercise_id = str(uuid.uuid4())
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 4, "weight_kg": 70.0},
+            json={"new_exercise_id": new_exercise_id},
         )
 
         assert resp.status_code == 200
-        assert rex.sets == 4
-        assert rex.weight_kg == 70.0
+        data = resp.json()["data"]
+        assert data["message"] == "종목이 교체되었습니다."
+        assert data["new_exercise"]["name"] == "스쿼트"
         db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -338,7 +348,7 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 4},
+            json={"new_exercise_id": str(uuid.uuid4())},
         )
 
         assert resp.status_code == 404
@@ -354,19 +364,19 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 4},
+            json={"new_exercise_id": str(uuid.uuid4())},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_sets_must_be_positive(self, client):
+    async def test_missing_new_exercise_id_returns_400(self, client):
         db = _make_db()
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"sets": 0},
+            json={},
         )
 
         assert resp.status_code == 400
@@ -430,7 +440,7 @@ class TestGetRoutineExercisePapers:
         paper.title = "운동 효과 논문"
         paper.authors = "Kim et al."
         paper.journal = "JSCR"
-        paper.year = 2023
+        paper.published_year = 2023
         paper.doi = "10.1000/test"
         paper.pmid = "12345"
 
@@ -461,10 +471,68 @@ class TestGetRoutineExercisePapers:
 # ── POST /routines/generate (SSE) ─────────────────────────────────────────────
 
 
+def _db_user_profile_row():
+    """app.models.UserProfile mock (career_level만 사용)."""
+    p = MagicMock()
+    p.career_level = CareerLevel.INTERMEDIATE
+    return p
+
+
+def _db_body_measurement_row():
+    bm = MagicMock()
+    bm.weight_kg = 72.5
+    return bm
+
+
+def _generate_db():
+    """generate_routine 용 DB mock.
+
+    실행 순서:
+      1. db.add(routine), db.commit(), db.refresh(routine)  ─ routine.id 세팅
+      2. _build_rag_profile:
+         - SELECT UserProfile             → scalar_one_or_none
+         - SELECT UserBodyMeasurement     → scalar_one_or_none
+         (gym_id 없으면 equipment 쿼리 생략)
+      3. _run_rag_to_sse:
+         - SELECT UserExercise1RM         → .all()
+         (routine_rag_stream을 monkeypatch로 빈 generator로 치환하므로
+          이후 day persistence 쿼리는 없음)
+      4. await db.commit()
+    """
+    db = _make_db(
+        _exec_scalar(_db_user_profile_row()),  # UserProfile
+        _exec_scalar(_db_body_measurement_row()),  # UserBodyMeasurement
+        _exec_all([]),  # UserExercise1RM
+    )
+
+    async def _set_id(obj):
+        obj.id = _ROUTINE_ID
+
+    db.refresh = AsyncMock(side_effect=_set_id)
+    db.delete = AsyncMock()
+    db.rollback = AsyncMock()
+    db.flush = AsyncMock()
+    return db
+
+
+def _stub_rag_stream(events: list[dict]):
+    """routine_rag_stream를 events list를 yield하는 generator로 치환하는 helper."""
+
+    def _fake(_profile):
+        yield from events
+
+    return _fake
+
+
 class TestGenerateRoutine:
     @pytest.mark.asyncio
-    async def test_returns_sse_content_type(self, client):
-        # generate는 DB 불필요 (get_current_user만 필요)
+    async def test_returns_sse_content_type(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+
         resp = await client.post(
             "/api/v1/routines/generate",
             json={"goals": ["hypertrophy"], "split_type": "2split"},
@@ -474,7 +542,13 @@ class TestGenerateRoutine:
         assert "text/event-stream" in resp.headers["content-type"]
 
     @pytest.mark.asyncio
-    async def test_stream_contains_started_event(self, client):
+    async def test_stream_contains_started_event(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+
         resp = await client.post(
             "/api/v1/routines/generate",
             json={"goals": ["strength"]},
@@ -485,6 +559,67 @@ class TestGenerateRoutine:
         assert "[DONE]" in body
 
     @pytest.mark.asyncio
+    async def test_stream_contains_routine_id(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        assert "routine_id" in body
+        assert str(_ROUTINE_ID) in body
+
+    @pytest.mark.asyncio
+    async def test_stream_contains_chunk_event(self, client, monkeypatch):
+        """RAG가 LLM 토큰을 흘려보내면 SSE에 chunk 이벤트로 전달된다."""
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream(
+                [
+                    {"type": "chunk", "content": "안녕"},
+                    {"type": "chunk", "content": "하세요"},
+                    {"type": "done"},
+                ]
+            ),
+        )
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        assert '"type": "chunk"' in body
+        assert "안녕" in body
+        assert "하세요" in body
+
+    @pytest.mark.asyncio
+    async def test_rag_error_event_forwarded(self, client, monkeypatch):
+        """ChromaDB가 비어있어 RAG가 error를 emit하면 SSE에도 error가 흘러간다."""
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([{"type": "error", "message": "관련 논문을 찾을 수 없습니다."}]),
+        )
+        app.dependency_overrides[get_db] = _db_override(_generate_db())
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        assert '"type": "error"' in body
+        assert "관련 논문을 찾을 수 없습니다" in body
+        assert "[DONE]" in body  # 에러여도 종료 마커는 흘러야 함
+
+    @pytest.mark.asyncio
     async def test_missing_goals_returns_400(self, client):
         resp = await client.post(
             "/api/v1/routines/generate",
@@ -493,16 +628,63 @@ class TestGenerateRoutine:
 
         assert resp.status_code == 400
 
+    @pytest.mark.asyncio
+    async def test_no_user_profile_returns_400(self, client, monkeypatch):
+        """UserProfile이 없으면 ValidationError로 400."""
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([]),
+        )
+        db = _make_db(_exec_scalar(None))  # UserProfile 없음
+        db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", _ROUTINE_ID))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        assert resp.status_code == 400
+
 
 # ── POST /routines/{id}/regenerate (SSE) ──────────────────────────────────────
 
 
+def _regenerate_db(routine):
+    """regenerate_routine 용 DB mock.
+
+    실행 순서:
+      1. _get_my_routine                       → scalar(routine)
+      2. SELECT RoutineDay (기존 days 삭제)    → scalars().all() = []
+      3. SELECT RoutinePaper (기존 papers 삭제) → scalars().all() = []
+      4. _build_rag_profile:
+         - SELECT UserProfile                  → scalar
+         - SELECT UserBodyMeasurement          → scalar
+      5. _run_rag_to_sse:
+         - SELECT UserExercise1RM              → .all() = []
+    """
+    db = _make_db(
+        _exec_scalar(routine),
+        _exec_scalars_all([]),  # RoutineDay
+        _exec_scalars_all([]),  # RoutinePaper
+        _exec_scalar(_db_user_profile_row()),
+        _exec_scalar(_db_body_measurement_row()),
+        _exec_all([]),  # UserExercise1RM
+    )
+    db.delete = AsyncMock()
+    db.flush = AsyncMock()
+    db.rollback = AsyncMock()
+    return db
+
+
 class TestRegenerateRoutine:
     @pytest.mark.asyncio
-    async def test_returns_sse_content_type(self, client):
-        r = _routine()
-        db = _make_db(_exec_scalar(r))
-        app.dependency_overrides[get_db] = _db_override(db)
+    async def test_returns_sse_content_type(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(_regenerate_db(_routine()))
 
         resp = await client.post(
             f"/api/v1/routines/{_ROUTINE_ID}/regenerate",
@@ -513,10 +695,12 @@ class TestRegenerateRoutine:
         assert "text/event-stream" in resp.headers["content-type"]
 
     @pytest.mark.asyncio
-    async def test_stream_contains_started_event(self, client):
-        r = _routine()
-        db = _make_db(_exec_scalar(r))
-        app.dependency_overrides[get_db] = _db_override(db)
+    async def test_stream_contains_started_event(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(_regenerate_db(_routine()))
 
         resp = await client.post(
             f"/api/v1/routines/{_ROUTINE_ID}/regenerate",

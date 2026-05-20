@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class PaperMeta(BaseModel):
-    """PubMed 논문 메타데이터."""
+    """논문 메타데이터 (PubMed / PMC / OpenAlex 다중 소스)."""
 
     pmid: str
     title: str
@@ -13,6 +13,15 @@ class PaperMeta(BaseModel):
     published_year: int | None = None
     doi: str = ""
     abstract: str = ""
+    search_categories: list[str] = []
+    # 다중 소스 식별자
+    pmcid: str | None = None
+    openalex_id: str | None = None
+    # 증거 등급 메타
+    publication_types: list[str] = []
+    evidence_weight: float = 0.50
+    # 전문 수집 출처 (e.g. "pmc_xml", "unpaywall", "semantic_scholar")
+    fulltext_source: str | None = None
 
 
 class PaperSection(BaseModel):
@@ -38,3 +47,10 @@ class Chunk(BaseModel):
     chunk_index: int
     content: str
     token_count: int
+    search_categories: list[str] = []
+    # 다중 소스 메타 (evidence_weight 정렬 + DOI dedup 준비)
+    paper_doi: str = ""
+    publication_types: list[str] = []
+    evidence_weight: float = 0.50
+    fulltext_source: str | None = None
+    published_year: int | None = None

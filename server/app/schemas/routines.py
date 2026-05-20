@@ -19,6 +19,7 @@ class RoutineExerciseItem(BaseModel):
     weight_kg: float | None = None
     rest_seconds: int
     note: str | None = None
+    has_paper: bool = False
 
 
 class RoutineDayItem(BaseModel):
@@ -41,7 +42,7 @@ class RoutineSummary(BaseModel):
 
 class RoutineDetail(RoutineSummary):
     target_muscle_group_ids: list | None = None
-    session_duration_minutes: int | None = None
+    session_minutes: int | None = None
     ai_reasoning: str | None = None
     days: list[RoutineDayItem] = Field(default_factory=list)
 
@@ -53,10 +54,11 @@ class RoutineListData(BaseModel):
 # ── 생성/재생성 ───────────────────────────────────────────────────────────────
 class GenerateRoutineRequest(BaseModel):
     goals: list[str]
-    split_type: str | None = None
-    session_duration_minutes: int | None = None
     target_muscle_group_ids: list[str] = Field(default_factory=list)
+    session_minutes: int | None = None
+    split_type: str | None = None
     gym_id: str | None = None
+    injury: str | None = Field(default=None, description="부상 정보 (예: 허리 통증으로 하체 운동 제외)")
 
 
 class RegenerateRoutineRequest(BaseModel):
@@ -69,6 +71,7 @@ class UpdateRoutineNameRequest(BaseModel):
 
 
 class UpdateRoutineExerciseRequest(BaseModel):
+    new_exercise_id: str | None = None
     sets: int | None = Field(default=None, ge=1)
     reps_min: int | None = Field(default=None, ge=1)
     reps_max: int | None = Field(default=None, ge=1)
@@ -92,3 +95,29 @@ class PaperItem(BaseModel):
 class RoutineExercisePapersData(BaseModel):
     routine_exercise_id: str
     items: list[PaperItem]
+
+
+# ── 종목 교체 ─────────────────────────────────────────────────────────────────
+class ReplaceRoutineExerciseRequest(BaseModel):
+    new_exercise_id: str
+
+
+class ReplacedExerciseData(BaseModel):
+    exercise_id: str
+    name: str
+    equipment: str | None = None
+    brand: str | None = None
+    sets: int
+    reps_min: int | None = None
+    reps_max: int | None = None
+
+
+class ReplaceRoutineExerciseData(BaseModel):
+    message: str
+    new_exercise: ReplacedExerciseData
+
+
+# ── 삭제 ──────────────────────────────────────────────────────────────────────
+class RoutineDeleteData(BaseModel):
+    routine_id: str
+    deleted_at: datetime

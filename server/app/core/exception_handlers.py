@@ -3,6 +3,7 @@ import logging
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import get_settings
@@ -72,6 +73,22 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
             "error": {
                 "code": code_map.get(exc.status_code, "HTTP_ERROR"),
                 "message": exc.detail or "요청을 처리할 수 없습니다",
+                "details": None,
+                "request_id": request_id,
+            },
+        },
+    )
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": f"요청이 너무 많습니다. 잠시 후 다시 시도해주세요. ({exc.detail})",
                 "details": None,
                 "request_id": request_id,
             },

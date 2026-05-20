@@ -168,6 +168,45 @@ cd app && npm test
       fitness_goal: str
   ```
 
+### ✅ D-M8 확정 — 나이 입력을 생년월일(`birth_date`)로 전환
+- 결정 배경: 나이는 매년 변하는 비정상성(non-stationary) 값. `birth_date`를 한 번 저장해 두고 응답 시점에 계산하면 매년 자동 갱신.
+- DB:
+  - `user_profiles.birth_date` `DATE NOT NULL` 추가 (Alembic 마이그레이션)
+  - 기존 `age` 컬럼은 신규 컬럼 안착 후 후속 마이그레이션에서 drop
+- 응답 시점 계산: `EXTRACT(YEAR FROM AGE(NOW(), birth_date))::int AS age`
+- API 영향 (2개):
+  - `POST /api/v1/auth/register` body: `age: int` 제거, `birth_date: "YYYY-MM-DD"` 추가
+  - `PATCH /api/v1/users/me/body` body: `age` 필드 제거 (생년월일은 register 시 1회만 입력)
+- 응답 DTO는 매번 `age`를 계산해서 함께 반환 (기존 클라이언트 호환)
+
+### ✅ D-M9 확정 — 루틴/세션의 `gym_id` 통합
+- 결정 배경: 사용자가 집·회사·여행지 헬스장을 번갈아 사용하며 각 헬스장의 가용 기구가 다르므로 루틴은 gym에 종속되어야 한다.
+- DB: `workout_routines.gym_id` `UUID NOT NULL` 추가 (`gyms.id` FK)
+- API 영향 (7개, 모든 필드 snake_case):
+  - `POST /routines/generate` — body `gym_id` 필수. 해당 gym의 `gym_equipments`를 AI 컨텍스트로 사용
+  - `GET /routines` — query `?gym_id=` 필터. 응답 각 루틴에 `gym_id`/`gym_name`
+  - `GET /routines/{routine_id}` — 응답에 `gym: { gym_id, name }`
+  - `PATCH /routines/{routine_id}/exercises/{exercise_id}` — 대체 기구는 해당 루틴의 `gym_id`에 속한 기구만 허용 (서버 검증)
+  - `POST /sessions` — body `gym_id` 선택. 생략 시 routine의 `gym_id`를 서버가 자동 복사
+  - `GET /sessions/stats` — 응답에 `by_gym[]` 집계 추가
+  - `GET /home` — 응답을 `routines_at_current_gym` / `routines_at_other_gyms`로 분리
+
+### ✅ D-M10 확정 — AI 인사이트 카드 이번 학기 폐기
+- 결정 배경: `screens.md`에 색상 토큰만 정의돼 있고 백엔드 endpoint·LLM 흐름이 없음. 이번 학기에 추가 LLM 통합을 늘릴 여력이 없으므로 폐기.
+- 화면: AI 인사이트 카드 자리는 정적 텍스트로 대체하거나 미구현 상태 유지 (W-M01 메인 화면 영향)
+- 디자인 토큰 `#F0E6FF`는 차후 재활용 가능성을 위해 §14에 보존
+
+### ✅ D-M11 확정 — 멀티 소스 논문 수집 + `evidence_weight` 도입
+- 결정 배경: PubMed 단일 소스로는 운동과학 도메인 회수율과 라이센스 커버리지가 부족하고, 논문 유형(RCT vs review 등)에 따른 근거 강도 차이가 RAG 검색·인용에 반영되지 않았음. 회의 초기에 거론된 비공식 결정 "papers/paper_chunks 테이블 폐기 → ChromaDB 단일 소스화"는 본 결정으로 대체.
+- 데이터 소스 확장: PubMed + OpenAlex + EuropePMC 세 곳에서 수집. PMC 본문 미보유 OA 논문에 대해 EuropePMC fulltext fallback으로 회수율 보완.
+- DB 영향 (Alembic 마이그레이션 `007_clean_slate_papers_multi_source.py`):
+  - `papers`: `doi`가 primary lookup이며 NOT NULL UNIQUE. `pmid`/`pmcid`/`openalex_id`는 nullable 보조 식별자.
+  - `papers` 신규 컬럼: `publication_types text[]`, `evidence_weight numeric(3,2)`, `fulltext_source`, `search_categories text[]`.
+  - `paper_chunks` 신규 컬럼: `evidence_weight`, `publication_types`. `chroma_id` 제거.
+  - 기존 데이터는 mlops 파이프라인이 재수집하므로 DROP CASCADE.
+  - `chat_messages.paper_id`, `routine_papers.paper_id` FK는 그대로 유지.
+- RAG 영향: `paper_chunks.evidence_weight`가 검색 결과 정렬과 가중치 계산에 반영됨 (`server/app/services/rag.py`). 본 PR은 결정 등록 범위만 다루며, §11 RAG 파이프라인 흐름 본문 갱신은 별도 후속 docs 작업으로 분리.
+
 ---
 
 ## 7. API 설계 규칙
@@ -312,13 +351,46 @@ Chat & RAG: chat_sessions, chat_messages, papers, paper_chunks      (4)
 
 ### equipment 분류 (API-12: category와 equipment_type 분리)
 - `equipments.category` (근육 부위 대표 1개): `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
+- `equipments.sub_category` (세부 영역, v2.1): `varchar(50)` NULL. 값 예: `upper_back`, `lower_back`, `front_delt`, `side_delt`, `rear_delt`, `upper_chest`, `mid_chest`, `lower_chest`, `biceps`, `triceps`, `quads`, `hamstrings`, `abs`. enum이 아니므로 데이터 진화로 어휘 세분화 가능 (예: `front_delt` → `front_delt_anterior`). 스키마 변경 불요.
 - `equipments.equipment_type` (물리 타입): `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
 - 중량 계산 엔진은 `equipment_type` 기준 (이전 버전의 `category` 분기 코드는 마이그레이션 필요)
-- 위 허용 값 외 다른 값 사용 금지
+- 위 `category` / `equipment_type` 허용 값 외 다른 값 사용 금지
+
+### 무게 단위 정책 (v2.1, weightunit enum: kg | lb)
+**DB는 CSV에 표기된 원본 단위 그대로 저장한다.** 단위 변환을 storage time에 강제하지 않는다. 각 값의 단위는 같은 행의 `*_unit` 컬럼에서 즉시 확인할 수 있으며, 비교·합산이 필요한 컴포넌트(`load_calc.py` 등)가 compute time에 환산 책임을 진다.
+
+v2.1에서 컬럼명에서 `_kg` 접미사를 제거 — 컬럼명이 kg 단일 단위를 시사하지 않도록 정정:
+- `bar_weight_kg → bar_weight`, `min_stack_kg → min_stack`, `max_stack_kg → max_stack`, `stack_weight_kg → stack_weight`
+
+두 종류의 무게가 의미적으로 분리된다:
+1. **바/레버 그룹** (`bar_weight`, `bar_weight_unit`): 제조사가 하드웨어에 새겨놓은 기구 자체의 무게. 미국 브랜드(Hammer Strength 등)는 `lb` 표기로 출고됨.
+2. **스택/원판 그룹** (`min_stack`, `max_stack`, `stack_weight`, `stack_unit`):
+   - selectorized 머신: 제조사 내장 스택 → 제조사 표기 단위 그대로 기록.
+   - plate-loaded 머신: 사용자가 끼우는 원판 → 국내 헬스장 표준 kg.
+   - **세 스택 필드(`min_stack`/`max_stack`/`stack_weight`)는 같은 행의 `stack_unit` 하나를 공유한다** — 한 기구 안에서 스택 범위와 블록 무게는 반드시 동일 단위로 표기된다. 단일 `stack_unit` 컬럼 구조가 이 제약을 스키마 차원에서 강제하므로 `min_stack='kg', max_stack='lb'` 같은 표상 자체가 불가능하다.
+
+같은 행에 `bar_weight_unit='lb'`, `stack_unit='kg'` 조합이 정상이며 ETL은 두 그룹을 독립 처리한다. `equipment_brands.default_bar_unit` / `default_stack_unit`은 신규 import 시 명시값이 없을 때 fallback.
+
+**값과 단위의 동기성은 CHECK 제약(`chk_bar_unit_synced`, `chk_stack_unit_synced`)으로 DB 레벨에서 강제**된다 — 무게 값이 NOT NULL이면 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나. "값 있는데 단위 NULL" 같은 모순 상태 절대 금지. 추가로 **`chk_stack_weight_shape`**가 JSONB `stack_weight`의 `value`/`pattern` 키 상호 배타를 강제한다 (§ `stack_weight` JSONB 참조).
+
+### `stack_weight` JSONB (v2.1, RENAME + decimal → jsonb)
+값의 단위는 같은 행의 `stack_unit`이 결정하며 JSONB 내부에는 단위를 두지 않는다.
+- 균일 스택: `{"value": 5}` (stack_unit이 'kg'이면 5kg, 'lb'이면 5lb)
+- 변동 스택(예: Hammer Strength Select): `{"pattern": [{"from": 1, "to": 5, "value": 10}, {"from": 6, "to": 15, "value": 15}]}`
+- **`value`와 `pattern`은 상호 배타** — DB CHECK 제약 `chk_stack_weight_shape`가 top-level 키 양립을 차단한다 (Alembic 008에서 추가 예정):
+  ```sql
+  ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
+    stack_weight IS NULL
+    OR (stack_weight ? 'value' AND NOT stack_weight ? 'pattern')
+    OR (stack_weight ? 'pattern' AND NOT stack_weight ? 'value')
+  );
+  ```
+- 앱 레이어 추가 검증(JSONB CHECK로는 표현이 거추장스러움): `pattern[0].from == 1`, 구간은 인접 (`prev.to + 1 == curr.from`), 모든 `value` 양수.
+- 블록 번호 → 실제 값 해석은 `services/load_calc.py:resolve_block_weight(stack_weight, block_index)` 사용 (후속 PR에서 도입). 단위 환산은 `to_kg(value, unit)` 헬퍼가 별도 책임.
 
 ### 중량 기록
-- `weight_kg` = 기구 표시값 (사용자 입력)
-- 실효 부하 = `weight_kg × pulley_ratio`
+- `workout_log_sets.weight_kg` = 사용자가 입력한 기구 표시값 (사용자 입력은 항상 kg 가정 — 국내 사용자 UI 정책)
+- 실효 부하 계산 (`load_calc.calculate_effective_weight`)은 `bar_weight + bar_weight_unit`, `stack + stack_unit`을 받아 내부적으로 kg로 환산 후 `weight_kg × pulley_ratio` 등을 적용
 
 ### 삭제 정책
 - 루틴: soft delete (`deleted_at` nullable), 복구 불가
@@ -334,18 +406,21 @@ Chat & RAG: chat_sessions, chat_messages, papers, paper_chunks      (4)
 ### 도르래 비율 보정 (`load_calc.py` 참조)
 
 ```python
+# v2.1: 컬럼 RENAME 적용 + 단위 환산 처리. to_kg(value, unit) 헬퍼가 kg로 환산.
 def calculate_effective_weight(equipment, stack, added, body_weight):
     # API-12: category는 근육 부위, 물리 분기는 equipment_type
+    bar_kg = to_kg(equipment.bar_weight, equipment.bar_weight_unit) or 0
+    stack_kg = to_kg(stack, equipment.stack_unit) or 0
     match equipment.equipment_type:
         case "cable" | "machine":
-            return stack * equipment.pulley_ratio + (equipment.bar_weight_kg or 0)
+            return stack_kg * equipment.pulley_ratio + bar_kg
         case "barbell":
-            return equipment.bar_weight_kg + (added or 0)
+            return bar_kg + (added or 0)
         case "dumbbell":
             return added or 0
         case "bodyweight":
             if equipment.has_weight_assist:
-                return body_weight - stack
+                return body_weight - stack_kg
             return body_weight + (added or 0)
 ```
 
@@ -480,7 +555,21 @@ ChipSelector:  선택 시 bg=#000 text white
 
 ---
 
-## 15. 절대 금지 사항
+## 15. 작업 전 필수 체크리스트
+
+Claude Code로 작업을 시작하기 전에 반드시 수행:
+
+```bash
+git fetch --prune
+git pull origin <현재-브랜치>   # 또는 git merge origin/develop
+```
+
+- 최신 코드 없이 작업 시작 금지 — 충돌 및 중복 작업 방지
+- 본인 브랜치가 develop 기반이면 `git merge origin/develop` 으로 최신 develop 반영
+
+---
+
+## 16. 절대 금지 사항
 
 - Supabase 대시보드 직접 DB 스키마 수정 → Alembic만 사용
 - `.env` 파일 커밋 → `.gitignore` 확인 필수
@@ -496,7 +585,7 @@ ChipSelector:  선택 시 bg=#000 text white
 
 ---
 
-## 16. 미결정 사항 (D-issue)
+## 17. 미결정 사항 (D-issue)
 
 | ID | 주제 | 현재 상태 |
 |---|---|---|
@@ -509,7 +598,7 @@ ChipSelector:  선택 시 bg=#000 text white
 
 ---
 
-## 17. 참조 문서
+## 18. 참조 문서
 
 | 문서 | 경로 |
 |---|---|
