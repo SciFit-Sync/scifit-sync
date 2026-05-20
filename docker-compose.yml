@@ -5,10 +5,13 @@ services:
       - "8000:8000"
     volumes:
       - ./server:/app
-      - chroma_data:/chroma-data
+      - ./mlops:/app/mlops
+      - ./chroma_data:/chroma-data
     env_file: ./server/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scifiitsync
+      - HF_HOME=/tmp/hf
+      - HUGGINGFACE_HUB_CACHE=/tmp/hf
       - ENV=development
     depends_on:
       - db
