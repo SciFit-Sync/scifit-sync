@@ -6,8 +6,6 @@ _parse_weight_str, _parse_pattern, _parse_stack_weight 함수 검증.
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from import_equipment_csv import _parse_pattern, _parse_stack_weight, _parse_weight_str
