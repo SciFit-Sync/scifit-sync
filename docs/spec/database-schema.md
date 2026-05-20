@@ -540,7 +540,9 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
 
 즉, 무게 값이 존재할 때 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나로 결정되고("값은 있는데 단위 NULL" 금지), JSONB `stack_weight`는 `value`형 또는 `pattern`형 중 하나만 가질 수 있다(혼합 객체 금지).
 
-### `stack_weight` JSONB 스키마 (v2.1)
+`chk_stack_weight_shape` (v2.2): `value`·`pattern` top-level 키 양립 차단. 빈 객체 `{}`는 세 OR 분기가 모두 FALSE가 되어 DB CHECK가 INSERT/UPDATE를 차단한다.
+
+### `stack_weight` JSONB 스키마 (v2.1 + v2.2)
 타입을 `decimal`에서 `jsonb`로 변경. 값의 **단위는 같은 행의 `stack_unit`**이 결정하며 JSONB 내부에는 단위를 넣지 않는다(단일 진실 원칙). 두 가지 형태를 허용:
 
 ```jsonc
