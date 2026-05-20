@@ -39,14 +39,12 @@ class TestChunkPaper:
         chunks = chunk_paper(paper)
         assert chunks == []
 
-    def test_abstract_only_short(self):
-        """초록만 있고 짧은 경우 — 1개 청크."""
+    def test_abstract_only_yields_no_chunks(self):
+        """초록만 있고 sections=[]인 경우 — 청크 0개 (abstract fallback 제거)."""
         abstract = "Resistance training improves muscle strength. " * 20
         paper = _make_paper(abstract=abstract)
         chunks = chunk_paper(paper)
-        assert len(chunks) >= 1
-        assert chunks[0].section_name == "Abstract"
-        assert chunks[0].paper_pmid == "12345"
+        assert chunks == []
 
     def test_sections_short_no_split(self):
         """섹션이 짧으면 분할하지 않음."""
@@ -93,7 +91,7 @@ class TestChunkPaper:
             assert c.token_count <= 600  # max_tokens(512) + 여유
 
     def test_sections_preferred_over_abstract(self):
-        """섹션이 있으면 초록 대신 섹션 사용."""
+        """섹션이 있으면 초록은 무시하고 섹션만 사용."""
         paper = _make_paper(
             abstract="This is the abstract. " * 30,
             sections=[PaperSection(name="Results", content="These are results. " * 30)],
@@ -117,9 +115,10 @@ class TestChunkPaper:
         paper = _make_paper(
             pmid="99999",
             title="My Paper Title",
-            abstract="Abstract content here. " * 30,
+            sections=[PaperSection(name="Methods", content="Study design content. " * 30)],
         )
         chunks = chunk_paper(paper)
+        assert len(chunks) >= 1
         for c in chunks:
             assert c.paper_pmid == "99999"
             assert c.paper_title == "My Paper Title"
@@ -129,8 +128,8 @@ class TestChunkPapers:
     def test_multiple_papers(self):
         """복수 논문 일괄 청킹."""
         papers = [
-            _make_paper(pmid="1", abstract="Paper one content. " * 30),
-            _make_paper(pmid="2", abstract="Paper two content. " * 30),
+            _make_paper(pmid="1", sections=[PaperSection(name="Intro", content="Paper one content. " * 30)]),
+            _make_paper(pmid="2", sections=[PaperSection(name="Intro", content="Paper two content. " * 30)]),
         ]
         chunks = chunk_papers(papers)
         pmids = {c.paper_pmid for c in chunks}
@@ -140,3 +139,62 @@ class TestChunkPapers:
     def test_empty_list(self):
         chunks = chunk_papers([])
         assert chunks == []
+
+    def test_abstract_only_papers_excluded(self):
+        """sections=[]인 논문은 chunk_papers 결과에서 제외."""
+        papers = [
+            _make_paper(pmid="1", abstract="Only abstract. " * 30),
+            _make_paper(pmid="2", sections=[PaperSection(name="Intro", content="Has fulltext. " * 30)]),
+        ]
+        chunks = chunk_papers(papers)
+        pmids = {c.paper_pmid for c in chunks}
+        assert "1" not in pmids
+        assert "2" in pmids
+
+
+class TestChunkEvidenceMeta:
+    def test_paper_without_fulltext_yields_no_chunks(self):
+        """본문 sections=[]인 paper는 abstract가 있어도 청크 0개."""
+        meta = PaperMeta(
+            pmid="999",
+            title="No fulltext paper",
+            authors="X",
+            journal="Y",
+            published_year=2020,
+            doi="10.1/abc",
+            abstract="A long abstract " * 100,
+            search_categories=["volume"],
+        )
+        paper = PaperFull(meta=meta, sections=[])
+        chunks = chunk_paper(paper)
+        assert chunks == []
+
+    def test_paper_with_fulltext_propagates_evidence_meta(self):
+        """본문 있는 paper의 chunk에 paper_doi/publication_types/evidence_weight/fulltext_source/published_year 전파."""
+        meta = PaperMeta(
+            pmid="123",
+            title="OK",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi="10.1/xyz",
+            abstract="",
+            search_categories=[],
+            publication_types=["Randomized Controlled Trial"],
+            evidence_weight=0.90,
+            fulltext_source="pmc",
+        )
+        paper = PaperFull(
+            meta=meta,
+            sections=[
+                PaperSection(name="Intro", content="Resistance training " * 50),
+            ],
+        )
+        chunks = chunk_paper(paper)
+        assert len(chunks) >= 1
+        chunk = chunks[0]
+        assert chunk.paper_doi == "10.1/xyz"
+        assert chunk.publication_types == ["Randomized Controlled Trial"]
+        assert chunk.evidence_weight == 0.90
+        assert chunk.fulltext_source == "pmc"
+        assert chunk.published_year == 2020

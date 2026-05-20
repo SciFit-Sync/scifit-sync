@@ -1,12 +1,22 @@
 import re
+from datetime import date
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+_VALID_GOALS = {"hypertrophy", "strength", "endurance", "rehabilitation", "weight_loss"}
+
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
     username: str
     password: str
+    name: str
+    email: EmailStr
+    gender: str | None = None
+    birth_date: date | None = None
+    height: float | None = None
+    weight: float | None = None
+    career_level: str | None = None
+    goals: list[str] = []
 
     @field_validator("username")
     @classmethod
@@ -24,6 +34,57 @@ class RegisterRequest(BaseModel):
             raise ValueError("비밀번호는 8자 이상이어야 합니다")
         return v
 
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.lower()
+        if v not in ("male", "female"):
+            raise ValueError("gender는 'male' 또는 'female'이어야 합니다")
+        return v
+
+    @field_validator("birth_date")
+    @classmethod
+    def validate_birth_date(cls, v: date | None) -> date | None:
+        if v is None:
+            return v
+        today = date.today()
+        # 미래 날짜 불가
+        if v > today:
+            raise ValueError("생년월일은 오늘보다 이전이어야 합니다")
+        # 만 나이 10~100세 범위만 허용 (실용적 한계)
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 10 or age > 100:
+            raise ValueError("만 나이가 10~100세 범위여야 합니다")
+        return v
+
+    @field_validator("career_level")
+    @classmethod
+    def validate_career_level(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.lower()
+        if v not in ("beginner", "novice", "intermediate", "advanced"):
+            raise ValueError("career_level은 beginner/novice/intermediate/advanced 중 하나여야 합니다")
+        return v
+
+    @field_validator("goals")
+    @classmethod
+    def validate_goals(cls, v: list[str]) -> list[str]:
+        result = []
+        for goal in v:
+            g = goal.lower()
+            if g not in _VALID_GOALS:
+                raise ValueError(f"goals 허용값: {sorted(_VALID_GOALS)}")
+            result.append(g)
+        return result
+
+
+class RegisterData(BaseModel):
+    user_id: str
+    username: str
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -39,3 +100,81 @@ class TokenResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class LoginData(BaseModel):
+    access_token: str
+    refresh_token: str
+    user_id: str
+    username: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+class KakaoLoginRequest(BaseModel):
+    access_token: str
+
+
+class KakaoLoginData(BaseModel):
+    access_token: str
+    refresh_token: str
+    is_new_user: bool
+    message: str | None = None
+
+
+# ── 추가 엔드포인트 ──────────────────────────────────────────────────────────
+class CheckUsernameData(BaseModel):
+    username: str
+    available: bool
+
+
+class PasswordResetEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetEmailData(BaseModel):
+    sent: bool
+    message: str | None = None
+
+
+class PasswordResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class PasswordResetData(BaseModel):
+    success: bool
+
+
+class WithdrawRequest(BaseModel):
+    password: str
+
+
+class WithdrawData(BaseModel):
+    message: str
+
+
+class RefreshData(BaseModel):
+    access_token: str
+    refresh_token: str
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
+class VerifyEmailData(BaseModel):
+    verified: bool
+    message: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: EmailStr
+
+
+class ResendOtpData(BaseModel):
+    sent: bool
+    message: str

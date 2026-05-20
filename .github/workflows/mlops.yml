@@ -9,11 +9,13 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: mlops/requirements.txt
 
       - name: Install dependencies
         run: pip install -r mlops/requirements.txt
@@ -23,7 +25,15 @@ jobs:
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
 
-      - name: Report results
-        if: always()
-        run: echo "Pipeline completed. Check logs for failed papers."
+      - name: Report success
+        if: success()
+        run: echo "✅ 논문 파이프라인 완료"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "❌ 논문 파이프라인 실패"
+          echo "Actions URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          exit 1

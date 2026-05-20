@@ -15,7 +15,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # .env에서 DATABASE_URL 로딩
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", ""))
+config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", "").replace("%", "%%"))
 
 # 모든 모델의 MetaData를 import
 from app.models import Base  # noqa: E402
@@ -50,6 +50,7 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"statement_cache_size": 0},
     )
 
     async with connectable.connect() as connection:

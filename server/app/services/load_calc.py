@@ -9,7 +9,7 @@ RANGES: dict[str, tuple[float, float]] = {
 
 
 def calculate_effective_weight(
-    category: str,
+    equipment_type: str,
     *,
     stack: float | None = None,
     added: float | None = None,
@@ -19,7 +19,7 @@ def calculate_effective_weight(
     has_weight_assist: bool = False,
 ) -> float:
     """도르래 비율 보정을 적용한 실효 부하를 계산한다."""
-    match category:
+    match equipment_type:
         case "cable" | "machine":
             s = stack or 0.0
             return s * pulley_ratio + (bar_weight_kg or 0.0)
@@ -34,8 +34,8 @@ def calculate_effective_weight(
             return bw + (added or 0.0)
         case _:
             raise ValidationError(
-                message=f"알 수 없는 기구 카테고리입니다: {category}",
-                details={"category": category},
+                message=f"알 수 없는 equipment_type입니다: {equipment_type}",
+                details={"equipment_type": equipment_type},
             )
 
 

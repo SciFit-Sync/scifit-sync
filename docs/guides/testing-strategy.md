@@ -3,7 +3,7 @@
 ## 백엔드 필수 테스트 (PR 머지 조건)
 | 영역 | 테스트 대상 | 최소 커버리지 |
 |---|---|---|
-| 중량 계산 엔진 | `load_calc.py` 모든 equipment.category | 100% |
+| 중량 계산 엔진 | `load_calc.py` 모든 equipment_type | 100% |
 | 1RM 추정 | Epley 공식 경계값 (0, 음수, 극대값) | 100% |
 | Progressive Overload | 트리거 조건, 증가량, max_stack 초과, sets 한계 | 100% |
 | RAG 파이프라인 | 아래 시나리오 목록 참조 | 시나리오별 |
@@ -19,7 +19,6 @@
 ### 인증 주요 테스트 시나리오
 - 로그인 성공 → 토큰 발급
 - 잘못된 비밀번호 → 401
-- 로그인 5회 실패 → 계정 15분 잠금
 - 토큰 만료 → refresh 성공
 - Refresh Token Rotation + Grace Period 10초
 - 폐기된 refresh token 사용 → family revoke

@@ -4,14 +4,23 @@ __pycache__/
 *.pyo
 .env
 .venv/
+.venv311/
 venv/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 
+# Expo prebuild 결과물 (plugins로 관리)
+/app/android/
+/app/ios/
+
 # ChromaDB 데이터 (절대 커밋 금지)
 /chroma-data/
 *.chroma
+
+# Claude Code 내부 상태 파일
+.omc/
+server/.omc/
 
 # Node / Expo
 node_modules/
@@ -37,3 +46,12 @@ Thumbs.db
 
 # Claude Code (로컬 설정)
 .claude/
+
+# 로컬 설계 메모 / 브레인스토밍 산출물 (커밋 금지)
+docs/specs/
+
+# mlops 파이프라인 로컬 산출물 (재생성 가능)
+mlops/data/chroma-data/
+mlops/data/*.jsonl
+mlops/data/*.jsonl.gz
+app/package-lock.json

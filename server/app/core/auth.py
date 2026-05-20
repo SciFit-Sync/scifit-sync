@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,15 +13,16 @@ from app.core.database import get_db
 from app.core.exceptions import UnauthorizedError
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Swagger UI "Authorize" 버튼 활성화용 (auto_error=False → 토큰 없어도 라우터까지 진입)
+_bearer = HTTPBearer(auto_error=False)
 
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(plain.encode()[:72], bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode()[:72], hashed.encode())
 
 
 def create_access_token(user_id: uuid.UUID) -> str:
@@ -63,6 +65,7 @@ def verify_token(token: str, expected_type: str = "access") -> dict:
 
 async def get_current_user(
     request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     auth_header = request.headers.get("Authorization")
@@ -81,9 +84,5 @@ async def get_current_user(
 
     if not user or not user.is_active:
         raise UnauthorizedError(message="비활성화된 계정입니다")
-
-    now = datetime.now(timezone.utc)
-    if user.locked_until and user.locked_until > now:
-        raise UnauthorizedError(message="계정이 잠겨 있습니다. 잠시 후 다시 시도해주세요")
 
     return user

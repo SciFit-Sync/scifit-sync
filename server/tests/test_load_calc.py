@@ -64,7 +64,7 @@ class TestCalculateEffectiveWeight:
         assert result == 0.0
 
     def test_unknown_category_raises(self):
-        with pytest.raises(ValidationError, match="알 수 없는 기구 카테고리"):
+        with pytest.raises(ValidationError, match="알 수 없는 equipment_type"):
             calculate_effective_weight("unknown_type")
 
 

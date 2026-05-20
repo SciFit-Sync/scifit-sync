@@ -8,9 +8,9 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 ## AWS 인프라 구성
 | 서비스 | 용도 | 비고 |
 |---|---|---|
-| EC2 또는 ECS Fargate | FastAPI 서버 | Docker 이미지 배포 |
+| ECS Fargate | FastAPI 서버 | Docker 이미지 배포 |
 | RDS PostgreSQL 또는 Supabase | 관계형 DB | 프로덕션 DB |
-| EBS / EFS | ChromaDB 데이터 | `/chroma-data` 영구 스토리지 |
+| EFS | ChromaDB 데이터 | `/chroma-data` 영구 스토리지 (ECS Fargate는 EBS 미지원) |
 | ECR | Docker 이미지 레지스트리 | CI에서 빌드 후 push |
 | ALB | 로드 밸런서 | HTTPS 종단, 헬스체크 |
 
@@ -19,14 +19,13 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 2. CI 테스트 통과 확인
 3. Docker 이미지 빌드 → ECR push
 4. DB 마이그레이션 확인 (아래 참조)
-5. ECS 서비스 업데이트 또는 EC2 배포
-6. **필수**: ChromaDB 스토리지(EBS/EFS) 마운트 확인
+5. ECS 서비스 업데이트 (Task Definition 새 revision 배포)
+6. **필수**: ChromaDB 스토리지(EFS) 마운트 확인
 7. 헬스체크: `GET /health` 200 응답 확인
 8. 주요 기능 수동 확인 (루틴 생성, 챗봇 응답)
 
 ## DB 마이그레이션 (프로덕션)
 - ECS: Task Definition의 `entryPoint`에 `alembic upgrade head` 포함, 또는 별도 migration task 실행
-- EC2: SSH 접속 후 `alembic upgrade head` 수동 실행
 - **로컬 DB(Docker postgres)와 프로덕션(RDS/Supabase)의 `DATABASE_URL`이 다름** — 혼동 주의
 - 마이그레이션 롤백: `alembic downgrade -1` (직전 버전)
 
@@ -37,7 +36,6 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 
 ## 환경변수 (AWS)
 - ECS: Task Definition의 environment 또는 AWS Secrets Manager 사용
-- EC2: `.env` 파일 또는 AWS Systems Manager Parameter Store 사용
 - `ENV=production` 필수
 - `CHROMA_PERSIST_PATH=/chroma-data` 필수
 - 프로덕션 `/docs` (Swagger) 비활성화 또는 Security Group으로 IP 제한
@@ -49,7 +47,6 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 
 ## 롤백
 - ECS: 이전 Task Definition revision으로 서비스 업데이트
-- EC2: 이전 Docker 이미지 태그로 재배포
 - DB 마이그레이션 롤백은 별도로 `alembic downgrade -1` 실행 필요
 
 ## 장애 알림 (권장)
