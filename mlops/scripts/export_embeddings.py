@@ -37,7 +37,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from mlops.eval import run_eval
 from mlops.pipeline.chunker import chunk_papers
 from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH, MAX_PAPERS_PER_RUN
 from mlops.pipeline.crawler import crawl_papers
@@ -193,8 +192,12 @@ def _goldset_coverage(
 # ── Fail-fast 사전 검증 ─────────────────────────────────────────────────
 
 
-def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    """시작 전 9가지 사전 검증 (설계서 § 6). 실패 시 argparse.error/SystemExit."""
+def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> list[EmbeddingModelSpec]:
+    """시작 전 사전 검증 (설계서 § 6). 실패 시 argparse.error/SystemExit.
+
+    Returns:
+        선택된 모델 spec 목록 (default: 단일, test: 복수). main이 직접 사용한다.
+    """
     # 1. --batch-tag: argparse required=True가 처리
     # 2. default 모드 + --model 미지정
     if not args.test and not args.model:
@@ -207,8 +210,6 @@ def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         selected_specs = _resolve_test_models(args.models) if args.test else [get_spec(args.model)]
     except KeyError as e:
         parser.error(str(e))
-
-    args._selected_specs = selected_specs  # type: ignore[attr-defined]
 
     # 4-5. test 모드 + goldset 파일 검증
     if args.test:
@@ -224,9 +225,14 @@ def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
                 except json.JSONDecodeError as e:
                     parser.error(f"--goldset JSON 파싱 실패 line {line_no}: {e}")
 
-    # 6. 산출물 경로 충돌 검증
+    # 6. 산출물 경로 충돌 검증 — chunks + emb_<key> 양쪽 모두
+    # chunks는 reuse-chunks 의도일 때만 기존 파일이 허용된다.
+    # (의도 없는데 chunks가 이미 있으면 미주의로 덮어쓸 위험이 있다.)
     if not args.overwrite:
         existing: list[Path] = []
+        chunks_p = _chunks_path(args.batch_tag)
+        if chunks_p.exists() and not args.reuse_chunks:
+            existing.append(chunks_p)
         for spec in selected_specs:
             p = _emb_path(args.batch_tag, spec.key)
             if p.exists():
@@ -239,6 +245,8 @@ def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         device = _resolve_device()
         if not device.startswith("cuda"):
             parser.error(f"--require-gpu 지정됐으나 cuda 미감지 (device={device})")
+
+    return selected_specs
 
 
 # ── Main pipeline ───────────────────────────────────────────────────────
@@ -335,12 +343,10 @@ def _print_summary(summary_rows: list[dict]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    _fail_fast(args, parser)
+    selected_specs = _fail_fast(args, parser)
 
     logger.info("=== Embedding Export 시작 (batch-tag=%s, test=%s) ===", args.batch_tag, args.test)
     log_device_status(logger)
-
-    selected_specs: list[EmbeddingModelSpec] = args._selected_specs
 
     # ── Stage 1: chunks ─────────────────────────────────────
     chunks_path = _chunks_path(args.batch_tag)
@@ -396,6 +402,9 @@ def main(argv: list[str] | None = None) -> int:
             logger.warning(msg + " — recall@10 상한이 자연 감소합니다.")
 
     # ── Stage 2: 모델 순회 + 임베딩 ────────────────────────
+    # test 모드에서만 run_eval을 lazy import — default 모드 사용자에게 불필요한 import 비용 없음.
+    if args.test:
+        from mlops.eval import run_eval
     summary_rows: list[dict] = []
     for spec in selected_specs:
         emb_path = _emb_path(args.batch_tag, spec.key)
