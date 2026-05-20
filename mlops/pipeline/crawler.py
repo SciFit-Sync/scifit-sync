@@ -1350,11 +1350,18 @@ def _round_robin_dedup_metas(
     return doi_order, dict(doi_to_categories), doi_to_meta
 
 
+FULLTEXT_PROGRESS_LOG_EVERY = 50
+
+
 def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
     """각 paper에 cascading fulltext (PMC → Europe PMC) 적용.
 
     fulltext_source가 None으로 남으면 본문 회수 실패 — 호출부가 폐기 결정.
     Task 8 이후 abstract fallback은 제거됐다.
+
+    진행 표시: 매 ``FULLTEXT_PROGRESS_LOG_EVERY`` 편마다 + 마지막 1편에서
+    누적 통계를 INFO 로그로 출력. ERROR/retry 로그는 산발적이라 정상 진행을
+    체감하기 어렵기 때문에 보조 신호로 사용.
     """
     pmc_client = PMCClient(
         base_url=NCBI_BASE_URL,
@@ -1366,8 +1373,13 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
         rate_limit=EUROPEPMC_RATE_LIMIT,
     )
 
+    total = len(metas)
+    indexed = 0
+    sources: dict[str, int] = defaultdict(int)
+    started = time.time()
+
     papers: list[PaperFull] = []
-    for meta in metas:
+    for i, meta in enumerate(metas, start=1):
         # PMC 시도 전 PMCID 보강. OpenAlex 메타만 `ids.pmcid`를 일부 채우고,
         # PubMed efetch는 pmcid를 추출하지 않는다. pmcid가 비어 있고 PMID가
         # 있으면 elink(PMID→PMCID)로 변환을 시도해 PMC fetch가 가능하도록 한다.
@@ -1397,6 +1409,27 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
         )
         meta.fulltext_source = result.fulltext_source
         papers.append(PaperFull(meta=meta, sections=result.sections))
+
+        if result.sections:
+            indexed += 1
+            sources[result.fulltext_source or "unknown"] += 1
+
+        if i % FULLTEXT_PROGRESS_LOG_EVERY == 0 or i == total:
+            elapsed = time.time() - started
+            rate = i / elapsed if elapsed > 0 else 0.0
+            eta_sec = (total - i) / rate if rate > 0 else 0.0
+            src_summary = ", ".join(f"{k} {v}" for k, v in sorted(sources.items())) or "-"
+            logger.info(
+                "PMC 본문 수집 진행: %d/%d (%.1f편/s, 경과 %.0fs, ETA %.0fs, 확보 %d [%s], 미확보 %d)",
+                i,
+                total,
+                rate,
+                elapsed,
+                eta_sec,
+                indexed,
+                src_summary,
+                i - indexed,
+            )
     return papers
 
 
