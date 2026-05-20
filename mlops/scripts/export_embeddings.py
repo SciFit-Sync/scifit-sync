@@ -94,6 +94,26 @@ def _chunks_doi_set(chunks: list[Chunk]) -> set[str]:
     return {c.paper_doi for c in chunks if c.paper_doi}
 
 
+def _merge_chunks(old: list[Chunk], new: list[Chunk]) -> list[Chunk]:
+    """기존 chunks + 신규 chunks를 paper 단위 dedup하여 합친다.
+
+    paper_doi 우선, 없으면 paper_pmid로 key 생성. 같은 paper의 chunk는 모두 보존
+    하지만 같은 paper의 신규 chunks는 통째로 폐기 (old 우선)."""
+    old_keys: set[str] = set()
+    for c in old:
+        key = c.paper_doi or c.paper_pmid
+        if key:
+            old_keys.add(key)
+
+    merged = list(old)
+    for c in new:
+        key = c.paper_doi or c.paper_pmid
+        if key and key in old_keys:
+            continue
+        merged.append(c)
+    return merged
+
+
 def _emb_path(batch_tag: str, model_key: str) -> Path:
     return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
 

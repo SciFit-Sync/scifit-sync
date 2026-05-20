@@ -16,6 +16,7 @@ from mlops.scripts.export_embeddings import (
     CHUNKS_META_VERSION,
     _chunks_doi_set,
     _count_unique_papers,
+    _merge_chunks,
     _meta_path,
 )
 
@@ -96,6 +97,41 @@ def test_chunks_doi_set_excludes_empty_string():
 
 def test_chunks_doi_set_empty_input_returns_empty_set():
     assert _chunks_doi_set([]) == set()
+
+
+def test_merge_chunks_keeps_old_paper_when_doi_collision():
+    old = [_make_chunk(doi="10.1/a", pmid="1", idx=0)]
+    new = [_make_chunk(doi="10.1/a", pmid="1", idx=0)]
+    merged = _merge_chunks(old, new)
+    assert len(merged) == 1
+    assert merged[0] is old[0]
+
+
+def test_merge_chunks_appends_new_papers():
+    old = [_make_chunk(doi="10.1/a", pmid="1", idx=0)]
+    new = [_make_chunk(doi="10.1/b", pmid="2", idx=0)]
+    merged = _merge_chunks(old, new)
+    assert len(merged) == 2
+    assert merged[0].paper_doi == "10.1/a"
+    assert merged[1].paper_doi == "10.1/b"
+
+
+def test_merge_chunks_dedup_by_pmid_when_doi_empty():
+    old = [_make_chunk(doi="", pmid="1", idx=0)]
+    new = [_make_chunk(doi="", pmid="1", idx=1)]
+    merged = _merge_chunks(old, new)
+    assert len(merged) == 1
+
+
+def test_merge_chunks_keeps_multiple_chunks_of_same_paper():
+    """같은 paper의 여러 chunk는 모두 보존 (paper 단위 dedup이지 chunk 단위 아님)."""
+    old = [
+        _make_chunk(doi="10.1/a", pmid="1", idx=0),
+        _make_chunk(doi="10.1/a", pmid="1", idx=1),
+    ]
+    new = [_make_chunk(doi="10.1/b", pmid="2", idx=0)]
+    merged = _merge_chunks(old, new)
+    assert len(merged) == 3
 
 
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────
