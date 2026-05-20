@@ -27,9 +27,11 @@
 """
 
 import argparse
+import contextlib
 import gzip
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -112,6 +114,26 @@ def _merge_chunks(old: list[Chunk], new: list[Chunk]) -> list[Chunk]:
             continue
         merged.append(c)
     return merged
+
+
+def _save_chunks_atomic(path: Path, chunks: list[Chunk]) -> None:
+    """chunks를 gzip JSONL로 atomic 저장. 부분 쓰기 방어용 tmp + os.replace 패턴.
+
+    중간 실패 시 원본 path 파일은 그대로 보존된다 (.tmp는 cleanup 시도, 실패해도
+    무시 — 원본 무결성이 우선).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with gzip.open(tmp, "wt", encoding="utf-8") as f:
+            for c in chunks:
+                f.write(json.dumps(c.model_dump(), ensure_ascii=False))
+                f.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
 
 
 def _emb_path(batch_tag: str, model_key: str) -> Path:

@@ -18,6 +18,7 @@ from mlops.scripts.export_embeddings import (
     _count_unique_papers,
     _merge_chunks,
     _meta_path,
+    _save_chunks_atomic,
 )
 
 
@@ -132,6 +133,38 @@ def test_merge_chunks_keeps_multiple_chunks_of_same_paper():
     new = [_make_chunk(doi="10.1/b", pmid="2", idx=0)]
     merged = _merge_chunks(old, new)
     assert len(merged) == 3
+
+
+def test_save_chunks_atomic_writes_gzip_jsonl(tmp_path: Path):
+    chunks = [_make_chunk(doi="10.1/a", pmid="1", idx=0)]
+    path = tmp_path / "test_tag.jsonl.gz"
+    _save_chunks_atomic(path, chunks)
+
+    assert path.exists()
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        line = f.readline().strip()
+    assert "10.1/a" in line
+
+
+def test_save_chunks_atomic_preserves_original_on_serialization_failure(tmp_path: Path, monkeypatch):
+    """중간에 예외 발생 시 원본 파일은 보존된다 (tmp 파일에만 영향)."""
+    path = tmp_path / "test_tag.jsonl.gz"
+    # 원본 파일 미리 생성
+    original_content = b"ORIGINAL"
+    path.write_bytes(original_content)
+
+    # json.dumps가 예외 던지도록 monkeypatch
+    def boom(*args, **kwargs):
+        raise RuntimeError("serialization failure")
+
+    monkeypatch.setattr("mlops.scripts.export_embeddings.json.dumps", boom)
+
+    with pytest.raises(RuntimeError):
+        _save_chunks_atomic(path, [_make_chunk()])
+
+    # 원본은 그대로
+    assert path.read_bytes() == original_content
+    # tmp 파일은 없어야 (cleanup) — 또는 .tmp 이름으로 남아있어도 path 본체는 무사
 
 
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────
