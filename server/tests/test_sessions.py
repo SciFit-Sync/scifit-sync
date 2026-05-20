@@ -235,7 +235,7 @@ class TestListSessions:
         resp = await client.get("/api/v1/sessions")
 
         assert resp.status_code == 200
-        assert resp.json()["data"]["items"] == []
+        assert resp.json()["data"]["records"] == []
 
     @pytest.mark.asyncio
     async def test_with_year_month_filter(self, client):
@@ -246,7 +246,7 @@ class TestListSessions:
         resp = await client.get("/api/v1/sessions?year=2025&month=5")
 
         assert resp.status_code == 200
-        assert len(resp.json()["data"]["items"]) == 1
+        assert len(resp.json()["data"]["records"]) == 1
 
 
 # ── GET /sessions/stats ───────────────────────────────────────────────────────
