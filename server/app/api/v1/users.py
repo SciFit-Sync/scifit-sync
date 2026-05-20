@@ -420,7 +420,7 @@ async def list_my_equipment(
             category=e.category.value if e.category else None,
             equipment_type=e.equipment_type.value,
             pulley_ratio=e.pulley_ratio,
-            bar_weight_kg=e.bar_weight_kg,
+            bar_weight=e.bar_weight,
             image_url=e.image_url,
         )
         for e in equipments
@@ -479,7 +479,7 @@ async def add_my_equipment(
             category=equipment.category.value if equipment.category else None,
             equipment_type=equipment.equipment_type.value,
             pulley_ratio=equipment.pulley_ratio,
-            bar_weight_kg=equipment.bar_weight_kg,
+            bar_weight=equipment.bar_weight,
             image_url=equipment.image_url,
         )
     )

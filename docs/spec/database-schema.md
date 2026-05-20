@@ -498,7 +498,7 @@ erDiagram
 - `equipments.category` = 근육 부위 대표 1개: `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
 - `equipments.sub_category` = 세부 영역 (v2.1): `'upper_back' | 'lower_back' | 'front_delt' | 'side_delt' | 'rear_delt' | 'upper_chest' | 'mid_chest' | 'lower_chest' | 'biceps' | 'triceps' | 'quads' | 'hamstrings' | 'abs'` 등. enum이 아닌 `varchar` — 향후 어휘 세분화는 스키마 변경 없이 데이터 값 진화로 대응.
 - `equipments.equipment_type` = 물리 타입: `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
-- 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight_kg` + `has_weight_assist` 기준
+- 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight` + `has_weight_assist` 기준
 
 ### 무게 단위 정책 (v2.1)
 **DB는 CSV에 표기된 원본 단위 그대로 저장하며, 단위 변환을 storage time에 강제하지 않는다.** 각 값의 단위는 같은 행의 `*_unit` 컬럼에서 즉시 확인할 수 있다. 단위 변환은 비교·합산이 필요한 컴포넌트(예: `load_calc.py`)가 compute time에 책임진다.

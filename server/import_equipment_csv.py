@@ -71,6 +71,8 @@ def _parse_pattern(s: str, default_unit: str) -> tuple[dict | None, str | None]:
         val = float(m.group(1))
         seg_unit = m.group(2).lower() if m.group(2) else default_unit
         count = int(m.group(3))
+        if count < 1:
+            return None, None
         if unit is None:
             unit = seg_unit
         pattern.append({"from": current_from, "to": current_from + count - 1, "value": val})

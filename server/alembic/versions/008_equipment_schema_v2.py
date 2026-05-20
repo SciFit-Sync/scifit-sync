@@ -57,6 +57,8 @@ def upgrade() -> None:
     op.alter_column("equipments", "max_stack_kg", new_column_name="max_stack")
 
     # ── 4) equipments: stack_weight_kg (float) RENAME 후 JSONB 타입 변환 ──
+    # equipments 테이블은 이 마이그레이션 시점에 빈 테이블이라고 가정한다.
+    # 향후 staging/prod 재적용 시 USING CASE 변환 전 사전 백필이 필요할 수 있다.
     op.alter_column("equipments", "stack_weight_kg", new_column_name="stack_weight")
     op.execute(
         """
