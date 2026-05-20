@@ -12,7 +12,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 from mlops.pipeline.models import Chunk, PaperFull, PaperMeta, PaperSection
-from mlops.scripts.export_embeddings import CHUNKS_META_VERSION, _count_unique_papers, _meta_path
+from mlops.scripts.export_embeddings import (
+    CHUNKS_META_VERSION,
+    _chunks_doi_set,
+    _count_unique_papers,
+    _meta_path,
+)
 
 
 def _make_chunk(*, doi: str = "10.1/a", pmid: str = "1", idx: int = 0) -> Chunk:
@@ -78,6 +83,19 @@ def test_count_unique_papers_falls_back_to_pmid_when_doi_empty():
 def test_count_unique_papers_ignores_chunks_with_no_identifier():
     chunks = [_make_chunk(doi="", pmid="")]
     assert _count_unique_papers(chunks) == 0
+
+
+def test_chunks_doi_set_excludes_empty_string():
+    chunks = [
+        _make_chunk(doi="10.1/a", pmid="1"),
+        _make_chunk(doi="", pmid="2"),
+        _make_chunk(doi="10.1/b", pmid="3"),
+    ]
+    assert _chunks_doi_set(chunks) == {"10.1/a", "10.1/b"}
+
+
+def test_chunks_doi_set_empty_input_returns_empty_set():
+    assert _chunks_doi_set([]) == set()
 
 
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────

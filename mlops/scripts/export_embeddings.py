@@ -88,6 +88,12 @@ def _count_unique_papers(chunks: list[Chunk]) -> int:
     return len(keys)
 
 
+def _chunks_doi_set(chunks: list[Chunk]) -> set[str]:
+    """캐시 chunks의 paper_doi 집합. 빈 string은 제외 — 빈 DOI를 existing_dois에
+    넣으면 crawler dedup 로직을 오염시킬 위험."""
+    return {c.paper_doi for c in chunks if c.paper_doi}
+
+
 def _emb_path(batch_tag: str, model_key: str) -> Path:
     return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
 
