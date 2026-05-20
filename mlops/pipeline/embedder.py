@@ -7,6 +7,7 @@ query prefix("Represent this sentence for searching relevant passages: ")는
 """
 
 import logging
+import os
 
 from mlops.pipeline.config import EMBEDDING_DIM, EMBEDDING_MODEL
 from mlops.pipeline.models import Chunk
@@ -16,15 +17,38 @@ logger = logging.getLogger(__name__)
 _model = None
 
 
+def _resolve_device() -> str:
+    override = os.environ.get("MLOPS_EMBED_DEVICE")
+    if override:
+        return override
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
 def _get_model():
     """sentence-transformers 모델을 싱글턴으로 로딩한다 (2GB+, lazy load)."""
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
 
-        logger.info("임베딩 모델 로딩: %s", EMBEDDING_MODEL)
-        _model = SentenceTransformer(EMBEDDING_MODEL)
-        logger.info("모델 로딩 완료 (dim=%d)", EMBEDDING_DIM)
+        device = _resolve_device()
+        if device == "cpu":
+            logger.warning(
+                "GPU 미감지 → CPU 추론. BGE-large는 CPU에서 매우 느립니다(20s/batch+). "
+                "GPU 서버라면 CUDA torch 재설치 필요: "
+                "pip install torch --index-url https://download.pytorch.org/whl/cu121"
+            )
+        logger.info("임베딩 모델 로딩: %s (device=%s)", EMBEDDING_MODEL, device)
+        _model = SentenceTransformer(EMBEDDING_MODEL, device=device)
+        logger.info("모델 로딩 완료 (dim=%d, device=%s)", EMBEDDING_DIM, device)
     return _model
 
 
