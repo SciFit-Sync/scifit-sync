@@ -77,6 +77,17 @@ def _meta_path(chunks_path: Path) -> Path:
     return chunks_path.parent / (chunks_path.name + ".meta.json")
 
 
+def _count_unique_papers(chunks: list[Chunk]) -> int:
+    """chunks가 커버하는 고유 paper 수. paper_doi 우선, 없으면 paper_pmid 사용.
+    둘 다 빈 string이면 카운트에서 제외."""
+    keys: set[str] = set()
+    for c in chunks:
+        key = c.paper_doi or c.paper_pmid
+        if key:
+            keys.add(key)
+    return len(keys)
+
+
 def _emb_path(batch_tag: str, model_key: str) -> Path:
     return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
 

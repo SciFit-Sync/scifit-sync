@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from mlops.pipeline.models import Chunk, PaperFull, PaperMeta, PaperSection
-from mlops.scripts.export_embeddings import CHUNKS_META_VERSION, _meta_path
+from mlops.scripts.export_embeddings import CHUNKS_META_VERSION, _count_unique_papers, _meta_path
 
 
 def _make_chunk(*, doi: str = "10.1/a", pmid: str = "1", idx: int = 0) -> Chunk:
@@ -55,6 +55,29 @@ def test_meta_path_appends_meta_json_suffix(tmp_path: Path):
 
 def test_chunks_meta_version_is_positive_int():
     assert isinstance(CHUNKS_META_VERSION, int) and CHUNKS_META_VERSION >= 1
+
+
+def test_count_unique_papers_uses_doi_when_present():
+    chunks = [
+        _make_chunk(doi="10.1/a", pmid="1", idx=0),
+        _make_chunk(doi="10.1/a", pmid="1", idx=1),
+        _make_chunk(doi="10.1/b", pmid="2", idx=0),
+    ]
+    assert _count_unique_papers(chunks) == 2
+
+
+def test_count_unique_papers_falls_back_to_pmid_when_doi_empty():
+    chunks = [
+        _make_chunk(doi="", pmid="1", idx=0),
+        _make_chunk(doi="", pmid="2", idx=0),
+        _make_chunk(doi="", pmid="2", idx=1),
+    ]
+    assert _count_unique_papers(chunks) == 2
+
+
+def test_count_unique_papers_ignores_chunks_with_no_identifier():
+    chunks = [_make_chunk(doi="", pmid="")]
+    assert _count_unique_papers(chunks) == 0
 
 
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────
