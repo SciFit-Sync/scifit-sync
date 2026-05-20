@@ -115,9 +115,7 @@ def _parse_row(row: dict, brand_cfg: dict) -> dict | None:
 
     min_val, min_unit = _parse_weight_str(row.get("min_stack_kg") or "")
     max_val, max_unit = _parse_weight_str(row.get("max_stack_kg") or "")
-    sw_jsonb, sw_unit = _parse_stack_weight(
-        row.get("stack_weight_kg") or "", brand_cfg["default_stack_unit"].value
-    )
+    sw_jsonb, sw_unit = _parse_stack_weight(row.get("stack_weight_kg") or "", brand_cfg["default_stack_unit"].value)
 
     explicit_units = [u for u in (min_unit, max_unit, sw_unit) if u]
     if explicit_units:
@@ -145,9 +143,7 @@ def _parse_row(row: dict, brand_cfg: dict) -> dict | None:
     }
 
 
-async def _import_file(
-    session, filename: str, brand_cfg: dict, dry_run: bool
-) -> tuple[int, int]:
+async def _import_file(session, filename: str, brand_cfg: dict, dry_run: bool) -> tuple[int, int]:
     path = DATA_DIR / filename
     if not path.exists():
         print(f"  [SKIP] 파일 없음: {path}")
@@ -157,9 +153,7 @@ async def _import_file(
     inserted = skipped = 0
 
     if not dry_run:
-        result = await session.execute(
-            select(EquipmentBrand).where(EquipmentBrand.name == brand_name)
-        )
+        result = await session.execute(select(EquipmentBrand).where(EquipmentBrand.name == brand_name))
         brand = result.scalar_one_or_none()
         if brand is None:
             brand = EquipmentBrand(
@@ -215,9 +209,9 @@ async def main(dry_run: bool) -> None:
 
     async with async_session_factory() as session, session.begin():
         for filename, brand_cfg in BRAND_CONFIGS.items():
-                print(f"── {filename}")
-                ins, skp = await _import_file(session, filename, brand_cfg, dry_run)
-                print(f"  → {ins}개 {'(예정)' if dry_run else '삽입'}, {skp}개 건너뜀\n")
+            print(f"── {filename}")
+            ins, skp = await _import_file(session, filename, brand_cfg, dry_run)
+            print(f"  → {ins}개 {'(예정)' if dry_run else '삽입'}, {skp}개 건너뜀\n")
 
     print("완료.")
 
