@@ -7,6 +7,7 @@ import WA02Signup from "../screens/auth/WA02Signin";
 import WM01Main from "../screens/main/WM01Main";
 import WN01Notifications from "../screens/main/WN01Notifications";
 import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
+import WL01Record from "../screens/main/WL01Record";
 import { useAuthStore } from "../stores/authStore";
 
 const AuthStack = createNativeStackNavigator();
@@ -36,6 +37,7 @@ function MainNavigator() {
       <MainStack.Screen name="WM01Main" component={WM01Main} />
       <MainStack.Screen name="WN01Notifications" component={WN01Notifications} />
       <MainStack.Screen name="WR04RoutineDetail" component={WR04RoutineDetail} />
+      <MainStack.Screen name="WL01Record" component={WL01Record} />
     </MainStack.Navigator>
   );
 }
