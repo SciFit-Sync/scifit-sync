@@ -922,14 +922,25 @@ def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) ->
     for attempt in range(max_attempts):
         if attempt > 0:
             wait = _fulltext_retry_backoff(attempt - 1)
-            logger.info(
-                "PMC elink 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
-                attempt + 1,
-                max_attempts,
-                wait,
-                pmid,
-                last_exc,
-            )
+            # ERROR transient 재시도는 1회 한정. HTTP retry는 max_attempts 한도.
+            # 두 경우의 한도가 다르므로 로그 메시지도 구분한다.
+            is_error_retry = isinstance(last_exc, RuntimeError) and str(last_exc).startswith("NCBI ERROR")
+            if is_error_retry:
+                logger.info(
+                    "PMC elink ERROR transient 재시도 (1회 한정, %.1fs 대기): PMID=%s last_err=%s",
+                    wait,
+                    pmid,
+                    last_exc,
+                )
+            else:
+                logger.info(
+                    "PMC elink HTTP 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
+                    attempt + 1,
+                    max_attempts,
+                    wait,
+                    pmid,
+                    last_exc,
+                )
             time.sleep(wait)
 
         try:

@@ -7,6 +7,7 @@ query prefix("Represent this sentence for searching relevant passages: ")는
 """
 
 import logging
+import os
 
 from mlops.pipeline.config import EMBEDDING_DIM, EMBEDDING_MODEL
 from mlops.pipeline.models import Chunk
@@ -16,15 +17,60 @@ logger = logging.getLogger(__name__)
 _model = None
 
 
+def _resolve_device() -> str:
+    override = os.environ.get("MLOPS_EMBED_DEVICE")
+    if override:
+        return override
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
+def log_device_status(logger_: logging.Logger | None = None) -> str:
+    """추론 device를 미리 결정하고 로깅한다.
+
+    스크립트 시작 직후(크롤링 전)에 호출해 CPU fallback 경고를 조기에 노출한다.
+    모델 로드까지 기다리지 않고 사용자가 즉시 환경 문제를 발견할 수 있다.
+
+    Returns:
+        해석된 device 문자열.
+    """
+    log = logger_ or logger
+    device = _resolve_device()
+    if device == "cpu":
+        log.warning(
+            "GPU 미감지 → CPU 추론 예정. BGE-large는 CPU에서 매우 느립니다(20s/batch+). "
+            "GPU 서버라면 CUDA torch 재설치 필요: "
+            "pip install torch --index-url https://download.pytorch.org/whl/cu121"
+        )
+    else:
+        log.info("임베딩 device 사전 확인: %s", device)
+    return device
+
+
 def _get_model():
     """sentence-transformers 모델을 싱글턴으로 로딩한다 (2GB+, lazy load)."""
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
 
-        logger.info("임베딩 모델 로딩: %s", EMBEDDING_MODEL)
-        _model = SentenceTransformer(EMBEDDING_MODEL)
-        logger.info("모델 로딩 완료 (dim=%d)", EMBEDDING_DIM)
+        device = _resolve_device()
+        if device == "cpu":
+            logger.warning(
+                "GPU 미감지 → CPU 추론. BGE-large는 CPU에서 매우 느립니다(20s/batch+). "
+                "GPU 서버라면 CUDA torch 재설치 필요: "
+                "pip install torch --index-url https://download.pytorch.org/whl/cu121"
+            )
+        logger.info("임베딩 모델 로딩: %s (device=%s)", EMBEDDING_MODEL, device)
+        _model = SentenceTransformer(EMBEDDING_MODEL, device=device)
+        logger.info("모델 로딩 완료 (dim=%d, device=%s)", EMBEDDING_DIM, device)
     return _model
 
 
