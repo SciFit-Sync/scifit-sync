@@ -13,6 +13,39 @@ import numpy as np
 import pytest
 from mlops.pipeline.models import Chunk, PaperFull, PaperMeta, PaperSection
 
+
+def _make_chunk(*, doi: str = "10.1/a", pmid: str = "1", idx: int = 0) -> Chunk:
+    """테스트용 Chunk 인스턴스. 필수 필드만 채운다."""
+    return Chunk(
+        paper_pmid=pmid,
+        paper_doi=doi,
+        paper_title="t",
+        section_name="abstract",
+        chunk_index=idx,
+        content="content",
+        token_count=2,
+        search_categories=[],
+        publication_types=[],
+        evidence_weight=0.5,
+        fulltext_source="pmc",
+        published_year=2020,
+    )
+
+
+@pytest.fixture
+def cached_chunks_path(tmp_path: Path) -> Path:
+    """tmp_path 안에 chunks 디렉토리 + 빈 chunks 파일 path 반환 (파일은 미생성)."""
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    return chunks_dir / "test_tag.jsonl.gz"
+
+
+def test_make_chunk_helper_returns_valid_chunk():
+    chunk = _make_chunk(doi="10.1/a", pmid="1", idx=0)
+    assert chunk.paper_doi == "10.1/a"
+    assert chunk.paper_pmid == "1"
+
+
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────
 # DATA_DIR 등 모듈 레벨 상수가 monkeypatch 가능하도록 fresh load + DATA_DIR 우회.
 
