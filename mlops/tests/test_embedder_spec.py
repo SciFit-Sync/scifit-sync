@@ -9,9 +9,9 @@ import types
 
 import numpy as np
 import pytest
-from mlops.eval.models import DEFAULT_MODEL_KEY, EmbeddingModelSpec, get_spec
 from mlops.pipeline import embedder
 from mlops.pipeline.models import Chunk
+from mlops.pipeline.specs import DEFAULT_MODEL_KEY, EmbeddingModelSpec, get_spec
 
 # ── Fake SentenceTransformer ────────────────────────────────────────────────
 

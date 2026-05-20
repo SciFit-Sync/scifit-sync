@@ -8,6 +8,9 @@ spec에서 ``hf_name`` / ``dim`` / ``query_prefix`` / ``normalize`` /
 정규화 권장이며, PubMedBERT-MS-MARCO는 명시는 없지만 cosine 의미 보존을 위해
 일괄 True. corpus(export) 와 query(retriever) 양쪽에 동일 적용되어야 점수가
 왜곡되지 않는다.
+
+위치: pipeline 레이어. embedder(pipeline)와 retriever(eval) 양쪽이 의존하지만,
+의존 방향은 항상 pipeline 쪽으로 향한다(eval → pipeline).
 """
 
 from dataclasses import dataclass

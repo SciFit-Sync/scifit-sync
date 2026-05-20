@@ -38,13 +38,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from mlops.eval import run_eval
-from mlops.eval.models import (
-    DEFAULT_MODEL_KEY,
-    EMBEDDING_MODELS,
-    EmbeddingModelSpec,
-    get_spec,
-    list_test_targets,
-)
 from mlops.pipeline.chunker import chunk_papers
 from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH, MAX_PAPERS_PER_RUN
 from mlops.pipeline.crawler import crawl_papers
@@ -55,6 +48,13 @@ from mlops.pipeline.embedder import (
 )
 from mlops.pipeline.manifest import Manifest
 from mlops.pipeline.models import Chunk
+from mlops.pipeline.specs import (
+    DEFAULT_MODEL_KEY,
+    EMBEDDING_MODELS,
+    EmbeddingModelSpec,
+    get_spec,
+    list_test_targets,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)

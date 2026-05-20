@@ -1,4 +1,4 @@
-"""mlops.eval.models registry 단위 테스트.
+"""mlops.pipeline.specs registry 단위 테스트.
 
 외부 의존성 없음 — dataclass + dict 검증만.
 """
@@ -6,7 +6,7 @@
 from dataclasses import FrozenInstanceError
 
 import pytest
-from mlops.eval.models import (
+from mlops.pipeline.specs import (
     DEFAULT_MODEL_KEY,
     EMBEDDING_MODELS,
     EmbeddingModelSpec,

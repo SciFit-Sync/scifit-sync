@@ -13,8 +13,8 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from mlops.eval.models import DEFAULT_MODEL_KEY, EmbeddingModelSpec, get_spec
 from mlops.pipeline.models import Chunk
+from mlops.pipeline.specs import DEFAULT_MODEL_KEY, EmbeddingModelSpec, get_spec
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer

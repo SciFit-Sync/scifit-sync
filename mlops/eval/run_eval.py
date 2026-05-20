@@ -269,8 +269,8 @@ def _build_inmem_retriever(
     `evidence_weight` 재정렬은 의도적 미반영 — 임베딩 순수 의미 비교에 한정한다.
     """
     import numpy as np
-    from mlops.eval.models import get_spec
     from mlops.pipeline.embedder import _resolve_device
+    from mlops.pipeline.specs import get_spec
 
     spec = get_spec(model_key)
     matrix, metas = _load_embeddings_jsonl(embeddings_path, expected_dim=spec.dim)
