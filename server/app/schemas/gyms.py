@@ -30,14 +30,22 @@ class CreateGymRequest(BaseModel):
 class EquipmentItem(BaseModel):
     equipment_id: str
     name: str
+    name_en: str | None = None
     brand: str | None = None
     category: str | None = None
     equipment_type: str | None = None
     pulley_ratio: float | None = None
+    bar_weight_kg: float | None = None
+    has_weight_assist: bool = False
     min_stack_kg: float | None = None
     max_stack_kg: float | None = None
+    stack_weight_kg: float | None = None
     primary_muscles: list[str] = Field(default_factory=list)
     image_url: str | None = None
+    # 표시용 호환 필드 (라우터 _equipment_to_dto가 함께 전송)
+    ratio: str | None = None
+    stack_weight: float | None = None
+    bar_weight: float | None = None
 
 
 class BrandItem(BaseModel):

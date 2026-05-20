@@ -3,9 +3,19 @@ import logging
 import random
 import uuid
 from datetime import date as date_type
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware UTC `now`를 만든 뒤 naive로 변환해 반환.
+
+    `datetime.utcnow()`는 Python 3.12+에서 deprecated. 또한 본 모듈이 다루는 DB 컬럼
+    (`expires_at`, `revoked_at` 등)이 모두 `Mapped[datetime]` (timezone-naive) 이므로
+    비교 산술 시 aware datetime이 섞이면 `TypeError`. 본 헬퍼는 두 위험을 동시에 해소.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,7 +96,7 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
     if not user.is_email_verified:
         raise UnauthorizedError(message="이메일 인증이 완료되지 않았습니다. 이메일을 확인해주세요.")
 
-    now = datetime.utcnow()
+    now = _utcnow()
     settings = get_settings()
     family_id = uuid.uuid4()
     access_token = create_access_token(user.id)
@@ -138,7 +148,7 @@ async def logout(
     token_record = result.scalar_one_or_none()
 
     if token_record:
-        token_record.revoked_at = datetime.utcnow()
+        token_record.revoked_at = _utcnow()
         await db.commit()
 
     logger.info("User %s logged out", current_user.id)
@@ -203,7 +213,7 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
         EmailOtp(
             email=body.email,
             code=otp_code,
-            expires_at=datetime.utcnow() + timedelta(minutes=10),
+            expires_at=_utcnow() + timedelta(minutes=10),
         )
     )
     await db.commit()
@@ -280,7 +290,7 @@ async def kakao_login(
         logger.info("Kakao user %s registered (user_id=%s)", kakao_id, user.id)
 
     # JWT 발급
-    now = datetime.utcnow()
+    now = _utcnow()
     settings = get_settings()
     family_id = uuid.uuid4()
     access_token = create_access_token(user.id)
@@ -383,7 +393,7 @@ async def withdraw(
     refresh_tokens = (
         (await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))).scalars().all()
     )
-    now_utc = datetime.utcnow()
+    now_utc = _utcnow()
     for rt in refresh_tokens:
         rt.revoked_at = now_utc
     await db.commit()
@@ -395,7 +405,7 @@ async def withdraw(
 @router.post("/verify-email", response_model=SuccessResponse[VerifyEmailData], summary="이메일 OTP 인증")
 @rate_limit("10/minute")
 async def verify_email(request: Request, body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
-    now = datetime.utcnow()
+    now = _utcnow()
     otp = (
         await db.execute(
             select(EmailOtp).where(
@@ -434,7 +444,7 @@ async def resend_otp(request: Request, body: ResendOtpRequest, db: AsyncSession 
             EmailOtp(
                 email=body.email,
                 code=otp_code,
-                expires_at=datetime.utcnow() + timedelta(minutes=10),
+                expires_at=_utcnow() + timedelta(minutes=10),
             )
         )
         await db.commit()
@@ -459,7 +469,7 @@ async def refresh_token_endpoint(request: Request, body: RefreshRequest, db: Asy
     if rec is None:
         raise UnauthorizedError(message="유효하지 않은 토큰입니다.")
 
-    now_utc = datetime.utcnow()
+    now_utc = _utcnow()
 
     # 이미 revoke된 토큰이면서 grace period(10초)도 지났다면 family 전체를 revoke (재사용 공격 방지)
     if rec.revoked_at is not None and (now_utc - rec.revoked_at).total_seconds() > 10:
