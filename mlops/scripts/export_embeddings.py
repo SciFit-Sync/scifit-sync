@@ -1,34 +1,29 @@
-"""크롤링 → 청킹 → 임베딩까지 실행 후 결과를 JSON Lines 파일로 export.
+"""크롤링 → 청킹 → 임베딩까지 실행 후 결과를 JSONL.gz 파일로 export.
 
-클라우드 서버에서 실행해서 임베딩 결과만 파일로 뽑아낸 뒤,
-별도로 ChromaDB에 적재할 때 사용한다 (load_embeddings.py로 적재).
+단일 진입점에서 **default 모드(단일 모델)** 와 **test 모드(멀티 모델 + auto eval)** 를
+모두 처리한다. 산출물 경로는 `--batch-tag` 기반으로 자동 결정된다.
 
 사용법:
-    python mlops/scripts/export_embeddings.py \
-        --max-papers 100 \
-        --output mlops/data/embeddings.jsonl
+    # Default — 단일 모델 임베딩 (운영용)
+    python -m mlops.scripts.export_embeddings \
+        --model bge-large \
+        --batch-tag 2k_round1 \
+        --max-papers 2000 \
+        --update-manifest
 
-    # 압축 출력 (.jsonl.gz)
-    python mlops/scripts/export_embeddings.py --output mlops/data/embeddings.jsonl.gz --gzip
+    # Test — 모델 3개 동시 + 자동 평가 (A/B 비교용)
+    python -m mlops.scripts.export_embeddings \
+        --test \
+        --batch-tag 2k_round1 \
+        --max-papers 2000 \
+        --goldset mlops/eval/gold_set.jsonl \
+        --reuse-chunks
 
-    # 크롤링+청킹만 (임베딩 생략, 사이즈 점검용)
-    python mlops/scripts/export_embeddings.py --dry-run
-
-JSON Lines 출력 포맷 (1청크당 1줄):
-    {
-      "paper_doi": "10.1234/example",
-      "paper_pmid": "12345678",
-      "paper_title": "Effects of ...",
-      "section_name": "Methods",
-      "chunk_index": 0,
-      "content": "...",
-      "token_count": 487,
-      "publication_types": ["Randomized Controlled Trial"],
-      "evidence_weight": 0.90,
-      "fulltext_source": "pmc",
-      "published_year": 2022,
-      "embedding": [0.012, -0.034, ...]   # 1024개 float (BGE-large-en-v1.5)
-    }
+산출물 경로 (자동 결정):
+    mlops/data/chunks/<batch-tag>.jsonl.gz                    # 모델 간 공유 입력
+    mlops/data/emb_<model-key>/<batch-tag>.jsonl.gz           # Chunk 메타 + embedding
+    mlops/data/emb_<model-key>/<batch-tag>_timing.json        # 모델/시간/디바이스 사이드카
+    mlops/eval/reports/<batch-tag>_<model-key>.md             # test 모드 평가 리포트
 """
 
 import argparse
@@ -36,6 +31,8 @@ import gzip
 import json
 import logging
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -43,8 +40,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from mlops.pipeline.chunker import chunk_papers
 from mlops.pipeline.config import DATA_DIR, MANIFEST_PATH, MAX_PAPERS_PER_RUN
 from mlops.pipeline.crawler import crawl_papers
-from mlops.pipeline.embedder import embed_chunks, log_device_status
+from mlops.pipeline.embedder import (
+    _resolve_device,
+    embed_chunks_with_spec,
+    log_device_status,
+)
 from mlops.pipeline.manifest import Manifest
+from mlops.pipeline.models import Chunk
+from mlops.pipeline.specs import (
+    DEFAULT_MODEL_KEY,
+    EMBEDDING_MODELS,
+    EmbeddingModelSpec,
+    get_spec,
+    list_test_targets,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -52,88 +61,425 @@ logger = logging.getLogger(__name__)
 ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
 
 
-def _open_writer(path: Path, use_gzip: bool):
+# ── 산출물 경로 helpers ──────────────────────────────────────────────────
+
+
+def _chunks_path(batch_tag: str) -> Path:
+    return DATA_DIR / "chunks" / f"{batch_tag}.jsonl.gz"
+
+
+def _emb_path(batch_tag: str, model_key: str) -> Path:
+    return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
+
+
+def _timing_path(batch_tag: str, model_key: str) -> Path:
+    return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}_timing.json"
+
+
+def _report_path(batch_tag: str, model_key: str) -> Path:
+    # mlops/eval/reports/<batch-tag>_<model-key>.md
+    return Path(__file__).resolve().parent.parent / "eval" / "reports" / f"{batch_tag}_{model_key}.md"
+
+
+# ── chunks 직렬화 ────────────────────────────────────────────────────────
+
+
+def _save_chunks(path: Path, chunks: list[Chunk]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if use_gzip:
-        return gzip.open(path, "wt", encoding="utf-8")
-    return path.open("w", encoding="utf-8")
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for c in chunks:
+            f.write(json.dumps(c.model_dump(), ensure_ascii=False))
+            f.write("\n")
 
 
-def main(
-    max_papers: int,
-    output: Path,
-    use_gzip: bool,
-    dry_run: bool,
-    min_date: str | None,
-    max_date: str | None,
-    update_manifest: bool,
-    max_per_category: int | None = None,
+def _load_chunks(path: Path) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            raw = json.loads(stripped)
+            chunks.append(Chunk(**raw))
+    return chunks
+
+
+# ── 모델 selection ───────────────────────────────────────────────────────
+
+
+def _resolve_test_models(models_arg: str | None) -> list[EmbeddingModelSpec]:
+    """test 모드 모델 선택. None이면 registry 전체."""
+    if not models_arg:
+        return list_test_targets()
+    keys = [k.strip() for k in models_arg.split(",") if k.strip()]
+    return [get_spec(k) for k in keys]
+
+
+# ── timing.json ─────────────────────────────────────────────────────────
+
+
+def _write_timing(
+    path: Path,
+    spec: EmbeddingModelSpec,
+    n_chunks: int,
+    batch_size: int,
+    device: str,
+    total_sec: float,
+    started_at: datetime,
+    finished_at: datetime,
 ) -> None:
-    logger.info("=== Embedding Export 시작 ===")
-    logger.info(
-        "max_papers=%d, max_per_category=%s, output=%s, gzip=%s, dry_run=%s",
-        max_papers,
-        max_per_category if max_per_category is not None else "source-defaults",
-        output,
-        use_gzip,
-        dry_run,
-    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "model_key": spec.key,
+        "hf_name": spec.hf_name,
+        "dim": spec.dim,
+        "n_chunks": n_chunks,
+        "batch_size": batch_size,
+        "device": device,
+        "total_sec": round(total_sec, 3),
+        "query_prefix": spec.query_prefix,
+        "normalize_embeddings": spec.normalize,
+        "started_at": started_at.isoformat(timespec="seconds"),
+        "finished_at": finished_at.isoformat(timespec="seconds"),
+    }
+    path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 크롤링/청킹은 길어서 디바이스 문제 발견이 늦다 → 시작 직후 사전 확인.
-    log_device_status(logger)
 
-    manifest = Manifest.load(MANIFEST_PATH)
+# ── embeddings JSONL.gz ─────────────────────────────────────────────────
 
-    # 이미 indexed된 DOI + 모든 active source를 시도한 fail DOI는 skip
-    existing_dois: set[str] = set()
-    for doi, entry in manifest.papers.items():
-        if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
-            existing_dois.add(doi)
-    logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
 
-    papers = crawl_papers(
-        max_total=max_papers,
-        max_per_category=max_per_category,
-        min_date=min_date,
-        max_date=max_date,
-        existing_dois=existing_dois,
-    )
-    if not papers:
-        logger.info("신규 논문 없음. 종료.")
-        return
-
-    indexed_papers = [p for p in papers if p.sections]
-    logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
-
-    chunks = chunk_papers(indexed_papers) if indexed_papers else []
-    if not chunks:
-        logger.info("청크 없음. 종료.")
-        return
-
-    logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
-
-    if dry_run:
-        logger.info("[DRY RUN] 임베딩/파일 출력 생략")
-        for c in chunks[:3]:
-            logger.info("  샘플: PMID=%s, 섹션=%s, 토큰=%d", c.paper_pmid, c.section_name, c.token_count)
-        return
-
-    chunk_vectors = embed_chunks(chunks)
-
+def _write_embeddings(path: Path, pairs: list[tuple[Chunk, list[float]]]) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
-    with _open_writer(output, use_gzip) as f:
-        for chunk, vec in chunk_vectors:
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for chunk, vec in pairs:
             record = chunk.model_dump()
             record["embedding"] = vec
             f.write(json.dumps(record, ensure_ascii=False))
             f.write("\n")
             written += 1
+    return written
 
-    size_mb = output.stat().st_size / (1024 * 1024)
-    logger.info("Export 완료: %d청크 → %s (%.2f MB)", written, output, size_mb)
 
-    if update_manifest:
-        for p in papers:
+# ── goldset coverage 검증 ───────────────────────────────────────────────
+
+
+def _goldset_coverage(
+    goldset_path: Path,
+    chunks: list[Chunk],
+) -> tuple[set[str], set[str]]:
+    """goldset의 expected_pmids ⊈ corpus pmids 여부 검사.
+
+    Returns:
+        (covered_pmids, missing_pmids).
+    """
+    corpus_pmids = {c.paper_pmid for c in chunks if c.paper_pmid}
+    expected_pmids: set[str] = set()
+    with goldset_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            raw = json.loads(stripped)
+            for p in raw.get("expected_pmids", []):
+                if p:
+                    expected_pmids.add(str(p))
+    covered = expected_pmids & corpus_pmids
+    missing = expected_pmids - corpus_pmids
+    return covered, missing
+
+
+# ── Fail-fast 사전 검증 ─────────────────────────────────────────────────
+
+
+def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> list[EmbeddingModelSpec]:
+    """시작 전 사전 검증 (설계서 § 6). 실패 시 argparse.error/SystemExit.
+
+    Returns:
+        선택된 모델 spec 목록 (default: 단일, test: 복수). main이 직접 사용한다.
+    """
+    # 1. --batch-tag: argparse required=True가 처리
+    # 2. default 모드 + --model 미지정
+    if not args.test and not args.model:
+        parser.error("default 모드에서는 --model <key> 가 필수입니다. 가용 key: " + ", ".join(sorted(EMBEDDING_MODELS)))
+    if args.test and args.model:
+        logger.warning("--test 모드에서는 --model 인자가 무시됩니다 (--models로 부분 선택 가능).")
+
+    # 3. --model / --models registry 검증
+    try:
+        selected_specs = _resolve_test_models(args.models) if args.test else [get_spec(args.model)]
+    except KeyError as e:
+        parser.error(str(e))
+
+    # 4-5. test 모드 + goldset 파일 검증
+    if args.test:
+        if not args.goldset.exists():
+            parser.error(f"--goldset 파일이 존재하지 않음: {args.goldset}")
+        with args.goldset.open("r", encoding="utf-8") as f:
+            for line_no, line in enumerate(f, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    json.loads(stripped)
+                except json.JSONDecodeError as e:
+                    parser.error(f"--goldset JSON 파싱 실패 line {line_no}: {e}")
+
+    # 6. 산출물 경로 충돌 검증 — chunks + emb_<key> 양쪽 모두
+    # chunks는 reuse-chunks 의도일 때만 기존 파일이 허용된다.
+    # (의도 없는데 chunks가 이미 있으면 미주의로 덮어쓸 위험이 있다.)
+    if not args.overwrite:
+        existing: list[Path] = []
+        chunks_p = _chunks_path(args.batch_tag)
+        if chunks_p.exists() and not args.reuse_chunks:
+            existing.append(chunks_p)
+        for spec in selected_specs:
+            p = _emb_path(args.batch_tag, spec.key)
+            if p.exists():
+                existing.append(p)
+        if existing:
+            parser.error(f"산출물 이미 존재 (--overwrite 없음): {', '.join(str(p) for p in existing)}")
+
+    # 7. --require-gpu
+    if args.require_gpu:
+        device = _resolve_device()
+        if not device.startswith("cuda"):
+            parser.error(f"--require-gpu 지정됐으나 cuda 미감지 (device={device})")
+
+    return selected_specs
+
+
+# ── Main pipeline ───────────────────────────────────────────────────────
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="SciFit-Sync 임베딩 export — A/B test 지원")
+    parser.add_argument(
+        "--batch-tag",
+        type=str,
+        required=True,
+        help="산출물 식별자 (산출물 파일명에 적용)",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help=f"default 모드 단일 모델 key. 가용: {', '.join(sorted(EMBEDDING_MODELS))}",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="test 모드 — 멀티 모델 임베딩 + 자동 평가",
+    )
+    parser.add_argument(
+        "--models",
+        type=str,
+        default=None,
+        help="test 모드에서 부분 선택 (쉼표 구분, 생략 시 registry 전체)",
+    )
+    parser.add_argument(
+        "--goldset",
+        type=Path,
+        default=Path("mlops/eval/gold_set.jsonl"),
+        help="test 모드 골드셋 경로 (default: mlops/eval/gold_set.jsonl)",
+    )
+    parser.add_argument("--max-papers", type=int, default=MAX_PAPERS_PER_RUN)
+    parser.add_argument(
+        "--max-per-category",
+        type=int,
+        default=None,
+        help="카테고리당 후보 풀 cap. 생략 시 OPENALEX_MAX_PER_CATEGORY/PUBMED_MAX_PER_CATEGORY 사용",
+    )
+    parser.add_argument("--min-date", default=None, help="YYYY/MM/DD")
+    parser.add_argument("--max-date", default=None, help="YYYY/MM/DD")
+    parser.add_argument(
+        "--update-manifest",
+        action="store_true",
+        default=False,
+        help="default 모드에서 manifest 즉시 갱신 (기본 OFF — 적재 검증 후 갱신이 안전)",
+    )
+    parser.add_argument(
+        "--reuse-chunks",
+        action="store_true",
+        help="chunks/<tag>.jsonl.gz 이미 있으면 crawl/chunk 단계 skip",
+    )
+    parser.add_argument(
+        "--chunks-only",
+        action="store_true",
+        help="Stage 1(crawl + chunk + save)만 실행. 임베딩 skip.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="encode batch_size override (생략 시 spec.default_batch_size)",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="기존 산출물 덮어쓰기 허용 (기본은 거부)",
+    )
+    parser.add_argument(
+        "--require-gpu",
+        action="store_true",
+        help="cuda 미감지 시 즉시 실패 (긴 작업 보호)",
+    )
+    parser.add_argument(
+        "--strict-goldset",
+        action="store_true",
+        help="test 모드에서 goldset PMID 누락 1건이라도 있으면 error (default: WARNING)",
+    )
+    return parser
+
+
+def _print_summary(summary_rows: list[dict]) -> None:
+    """test 모드 종료 summary — stderr."""
+    sys.stderr.write("\n=== Test 결과 ===\n")
+    for row in summary_rows:
+        sys.stderr.write(f"  {row['key']:<22}: 임베딩 {row['total_sec']:.1f}s / eval {row.get('eval_status', 'OK')}\n")
+    sys.stderr.write(f"리포트: {DATA_DIR.parent / 'eval' / 'reports'}/<batch-tag>_*.md\n")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    selected_specs = _fail_fast(args, parser)
+
+    logger.info("=== Embedding Export 시작 (batch-tag=%s, test=%s) ===", args.batch_tag, args.test)
+    log_device_status(logger)
+
+    # ── Stage 1: chunks ─────────────────────────────────────
+    chunks_path = _chunks_path(args.batch_tag)
+    manifest: Manifest | None = None  # crawl 분기에서만 채워짐 — 갱신 블록에서 재사용
+    if args.reuse_chunks and chunks_path.exists():
+        logger.info("chunks 재사용: %s", chunks_path)
+        chunks = _load_chunks(chunks_path)
+        papers_for_manifest: list = []  # manifest 갱신은 default + 신규 crawl일 때만
+    else:
+        manifest = Manifest.load(MANIFEST_PATH)
+        existing_dois: set[str] = set()
+        for doi, entry in manifest.papers.items():
+            if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+                existing_dois.add(doi)
+        logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
+
+        papers = crawl_papers(
+            max_total=args.max_papers,
+            max_per_category=args.max_per_category,
+            min_date=args.min_date,
+            max_date=args.max_date,
+            existing_dois=existing_dois,
+        )
+        if not papers:
+            logger.info("신규 논문 없음. 종료.")
+            return 0
+        indexed_papers = [p for p in papers if p.sections]
+        logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
+        chunks = chunk_papers(indexed_papers) if indexed_papers else []
+        if not chunks:
+            logger.info("청크 없음. 종료.")
+            return 0
+        logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
+        _save_chunks(chunks_path, chunks)
+        logger.info("chunks 저장: %s", chunks_path)
+        papers_for_manifest = papers
+
+    if args.chunks_only:
+        logger.info("--chunks-only: Stage 1만 실행 후 종료")
+        return 0
+
+    # ── Test 모드: goldset coverage 검증 ─────────────────────
+    if args.test:
+        covered, missing = _goldset_coverage(args.goldset, chunks)
+        if missing:
+            msg = (
+                f"goldset PMID 중 corpus에 없는 항목 {len(missing)}개 (covered={len(covered)}). "
+                f"누락 예: {sorted(missing)[:5]}"
+            )
+            if args.strict_goldset:
+                logger.error(msg)
+                return 2
+            logger.warning(msg + " — recall@10 상한이 자연 감소합니다.")
+
+    # ── Stage 2: 모델 순회 + 임베딩 ────────────────────────
+    # test 모드에서만 run_eval을 lazy import — default 모드 사용자에게 불필요한 import 비용 없음.
+    if args.test:
+        from mlops.eval import run_eval
+    summary_rows: list[dict] = []
+    for spec in selected_specs:
+        emb_path = _emb_path(args.batch_tag, spec.key)
+        timing_path = _timing_path(args.batch_tag, spec.key)
+        batch_size = args.batch_size if args.batch_size is not None else spec.default_batch_size
+
+        logger.info("[%s] 임베딩 시작 (n_chunks=%d, batch_size=%d)", spec.key, len(chunks), batch_size)
+        device = _resolve_device()
+        started_at = datetime.now(timezone.utc)
+        t0 = time.time()
+        try:
+            pairs = embed_chunks_with_spec(chunks, spec, batch_size=batch_size)
+        except Exception:
+            logger.exception("[%s] 임베딩 실패", spec.key)
+            if args.test:
+                summary_rows.append({"key": spec.key, "total_sec": 0.0, "eval_status": "EMBED_FAIL"})
+                continue
+            return 3
+        total_sec = time.time() - t0
+        finished_at = datetime.now(timezone.utc)
+
+        written = _write_embeddings(emb_path, pairs)
+        _write_timing(
+            timing_path,
+            spec,
+            n_chunks=written,
+            batch_size=batch_size,
+            device=device,
+            total_sec=total_sec,
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        size_mb = emb_path.stat().st_size / (1024 * 1024)
+        logger.info(
+            "[%s] 임베딩 완료: %d청크 / %.2f MB / %.1fs → %s",
+            spec.key,
+            written,
+            size_mb,
+            total_sec,
+            emb_path,
+        )
+
+        if args.test:
+            report_path = _report_path(args.batch_tag, spec.key)
+            eval_status = "OK"
+            try:
+                rc = run_eval.main(
+                    [
+                        "--goldset",
+                        str(args.goldset),
+                        "--output",
+                        str(report_path),
+                        "--retriever",
+                        "inmem",
+                        "--embeddings-file",
+                        str(emb_path),
+                        "--model-key",
+                        spec.key,
+                        "--retriever-name",
+                        f"inmem+{spec.key}",
+                    ]
+                )
+                if rc != 0:
+                    eval_status = f"EVAL_RC={rc}"
+            except Exception:
+                logger.exception("[%s] eval 실패", spec.key)
+                eval_status = "EVAL_FAIL"
+            summary_rows.append({"key": spec.key, "total_sec": total_sec, "eval_status": eval_status})
+
+    # ── Manifest 갱신 (default 모드 + --update-manifest + 신규 crawl) ──
+    # 재사용 분기에서는 papers_for_manifest=[] 이므로 이 블록에 진입하지 않는다.
+    # crawl 분기에서 이미 로드한 manifest 객체를 재사용 — 파일 재로드 race 제거.
+    if args.update_manifest and not args.test and papers_for_manifest:
+        assert manifest is not None  # papers_for_manifest 가 차있다 = crawl 경로 = manifest 로드됨
+        for p in papers_for_manifest:
             manifest.record_attempt(
                 doi=p.meta.doi,
                 pmid=p.meta.pmid or None,
@@ -143,52 +489,19 @@ def main(
                 tried_sources=list(ACTIVE_SOURCES),
             )
         manifest.save(MANIFEST_PATH)
+        logger.info("manifest 갱신 완료")
 
-    logger.info("=== Export 완료: %d편 → %d청크 ===", len(indexed_papers), written)
+    # ── Test 모드 summary ───────────────────────────────────
+    if args.test:
+        _print_summary(summary_rows)
+
+    logger.info("=== Export 완료 ===")
+    return 0
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SciFit-Sync 임베딩 결과 export")
-    parser.add_argument("--max-papers", type=int, default=MAX_PAPERS_PER_RUN)
-    parser.add_argument(
-        "--max-per-category",
-        type=int,
-        default=None,
-        help="카테고리당 후보 풀 cap. 명시 시 OpenAlex/PubMed 양쪽에 동일 적용. "
-        "생략 시 소스별 기본값 사용 (OPENALEX_MAX_PER_CATEGORY=500 / "
-        "PUBMED_MAX_PER_CATEGORY=50). 후보 풀이 클수록 round-robin이 부족 카테고리를 "
-        "다른 카테고리에서 흡수할 여유가 커진다.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=DATA_DIR / "embeddings.jsonl",
-        help="출력 파일 경로 (확장자 .jsonl 또는 .jsonl.gz)",
-    )
-    parser.add_argument("--gzip", action="store_true", help="gzip 압축 출력")
-    parser.add_argument("--dry-run", action="store_true", help="크롤링+청킹만 수행")
-    parser.add_argument("--min-date", default=None, help="YYYY/MM/DD")
-    parser.add_argument("--max-date", default=None, help="YYYY/MM/DD")
-    parser.add_argument(
-        "--update-manifest",
-        action="store_true",
-        default=False,
-        help="export 완료 후 manifest.json 즉시 갱신 "
-        "(기본 OFF — 적재 검증 완료 후 별도로 갱신하는 것이 안전. "
-        "적재 도중 실패해도 manifest가 깨끗하면 동일 DOI로 재시도 가능)",
-    )
-    args = parser.parse_args()
+    raise SystemExit(main())
 
-    out_path: Path = args.output
-    use_gzip = args.gzip or out_path.suffix == ".gz"
 
-    main(
-        max_papers=args.max_papers,
-        output=out_path,
-        use_gzip=use_gzip,
-        dry_run=args.dry_run,
-        min_date=args.min_date,
-        max_date=args.max_date,
-        update_manifest=args.update_manifest,
-        max_per_category=args.max_per_category,
-    )
+# Backward-compat: 외부에서 default key 변경 없이 import할 수 있게 노출
+__all__ = ["main", "DEFAULT_MODEL_KEY"]

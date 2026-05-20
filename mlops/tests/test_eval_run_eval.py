@@ -1,10 +1,17 @@
 """mlops.eval.run_eval 단위 테스트 — mock retriever만 사용 (ChromaDB 미접근)."""
 
+import gzip
+import json
+import sys
+import types
 from pathlib import Path
 
+import numpy as np
 import pytest
 from mlops.eval.run_eval import (
     GoldSetItem,
+    _build_inmem_retriever,
+    _load_embeddings_jsonl,
     aggregate,
     aggregate_by_category,
     evaluate_query,
@@ -262,3 +269,338 @@ def test_main_returns_error_on_empty_goldset(tmp_path: Path, monkeypatch):
     )
     rc = main(["--goldset", str(gs), "--output", str(out)])
     assert rc == 1
+
+
+# ── _load_embeddings_jsonl ──────────────────────────────────────────────
+
+
+def _write_jsonl(path: Path, records: list[dict], use_gzip: bool = False) -> None:
+    opener = gzip.open if use_gzip else open
+    with opener(path, "wt", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r))
+            f.write("\n")
+
+
+def test_load_embeddings_jsonl_returns_matrix_and_metas(tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(
+        p,
+        [
+            {"paper_pmid": "100", "paper_title": "t1", "embedding": [1.0, 0.0, 0.0, 0.0]},
+            {"paper_pmid": "200", "paper_title": "t2", "embedding": [0.0, 1.0, 0.0, 0.0]},
+        ],
+    )
+    matrix, metas = _load_embeddings_jsonl(p, expected_dim=4)
+    assert matrix.shape == (2, 4)
+    assert matrix.dtype == np.float32
+    assert metas[0]["paper_pmid"] == "100"
+    assert metas[1]["paper_pmid"] == "200"
+    # embedding 키는 metas에서 제거되어야 함 (행렬과 중복 보관 방지)
+    assert "embedding" not in metas[0]
+
+
+def test_load_embeddings_jsonl_supports_gzip(tmp_path: Path):
+    p = tmp_path / "emb.jsonl.gz"
+    _write_jsonl(p, [{"paper_pmid": "X", "embedding": [1.0, 0.0]}], use_gzip=True)
+    matrix, metas = _load_embeddings_jsonl(p, expected_dim=2)
+    assert matrix.shape == (1, 2)
+    assert metas[0]["paper_pmid"] == "X"
+
+
+def test_load_embeddings_jsonl_raises_on_malformed_json(tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    p.write_text(
+        '{"paper_pmid": "100", "embedding": [1, 0]}\nthis is not json\n{"paper_pmid": "200", "embedding": [0, 1]}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="invalid JSON"):
+        _load_embeddings_jsonl(p, expected_dim=2)
+
+
+def test_load_embeddings_jsonl_raises_on_missing_embedding_key(tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, [{"paper_pmid": "100"}])
+    with pytest.raises(ValueError, match="missing 'embedding' key"):
+        _load_embeddings_jsonl(p, expected_dim=4)
+
+
+def test_load_embeddings_jsonl_raises_on_dim_mismatch(tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, [{"paper_pmid": "100", "embedding": [1.0, 0.0, 0.0]}])
+    with pytest.raises(ValueError, match="dim mismatch"):
+        _load_embeddings_jsonl(p, expected_dim=4)
+
+
+def test_load_embeddings_jsonl_raises_on_empty(tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    p.write_text("\n\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="임베딩이 한 줄도 없음"):
+        _load_embeddings_jsonl(p, expected_dim=4)
+
+
+def test_load_embeddings_jsonl_skips_blank_lines(tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    p.write_text(
+        '{"paper_pmid": "100", "embedding": [1, 0]}\n\n{"paper_pmid": "200", "embedding": [0, 1]}\n',
+        encoding="utf-8",
+    )
+    matrix, metas = _load_embeddings_jsonl(p, expected_dim=2)
+    assert matrix.shape == (2, 2)
+
+
+# ── _build_inmem_retriever (mock SentenceTransformer) ───────────────────
+
+
+class _StubST:
+    """결정론적 query 인코더 — 'want_<N>'에서 N번째 basis vector 반환."""
+
+    last_encode_text: str | None = None
+    last_normalize: bool | None = None
+
+    def __init__(self, hf_name: str, device: str = "cpu"):
+        self.hf_name = hf_name
+        self.device = device
+        # dim은 hf_name으로 결정 (registry와 일치)
+        dim_lookup = {
+            "BAAI/bge-large-en-v1.5": 1024,
+            "BAAI/bge-base-en-v1.5": 768,
+            "pritamdeka/S-PubMedBert-MS-MARCO": 768,
+        }
+        self.dim = dim_lookup[hf_name]
+
+    def encode(self, text, normalize_embeddings: bool = False):
+        type(self).last_encode_text = text
+        type(self).last_normalize = normalize_embeddings
+        # 'want_K' 토큰이 들어있으면 basis vector e_K 반환 (이미 단위 길이)
+        idx = 0
+        for token in str(text).split():
+            if token.startswith("want_"):
+                try:
+                    idx = int(token.split("_", 1)[1])
+                except ValueError:
+                    idx = 0
+                break
+        vec = np.zeros(self.dim, dtype=np.float32)
+        vec[idx] = 1.0
+        return vec
+
+
+@pytest.fixture
+def stub_sentence_transformers(monkeypatch):
+    """sentence_transformers 모듈을 결정론적 stub로 교체."""
+    _StubST.last_encode_text = None
+    _StubST.last_normalize = None
+    fake_module = types.ModuleType("sentence_transformers")
+    fake_module.SentenceTransformer = _StubST  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake_module)
+    monkeypatch.setenv("MLOPS_EMBED_DEVICE", "cpu")
+    return _StubST
+
+
+def _basis_corpus_for(dim: int, pmids: list[str]) -> list[dict]:
+    """pmids[k] → e_k basis vector. 단위벡터이므로 dot==cosine."""
+    records = []
+    for k, pmid in enumerate(pmids):
+        vec = [0.0] * dim
+        vec[k] = 1.0
+        records.append(
+            {
+                "paper_pmid": pmid,
+                "paper_title": f"title-{pmid}",
+                "section_name": "abstract",
+                "embedding": vec,
+            }
+        )
+    return records
+
+
+def test_inmem_retriever_returns_results_in_cosine_order(stub_sentence_transformers, tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, _basis_corpus_for(dim=768, pmids=["A", "B", "C"]))
+    retriever = _build_inmem_retriever(p, "bge-base")
+    # query 'want_1' → e_1 → 가장 유사 pmid='B' (score=1.0), 나머지는 직교(score=0.0)
+    res = retriever("want_1", top_k=3)
+    assert res[0]["pmid"] == "B"
+    assert res[0]["score"] == pytest.approx(1.0, abs=1e-6)
+    # 나머지 두 개는 직교라 cosine=0 — 둘 사이의 상대 순서는 의미 없음
+    assert {r["pmid"] for r in res[1:]} == {"A", "C"}
+    for r in res[1:]:
+        assert r["score"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_inmem_retriever_orders_by_distinct_cosine_scores(stub_sentence_transformers, tmp_path: Path):
+    """동률이 아닌 distinct 점수 케이스 — argsort descending 동작 검증."""
+    # 각 corpus는 e_0과 다른 각도. query 'want_0' → e_0이므로 dot=row[0]값.
+    p = tmp_path / "emb.jsonl"
+    dim = 768
+
+    # 단위벡터로 정규화된 청크 3개. e_0 성분이 큰 순서: C(0.9) > A(0.6) > B(0.2)
+    def _make_unit(comp0: float, comp1: float) -> list[float]:
+        v = np.zeros(dim, dtype=np.float32)
+        v[0] = comp0
+        v[1] = comp1
+        v = v / np.linalg.norm(v)
+        return v.tolist()
+
+    records = [
+        {"paper_pmid": "A", "paper_title": "tA", "embedding": _make_unit(0.6, 0.8)},
+        {"paper_pmid": "B", "paper_title": "tB", "embedding": _make_unit(0.2, 0.98)},
+        {"paper_pmid": "C", "paper_title": "tC", "embedding": _make_unit(0.9, 0.4359)},
+    ]
+    _write_jsonl(p, records)
+    retriever = _build_inmem_retriever(p, "bge-base")
+    res = retriever("want_0", top_k=3)
+    assert [r["pmid"] for r in res] == ["C", "A", "B"]
+    # 점수도 strictly descending
+    assert res[0]["score"] > res[1]["score"] > res[2]["score"]
+
+
+def test_inmem_retriever_respects_top_k(stub_sentence_transformers, tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, _basis_corpus_for(dim=768, pmids=["A", "B", "C", "D"]))
+    retriever = _build_inmem_retriever(p, "bge-base")
+    res = retriever("want_0", top_k=2)
+    assert len(res) == 2
+    assert res[0]["pmid"] == "A"
+
+
+def test_inmem_retriever_prepends_bge_query_prefix(stub_sentence_transformers, tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, _basis_corpus_for(dim=768, pmids=["A", "B"]))
+    retriever = _build_inmem_retriever(p, "bge-base")
+    retriever("want_0", top_k=1)
+    # BGE는 query 측에 prefix prepend
+    assert _StubST.last_encode_text is not None
+    assert _StubST.last_encode_text.startswith("Represent this sentence")
+    assert "want_0" in _StubST.last_encode_text
+
+
+def test_inmem_retriever_skips_prefix_for_pubmedbert(stub_sentence_transformers, tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, _basis_corpus_for(dim=768, pmids=["A", "B"]))
+    retriever = _build_inmem_retriever(p, "pubmedbert-msmarco")
+    retriever("want_0", top_k=1)
+    # PubMedBERT는 symmetric — prefix 없음
+    assert _StubST.last_encode_text == "want_0"
+
+
+def test_inmem_retriever_passes_normalize_true_to_encoder(stub_sentence_transformers, tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, _basis_corpus_for(dim=768, pmids=["A"]))
+    retriever = _build_inmem_retriever(p, "bge-base")
+    retriever("want_0", top_k=1)
+    assert _StubST.last_normalize is True
+
+
+def test_inmem_retriever_returns_chunk_meta(stub_sentence_transformers, tmp_path: Path):
+    p = tmp_path / "emb.jsonl"
+    _write_jsonl(p, _basis_corpus_for(dim=768, pmids=["A"]))
+    retriever = _build_inmem_retriever(p, "bge-base")
+    res = retriever("want_0", top_k=1)
+    assert res[0]["title"] == "title-A"
+    assert res[0]["section"] == "abstract"
+
+
+# ── main() with --retriever=inmem ──────────────────────────────────────
+
+
+def test_main_inmem_writes_report(stub_sentence_transformers, tmp_path: Path):
+    gs = tmp_path / "gs.jsonl"
+    gs.write_text(
+        '{"id": "Q1", "query": "want_0", "category": "programming", "expected_pmids": ["A"]}\n',
+        encoding="utf-8",
+    )
+    emb = tmp_path / "emb.jsonl"
+    _write_jsonl(emb, _basis_corpus_for(dim=768, pmids=["A", "B"]))
+    out = tmp_path / "reports" / "out.md"
+
+    rc = main(
+        [
+            "--goldset",
+            str(gs),
+            "--output",
+            str(out),
+            "--top-k",
+            "5",
+            "--retriever",
+            "inmem",
+            "--embeddings-file",
+            str(emb),
+            "--model-key",
+            "bge-base",
+        ]
+    )
+    assert rc == 0
+    text = out.read_text(encoding="utf-8")
+    assert "inmem+bge-base" in text
+
+
+def test_main_inmem_requires_embeddings_file(tmp_path: Path):
+    gs = tmp_path / "gs.jsonl"
+    gs.write_text(
+        '{"id": "Q1", "query": "q", "category": "c", "expected_pmids": ["A"]}\n',
+        encoding="utf-8",
+    )
+    out = tmp_path / "out.md"
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "--goldset",
+                str(gs),
+                "--output",
+                str(out),
+                "--retriever",
+                "inmem",
+                "--model-key",
+                "bge-base",
+            ]
+        )
+
+
+def test_main_inmem_requires_model_key(tmp_path: Path):
+    gs = tmp_path / "gs.jsonl"
+    gs.write_text(
+        '{"id": "Q1", "query": "q", "category": "c", "expected_pmids": ["A"]}\n',
+        encoding="utf-8",
+    )
+    out = tmp_path / "out.md"
+    emb = tmp_path / "emb.jsonl"
+    _write_jsonl(emb, [{"paper_pmid": "A", "embedding": [1.0, 0.0]}])
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "--goldset",
+                str(gs),
+                "--output",
+                str(out),
+                "--retriever",
+                "inmem",
+                "--embeddings-file",
+                str(emb),
+            ]
+        )
+
+
+def test_main_inmem_requires_existing_embeddings_file(tmp_path: Path):
+    gs = tmp_path / "gs.jsonl"
+    gs.write_text(
+        '{"id": "Q1", "query": "q", "category": "c", "expected_pmids": ["A"]}\n',
+        encoding="utf-8",
+    )
+    out = tmp_path / "out.md"
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "--goldset",
+                str(gs),
+                "--output",
+                str(out),
+                "--retriever",
+                "inmem",
+                "--embeddings-file",
+                str(tmp_path / "missing.jsonl"),
+                "--model-key",
+                "bge-base",
+            ]
+        )
