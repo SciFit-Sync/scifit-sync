@@ -267,30 +267,31 @@ def _build_inmem_retriever(
 
     모델별 dim이 달라도 Chroma 재적재 없이 즉시 검증 가능.
     `evidence_weight` 재정렬은 의도적 미반영 — 임베딩 순수 의미 비교에 한정한다.
+
+    embedder의 `_model_cache`를 재사용하므로 test 모드에서 export 측이 이미 로드한
+    SentenceTransformer 인스턴스가 그대로 query encoding에 쓰인다 (중복 적재 없음).
     """
     import numpy as np
-    from mlops.pipeline.embedder import _resolve_device
+    from mlops.pipeline.embedder import _get_model_by_spec
     from mlops.pipeline.specs import get_spec
 
     spec = get_spec(model_key)
     matrix, metas = _load_embeddings_jsonl(embeddings_path, expected_dim=spec.dim)
 
     # corpus가 spec.normalize=True로 export됐다는 전제 — 단위 벡터 가정.
-    # 안전망: 정규화 안 된 벡터가 섞여 있으면 cosine이 dot으로 안 떨어짐.
+    # 정규화되지 않은 벡터로 cosine을 계산하면 점수가 왜곡되어 A/B 비교가 부정확해진다.
+    # export 산출물은 항상 정규화되어 있으므로 정상 경로에서는 이 분기에 도달하지 않는다.
+    # 도달했다면 산출물이 손상된 것이므로 즉시 중단 — silent하게 잘못된 리포트를 만들지 않는다.
     if spec.normalize:
         norms = np.linalg.norm(matrix, axis=1)
         if not np.allclose(norms, 1.0, atol=1e-3):
-            logger.warning(
-                "embeddings_path=%s: corpus 벡터가 단위벡터가 아님 (mean_norm=%.4f). "
-                "spec.normalize=True인데 export가 정규화 안된 상태일 수 있음.",
-                embeddings_path,
-                float(norms.mean()),
+            raise ValueError(
+                f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 "
+                f"(mean_norm={float(norms.mean()):.4f}). spec.normalize=True인데 export 산출물이 "
+                "정규화되지 않은 상태입니다. cosine 점수가 왜곡되어 A/B 비교가 부정확해지므로 즉시 중단."
             )
 
-    from sentence_transformers import SentenceTransformer
-
-    device = _resolve_device()
-    model = SentenceTransformer(spec.hf_name, device=device)
+    model = _get_model_by_spec(spec)
 
     def _retrieve(query: str, top_k: int) -> list[dict]:
         q_text = (spec.query_prefix + query) if spec.query_prefix else query

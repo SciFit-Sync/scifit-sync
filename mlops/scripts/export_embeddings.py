@@ -344,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Stage 1: chunks ─────────────────────────────────────
     chunks_path = _chunks_path(args.batch_tag)
+    manifest: Manifest | None = None  # crawl 분기에서만 채워짐 — 갱신 블록에서 재사용
     if args.reuse_chunks and chunks_path.exists():
         logger.info("chunks 재사용: %s", chunks_path)
         chunks = _load_chunks(chunks_path)
@@ -465,8 +466,10 @@ def main(argv: list[str] | None = None) -> int:
             summary_rows.append({"key": spec.key, "total_sec": total_sec, "eval_status": eval_status})
 
     # ── Manifest 갱신 (default 모드 + --update-manifest + 신규 crawl) ──
+    # 재사용 분기에서는 papers_for_manifest=[] 이므로 이 블록에 진입하지 않는다.
+    # crawl 분기에서 이미 로드한 manifest 객체를 재사용 — 파일 재로드 race 제거.
     if args.update_manifest and not args.test and papers_for_manifest:
-        manifest = Manifest.load(MANIFEST_PATH)
+        assert manifest is not None  # papers_for_manifest 가 차있다 = crawl 경로 = manifest 로드됨
         for p in papers_for_manifest:
             manifest.record_attempt(
                 doi=p.meta.doi,
