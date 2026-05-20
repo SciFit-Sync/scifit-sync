@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.models import (
     MuscleInvolvement,
     User,
 )
+from app.core.limiter import rate_limit
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import ExerciseItem, ExerciseListData
 from app.schemas.users import CoreLiftItem, CoreLiftsData
@@ -32,7 +33,9 @@ router = APIRouter(prefix="/exercises", tags=["exercises"])
     response_model=SuccessResponse[CoreLiftsData],
     summary="핵심 4대 운동 (벤치/스쿼트/데드/OHP) 식별자",
 )
+@rate_limit("60/minute")
 async def get_core_lifts(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -43,7 +46,9 @@ async def get_core_lifts(
 
 
 @router.get("", response_model=SuccessResponse[ExerciseListData], summary="운동 목록")
+@rate_limit("60/minute")
 async def list_exercises(
+    request: Request,
     keyword: str | None = Query(None, description="운동 이름 키워드 검색"),
     muscle: str | None = Query(None, description="근육 그룹 영문명 (name_en) 필터"),
     page: int = Query(0, ge=0, description="페이지 번호 (0-based)"),

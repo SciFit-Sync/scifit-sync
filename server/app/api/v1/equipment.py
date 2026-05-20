@@ -3,7 +3,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,7 @@ from app.schemas.gyms import (
     SelectData,
     SelectEquipmentRequest,
 )
+from app.core.limiter import rate_limit
 from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,9 @@ async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]
 
 # ── GET /equipment/brands ─────────────────────────────────────────────────────
 @router.get("/brands", response_model=SuccessResponse[BrandListData], summary="기구 브랜드 목록")
+@rate_limit("60/minute")
 async def list_brands(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,7 +89,9 @@ async def list_brands(
 # page 파라미터 없음 → SuccessResponse[EquipmentListData]  {"data": {"items": [...]}}
 # page 파라미터 있음 → PaginatedResponse[EquipmentItem]    {"data": [...], "pagination": {...}}
 @router.get("", summary="장비 카탈로그")
+@rate_limit("60/minute")
 async def list_equipment(
+    request: Request,
     keyword: str | None = Query(None, description="기구 이름 부분 일치 검색"),
     brand: str | None = Query(None, description="브랜드명 필터 (예: Life Fitness, 라이프피트니스)"),
     brand_id: str | None = Query(None, description="브랜드 UUID 필터"),
@@ -141,7 +146,9 @@ async def list_equipment(
     response_model=PaginatedResponse[EquipmentItem],
     summary="기구 상세 조회",
 )
+@rate_limit("60/minute")
 async def get_equipment(
+    request: Request,
     equipment_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -174,7 +181,9 @@ async def get_equipment(
 
 # ── POST /equipment/select ────────────────────────────────────────────────────
 @router.post("/select", response_model=SuccessResponse[SelectData], summary="기구 선택 저장")
+@rate_limit("60/minute")
 async def select_equipment(
+    request: Request,
     body: SelectEquipmentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

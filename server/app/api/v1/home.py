@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from app.models import (
     WorkoutLogSet,
     WorkoutRoutine,
 )
+from app.core.limiter import rate_limit
 from app.schemas.common import SuccessResponse
 from app.schemas.notifications import HomeData, HomeRoutineSummary, NotificationItem
 
@@ -27,7 +28,9 @@ router = APIRouter(tags=["home"])
 
 
 @router.get("/home", response_model=SuccessResponse[HomeData], summary="홈 대시보드")
+@rate_limit("60/minute")
 async def home(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -7,7 +7,7 @@ import logging
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,6 +16,7 @@ from app.core.auth import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, ExternalServiceError, NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     EquipmentReport,
@@ -77,7 +78,10 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
 
 # ── GET /gyms?keyword= ────────────────────────────────────────────────────────
 @router.get("", response_model=SuccessResponse[GymSearchData], summary="헬스장 검색")
+@rate_limit("60/minute")
+@rate_limit("60/minute")
 async def search_gyms(
+    request: Request,
     keyword: str = Query(..., min_length=1, description="검색 키워드"),
     latitude: float | None = Query(None),
     longitude: float | None = Query(None),
@@ -142,7 +146,10 @@ async def search_gyms(
 
 # ── POST /gyms ────────────────────────────────────────────────────────────────
 @router.post("", response_model=SuccessResponse[GymItem], status_code=201, summary="헬스장 등록")
+@rate_limit("60/minute")
+@rate_limit("60/minute")
 async def create_gym(
+    request: Request,
     body: CreateGymRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -196,7 +203,9 @@ async def create_gym(
     response_model=SuccessResponse[GymEquipmentListData],
     summary="헬스장 보유 장비 목록",
 )
+@rate_limit("60/minute")
 async def list_gym_equipment(
+    request: Request,
     gym_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -242,7 +251,9 @@ async def list_gym_equipment(
     status_code=201,
     summary="헬스장에 장비 추가",
 )
+@rate_limit("60/minute")
 async def add_gym_equipment(
+    request: Request,
     gym_id: str,
     body: AddGymEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -285,7 +296,9 @@ async def add_gym_equipment(
     status_code=200,
     summary="헬스장에 기구 일괄 연결",
 )
+@rate_limit("60/minute")
 async def bulk_add_gym_equipment(
+    request: Request,
     gym_id: str,
     body: BulkAddEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -351,7 +364,9 @@ async def bulk_add_gym_equipment(
     status_code=201,
     summary="장비 정보 신고",
 )
+@rate_limit("60/minute")
 async def report_gym_equipment(
+    request: Request,
     gym_id: str,
     body: ReportEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -389,7 +404,9 @@ async def report_gym_equipment(
     status_code=201,
     summary="미등록 기구 제보",
 )
+@rate_limit("60/minute")
 async def suggest_gym_equipment(
+    request: Request,
     gym_id: str,
     body: SuggestEquipmentRequest,
     current_user: User = Depends(get_current_user),

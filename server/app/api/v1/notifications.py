@@ -6,7 +6,7 @@ CLAUDE.md / api-endpoints.md #40-41.
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.models import Notification, User
+from app.core.limiter import rate_limit
 from app.schemas.common import SuccessResponse
 from app.schemas.notifications import NotificationItem, NotificationListData
 
@@ -42,7 +43,9 @@ def _to_dto(n: Notification) -> NotificationItem:
 
 
 @router.get("", response_model=SuccessResponse[NotificationListData], summary="알림 목록")
+@rate_limit("60/minute")
 async def list_notifications(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -74,7 +77,9 @@ async def list_notifications(
     response_model=SuccessResponse[NotificationItem],
     summary="알림 읽음 처리",
 )
+@rate_limit("60/minute")
 async def mark_read(
+    request: Request,
     notification_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
