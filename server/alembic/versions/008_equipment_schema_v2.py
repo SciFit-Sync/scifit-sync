@@ -73,6 +73,25 @@ def upgrade() -> None:
         """
     )
 
+    # ── 4.5) 기존 데이터 backfill: NULL unit을 kg로 (CLAUDE.md §10 v2.1 정책)
+    # 본 마이그레이션은 빈 테이블 전제로 작성됐으나, develop에 추가된
+    # PR #92 (equipment seed CSV load)로 기존 행이 unit 없이 INSERT되어
+    # 후속 CHECK 제약 (chk_bar_unit_synced, chk_stack_unit_synced) 위반 발생.
+    # 한국 헬스장 표준 단위 kg를 fallback으로 채워 정합성 확보.
+    op.execute(
+        """
+        UPDATE equipments SET bar_weight_unit = 'kg'
+        WHERE bar_weight IS NOT NULL AND bar_weight_unit IS NULL
+        """
+    )
+    op.execute(
+        """
+        UPDATE equipments SET stack_unit = 'kg'
+        WHERE (min_stack IS NOT NULL OR max_stack IS NOT NULL OR stack_weight IS NOT NULL)
+          AND stack_unit IS NULL
+        """
+    )
+
     # ── 5) CHECK 제약 신규 ──
     op.execute(
         """
