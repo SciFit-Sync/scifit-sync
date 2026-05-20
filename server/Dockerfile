@@ -7,9 +7,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Non-root user + ChromaDB 볼륨 디렉터리 권한 설정
+# Non-root user + ChromaDB 볼륨 + 정적 파일 디렉터리 권한 설정
+# - /chroma-data: EFS 마운트 대상. Access Point가 1000:1000으로 squash하지만
+#   로컬 dev (docker-compose, EFS 미마운트) 시 appuser가 쓸 수 있어야 함
+# - /app/static: main.py:create_app()이 mkdir(exist_ok=True)로 만들려고 시도.
+#   `/app`이 root 소유라 appuser가 mkdir 실패 → PermissionError. 미리 만들고 chown.
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \
-    && mkdir -p /chroma-data && chown -R appuser:appgroup /chroma-data
+    && mkdir -p /chroma-data /app/static \
+    && chown -R appuser:appgroup /chroma-data /app/static
 USER appuser
 
 EXPOSE 8000
