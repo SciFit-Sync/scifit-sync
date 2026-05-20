@@ -6,16 +6,6 @@ from datetime import date as date_type
 from datetime import datetime, timedelta, timezone
 
 import httpx
-
-
-def _utcnow() -> datetime:
-    """Timezone-aware UTC `now`를 만든 뒤 naive로 변환해 반환.
-
-    `datetime.utcnow()`는 Python 3.12+에서 deprecated. 또한 본 모듈이 다루는 DB 컬럼
-    (`expires_at`, `revoked_at` 등)이 모두 `Mapped[datetime]` (timezone-naive) 이므로
-    비교 산술 시 aware datetime이 섞이면 `TypeError`. 본 헬퍼는 두 위험을 동시에 해소.
-    """
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,6 +65,16 @@ from app.schemas.common import SuccessResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware UTC `now`를 만든 뒤 naive로 변환해 반환.
+
+    `datetime.utcnow()`는 Python 3.12+에서 deprecated. 또한 본 모듈이 다루는 DB 컬럼
+    (`expires_at`, `revoked_at` 등)이 모두 `Mapped[datetime]` (timezone-naive) 이므로
+    비교 산술 시 aware datetime이 섞이면 `TypeError`. 본 헬퍼는 두 위험을 동시에 해소.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _hash_token(token: str) -> str:
