@@ -498,7 +498,7 @@ erDiagram
 - `equipments.category` = 근육 부위 대표 1개: `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
 - `equipments.sub_category` = 세부 영역 (v2.1): `'upper_back' | 'lower_back' | 'front_delt' | 'side_delt' | 'rear_delt' | 'upper_chest' | 'mid_chest' | 'lower_chest' | 'biceps' | 'triceps' | 'quads' | 'hamstrings' | 'abs'` 등. enum이 아닌 `varchar` — 향후 어휘 세분화는 스키마 변경 없이 데이터 값 진화로 대응.
 - `equipments.equipment_type` = 물리 타입: `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
-- 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight_kg` + `has_weight_assist` 기준
+- 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight` + `has_weight_assist` 기준
 
 ### 무게 단위 정책 (v2.1)
 **DB는 CSV에 표기된 원본 단위 그대로 저장하며, 단위 변환을 storage time에 강제하지 않는다.** 각 값의 단위는 같은 행의 `*_unit` 컬럼에서 즉시 확인할 수 있다. 단위 변환은 비교·합산이 필요한 컴포넌트(예: `load_calc.py`)가 compute time에 책임진다.
@@ -540,7 +540,9 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
 
 즉, 무게 값이 존재할 때 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나로 결정되고("값은 있는데 단위 NULL" 금지), JSONB `stack_weight`는 `value`형 또는 `pattern`형 중 하나만 가질 수 있다(혼합 객체 금지).
 
-### `stack_weight` JSONB 스키마 (v2.1)
+`chk_stack_weight_shape` (v2.2): `value`·`pattern` top-level 키 양립 차단. 빈 객체 `{}`는 세 OR 분기가 모두 FALSE가 되어 DB CHECK가 INSERT/UPDATE를 차단한다.
+
+### `stack_weight` JSONB 스키마 (v2.1 + v2.2)
 타입을 `decimal`에서 `jsonb`로 변경. 값의 **단위는 같은 행의 `stack_unit`**이 결정하며 JSONB 내부에는 단위를 넣지 않는다(단일 진실 원칙). 두 가지 형태를 허용:
 
 ```jsonc

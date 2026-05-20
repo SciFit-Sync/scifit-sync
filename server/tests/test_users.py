@@ -338,11 +338,11 @@ def _mock_equipment() -> Equipment:
     e.equipment_type = MagicMock()
     e.equipment_type.value = "cable"
     e.pulley_ratio = 1.0
-    e.bar_weight_kg = None
+    e.bar_weight = None
     e.has_weight_assist = False
-    e.min_stack_kg = None
-    e.max_stack_kg = None
-    e.stack_weight_kg = 2.5
+    e.min_stack = None
+    e.max_stack = None
+    e.stack_weight = {"value": 2.5}
     e.image_url = None
     return e
 
