@@ -1,6 +1,7 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ActivityIndicator, View } from "react-native";
+import { useEffect, useState } from "react";
+import WS01Splash from "../screens/splash/WS01Splash";
 import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
 import WA01Login from "../screens/auth/WA01Login";
 import WM01Main from "../screens/main/WM01Main";
@@ -39,29 +40,34 @@ function MainNavigator() {
 export default function RootNavigator() {
   const { isLoggedIn, isNewUser, isLoading } = useAuthStore();
 
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#000",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <ActivityIndicator color="#FEE500" size="large" />
-      </View>
-    );
+  // 스플래시 최소 표시 시간 (1.8초)
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // 무조건 1.8초는 스플래시 보이게
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1800000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 스플래시 표시 조건:
+  // 1. showSplash가 true (1.8초 안 지남)
+  // 2. 또는 isLoading이 true (토큰 체크 중)
+  if (showSplash || isLoading) {
+    return <WS01Splash />;
   }
 
+  // 분기: 로그인 상태에 따라
   return (
     <NavigationContainer>
       {!isLoggedIn ? (
-        <AuthNavigator />
+        <AuthNavigator /> // 로그인 안 됨
       ) : isNewUser ? (
-        <OnboardingNavigator />
+        <OnboardingNavigator /> // 신규 사용자
       ) : (
-        <MainNavigator />
+        <MainNavigator /> // 기존 로그인 사용자
       )}
     </NavigationContainer>
   );
