@@ -16,9 +16,11 @@ from mlops.scripts.export_embeddings import (
     CHUNKS_META_VERSION,
     _chunks_doi_set,
     _count_unique_papers,
+    _load_meta_sidecar,
     _merge_chunks,
     _meta_path,
     _save_chunks_atomic,
+    _write_meta_sidecar,
 )
 
 
@@ -165,6 +167,47 @@ def test_save_chunks_atomic_preserves_original_on_serialization_failure(tmp_path
     # 원본은 그대로
     assert path.read_bytes() == original_content
     # tmp 파일은 없어야 (cleanup) — 또는 .tmp 이름으로 남아있어도 path 본체는 무사
+
+
+def test_write_meta_sidecar_emits_version_and_counts(tmp_path: Path):
+    chunks_path = tmp_path / "tag.jsonl.gz"
+    chunks = [
+        _make_chunk(doi="10.1/a", pmid="1", idx=0),
+        _make_chunk(doi="10.1/a", pmid="1", idx=1),
+        _make_chunk(doi="10.1/b", pmid="2", idx=0),
+    ]
+    _write_meta_sidecar(chunks_path, chunks)
+
+    meta_path = tmp_path / "tag.jsonl.gz.meta.json"
+    assert meta_path.exists()
+    meta = json.loads(meta_path.read_text())
+    assert meta["version"] == 1
+    assert meta["paper_count"] == 2
+    assert meta["chunk_count"] == 3
+    assert "created_at" in meta and "updated_at" in meta
+
+
+def test_load_meta_sidecar_returns_none_when_missing(tmp_path: Path):
+    chunks_path = tmp_path / "tag.jsonl.gz"
+    assert _load_meta_sidecar(chunks_path) is None
+
+
+def test_load_meta_sidecar_returns_dict_when_present(tmp_path: Path):
+    chunks_path = tmp_path / "tag.jsonl.gz"
+    meta_path = tmp_path / "tag.jsonl.gz.meta.json"
+    meta_path.write_text(json.dumps({"version": 1, "paper_count": 5}))
+    meta = _load_meta_sidecar(chunks_path)
+    assert meta is not None
+    assert meta["version"] == 1
+    assert meta["paper_count"] == 5
+
+
+def test_load_meta_sidecar_returns_none_on_corrupt_json(tmp_path: Path):
+    """사이드카 JSON 손상 시 None 반환 → caller가 legacy로 취급."""
+    chunks_path = tmp_path / "tag.jsonl.gz"
+    meta_path = tmp_path / "tag.jsonl.gz.meta.json"
+    meta_path.write_text("{not valid json")
+    assert _load_meta_sidecar(chunks_path) is None
 
 
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────

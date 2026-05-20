@@ -136,6 +136,35 @@ def _save_chunks_atomic(path: Path, chunks: list[Chunk]) -> None:
         raise
 
 
+def _load_meta_sidecar(chunks_path: Path) -> dict | None:
+    """사이드카 메타파일 로드. 없거나 JSON 손상 시 None — caller가 legacy 처리."""
+    meta_path = _meta_path(chunks_path)
+    if not meta_path.exists():
+        return None
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        logger.warning("사이드카 JSON 손상, legacy로 fallback: %s", meta_path)
+        return None
+
+
+def _write_meta_sidecar(chunks_path: Path, chunks: list[Chunk]) -> None:
+    """chunks 저장 직후 호출. version + 카운트 + 시각 메타를 사이드카에 기록."""
+    meta_path = _meta_path(chunks_path)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    existing = _load_meta_sidecar(chunks_path) or {}
+    payload = {
+        "version": CHUNKS_META_VERSION,
+        "chunks_path": chunks_path.name,
+        "paper_count": _count_unique_papers(chunks),
+        "chunk_count": len(chunks),
+        "created_at": existing.get("created_at", now),
+        "updated_at": now,
+    }
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
 def _emb_path(batch_tag: str, model_key: str) -> Path:
     return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
 
