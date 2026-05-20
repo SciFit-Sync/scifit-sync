@@ -11,6 +11,7 @@
 """
 
 import argparse
+import gzip
 import json
 import logging
 from collections import defaultdict
@@ -18,6 +19,10 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +213,105 @@ def render_report(
     return "\n".join(lines)
 
 
+def _load_embeddings_jsonl(path: Path, expected_dim: int) -> tuple["np.ndarray", list[dict]]:
+    """JSONL(.gz 허용) 임베딩 파일을 메모리 행렬 + 메타데이터로 로드한다.
+
+    포맷: 각 줄은 chunk 메타 + ``embedding`` 키. ``embed_chunks_with_spec`` 결과를
+    그대로 저장한 export_embeddings 산출물과 호환.
+
+    Args:
+        path: ``.jsonl`` 또는 ``.jsonl.gz`` 경로.
+        expected_dim: 모든 줄의 ``embedding`` 길이가 이 값과 일치해야 한다.
+
+    Returns:
+        (matrix(N, dim) float32, metas[N]) — 정렬 보존.
+
+    Raises:
+        ValueError: malformed JSON 한 줄이라도, 또는 dim 불일치 한 줄이라도 발견 시.
+            부분 적재된 상태로 진행하면 score 행렬과 metas 인덱스가 어긋난다.
+    """
+    import numpy as np
+
+    opener = gzip.open if path.suffix == ".gz" else open
+    vectors: list[list[float]] = []
+    metas: list[dict] = []
+    with opener(path, "rt", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                raw = json.loads(stripped)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path}:{line_no}: invalid JSON — {e}") from e
+            if "embedding" not in raw:
+                raise ValueError(f"{path}:{line_no}: missing 'embedding' key")
+            emb = raw.pop("embedding")
+            if not isinstance(emb, list) or len(emb) != expected_dim:
+                raise ValueError(
+                    f"{path}:{line_no}: embedding dim mismatch — expected {expected_dim}, got {len(emb) if isinstance(emb, list) else type(emb).__name__}"
+                )
+            vectors.append(emb)
+            metas.append(raw)
+    if not vectors:
+        raise ValueError(f"{path}: 임베딩이 한 줄도 없음")
+    matrix = np.asarray(vectors, dtype=np.float32)
+    return matrix, metas
+
+
+def _build_inmem_retriever(
+    embeddings_path: Path,
+    model_key: str,
+) -> Retriever:
+    """JSONL.gz에서 청크 메타+embedding 로드 → 메모리 cosine retrieval.
+
+    모델별 dim이 달라도 Chroma 재적재 없이 즉시 검증 가능.
+    `evidence_weight` 재정렬은 의도적 미반영 — 임베딩 순수 의미 비교에 한정한다.
+    """
+    import numpy as np
+    from mlops.eval.models import get_spec
+    from mlops.pipeline.embedder import _resolve_device
+
+    spec = get_spec(model_key)
+    matrix, metas = _load_embeddings_jsonl(embeddings_path, expected_dim=spec.dim)
+
+    # corpus가 spec.normalize=True로 export됐다는 전제 — 단위 벡터 가정.
+    # 안전망: 정규화 안 된 벡터가 섞여 있으면 cosine이 dot으로 안 떨어짐.
+    if spec.normalize:
+        norms = np.linalg.norm(matrix, axis=1)
+        if not np.allclose(norms, 1.0, atol=1e-3):
+            logger.warning(
+                "embeddings_path=%s: corpus 벡터가 단위벡터가 아님 (mean_norm=%.4f). "
+                "spec.normalize=True인데 export가 정규화 안된 상태일 수 있음.",
+                embeddings_path,
+                float(norms.mean()),
+            )
+
+    from sentence_transformers import SentenceTransformer
+
+    device = _resolve_device()
+    model = SentenceTransformer(spec.hf_name, device=device)
+
+    def _retrieve(query: str, top_k: int) -> list[dict]:
+        q_text = (spec.query_prefix + query) if spec.query_prefix else query
+        qvec = model.encode(q_text, normalize_embeddings=spec.normalize)
+        qvec_arr = np.asarray(qvec, dtype=np.float32)
+        # 단위벡터 가정 시 cosine = dot product
+        scores = matrix @ qvec_arr
+        top_idx = np.argsort(scores)[::-1][:top_k]
+        return [
+            {
+                "pmid": metas[i].get("paper_pmid", ""),
+                "title": metas[i].get("paper_title", ""),
+                "section": metas[i].get("section_name", ""),
+                "score": float(scores[i]),
+            }
+            for i in top_idx
+        ]
+
+    return _retrieve
+
+
 def _build_chroma_retriever() -> Retriever:
     """실제 ChromaDB 검색 retriever — 호출 시점에만 import (테스트에서는 monkeypatch)."""
     import os
@@ -261,10 +365,34 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--retriever-name",
         type=str,
-        default="chroma+bge-large-en-v1.5",
-        help="리포트에 기록할 retriever 식별자",
+        default=None,
+        help="리포트에 기록할 retriever 식별자 (생략 시 retriever 모드에 따라 자동 결정)",
+    )
+    parser.add_argument(
+        "--retriever",
+        choices=["chroma", "inmem"],
+        default="chroma",
+        help="검색 백엔드. inmem=JSONL 직접 로드 cosine retriever (A/B 평가용)",
+    )
+    parser.add_argument(
+        "--embeddings-file",
+        type=Path,
+        default=None,
+        help="inmem retriever용 임베딩 JSONL(.gz) 경로 — --retriever=inmem 시 필수",
+    )
+    parser.add_argument(
+        "--model-key",
+        type=str,
+        default=None,
+        help="inmem retriever용 모델 key (registry 등록값) — --retriever=inmem 시 필수",
     )
     args = parser.parse_args(argv)
+
+    if args.retriever == "inmem":
+        if args.embeddings_file is None or args.model_key is None:
+            parser.error("--retriever=inmem 은 --embeddings-file 과 --model-key 가 필요합니다")
+        if not args.embeddings_file.exists():
+            parser.error(f"--embeddings-file 경로 없음: {args.embeddings_file}")
 
     top_k_values = tuple(sorted(set(args.top_k)))
 
@@ -274,7 +402,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     logger.info("골드셋 로드 완료 n=%d", len(goldset))
 
-    retriever = _build_chroma_retriever()
+    if args.retriever == "inmem":
+        retriever = _build_inmem_retriever(args.embeddings_file, args.model_key)
+        retriever_name = args.retriever_name or f"inmem+{args.model_key}"
+    else:
+        retriever = _build_chroma_retriever()
+        retriever_name = args.retriever_name or "chroma+bge-large-en-v1.5"
+
     results = run_evaluation(goldset, retriever, top_k_values)
     overall = aggregate(results, top_k_values)
     per_cat = aggregate_by_category(results, top_k_values)
@@ -283,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
         overall=overall,
         per_category=per_cat,
         goldset_path=args.goldset,
-        retriever_name=args.retriever_name,
+        retriever_name=retriever_name,
         top_k_values=top_k_values,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
