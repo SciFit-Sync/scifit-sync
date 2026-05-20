@@ -56,6 +56,10 @@ MANIFEST_PATH = DATA_DIR / "manifest.json"
 OPENALEX_BASE_URL: str = os.getenv("OPENALEX_BASE_URL", "https://api.openalex.org")
 OPENALEX_MAILTO: str = os.getenv("OPENALEX_MAILTO", "")
 OPENALEX_MAX_PER_CATEGORY: int = int(os.getenv("OPENALEX_MAX_PER_CATEGORY", "500"))
+# polite pool은 10 req/s 상한이지만 공유 IP 풀로 인해 sustained 호출에서 429가 빈번하다.
+# 0.5s 간격 + 5회 재시도 + 429 전용 단계 백오프(5/15/30/60s)가 기본값.
+OPENALEX_RATE_LIMIT: float = float(os.getenv("OPENALEX_RATE_LIMIT", "0.5"))
+OPENALEX_MAX_RETRIES: int = int(os.getenv("OPENALEX_MAX_RETRIES", "5"))
 PUBMED_MAX_PER_CATEGORY: int = int(os.getenv("PUBMED_MAX_PER_CATEGORY", "50"))
 
 # Europe PMC

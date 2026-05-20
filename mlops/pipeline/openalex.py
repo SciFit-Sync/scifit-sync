@@ -21,7 +21,15 @@ from mlops.pipeline.models import PaperMeta
 logger = logging.getLogger(__name__)
 
 DEFAULT_PER_PAGE = 200
-DEFAULT_RATE_LIMIT = 0.1  # 초 단위 (polite pool은 매우 관대)
+# polite pool 상한은 10 req/s지만 mailto는 공유 IP 풀로 처리되어 다른 사용자 트래픽에
+# 같이 throttle 된다. 0.5s 간격 정도가 sustained 호출에서 429를 회피할 수 있는 보수선.
+DEFAULT_RATE_LIMIT = 0.5
+DEFAULT_MAX_RETRIES = 5
+
+# 429 전용 백오프 시퀀스(초). 폴라이트 풀 throttle은 짧은 지수 백오프로 회복되지 않으므로
+# 단계적 고정 시퀀스를 사용. Retry-After 헤더가 있으면 그 값이 우선.
+_RATE_LIMIT_BACKOFF_SCHEDULE = (5.0, 15.0, 30.0, 60.0, 60.0)
+_MAX_RETRY_AFTER_SECONDS = 120.0  # 비정상적으로 큰 Retry-After 상한.
 
 _RETRYABLE_EXCEPTIONS = (
     requests.exceptions.ChunkedEncodingError,
@@ -30,23 +38,77 @@ _RETRYABLE_EXCEPTIONS = (
 )
 
 
-def _request_with_retries(url: str, params: dict, rate_limit: float, max_retries: int = 3) -> requests.Response:
-    """OpenAlex 요청을 transient 에러에 대해 지수 백오프 재시도.
+def _parse_retry_after(resp: requests.Response | None) -> float | None:
+    """429 응답의 Retry-After 헤더를 초 단위로 파싱. delta-seconds만 지원."""
+    if resp is None:
+        return None
+    value = resp.headers.get("Retry-After") if hasattr(resp, "headers") else None
+    if not value:
+        return None
+    try:
+        seconds = float(str(value).strip())
+    except ValueError:
+        return None
+    if seconds <= 0:
+        return None
+    return min(seconds, _MAX_RETRY_AFTER_SECONDS)
+
+
+def _compute_backoff(
+    attempt: int,
+    *,
+    is_rate_limit: bool,
+    rate_limit: float,
+    retry_after: float | None,
+) -> float:
+    """다음 시도 전 대기 시간을 산출.
+
+    - is_rate_limit=True (429): Retry-After > 스케줄.
+    - is_rate_limit=False (5xx/transient): 지수 백오프 (기존 동작 유지).
+    """
+    if is_rate_limit:
+        if retry_after is not None:
+            return retry_after
+        idx = min(attempt - 1, len(_RATE_LIMIT_BACKOFF_SCHEDULE) - 1)
+        return _RATE_LIMIT_BACKOFF_SCHEDULE[idx]
+    return min(60.0, rate_limit * (2**attempt))
+
+
+def _request_with_retries(
+    url: str,
+    params: dict,
+    rate_limit: float,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+) -> requests.Response:
+    """OpenAlex 요청을 transient 에러에 대해 재시도.
 
     Retry 대상: ChunkedEncodingError, ConnectionError, Timeout, 429, 5xx.
-    Retry 비대상: 4xx (404 등 영구 에러).
+    Retry 비대상: 429/5xx 외 4xx (404 등 영구 에러).
+
+    백오프:
+      - 429: Retry-After 헤더 우선, 없으면 5/15/30/60s 스케줄.
+      - 5xx/transient: rate_limit × 2^attempt 지수 (상한 60s).
     """
     last_exc: Exception | None = None
+    last_rate_limited = False
+    last_retry_after: float | None = None
+
     for attempt in range(max_retries):
         if attempt == 0:
             time.sleep(rate_limit)
         else:
-            backoff = min(60.0, rate_limit * (2**attempt))
+            backoff = _compute_backoff(
+                attempt,
+                is_rate_limit=last_rate_limited,
+                rate_limit=rate_limit,
+                retry_after=last_retry_after,
+            )
             logger.warning(
-                "OpenAlex 재시도 %d/%d (%.1fs 백오프): %s",
+                "OpenAlex 재시도 %d/%d (%.1fs 백오프, %s): %s",
                 attempt + 1,
                 max_retries,
                 backoff,
+                "429 rate limit" if last_rate_limited else "transient",
                 last_exc,
             )
             time.sleep(backoff)
@@ -57,11 +119,20 @@ def _request_with_retries(url: str, params: dict, rate_limit: float, max_retries
             return resp
         except _RETRYABLE_EXCEPTIONS as e:
             last_exc = e
+            last_rate_limited = False
+            last_retry_after = None
             continue
         except requests.exceptions.HTTPError as e:
             status = getattr(e.response, "status_code", None)
-            if status is not None and (status == 429 or 500 <= status < 600):
+            if status == 429:
                 last_exc = e
+                last_rate_limited = True
+                last_retry_after = _parse_retry_after(e.response)
+                continue
+            if status is not None and 500 <= status < 600:
+                last_exc = e
+                last_rate_limited = False
+                last_retry_after = None
                 continue
             raise
 
@@ -170,6 +241,7 @@ class OpenAlexClient:
     base_url: str
     mailto: str
     rate_limit: float = DEFAULT_RATE_LIMIT
+    max_retries: int = DEFAULT_MAX_RETRIES
 
     def __post_init__(self) -> None:
         if not self.mailto:
@@ -209,7 +281,7 @@ class OpenAlexClient:
                 cursor=cursor,
             )
 
-            resp = _request_with_retries(url, params, self.rate_limit)
+            resp = _request_with_retries(url, params, self.rate_limit, max_retries=self.max_retries)
             data = resp.json()
 
             works = data.get("results", [])
