@@ -24,12 +24,47 @@ DEFAULT_PER_PAGE = 200
 # polite pool 상한은 10 req/s지만 mailto는 공유 IP 풀로 처리되어 다른 사용자 트래픽에
 # 같이 throttle 된다. 0.5s 간격 정도가 sustained 호출에서 429를 회피할 수 있는 보수선.
 DEFAULT_RATE_LIMIT = 0.5
-DEFAULT_MAX_RETRIES = 5
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 3
 
-# 429 전용 백오프 시퀀스(초). 폴라이트 풀 throttle은 짧은 지수 백오프로 회복되지 않으므로
-# 단계적 고정 시퀀스를 사용. Retry-After 헤더가 있으면 그 값이 우선.
-_RATE_LIMIT_BACKOFF_SCHEDULE = (5.0, 15.0, 30.0, 60.0, 60.0)
-_MAX_RETRY_AFTER_SECONDS = 120.0  # 비정상적으로 큰 Retry-After 상한.
+# 429 전용 백오프 시퀀스(초). 일일 quota 차단 시 길게 기다려도 회복되지 않는 사례를
+# 관측 (Batch 5 → 9까지 동일 mailto/IP가 4시간 동안 0건 응답). circuit breaker가
+# 누적 실패를 잡아내므로 백오프 자체는 짧게 — 단발성 throttle 회복용으로만 충분.
+_RATE_LIMIT_BACKOFF_SCHEDULE = (2.0, 5.0, 10.0)
+_MAX_RETRY_AFTER_SECONDS = 60.0  # 비정상적으로 큰 Retry-After 상한.
+
+# 모듈 레벨 circuit breaker 상태. 한 프로세스 안에서 OpenAlex가 N회 연속 실패하면
+# 이후 search() 호출은 즉시 빈 리스트 반환 (실패 시점부터 의미 없는 대기 시간 차단).
+_circuit_breaker_consecutive_failures = 0
+_circuit_breaker_tripped = False
+
+
+def reset_circuit_breaker() -> None:
+    """Circuit breaker 상태 초기화. 테스트/새 ingest run 시작 전 호출."""
+    global _circuit_breaker_consecutive_failures, _circuit_breaker_tripped
+    _circuit_breaker_consecutive_failures = 0
+    _circuit_breaker_tripped = False
+
+
+def is_circuit_breaker_tripped() -> bool:
+    return _circuit_breaker_tripped
+
+
+def _record_failure(threshold: int) -> None:
+    global _circuit_breaker_consecutive_failures, _circuit_breaker_tripped
+    _circuit_breaker_consecutive_failures += 1
+    if _circuit_breaker_consecutive_failures >= threshold and not _circuit_breaker_tripped:
+        _circuit_breaker_tripped = True
+        logger.warning(
+            "OpenAlex circuit breaker trip — %d회 연속 실패. 이후 이 프로세스의 OpenAlex 호출은 모두 skip.",
+            _circuit_breaker_consecutive_failures,
+        )
+
+
+def _record_success() -> None:
+    global _circuit_breaker_consecutive_failures
+    _circuit_breaker_consecutive_failures = 0
+
 
 _RETRYABLE_EXCEPTIONS = (
     requests.exceptions.ChunkedEncodingError,
@@ -86,7 +121,7 @@ def _request_with_retries(
     Retry 비대상: 429/5xx 외 4xx (404 등 영구 에러).
 
     백오프:
-      - 429: Retry-After 헤더 우선, 없으면 5/15/30/60s 스케줄.
+      - 429: Retry-After 헤더 우선, 없으면 2/5/10s 스케줄.
       - 5xx/transient: rate_limit × 2^attempt 지수 (상한 60s).
     """
     last_exc: Exception | None = None
@@ -242,6 +277,7 @@ class OpenAlexClient:
     mailto: str
     rate_limit: float = DEFAULT_RATE_LIMIT
     max_retries: int = DEFAULT_MAX_RETRIES
+    circuit_breaker_threshold: int = DEFAULT_CIRCUIT_BREAKER_THRESHOLD
 
     def __post_init__(self) -> None:
         if not self.mailto:
@@ -255,7 +291,14 @@ class OpenAlexClient:
         max_results: int,
         per_page: int = DEFAULT_PER_PAGE,
     ) -> list[PaperMeta]:
-        """주어진 keyword/concept 조합으로 검색, 최대 max_results까지 누적."""
+        """주어진 keyword/concept 조합으로 검색, 최대 max_results까지 누적.
+
+        Circuit breaker가 trip된 상태면 즉시 빈 리스트 반환 (호출 자체 skip).
+        N회 연속 실패 시 trip되며 같은 프로세스에서는 더 이상 재시도 안 함.
+        """
+        if _circuit_breaker_tripped:
+            return []
+
         results: list[PaperMeta] = []
         cursor: str | None = "*"
         prev_cursor: str | None = None
@@ -263,39 +306,45 @@ class OpenAlexClient:
         max_pages = 100  # 65 카테고리 × 평균 5페이지의 안전 상한
         page = 0
 
-        while cursor and len(results) < max_results and page < max_pages:
-            if cursor == prev_cursor:
-                logger.warning(
-                    "OpenAlex cursor stuck (%r), 페이지네이션 종료. 누적 %d papers",
-                    cursor,
-                    len(results),
-                )
-                break
-            prev_cursor = cursor
-
-            params = build_search_params(
-                keywords=keywords,
-                concept_ids=concept_ids,
-                per_page=min(per_page, max_results - len(results)),
-                mailto=self.mailto,
-                cursor=cursor,
-            )
-
-            resp = _request_with_retries(url, params, self.rate_limit, max_retries=self.max_retries)
-            data = resp.json()
-
-            works = data.get("results", [])
-            for work in works:
-                meta = parse_work(work)
-                if meta is not None:
-                    results.append(meta)
-                if len(results) >= max_results:
+        try:
+            while cursor and len(results) < max_results and page < max_pages:
+                if cursor == prev_cursor:
+                    logger.warning(
+                        "OpenAlex cursor stuck (%r), 페이지네이션 종료. 누적 %d papers",
+                        cursor,
+                        len(results),
+                    )
                     break
+                prev_cursor = cursor
 
-            cursor = (data.get("meta") or {}).get("next_cursor")
-            page += 1
-            if not works:
-                break
+                params = build_search_params(
+                    keywords=keywords,
+                    concept_ids=concept_ids,
+                    per_page=min(per_page, max_results - len(results)),
+                    mailto=self.mailto,
+                    cursor=cursor,
+                )
+
+                resp = _request_with_retries(url, params, self.rate_limit, max_retries=self.max_retries)
+                data = resp.json()
+
+                works = data.get("results", [])
+                for work in works:
+                    meta = parse_work(work)
+                    if meta is not None:
+                        results.append(meta)
+                    if len(results) >= max_results:
+                        break
+
+                cursor = (data.get("meta") or {}).get("next_cursor")
+                page += 1
+                if not works:
+                    break
+        except Exception:
+            _record_failure(self.circuit_breaker_threshold)
+            raise
+
+        _record_success()
 
         if page >= max_pages:
             logger.warning("OpenAlex max_pages(%d) 도달, 페이지네이션 종료", max_pages)

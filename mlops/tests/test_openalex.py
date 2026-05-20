@@ -12,8 +12,19 @@ from mlops.pipeline.openalex import (
     _parse_retry_after,
     abstract_from_inverted_index,
     build_search_params,
+    is_circuit_breaker_tripped,
     parse_work,
+    reset_circuit_breaker,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_circuit_breaker_between_tests():
+    """모듈 글로벌 circuit breaker 상태가 테스트 간 누설되지 않도록 격리."""
+    reset_circuit_breaker()
+    yield
+    reset_circuit_breaker()
+
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
@@ -197,10 +208,10 @@ def test_parse_retry_after_returns_none_for_non_numeric():
 
 
 def test_parse_retry_after_caps_unreasonable_value():
-    """서버가 비정상적으로 큰 값을 보내도 상한 적용."""
+    """서버가 비정상적으로 큰 값을 보내도 상한(60s) 적용."""
     resp = MagicMock()
     resp.headers = {"Retry-After": "9999"}
-    assert _parse_retry_after(resp) == 120.0
+    assert _parse_retry_after(resp) == 60.0
 
 
 def test_compute_backoff_uses_schedule_for_429_without_retry_after():
@@ -281,8 +292,8 @@ def test_429_respects_retry_after_header(search_resp):
     assert sleep_args[1] == 7.0
 
 
-def test_max_retries_default_allows_more_attempts(search_resp):
-    """DEFAULT_MAX_RETRIES=5 → 4회 연속 실패 후 5번째에 성공해도 통과."""
+def test_max_retries_default_3_attempts(search_resp):
+    """DEFAULT_MAX_RETRIES=3 → 2회 연속 실패 후 3번째에 성공해도 통과."""
     from requests.exceptions import HTTPError
 
     client = OpenAlexClient(base_url="https://api.openalex.org", mailto="t@e.com", rate_limit=0)
@@ -302,12 +313,119 @@ def test_max_retries_default_allows_more_attempts(search_resp):
         patch("mlops.pipeline.openalex.time.sleep"),
         patch(
             "mlops.pipeline.openalex.requests.get",
-            side_effect=[fail_resp, fail_resp, fail_resp, fail_resp, ok_resp],
+            side_effect=[fail_resp, fail_resp, ok_resp],
         ),
     ):
         results = client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
 
     assert len(results) == 1
+
+
+def test_circuit_breaker_trips_after_threshold_failures():
+    """N회 연속 search() 실패 시 circuit breaker trip → 이후 호출은 빈 리스트 즉시 반환."""
+    from requests.exceptions import HTTPError
+
+    client = OpenAlexClient(
+        base_url="https://api.openalex.org",
+        mailto="t@e.com",
+        rate_limit=0,
+        max_retries=1,  # 빠른 fail용
+        circuit_breaker_threshold=3,
+    )
+
+    fail_resp = MagicMock()
+    fail_resp.status_code = 429
+    fail_resp.headers = {}
+    err = HTTPError("429")
+    err.response = fail_resp
+    fail_resp.raise_for_status.side_effect = err
+
+    with (
+        patch("mlops.pipeline.openalex.time.sleep"),
+        patch("mlops.pipeline.openalex.requests.get", return_value=fail_resp) as mock_get,
+    ):
+        # 3회 연속 실패 시 trip
+        for _ in range(3):
+            with pytest.raises(HTTPError):
+                client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+        assert is_circuit_breaker_tripped()
+
+        prev_call_count = mock_get.call_count
+        # trip 이후 호출은 HTTP 요청 없이 즉시 빈 리스트 반환
+        result = client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+        assert result == []
+        assert mock_get.call_count == prev_call_count
+
+
+def test_circuit_breaker_resets_on_success(search_resp):
+    """search()가 성공하면 연속 실패 카운터 reset → 이후 실패가 누적되어도 trip되지 않음."""
+    from requests.exceptions import HTTPError
+
+    client = OpenAlexClient(
+        base_url="https://api.openalex.org",
+        mailto="t@e.com",
+        rate_limit=0,
+        max_retries=1,
+        circuit_breaker_threshold=3,
+    )
+
+    fail_resp = MagicMock()
+    fail_resp.status_code = 429
+    fail_resp.headers = {}
+    err = HTTPError("429")
+    err.response = fail_resp
+    fail_resp.raise_for_status.side_effect = err
+
+    ok_resp = MagicMock()
+    ok_resp.json.return_value = search_resp
+    ok_resp.raise_for_status = MagicMock()
+
+    # 패턴: fail, fail, success, fail, fail → 트립 안 됨 (success가 카운터 reset)
+    with (
+        patch("mlops.pipeline.openalex.time.sleep"),
+        patch(
+            "mlops.pipeline.openalex.requests.get",
+            side_effect=[fail_resp, fail_resp, ok_resp, fail_resp, fail_resp],
+        ),
+    ):
+        for _ in range(2):
+            with pytest.raises(HTTPError):
+                client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+        client.search(keywords=["x"], concept_ids=["C1"], max_results=10)  # success
+        for _ in range(2):
+            with pytest.raises(HTTPError):
+                client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+
+    assert not is_circuit_breaker_tripped()
+
+
+def test_circuit_breaker_threshold_configurable():
+    """circuit_breaker_threshold 인자로 trip 임계값 조정 가능."""
+    from requests.exceptions import HTTPError
+
+    client = OpenAlexClient(
+        base_url="https://api.openalex.org",
+        mailto="t@e.com",
+        rate_limit=0,
+        max_retries=1,
+        circuit_breaker_threshold=2,  # 더 공격적
+    )
+
+    fail_resp = MagicMock()
+    fail_resp.status_code = 429
+    fail_resp.headers = {}
+    err = HTTPError("429")
+    err.response = fail_resp
+    fail_resp.raise_for_status.side_effect = err
+
+    with (
+        patch("mlops.pipeline.openalex.time.sleep"),
+        patch("mlops.pipeline.openalex.requests.get", return_value=fail_resp),
+    ):
+        for _ in range(2):
+            with pytest.raises(HTTPError):
+                client.search(keywords=["x"], concept_ids=["C1"], max_results=10)
+    assert is_circuit_breaker_tripped()
 
 
 def test_parse_work_handles_null_optional_fields():

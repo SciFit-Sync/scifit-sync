@@ -30,6 +30,7 @@ from mlops.pipeline.config import (
     NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
     OPENALEX_BASE_URL,
+    OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
     OPENALEX_MAILTO,
     OPENALEX_MAX_PER_CATEGORY,
     OPENALEX_MAX_RETRIES,
@@ -1138,6 +1139,7 @@ def _get_openalex_client() -> OpenAlexClient:
         mailto=OPENALEX_MAILTO,
         rate_limit=OPENALEX_RATE_LIMIT,
         max_retries=OPENALEX_MAX_RETRIES,
+        circuit_breaker_threshold=OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
     )
 
 
