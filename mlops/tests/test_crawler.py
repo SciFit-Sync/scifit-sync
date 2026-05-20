@@ -1038,3 +1038,126 @@ class TestMaxPerCategoryOverride:
         crawler_mod.crawl_papers(max_per_category=7, fetch_fulltext=False)
         assert captured["openalex_max"] == 7
         assert captured["pubmed_max"] == 7
+
+
+class TestAttachFulltextProgressLog:
+    """_attach_fulltext의 진행 표시 로그 검증.
+
+    실제 호출은 fetch_cascading + _resolve_pmc_id mock으로 차단.
+    """
+
+    def _mk_meta(self, pmid: str) -> PaperMeta:
+        return PaperMeta(pmid=pmid, title=f"t-{pmid}", doi=f"10.x/{pmid}")
+
+    def _mk_result(self, source: str | None):
+        """fetch_cascading 반환을 흉내내는 가벼운 객체."""
+        from types import SimpleNamespace
+
+        from mlops.pipeline.models import PaperSection
+
+        sections = [PaperSection(name="abstract", content="x")] if source else []
+        return SimpleNamespace(fulltext_source=source, sections=sections)
+
+    def test_progress_log_every_n_papers(self, monkeypatch, caplog):
+        """50편마다 + 마지막 1편에서 progress 로그 출력."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
+        # 모든 paper가 PMC로 성공한다고 가정
+        monkeypatch.setattr(
+            crawler_mod,
+            "fetch_cascading",
+            lambda **kw: self._mk_result("pmc"),
+        )
+        # 클라이언트 생성자 가짜 — 네트워크 차단
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        metas = [self._mk_meta(str(i)) for i in range(120)]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            papers = crawler_mod._attach_fulltext(metas)
+
+        assert len(papers) == 120
+        progress_lines = [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+        # 50, 100, 120 (마지막) → 3회
+        assert len(progress_lines) == 3
+        # 마지막 줄은 120/120 + 확보 120 + 미확보 0
+        last_msg = progress_lines[-1].getMessage()
+        assert "120/120" in last_msg
+        assert "확보 120" in last_msg
+        assert "미확보 0" in last_msg
+        assert "pmc 120" in last_msg
+
+    def test_progress_log_counts_failed_papers_in_missed(self, monkeypatch, caplog):
+        """본문 미확보(sections=[])는 미확보로 카운트."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
+
+        # 짝수만 성공, 홀수는 실패
+        def fake_fetch(**kw):
+            pmid = kw.get("pmid") or ""
+            success = pmid.isdigit() and int(pmid) % 2 == 0
+            return self._mk_result("europepmc" if success else None)
+
+        monkeypatch.setattr(crawler_mod, "fetch_cascading", fake_fetch)
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        metas = [self._mk_meta(str(i)) for i in range(10)]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            crawler_mod._attach_fulltext(metas)
+
+        progress_lines = [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+        # total=10이라 마지막 1회만 (PROGRESS_EVERY=50보다 작음)
+        assert len(progress_lines) == 1
+        msg = progress_lines[0].getMessage()
+        assert "10/10" in msg
+        assert "확보 5" in msg  # 짝수 0,2,4,6,8 → 5편
+        assert "미확보 5" in msg
+        assert "europepmc 5" in msg
+
+    def test_progress_log_skipped_on_empty_input(self, monkeypatch, caplog):
+        """입력이 비어있으면 progress 로그 출력 안 됨 (루프 미진입)."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            papers = crawler_mod._attach_fulltext([])
+        assert papers == []
+        assert not [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+
+    def test_progress_log_handles_mixed_sources(self, monkeypatch, caplog):
+        """다중 source 카운트가 src_summary에 정렬되어 노출되는지."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
+
+        def fake_fetch(**kw):
+            pmid = kw.get("pmid") or ""
+            idx = int(pmid)
+            if idx < 30:
+                return self._mk_result("pmc")
+            if idx < 50:
+                return self._mk_result("europepmc")
+            return self._mk_result(None)
+
+        monkeypatch.setattr(crawler_mod, "fetch_cascading", fake_fetch)
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        metas = [self._mk_meta(str(i)) for i in range(60)]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            crawler_mod._attach_fulltext(metas)
+
+        progress_lines = [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+        # 50, 60 → 2회
+        assert len(progress_lines) == 2
+        last_msg = progress_lines[-1].getMessage()
+        # 정렬: europepmc → pmc (알파벳 순)
+        assert "europepmc 20" in last_msg
+        assert "pmc 30" in last_msg
+        assert "확보 50" in last_msg
+        assert "미확보 10" in last_msg
