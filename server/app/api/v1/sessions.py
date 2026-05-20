@@ -292,7 +292,7 @@ async def list_sessions(
         data=SessionCalendarData(
             year=q_year,
             month=q_month,
-            items=records,
+            records=records,
             total_session_count=len(records),
         )
     )

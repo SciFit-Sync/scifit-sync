@@ -74,7 +74,7 @@ class SessionCalendarItem(BaseModel):
 class SessionCalendarData(BaseModel):
     year: int
     month: int
-    items: list[SessionCalendarItem]
+    records: list[SessionCalendarItem]
     total_session_count: int
 
 
