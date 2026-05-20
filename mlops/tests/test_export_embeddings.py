@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from mlops.pipeline.models import Chunk, PaperFull, PaperMeta, PaperSection
+from mlops.scripts.export_embeddings import CHUNKS_META_VERSION, _meta_path
 
 
 def _make_chunk(*, doi: str = "10.1/a", pmid: str = "1", idx: int = 0) -> Chunk:
@@ -44,6 +45,16 @@ def test_make_chunk_helper_returns_valid_chunk():
     chunk = _make_chunk(doi="10.1/a", pmid="1", idx=0)
     assert chunk.paper_doi == "10.1/a"
     assert chunk.paper_pmid == "1"
+
+
+def test_meta_path_appends_meta_json_suffix(tmp_path: Path):
+    chunks_path = tmp_path / "chunks" / "run_3k.jsonl.gz"
+    result = _meta_path(chunks_path)
+    assert result == tmp_path / "chunks" / "run_3k.jsonl.gz.meta.json"
+
+
+def test_chunks_meta_version_is_positive_int():
+    assert isinstance(CHUNKS_META_VERSION, int) and CHUNKS_META_VERSION >= 1
 
 
 # ── 공용 fixture: scripts 모듈을 fresh import ──────────────────────────

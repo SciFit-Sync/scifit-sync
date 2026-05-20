@@ -68,6 +68,15 @@ def _chunks_path(batch_tag: str) -> Path:
     return DATA_DIR / "chunks" / f"{batch_tag}.jsonl.gz"
 
 
+CHUNKS_META_VERSION = 1
+
+
+def _meta_path(chunks_path: Path) -> Path:
+    """`<tag>.jsonl.gz` → `<tag>.jsonl.gz.meta.json`. Path.with_suffix는 마지막
+    suffix를 교체하므로 name에 직접 append한다."""
+    return chunks_path.parent / (chunks_path.name + ".meta.json")
+
+
 def _emb_path(batch_tag: str, model_key: str) -> Path:
     return DATA_DIR / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
 
