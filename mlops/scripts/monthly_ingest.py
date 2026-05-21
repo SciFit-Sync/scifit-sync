@@ -79,6 +79,29 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
     return resp.json()["data"]["upserted"]
 
 
+def _fetch_indexed_dois_from_server() -> set[str]:
+    """서버 papers 테이블의 모든 DOI를 가져온다.
+
+    manifest는 GitHub Actions runner의 임시 디스크에 저장되어 매 cron 실행마다 빈
+    상태로 시작한다. 서버를 dedup의 primary source로 사용하고 manifest는 보조
+    (paper별 tried_sources 같은 부가 정보 보존)로 두기 위한 보완.
+
+    env 미설정/네트워크 실패 등 어느 경우든 빈 set을 반환해 호출자가 manifest 단독으로
+    fallback하게 한다 — 새 케이스 실패가 기존 manifest 흐름을 깨지 않도록.
+    """
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.warning("API_BASE_URL/ADMIN_API_TOKEN 미설정 — 서버 dedup 생략, manifest 단독 사용")
+        return set()
+    url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/dois"
+    try:
+        resp = requests.get(url, headers={"X-Admin-Token": ADMIN_API_TOKEN}, timeout=30)
+        resp.raise_for_status()
+        return set(resp.json()["data"]["dois"])
+    except (requests.RequestException, KeyError, ValueError) as e:
+        logger.warning("서버 DOI fetch 실패, manifest 단독 fallback: %s", e)
+        return set()
+
+
 def main(
     max_papers: int | None = None,
     max_per_category: int | None = None,
@@ -115,7 +138,17 @@ def main(
     for doi, entry in manifest.papers.items():
         if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
             existing_dois.add(doi)
-    logger.info("이미 처리된 DOI: %d개 (indexed + fully-tried failures)", len(existing_dois))
+    manifest_count = len(existing_dois)
+
+    # 서버 papers 테이블의 DOI도 union — manifest 임시디스크 손실 보완.
+    server_dois = _fetch_indexed_dois_from_server()
+    existing_dois |= server_dois
+    logger.info(
+        "Existing DOI: %d (manifest %d + server %d, union)",
+        len(existing_dois),
+        manifest_count,
+        len(server_dois),
+    )
 
     # 크롤링 (최근 35일)
     papers = crawl_papers(
