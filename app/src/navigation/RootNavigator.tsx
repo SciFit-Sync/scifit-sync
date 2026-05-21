@@ -6,10 +6,11 @@ import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
 import WA01Login from "../screens/auth/WA01Login";
 import WM01Main from "../screens/main/WM01Main";
 import { useAuthStore } from "../stores/authStore";
-import WA02Signup from "../screens/auth/WA02Signin";
+import WA02Signup from "../screens/auth/WA02Signup";
 import WN01Notifications from "../screens/main/WN01Notifications";
 import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
+import WA03SignupInfo from "../screens/auth/WA03SignupInfo";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -20,6 +21,11 @@ function AuthNavigator() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="WA01Login" component={WA01Login} />
       <AuthStack.Screen name="WA02Signup" component={WA02Signup} />
+      <AuthStack.Screen
+        name="WA03SignupInfo"
+        component={WA03SignupInfo}
+        options={{ animation: "none" }}
+      />
     </AuthStack.Navigator>
   );
 }
@@ -59,7 +65,7 @@ export default function RootNavigator() {
     // 무조건 1.8초는 스플래시 보이게
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 1800000);
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, []);

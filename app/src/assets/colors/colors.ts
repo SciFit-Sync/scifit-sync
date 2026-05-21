@@ -8,6 +8,7 @@ export const colors = {
   border: '#DDDDDD',
   gray: '#9C9C9C',
   bluegray: '#6B7A9B',
+  button: '#C8D5FF',
 
   kakao: '#FEE500',
   select: '#F0F4FF',
