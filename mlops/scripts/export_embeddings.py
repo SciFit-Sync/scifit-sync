@@ -21,9 +21,18 @@
 
 산출물 경로 (자동 결정):
     mlops/data/chunks/<batch-tag>.jsonl.gz                    # 모델 간 공유 입력
+    mlops/data/chunks/<batch-tag>.jsonl.gz.meta.json          # 사이드카 (version, paper_count, updated_at)
     mlops/data/emb_<model-key>/<batch-tag>.jsonl.gz           # Chunk 메타 + embedding
     mlops/data/emb_<model-key>/<batch-tag>_timing.json        # 모델/시간/디바이스 사이드카
     mlops/eval/reports/<batch-tag>_<model-key>.md             # test 모드 평가 리포트
+
+운영 노트 (incremental chunks cache):
+- 같은 --batch-tag로 동시에 두 번 띄우지 말 것. _save_chunks_atomic이 부분 쓰기는
+  방어하지만 lost update는 막지 못한다.
+- OpenAlex daily quota는 midnight UTC (한국 09:00)에 리셋되므로 부족분 fill을
+  새 quota로 돌리려면 그 시각 이후에 재실행.
+- `<batch-tag>.jsonl.gz.invalid.<timestamp>` 파일이 생겼다면 schema/version
+  mismatch fallback 흔적. 진단 후 삭제 가능.
 """
 
 import argparse
