@@ -264,6 +264,7 @@ class TestSessionStats:
             _exec_scalar_raw(2),  # weekly_session_count
             _exec_scalar(None),  # recent_row
             _exec_all([]),  # streak dates
+            _exec_all([]),  # by_gym 집계 (D-M9)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -274,6 +275,7 @@ class TestSessionStats:
         assert data["total_sessions"] == 5
         assert data["total_volume_kg"] == 12500.0
         assert data["total_duration_minutes"] == 60
+        assert data["by_gym"] == []
 
 
 # ── GET /sessions/{id} ────────────────────────────────────────────────────────
