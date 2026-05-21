@@ -62,16 +62,13 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
         pulley_ratio=e.pulley_ratio if is_cable_machine else None,
-        bar_weight_kg=e.bar_weight_kg if is_barbell else None,
+        bar_weight=e.bar_weight if is_barbell else None,
         has_weight_assist=e.has_weight_assist,
-        min_stack_kg=e.min_stack_kg,
-        max_stack_kg=e.max_stack_kg,
-        stack_weight_kg=e.stack_weight_kg if is_cable_machine else None,
+        min_stack=e.min_stack,
+        max_stack=e.max_stack,
+        stack_weight=e.stack_weight if is_cable_machine else None,
         image_url=e.image_url,
-        # 표시용 호환 필드
         ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
-        stack_weight=e.stack_weight_kg if is_cable_machine else None,
-        bar_weight=e.bar_weight_kg if is_barbell else None,
     )
 
 

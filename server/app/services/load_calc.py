@@ -15,16 +15,16 @@ def calculate_effective_weight(
     added: float | None = None,
     body_weight: float | None = None,
     pulley_ratio: float = 1.0,
-    bar_weight_kg: float | None = None,
+    bar_weight: float | None = None,
     has_weight_assist: bool = False,
 ) -> float:
     """도르래 비율 보정을 적용한 실효 부하를 계산한다."""
     match equipment_type:
         case "cable" | "machine":
             s = stack or 0.0
-            return s * pulley_ratio + (bar_weight_kg or 0.0)
+            return s * pulley_ratio + (bar_weight or 0.0)
         case "barbell":
-            return (bar_weight_kg or 0.0) + (added or 0.0)
+            return (bar_weight or 0.0) + (added or 0.0)
         case "dumbbell":
             return added or 0.0
         case "bodyweight":
