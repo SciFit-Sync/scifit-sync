@@ -3,12 +3,13 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models import (
     Notification,
     RoutineDay,
@@ -27,7 +28,9 @@ router = APIRouter(tags=["home"])
 
 
 @router.get("/home", response_model=SuccessResponse[HomeData], summary="홈 대시보드")
+@rate_limit("60/minute")
 async def home(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
