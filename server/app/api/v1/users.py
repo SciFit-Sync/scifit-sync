@@ -7,7 +7,7 @@ import logging
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     CareerLevel,
     Equipment,
@@ -86,8 +87,10 @@ def _measurement_to_dto(m: UserBodyMeasurement | None) -> BodyMeasurementData | 
 
 
 # ── GET /users/me ─────────────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.get("/me", response_model=SuccessResponse[MeData], summary="내 정보 조회")
 async def get_me(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -125,8 +128,10 @@ async def get_me(
 
 
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.patch("/me/body", response_model=SuccessResponse[UpdateBodyData], summary="신체 정보 수정")
 async def update_body(
+    request: Request,
     body: UpdateBodyRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -161,8 +166,10 @@ async def update_body(
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.patch("/me/goal", response_model=SuccessResponse[ProfileData], summary="운동 목표 수정")
 async def update_goal(
+    request: Request,
     body: UpdateGoalRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -177,8 +184,10 @@ async def update_goal(
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.patch("/me/career", response_model=SuccessResponse[ProfileData], summary="경력 수정")
 async def update_career(
+    request: Request,
     body: UpdateCareerRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -198,8 +207,10 @@ async def update_career(
 
 
 # ── POST /users/me/gym ────────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.post("/me/gym", response_model=SuccessResponse[GymData], status_code=201, summary="주 헬스장 등록")
 async def add_primary_gym(
+    request: Request,
     body: SetPrimaryGymRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -237,13 +248,15 @@ async def add_primary_gym(
 
 
 # ── PATCH /users/me/gym ───────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.patch("/me/gym", response_model=SuccessResponse[GymData], summary="주 헬스장 변경")
 async def change_primary_gym(
+    request: Request,
     body: SetPrimaryGymRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await add_primary_gym(body, current_user, db)
+    return await add_primary_gym(request, body, current_user, db)
 
 
 # ── 1RM ───────────────────────────────────────────────────────────────────────
@@ -258,8 +271,10 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
     )
 
 
+@rate_limit("60/minute")
 @router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 추가")
 async def add_1rm(
+    request: Request,
     body: Add1RMRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -293,18 +308,21 @@ async def add_1rm(
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
+@rate_limit("60/minute")
 @router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
 async def update_1rm(
+    request: Request,
     body: Add1RMRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """가장 최근 기록을 갱신하는 대신, 새 기록을 추가하는 방식.
     기록 추적이 가능하도록 단순히 add를 호출한다."""
-    return await add_1rm(body, current_user, db)
+    return await add_1rm(request, body, current_user, db)
 
 
 # ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.post(
     "/me/1rm/bulk",
     response_model=SuccessResponse[BulkOneRMData],
@@ -312,6 +330,7 @@ async def update_1rm(
     summary="1RM 일괄 등록 (온보딩용)",
 )
 async def bulk_add_1rm(
+    request: Request,
     body: BulkAdd1RMRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -371,8 +390,10 @@ async def bulk_add_1rm(
     return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
 
 
+@rate_limit("60/minute")
 @router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
 async def list_1rms(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -387,8 +408,10 @@ async def list_1rms(
 
 
 # ── /users/me/equipment ───────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.get("/me/equipment", response_model=SuccessResponse[UserEquipmentListData], summary="내 보유 장비")
 async def list_my_equipment(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -420,7 +443,7 @@ async def list_my_equipment(
             category=e.category.value if e.category else None,
             equipment_type=e.equipment_type.value,
             pulley_ratio=e.pulley_ratio,
-            bar_weight_kg=e.bar_weight_kg,
+            bar_weight=e.bar_weight,
             image_url=e.image_url,
         )
         for e in equipments
@@ -428,6 +451,7 @@ async def list_my_equipment(
     return SuccessResponse(data=UserEquipmentListData(items=items))
 
 
+@rate_limit("60/minute")
 @router.post(
     "/me/equipment",
     response_model=SuccessResponse[UserEquipmentItem],
@@ -435,6 +459,7 @@ async def list_my_equipment(
     summary="장비 추가 (스폿)",
 )
 async def add_my_equipment(
+    request: Request,
     body: AddUserEquipmentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -479,7 +504,7 @@ async def add_my_equipment(
             category=equipment.category.value if equipment.category else None,
             equipment_type=equipment.equipment_type.value,
             pulley_ratio=equipment.pulley_ratio,
-            bar_weight_kg=equipment.bar_weight_kg,
+            bar_weight=equipment.bar_weight,
             image_url=equipment.image_url,
         )
     )

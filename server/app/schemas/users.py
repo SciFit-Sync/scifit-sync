@@ -126,7 +126,7 @@ class UserEquipmentItem(BaseModel):
     category: str | None = None
     equipment_type: str
     pulley_ratio: float | None = None
-    bar_weight_kg: float | None = None
+    bar_weight: float | None = None
     image_url: str | None = None
 
 

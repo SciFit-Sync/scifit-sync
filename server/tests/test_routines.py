@@ -55,6 +55,7 @@ def _routine() -> WorkoutRoutine:
     r.split_type = SplitType.TWO
     r.generated_by = GeneratedBy.AI
     r.status = RoutineStatus.ACTIVE
+    r.gym_id = None
     r.created_at = _NOW
     r.updated_at = _NOW
     r.deleted_at = None
@@ -162,7 +163,7 @@ class TestListRoutines:
     @pytest.mark.asyncio
     async def test_returns_routine_summaries(self, client):
         r = _routine()
-        db = _make_db(_exec_scalars_all([r]))
+        db = _make_db(_exec_all([(r, None)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/routines")
@@ -181,7 +182,7 @@ class TestListRoutines:
         r2 = _routine()
         r2.id = uuid.uuid4()
         r2.name = "루틴2"
-        db = _make_db(_exec_scalars_all([r1, r2]))
+        db = _make_db(_exec_all([(r1, None), (r2, None)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/routines")

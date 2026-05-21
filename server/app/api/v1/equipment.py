@@ -3,13 +3,14 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     EquipmentBrand,
@@ -48,8 +49,8 @@ def _to_item(
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
         pulley_ratio=e.pulley_ratio,
-        min_stack_kg=e.min_stack_kg,
-        max_stack_kg=e.max_stack_kg,
+        min_stack=e.min_stack,
+        max_stack=e.max_stack,
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
     )
@@ -73,7 +74,9 @@ async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]
 
 # ── GET /equipment/brands ─────────────────────────────────────────────────────
 @router.get("/brands", response_model=SuccessResponse[BrandListData], summary="기구 브랜드 목록")
+@rate_limit("60/minute")
 async def list_brands(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,7 +89,9 @@ async def list_brands(
 # page 파라미터 없음 → SuccessResponse[EquipmentListData]  {"data": {"items": [...]}}
 # page 파라미터 있음 → PaginatedResponse[EquipmentItem]    {"data": [...], "pagination": {...}}
 @router.get("", summary="장비 카탈로그")
+@rate_limit("60/minute")
 async def list_equipment(
+    request: Request,
     keyword: str | None = Query(None, description="기구 이름 부분 일치 검색"),
     brand: str | None = Query(None, description="브랜드명 필터 (예: Life Fitness, 라이프피트니스)"),
     brand_id: str | None = Query(None, description="브랜드 UUID 필터"),
@@ -141,7 +146,9 @@ async def list_equipment(
     response_model=PaginatedResponse[EquipmentItem],
     summary="기구 상세 조회",
 )
+@rate_limit("60/minute")
 async def get_equipment(
+    request: Request,
     equipment_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -174,7 +181,9 @@ async def get_equipment(
 
 # ── POST /equipment/select ────────────────────────────────────────────────────
 @router.post("/select", response_model=SuccessResponse[SelectData], summary="기구 선택 저장")
+@rate_limit("60/minute")
 async def select_equipment(
+    request: Request,
     body: SelectEquipmentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
