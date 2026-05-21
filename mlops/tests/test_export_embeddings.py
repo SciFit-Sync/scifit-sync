@@ -853,6 +853,36 @@ def test_resolve_chunks_legacy_cache_auto_creates_sidecar(tmp_path, monkeypatch)
     assert meta["paper_count"] == 1
 
 
+def test_paper_count_based_on_chunks_papers_only(tmp_path, monkeypatch):
+    """crawl_papers가 본문 미확보 paper도 반환하지만, 청킹 안 된 paper는 chunks에
+    없으므로 _count_unique_papers는 본문 확보된 paper만 카운트한다."""
+    from mlops.scripts import export_embeddings as ee
+
+    # 파일 자체는 생성하지 않음 → reuse_chunks=True더라도 chunks_path.exists() False
+    # → full crawl 경로
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+
+    # crawl_papers는 2편 반환 — 1편만 sections 보유
+    def fake_crawl(**kw):
+        return [
+            _fake_paper_full("1", "10.1/a", with_body=True),
+            _fake_paper_full("2", "10.1/b", with_body=False),  # 본문 미확보
+        ]
+
+    monkeypatch.setattr(ee, "crawl_papers", fake_crawl)
+    monkeypatch.setattr(
+        ee,
+        "chunk_papers",
+        lambda papers: [_make_chunk(doi=p.meta.doi, pmid=p.meta.pmid) for p in papers],
+    )
+
+    args = _make_args(max_papers=2, reuse_chunks=False)
+    chunks, _ = ee._resolve_chunks(args)
+    # sections 있는 paper 1편만 청킹됨
+    assert ee._count_unique_papers(chunks) == 1
+
+
 def test_resolve_chunks_sidecar_valid_but_chunks_validation_error_invalidates(tmp_path, monkeypatch):
     """사이드카 version은 정상이지만 chunks 파일이 ValidationError → 무효화 + full crawl."""
     from mlops.scripts import export_embeddings as ee
