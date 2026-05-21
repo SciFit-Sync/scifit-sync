@@ -92,7 +92,7 @@ def upgrade() -> None:
             ) VALUES (
                 :id, :brand_id, :name, :name_en, :category, :sub_category, :equipment_type,
                 :pulley_ratio, :bar_weight, :bar_weight_unit, :has_weight_assist,
-                :min_stack, :max_stack, :stack_weight::jsonb, :stack_unit, :image_url
+                :min_stack, :max_stack, CAST(:stack_weight AS jsonb), :stack_unit, :image_url
             )
             ON CONFLICT (id) DO NOTHING
         """),
