@@ -21,19 +21,32 @@
 
 산출물 경로 (자동 결정):
     mlops/data/chunks/<batch-tag>.jsonl.gz                    # 모델 간 공유 입력
+    mlops/data/chunks/<batch-tag>.jsonl.gz.meta.json          # 사이드카 (version, paper_count, updated_at)
     mlops/data/emb_<model-key>/<batch-tag>.jsonl.gz           # Chunk 메타 + embedding
     mlops/data/emb_<model-key>/<batch-tag>_timing.json        # 모델/시간/디바이스 사이드카
     mlops/eval/reports/<batch-tag>_<model-key>.md             # test 모드 평가 리포트
+
+운영 노트 (incremental chunks cache):
+- 같은 --batch-tag로 동시에 두 번 띄우지 말 것. _save_chunks_atomic이 부분 쓰기는
+  방어하지만 lost update는 막지 못한다.
+- OpenAlex daily quota는 midnight UTC (한국 09:00)에 리셋되므로 부족분 fill을
+  새 quota로 돌리려면 그 시각 이후에 재실행.
+- `<batch-tag>.jsonl.gz.invalid.<timestamp>` 파일이 생겼다면 schema/version
+  mismatch fallback 흔적. 진단 후 삭제 가능.
 """
 
 import argparse
+import contextlib
 import gzip
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -66,6 +79,112 @@ ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
 
 def _chunks_path(batch_tag: str) -> Path:
     return DATA_DIR / "chunks" / f"{batch_tag}.jsonl.gz"
+
+
+CHUNKS_META_VERSION = 1
+
+
+def _meta_path(chunks_path: Path) -> Path:
+    """`<tag>.jsonl.gz` → `<tag>.jsonl.gz.meta.json`. Path.with_suffix는 마지막
+    suffix를 교체하므로 name에 직접 append한다."""
+    return chunks_path.parent / (chunks_path.name + ".meta.json")
+
+
+def _count_unique_papers(chunks: list[Chunk]) -> int:
+    """chunks가 커버하는 고유 paper 수. paper_doi 우선, 없으면 paper_pmid 사용.
+    둘 다 빈 string이면 카운트에서 제외."""
+    keys: set[str] = set()
+    for c in chunks:
+        key = c.paper_doi or c.paper_pmid
+        if key:
+            keys.add(key)
+    return len(keys)
+
+
+def _chunks_doi_set(chunks: list[Chunk]) -> set[str]:
+    """캐시 chunks의 paper_doi 집합. 빈 string은 제외 — 빈 DOI를 existing_dois에
+    넣으면 crawler dedup 로직을 오염시킬 위험."""
+    return {c.paper_doi for c in chunks if c.paper_doi}
+
+
+def _merge_chunks(old: list[Chunk], new: list[Chunk]) -> list[Chunk]:
+    """기존 chunks + 신규 chunks를 paper 단위 dedup하여 합친다.
+
+    paper_doi 우선, 없으면 paper_pmid로 key 생성. 같은 paper의 chunk는 모두 보존
+    하지만 같은 paper의 신규 chunks는 통째로 폐기 (old 우선)."""
+    old_keys: set[str] = set()
+    for c in old:
+        key = c.paper_doi or c.paper_pmid
+        if key:
+            old_keys.add(key)
+
+    merged = list(old)
+    for c in new:
+        key = c.paper_doi or c.paper_pmid
+        if key and key in old_keys:
+            continue
+        merged.append(c)
+    return merged
+
+
+def _save_chunks_atomic(path: Path, chunks: list[Chunk]) -> None:
+    """chunks를 gzip JSONL로 atomic 저장. 부분 쓰기 방어용 tmp + os.replace 패턴.
+
+    중간 실패 시 원본 path 파일은 그대로 보존된다 (.tmp는 cleanup 시도, 실패해도
+    무시 — 원본 무결성이 우선).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        with gzip.open(tmp, "wt", encoding="utf-8") as f:
+            for c in chunks:
+                f.write(json.dumps(c.model_dump(), ensure_ascii=False))
+                f.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
+
+
+def _load_meta_sidecar(chunks_path: Path) -> dict | None:
+    """사이드카 메타파일 로드. 없거나 JSON 손상 시 None — caller가 legacy 처리."""
+    meta_path = _meta_path(chunks_path)
+    if not meta_path.exists():
+        return None
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        logger.warning("사이드카 JSON 손상, legacy로 fallback: %s", meta_path)
+        return None
+
+
+def _write_meta_sidecar(chunks_path: Path, chunks: list[Chunk]) -> None:
+    """chunks 저장 직후 호출. version + 카운트 + 시각 메타를 사이드카에 기록."""
+    meta_path = _meta_path(chunks_path)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    existing = _load_meta_sidecar(chunks_path) or {}
+    payload = {
+        "version": CHUNKS_META_VERSION,
+        "chunks_path": chunks_path.name,
+        "paper_count": _count_unique_papers(chunks),
+        "chunk_count": len(chunks),
+        "created_at": existing.get("created_at", now),
+        "updated_at": now,
+    }
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def _invalidate_cache(chunks_path: Path, reason: str) -> None:
+    """schema mismatch/JSON 손상 시 chunks 파일과 사이드카에 .invalid.<ts> 접미사
+    부여. 원본을 즉시 삭제하지 않고 흔적을 남겨 운영자가 진단할 수 있게 한다."""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    suffix = f".invalid.{ts}"
+    for p in (chunks_path, _meta_path(chunks_path)):
+        if p.exists():
+            p.rename(p.with_name(p.name + suffix))
+    logger.warning("chunks 캐시 무효화 (%s): %s%s", reason, chunks_path.name, suffix)
 
 
 def _emb_path(batch_tag: str, model_key: str) -> Path:
@@ -340,6 +459,132 @@ def _print_summary(summary_rows: list[dict]) -> None:
     sys.stderr.write(f"리포트: {DATA_DIR.parent / 'eval' / 'reports'}/<batch-tag>_*.md\n")
 
 
+def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
+    """Stage 1 — chunks를 결정하고 manifest 업데이트용 papers를 반환.
+
+    Returns:
+        (chunks, papers_for_manifest). papers_for_manifest는 default 모드에서만
+        의미가 있고 reuse 경로에서는 빈 리스트. chunks가 비어있으면 caller가
+        early return해야 한다 (신규 논문 없음 / 청크 없음).
+    """
+    chunks_path = _chunks_path(args.batch_tag)
+    if args.reuse_chunks and chunks_path.exists():
+        invalid_reason: str | None = None
+        chunks_loaded: list[Chunk] | None = None
+
+        meta = _load_meta_sidecar(chunks_path)
+        if meta is not None and meta.get("version") != CHUNKS_META_VERSION:
+            invalid_reason = f"version mismatch ({meta.get('version')} != {CHUNKS_META_VERSION})"
+        else:
+            try:
+                chunks_loaded = _load_chunks(chunks_path)
+            except (json.JSONDecodeError, ValidationError) as e:
+                invalid_reason = f"schema/JSON error: {e}"
+
+        if invalid_reason is not None:
+            _invalidate_cache(chunks_path, invalid_reason)
+            chunks_loaded = None  # full crawl로 fall-through
+
+        if chunks_loaded is not None:
+            chunks = chunks_loaded
+            cached_paper_count = _count_unique_papers(chunks)
+            logger.info("chunks 재사용: %s (paper %d개)", chunks_path, cached_paper_count)
+
+            shortage = max(0, args.max_papers - cached_paper_count)
+            if shortage == 0:
+                # legacy 캐시(사이드카 None)는 첫 정상 완료 시점에 자동 생성 (spec § 7).
+                if meta is None:
+                    _write_meta_sidecar(chunks_path, chunks)
+                    logger.info("legacy 캐시 사이드카 자동 생성: %s", _meta_path(chunks_path))
+                logger.info("캐시가 요청량(%d) 충족, crawl skip", args.max_papers)
+                return chunks, []
+
+            # ── 부족분 fill 분기 ──
+            manifest = Manifest.load(MANIFEST_PATH)
+            manifest_skip: set[str] = set()
+            for doi, entry in manifest.papers.items():
+                if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+                    manifest_skip.add(doi)
+            cached_dois = _chunks_doi_set(chunks)
+            existing_dois = manifest_skip | cached_dois
+            logger.info(
+                "부족분 fill: shortage=%d, existing_dois=%d (manifest_skip=%d, cached=%d)",
+                shortage,
+                len(existing_dois),
+                len(manifest_skip),
+                len(cached_dois),
+            )
+
+            new_papers = crawl_papers(
+                max_total=shortage,
+                max_per_category=args.max_per_category,
+                min_date=args.min_date,
+                max_date=args.max_date,
+                existing_dois=existing_dois,
+            )
+            indexed_new = [p for p in new_papers if p.sections]
+            no_section = len(new_papers) - len(indexed_new)
+            logger.info(
+                "부족분 크롤링: 시도 %d, 본문 확보 %d, 본문 미확보 %d",
+                len(new_papers),
+                len(indexed_new),
+                no_section,
+            )
+
+            new_chunks = chunk_papers(indexed_new) if indexed_new else []
+            merged = _merge_chunks(chunks, new_chunks)
+            _save_chunks_atomic(chunks_path, merged)
+            _write_meta_sidecar(chunks_path, merged)
+
+            final_paper_count = _count_unique_papers(merged)
+            if final_paper_count < args.max_papers:
+                logger.warning(
+                    "부족분 fill 후에도 요청량 미충족: %d/%d "
+                    "(manifest_skip=%d, cached=%d, no_section=%d, 캐시까지로 임베딩 진행)",
+                    final_paper_count,
+                    args.max_papers,
+                    len(manifest_skip),
+                    len(cached_dois),
+                    no_section,
+                )
+
+            # reuse 경로는 manifest를 갱신하지 않는다 (spec § 7).
+            # crawl_papers는 paper별 실제 tried_sources를 반환하지 않으므로
+            # ACTIVE_SOURCES 일괄 기록은 no-section paper를 다음 run에서 영구 차단한다.
+            # full crawl 경로에서만 manifest를 갱신한다 (그것도 별도 follow-up 필요).
+            return merged, []
+
+    # ── full crawl 경로 (캐시 없음 또는 invalidate된 후 fall-through) ──
+    manifest = Manifest.load(MANIFEST_PATH)
+    existing_dois: set[str] = set()
+    for doi, entry in manifest.papers.items():
+        if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+            existing_dois.add(doi)
+    logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
+
+    papers = crawl_papers(
+        max_total=args.max_papers,
+        max_per_category=args.max_per_category,
+        min_date=args.min_date,
+        max_date=args.max_date,
+        existing_dois=existing_dois,
+    )
+    if not papers:
+        logger.info("신규 논문 없음.")
+        return [], []
+    indexed_papers = [p for p in papers if p.sections]
+    logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
+    chunks = chunk_papers(indexed_papers) if indexed_papers else []
+    if not chunks:
+        logger.info("청크 없음.")
+        return [], papers
+    logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
+    _save_chunks_atomic(chunks_path, chunks)
+    _write_meta_sidecar(chunks_path, chunks)
+    logger.info("chunks 저장: %s", chunks_path)
+    return chunks, papers
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -349,40 +594,10 @@ def main(argv: list[str] | None = None) -> int:
     log_device_status(logger)
 
     # ── Stage 1: chunks ─────────────────────────────────────
-    chunks_path = _chunks_path(args.batch_tag)
-    manifest: Manifest | None = None  # crawl 분기에서만 채워짐 — 갱신 블록에서 재사용
-    if args.reuse_chunks and chunks_path.exists():
-        logger.info("chunks 재사용: %s", chunks_path)
-        chunks = _load_chunks(chunks_path)
-        papers_for_manifest: list = []  # manifest 갱신은 default + 신규 crawl일 때만
-    else:
-        manifest = Manifest.load(MANIFEST_PATH)
-        existing_dois: set[str] = set()
-        for doi, entry in manifest.papers.items():
-            if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
-                existing_dois.add(doi)
-        logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
-
-        papers = crawl_papers(
-            max_total=args.max_papers,
-            max_per_category=args.max_per_category,
-            min_date=args.min_date,
-            max_date=args.max_date,
-            existing_dois=existing_dois,
-        )
-        if not papers:
-            logger.info("신규 논문 없음. 종료.")
-            return 0
-        indexed_papers = [p for p in papers if p.sections]
-        logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
-        chunks = chunk_papers(indexed_papers) if indexed_papers else []
-        if not chunks:
-            logger.info("청크 없음. 종료.")
-            return 0
-        logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
-        _save_chunks(chunks_path, chunks)
-        logger.info("chunks 저장: %s", chunks_path)
-        papers_for_manifest = papers
+    chunks, papers_for_manifest = _resolve_chunks(args)
+    if not chunks:
+        logger.info("처리할 chunks 없음. 종료.")
+        return 0
 
     if args.chunks_only:
         logger.info("--chunks-only: Stage 1만 실행 후 종료")
@@ -476,9 +691,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Manifest 갱신 (default 모드 + --update-manifest + 신규 crawl) ──
     # 재사용 분기에서는 papers_for_manifest=[] 이므로 이 블록에 진입하지 않는다.
-    # crawl 분기에서 이미 로드한 manifest 객체를 재사용 — 파일 재로드 race 제거.
+    # _resolve_chunks 내부에서 manifest를 한 번 로드했지만 지역 변수였으므로 여기서 재로드.
     if args.update_manifest and not args.test and papers_for_manifest:
-        assert manifest is not None  # papers_for_manifest 가 차있다 = crawl 경로 = manifest 로드됨
+        manifest = Manifest.load(MANIFEST_PATH)
         for p in papers_for_manifest:
             manifest.record_attempt(
                 doi=p.meta.doi,
