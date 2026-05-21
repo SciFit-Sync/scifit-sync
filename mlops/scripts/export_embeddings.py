@@ -480,7 +480,13 @@ def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
             existing_dois=existing_dois,
         )
         indexed_new = [p for p in new_papers if p.sections]
-        logger.info("부족분 크롤링: 시도 %d, 본문 확보 %d", len(new_papers), len(indexed_new))
+        no_section = len(new_papers) - len(indexed_new)
+        logger.info(
+            "부족분 크롤링: 시도 %d, 본문 확보 %d, 본문 미확보 %d",
+            len(new_papers),
+            len(indexed_new),
+            no_section,
+        )
 
         new_chunks = chunk_papers(indexed_new) if indexed_new else []
         merged = _merge_chunks(chunks, new_chunks)
@@ -490,12 +496,20 @@ def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
         final_paper_count = _count_unique_papers(merged)
         if final_paper_count < args.max_papers:
             logger.warning(
-                "부족분 fill 후에도 요청량 미충족: %d/%d (캐시까지로 임베딩 진행)",
+                "부족분 fill 후에도 요청량 미충족: %d/%d "
+                "(manifest_skip=%d, cached=%d, no_section=%d, 캐시까지로 임베딩 진행)",
                 final_paper_count,
                 args.max_papers,
+                len(manifest_skip),
+                len(cached_dois),
+                no_section,
             )
 
-        return merged, new_papers
+        # reuse 경로는 manifest를 갱신하지 않는다 (spec § 7).
+        # crawl_papers는 paper별 실제 tried_sources를 반환하지 않으므로
+        # ACTIVE_SOURCES 일괄 기록은 no-section paper를 다음 run에서 영구 차단한다.
+        # full crawl 경로에서만 manifest를 갱신한다 (그것도 별도 follow-up 필요).
+        return merged, []
 
     manifest = Manifest.load(MANIFEST_PATH)
     existing_dois: set[str] = set()
