@@ -10,9 +10,10 @@ ADMIN_TOKEN = "test-admin-token"
 
 @pytest.mark.asyncio
 async def test_list_dois_missing_admin_token(client):
-    """X-Admin-Token 헤더 없으면 422 (Header(...) 필수)."""
+    """X-Admin-Token 헤더 없으면 400 — 서버 RequestValidationError 핸들러가
+    FastAPI 기본 422를 CLAUDE.md §7의 VALIDATION_ERROR(400)로 매핑한다."""
     resp = await client.get("/api/v1/admin/rag/dois")
-    assert resp.status_code == 422
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio
