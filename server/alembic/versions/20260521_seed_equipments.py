@@ -19,7 +19,7 @@ down_revision = "008"
 branch_labels = None
 depends_on = None
 
-_SEED_CSV = Path(__file__).parent.parent.parent / "mlops" / "data" / "equipments_seed.csv"
+_SEED_CSV = Path(__file__).parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv"
 
 _BRANDS = [
     {
