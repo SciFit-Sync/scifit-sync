@@ -437,6 +437,49 @@ def _print_summary(summary_rows: list[dict]) -> None:
     sys.stderr.write(f"리포트: {DATA_DIR.parent / 'eval' / 'reports'}/<batch-tag>_*.md\n")
 
 
+def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
+    """Stage 1 — chunks를 결정하고 manifest 업데이트용 papers를 반환.
+
+    Returns:
+        (chunks, papers_for_manifest). papers_for_manifest는 default 모드에서만
+        의미가 있고 reuse 경로에서는 빈 리스트. chunks가 비어있으면 caller가
+        early return해야 한다 (신규 논문 없음 / 청크 없음).
+    """
+    chunks_path = _chunks_path(args.batch_tag)
+    if args.reuse_chunks and chunks_path.exists():
+        logger.info("chunks 재사용: %s", chunks_path)
+        chunks = _load_chunks(chunks_path)
+        return chunks, []
+
+    manifest = Manifest.load(MANIFEST_PATH)
+    existing_dois: set[str] = set()
+    for doi, entry in manifest.papers.items():
+        if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+            existing_dois.add(doi)
+    logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
+
+    papers = crawl_papers(
+        max_total=args.max_papers,
+        max_per_category=args.max_per_category,
+        min_date=args.min_date,
+        max_date=args.max_date,
+        existing_dois=existing_dois,
+    )
+    if not papers:
+        logger.info("신규 논문 없음.")
+        return [], []
+    indexed_papers = [p for p in papers if p.sections]
+    logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
+    chunks = chunk_papers(indexed_papers) if indexed_papers else []
+    if not chunks:
+        logger.info("청크 없음.")
+        return [], papers
+    logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
+    _save_chunks(chunks_path, chunks)
+    logger.info("chunks 저장: %s", chunks_path)
+    return chunks, papers
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -446,40 +489,10 @@ def main(argv: list[str] | None = None) -> int:
     log_device_status(logger)
 
     # ── Stage 1: chunks ─────────────────────────────────────
-    chunks_path = _chunks_path(args.batch_tag)
-    manifest: Manifest | None = None  # crawl 분기에서만 채워짐 — 갱신 블록에서 재사용
-    if args.reuse_chunks and chunks_path.exists():
-        logger.info("chunks 재사용: %s", chunks_path)
-        chunks = _load_chunks(chunks_path)
-        papers_for_manifest: list = []  # manifest 갱신은 default + 신규 crawl일 때만
-    else:
-        manifest = Manifest.load(MANIFEST_PATH)
-        existing_dois: set[str] = set()
-        for doi, entry in manifest.papers.items():
-            if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
-                existing_dois.add(doi)
-        logger.info("기존 manifest: %d건 (indexed + fully-tried)", len(existing_dois))
-
-        papers = crawl_papers(
-            max_total=args.max_papers,
-            max_per_category=args.max_per_category,
-            min_date=args.min_date,
-            max_date=args.max_date,
-            existing_dois=existing_dois,
-        )
-        if not papers:
-            logger.info("신규 논문 없음. 종료.")
-            return 0
-        indexed_papers = [p for p in papers if p.sections]
-        logger.info("크롤링: 시도 %d, 본문 확보 %d", len(papers), len(indexed_papers))
-        chunks = chunk_papers(indexed_papers) if indexed_papers else []
-        if not chunks:
-            logger.info("청크 없음. 종료.")
-            return 0
-        logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
-        _save_chunks(chunks_path, chunks)
-        logger.info("chunks 저장: %s", chunks_path)
-        papers_for_manifest = papers
+    chunks, papers_for_manifest = _resolve_chunks(args)
+    if not chunks:
+        logger.info("처리할 chunks 없음. 종료.")
+        return 0
 
     if args.chunks_only:
         logger.info("--chunks-only: Stage 1만 실행 후 종료")
@@ -573,9 +586,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Manifest 갱신 (default 모드 + --update-manifest + 신규 crawl) ──
     # 재사용 분기에서는 papers_for_manifest=[] 이므로 이 블록에 진입하지 않는다.
-    # crawl 분기에서 이미 로드한 manifest 객체를 재사용 — 파일 재로드 race 제거.
+    # _resolve_chunks 내부에서 manifest를 한 번 로드했지만 지역 변수였으므로 여기서 재로드.
     if args.update_manifest and not args.test and papers_for_manifest:
-        assert manifest is not None  # papers_for_manifest 가 차있다 = crawl 경로 = manifest 로드됨
+        manifest = Manifest.load(MANIFEST_PATH)
         for p in papers_for_manifest:
             manifest.record_attempt(
                 doi=p.meta.doi,
