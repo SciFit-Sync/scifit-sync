@@ -672,6 +672,87 @@ def test_resolve_chunks_partial_fill_calls_crawl_with_shortage(tmp_path, monkeyp
     assert _count_unique_papers(chunks) == 8
 
 
+def test_resolve_chunks_existing_dois_excludes_retry_candidates(tmp_path, monkeypatch):
+    """manifest에 fulltext_source=None + tried_sources < ACTIVE_SOURCES인 paper는
+    existing_dois에 포함되지 않아야 한다 (retry 대상이라 다시 시도해야 함)."""
+    from mlops.pipeline.manifest import Manifest, ManifestEntry
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+
+    cached = [_make_chunk(doi="10.1/cached", pmid="1")]
+    ee._save_chunks_atomic(chunks_path, cached)
+    ee._write_meta_sidecar(chunks_path, cached)
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    manifest_path = tmp_path / "manifest.json"
+    monkeypatch.setattr(ee, "MANIFEST_PATH", manifest_path)
+
+    # manifest에 retry 대상 한 건 + indexed 한 건
+    m = Manifest()
+    m.papers["10.1/retry"] = ManifestEntry(
+        pmid="r",
+        pmcid=None,
+        openalex_id=None,
+        fulltext_source=None,
+        tried_sources=["pmc"],  # europepmc 미시도
+        indexed_at=None,
+        last_tried_at="2026-05-20",
+    )
+    m.papers["10.1/indexed"] = ManifestEntry(
+        pmid="i",
+        pmcid=None,
+        openalex_id=None,
+        fulltext_source="pmc",
+        tried_sources=["pmc"],
+        indexed_at="2026-05-20",
+        last_tried_at="2026-05-20",
+    )
+    m.save(manifest_path)
+
+    captured: dict = {}
+
+    def fake_crawl(**kw):
+        captured.update(kw)
+        return []
+
+    monkeypatch.setattr(ee, "crawl_papers", fake_crawl)
+    monkeypatch.setattr(ee, "chunk_papers", lambda papers: [])
+
+    args = _make_args(max_papers=10)
+    ee._resolve_chunks(args)
+
+    assert "10.1/cached" in captured["existing_dois"]
+    assert "10.1/indexed" in captured["existing_dois"]
+    assert "10.1/retry" not in captured["existing_dois"]
+
+
+def test_resolve_chunks_partial_fill_below_shortage_warns(tmp_path, monkeypatch, caplog):
+    """crawl 신규 < shortage → warn 로그 + 캐시까지로 진행 (예외 X)."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+    cached = [_make_chunk(doi="10.1/a", pmid="1")]
+    ee._save_chunks_atomic(chunks_path, cached)
+    ee._write_meta_sidecar(chunks_path, cached)
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+    monkeypatch.setattr(ee, "crawl_papers", lambda **kw: [])  # 0 신규
+    monkeypatch.setattr(ee, "chunk_papers", lambda papers: [])
+
+    args = _make_args(max_papers=10)
+    with caplog.at_level("WARNING"):
+        chunks, _ = ee._resolve_chunks(args)
+
+    assert len(chunks) == 1  # 캐시 그대로
+    assert any("미충족" in r.message for r in caplog.records)
+
+
 def test_resolve_chunks_partial_fill_persists_merged_chunks(tmp_path, monkeypatch):
     """fill 후 chunks 파일과 사이드카가 merge 결과로 갱신된다."""
     from mlops.scripts import export_embeddings as ee
