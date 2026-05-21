@@ -456,9 +456,46 @@ def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
             logger.info("캐시가 요청량(%d) 충족, crawl skip", args.max_papers)
             return chunks, []
 
-        # 부족분 fill 분기는 다음 task에서 구현 — 일단 캐시까지로 진행
-        logger.warning("부족분 %d편 — fill 분기 미구현, 캐시까지로 진행", shortage)
-        return chunks, []
+        # ── 부족분 fill 분기 ──
+        manifest = Manifest.load(MANIFEST_PATH)
+        manifest_skip: set[str] = set()
+        for doi, entry in manifest.papers.items():
+            if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+                manifest_skip.add(doi)
+        cached_dois = _chunks_doi_set(chunks)
+        existing_dois = manifest_skip | cached_dois
+        logger.info(
+            "부족분 fill: shortage=%d, existing_dois=%d (manifest_skip=%d, cached=%d)",
+            shortage,
+            len(existing_dois),
+            len(manifest_skip),
+            len(cached_dois),
+        )
+
+        new_papers = crawl_papers(
+            max_total=shortage,
+            max_per_category=args.max_per_category,
+            min_date=args.min_date,
+            max_date=args.max_date,
+            existing_dois=existing_dois,
+        )
+        indexed_new = [p for p in new_papers if p.sections]
+        logger.info("부족분 크롤링: 시도 %d, 본문 확보 %d", len(new_papers), len(indexed_new))
+
+        new_chunks = chunk_papers(indexed_new) if indexed_new else []
+        merged = _merge_chunks(chunks, new_chunks)
+        _save_chunks_atomic(chunks_path, merged)
+        _write_meta_sidecar(chunks_path, merged)
+
+        final_paper_count = _count_unique_papers(merged)
+        if final_paper_count < args.max_papers:
+            logger.warning(
+                "부족분 fill 후에도 요청량 미충족: %d/%d (캐시까지로 임베딩 진행)",
+                final_paper_count,
+                args.max_papers,
+            )
+
+        return merged, new_papers
 
     manifest = Manifest.load(MANIFEST_PATH)
     existing_dois: set[str] = set()

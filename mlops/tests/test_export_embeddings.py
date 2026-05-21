@@ -520,16 +520,27 @@ def test_failfast_require_gpu_without_cuda(export_module, tmp_path, monkeypatch)
 
 
 def test_reuse_chunks_skips_crawl(export_module, tmp_path, monkeypatch):
-    """chunks 파일이 이미 있으면 --reuse-chunks가 crawl_papers를 호출하지 않아야."""
+    """캐시 paper 수 == max_papers → --reuse-chunks가 crawl을 호출하지 않아야 (shortage=0)."""
     _patch_chunker(monkeypatch)
-    # 1차 — 정상 crawl
+    # 1차 — 정상 crawl (1편 적재)
     captured = _patch_crawl(monkeypatch, [_fake_paper("100")])
-    export_module.main(["--model", "bge-large", "--batch-tag", "rc"])
+    export_module.main(["--model", "bge-large", "--batch-tag", "rc", "--max-papers", "1"])
     assert captured["called"] is True
 
-    # 2차 — reuse-chunks 사용. crawl 인자 capture 리셋
+    # 2차 — reuse-chunks + 캐시 paper 수와 동일한 --max-papers → shortage 0이라 crawl 안 함
     captured["called"] = False
-    export_module.main(["--model", "bge-large", "--batch-tag", "rc", "--reuse-chunks", "--overwrite"])
+    export_module.main(
+        [
+            "--model",
+            "bge-large",
+            "--batch-tag",
+            "rc",
+            "--reuse-chunks",
+            "--overwrite",
+            "--max-papers",
+            "1",
+        ]
+    )
     assert captured["called"] is False
 
 
@@ -609,3 +620,86 @@ def test_resolve_chunks_sufficient_cache_skips_crawl(tmp_path, monkeypatch):
 
     assert len(chunks) == 10
     assert crawl_calls == []  # crawl 호출 안 됨
+
+
+def _fake_paper_full(pmid: str, doi: str, with_body: bool = True) -> PaperFull:
+    """_resolve_chunks fill 분기 테스트용 PaperFull 헬퍼."""
+    return PaperFull(
+        meta=PaperMeta(pmid=pmid, title=f"title-{pmid}", doi=doi, fulltext_source="pmc"),
+        sections=[PaperSection(name="abstract", content=f"body-{pmid} " * 5)] if with_body else [],
+    )
+
+
+def test_resolve_chunks_partial_fill_calls_crawl_with_shortage(tmp_path, monkeypatch):
+    """캐시 paper 수 < max_papers → shortage만큼만 crawl 호출 + merge."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+
+    # 캐시 5편
+    cached = [_make_chunk(doi=f"10.1/{i}", pmid=str(i), idx=0) for i in range(5)]
+    ee._save_chunks_atomic(chunks_path, cached)
+    ee._write_meta_sidecar(chunks_path, cached)
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+
+    captured: dict = {}
+
+    def fake_crawl(**kw):
+        captured.update(kw)
+        return [_fake_paper_full(str(100 + i), f"10.1/n{i}") for i in range(3)]
+
+    monkeypatch.setattr(ee, "crawl_papers", fake_crawl)
+    monkeypatch.setattr(
+        ee,
+        "chunk_papers",
+        lambda papers: [_make_chunk(doi=p.meta.doi, pmid=p.meta.pmid) for p in papers],
+    )
+
+    args = _make_args(max_papers=10, max_per_category=42)
+    chunks, _ = ee._resolve_chunks(args)
+
+    # crawl_papers는 부족분 5편만 요청
+    assert captured["max_total"] == 5
+    # max_per_category 그대로 전달
+    assert captured["max_per_category"] == 42
+    # existing_dois에 캐시 DOI 5개 포함
+    assert {f"10.1/{i}" for i in range(5)}.issubset(captured["existing_dois"])
+    # merge 결과 paper 8개 (캐시 5 + 신규 3)
+    assert _count_unique_papers(chunks) == 8
+
+
+def test_resolve_chunks_partial_fill_persists_merged_chunks(tmp_path, monkeypatch):
+    """fill 후 chunks 파일과 사이드카가 merge 결과로 갱신된다."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+
+    cached = [_make_chunk(doi="10.1/cached", pmid="1")]
+    ee._save_chunks_atomic(chunks_path, cached)
+    ee._write_meta_sidecar(chunks_path, cached)
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+
+    monkeypatch.setattr(ee, "crawl_papers", lambda **kw: [_fake_paper_full("99", "10.1/new")])
+    monkeypatch.setattr(
+        ee,
+        "chunk_papers",
+        lambda papers: [_make_chunk(doi=p.meta.doi, pmid=p.meta.pmid) for p in papers],
+    )
+
+    args = _make_args(max_papers=5)
+    ee._resolve_chunks(args)
+
+    # chunks 파일 재로드 — 사이드카도 갱신
+    reloaded = list(ee._load_chunks(chunks_path))
+    assert {c.paper_doi for c in reloaded} == {"10.1/cached", "10.1/new"}
+    meta = ee._load_meta_sidecar(chunks_path)
+    assert meta is not None
+    assert meta["paper_count"] == 2
