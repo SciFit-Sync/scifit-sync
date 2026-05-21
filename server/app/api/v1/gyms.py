@@ -200,6 +200,7 @@ async def create_gym(
     summary="헬스장 보유 장비 목록",
 )
 async def list_gym_equipment(
+    request: Request,
     gym_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -247,6 +248,7 @@ async def list_gym_equipment(
     summary="헬스장에 장비 추가",
 )
 async def add_gym_equipment(
+    request: Request,
     gym_id: str,
     body: AddGymEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -291,6 +293,7 @@ async def add_gym_equipment(
     summary="헬스장에 기구 일괄 연결",
 )
 async def bulk_add_gym_equipment(
+    request: Request,
     gym_id: str,
     body: BulkAddEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -358,6 +361,7 @@ async def bulk_add_gym_equipment(
     summary="장비 정보 신고",
 )
 async def report_gym_equipment(
+    request: Request,
     gym_id: str,
     body: ReportEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -397,6 +401,7 @@ async def report_gym_equipment(
     summary="미등록 기구 제보",
 )
 async def suggest_gym_equipment(
+    request: Request,
     gym_id: str,
     body: SuggestEquipmentRequest,
     current_user: User = Depends(get_current_user),

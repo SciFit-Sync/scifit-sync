@@ -330,6 +330,7 @@ async def update_1rm(
     summary="1RM 일괄 등록 (온보딩용)",
 )
 async def bulk_add_1rm(
+    request: Request,
     body: BulkAdd1RMRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -458,6 +459,7 @@ async def list_my_equipment(
     summary="장비 추가 (스폿)",
 )
 async def add_my_equipment(
+    request: Request,
     body: AddUserEquipmentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
