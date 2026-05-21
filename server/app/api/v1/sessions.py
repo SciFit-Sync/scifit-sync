@@ -413,7 +413,9 @@ async def session_stats(
                 func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
             )
             .join(WorkoutLog, WorkoutLog.gym_id == Gym.id)
-            .outerjoin(WorkoutLogSet, (WorkoutLogSet.workout_log_id == WorkoutLog.id) & WorkoutLogSet.is_completed.is_(True))
+            .outerjoin(
+                WorkoutLogSet, (WorkoutLogSet.workout_log_id == WorkoutLog.id) & WorkoutLogSet.is_completed.is_(True)
+            )
             .where(WorkoutLog.user_id == current_user.id)
             .group_by(Gym.id, Gym.name)
             .order_by(func.count(WorkoutLog.id).desc())
