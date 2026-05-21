@@ -1,11 +1,11 @@
-id,brand_id,name,category,sub_category,equipment_type,pulley_ratio,bar_weight_kg,min_stack_kg,max_stack_kg,stack_weight_kg,image_url,updated_at
+﻿id,brand_id,name,category,sub_category,equipment_type,pulley_ratio,bar_weight_kg,min_stack_kg,max_stack_kg,stack_weight_kg,image_url,updated_at
 ,,Torque Line Wide Pulldown Front,back,upper_back,machine,null,null,0kg,120kg,5kg,https://cdn.imweb.me/thumbnail/20240604/e340605775f8c.png,
 ,,Torque Line Wide Pulldown Rear,back,upper_back,machine,null,null,0kg,120kg,5kg,https://cdn-optimized.imweb.me/thumbnail/20241121/425aa3e3731ba.png?w=750,
 ,,Advance Lat Pulldown,back,upper_back,machine,2,null,5kg,125kg,5kg,https://cdn-optimized.imweb.me/thumbnail/20241005/a185de1752b78.png?w=750,
 ,,Torque Line Front Row,back,upper_back,machine,null,null,0kg,120kg,5kg,https://cdn-optimized.imweb.me/upload/S20230404ba35399600d96/f14b562d56395.png?w=1920,
 ,,Torque Line Seated Row,back,lower_back,machine,null,null,0kg,120kg,5kg,https://cdn-optimized.imweb.me/upload/S20230404ba35399600d96/73e8ab4cc699b.png?w=1920,
 ,,Torque Line Low Row,back,lower_back,machine,null,null,0kg,120kg,5kg,https://cdn-optimized.imweb.me/upload/S20230404ba35399600d96/950078b9074c3.png?w=1920,
-,,GHD 90�� Roman Chair,back,lower_back,machine,null,null,null,null,null,https://cdn-optimized.imweb.me/thumbnail/20240626/6961d356cc86b.png?w=750,
+,,GHD 90° Roman Chair,back,lower_back,machine,null,null,null,null,null,https://cdn-optimized.imweb.me/thumbnail/20240626/6961d356cc86b.png?w=750,
 ,,Torque Line Shoulder Press,shoulders,front_delt,machine,null,null,0kg,120kg,5kg,https://cdn-optimized.imweb.me/thumbnail/20241121/ac128c9f39f24.png?w=750,
 ,,Advance Shoulder Press,shoulders,front_delt,machine,2,null,5kg,125kg,5kg,https://cdn.imweb.me/thumbnail/20241005/d7807c4933046.png,
 ,,Side Lateral Raise,shoulders,side_delt,machine,1,null,5kg,100kg,5kg,https://cdn-optimized.imweb.me/thumbnail/20240617/cef87581efb74.png?w=750,

@@ -1,7 +1,7 @@
-id,brand_id,name,category,sub_category,equipment_type,pulley_ratio,bar_weight_kg,min_stack_kg,max_stack_kg,stack_weight_kg,image_url,updated_at
+ï»¿id,brand_id,name,category,sub_category,equipment_type,pulley_ratio,bar_weight_kg,min_stack_kg,max_stack_kg,stack_weight_kg,image_url,updated_at
 ,,Pullover Machine,back,upper_back,machine,null,null,5kg,100kg,5kg,https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUkCi62gDO_iImFM-WvC8SvkOCMmgWrKlbng&s,
 ,,Lat Pulldown,back,upper_back,machine,1,null,5kg,100kg,5kg,https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS1B8lVq5Ep1ycCZfPLYVkaGJbJ2AjWhBB8Lg&s,
-,,Lat Pulldown,back,upper_back,machine,1,null,5kg,80kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1sc001-2-jpg-webp.webp,
+,,Lat Pulldown SC,back,upper_back,machine,1,null,5kg,80kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1sc001-2-jpg-webp.webp,
 ,,High Row,back,upper_back,machine,null,null,0kg,270kg,5kg,https://www.panattasport.com/wp-content/uploads/2024/07/1FO003-1-jpg.webp,
 ,,Super lat pulldown circular,back,upper_back,machine,null,null,0kg,240kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1fw101-jpg-webp.webp,
 ,,Pulley Row,back,lower_back,machine,null,null,5kg,80kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1sc003-2-jpg-webp.webp,
@@ -15,7 +15,7 @@ id,brand_id,name,category,sub_category,equipment_type,pulley_ratio,bar_weight_kg
 ,,Multipurpose Press,chest,upper_chest,machine,1,null,5kg,100kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1fe118a-1-jpg-webp.webp,
 ,,Super Horizontal Bench Press,chest,mid_chest,machine,null,10kg,0kg,270kg,5kg,https://www.panattasport.com/wp-content/uploads/2022/08/pic_1FW037_02-jpg.webp,
 ,,Vertical chest press,chest,mid_chest,machine,1,null,5kg,100kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1fe036-jpg-webp.webp,
-,,Vertical Pek D´Ù,chest,mid_chest,machine,null,null,5kg,150kg,5kg,https://www.panattasport.com/wp-content/uploads/2020/04/1FT036.webp,
+,,Vertical Pec Deck,chest,mid_chest,machine,null,null,5kg,150kg,5kg,https://www.panattasport.com/wp-content/uploads/2020/04/1FT036.webp,
 ,,Multi Press,chest,mid_chest,machine,1,null,5kg,80kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1scd030-1-jpg-webp.webp,
 ,,Super declined chest press,chest,lower_chest,machine,null,null,0kg,270kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/03/1fw041-jpg-webp.webp,
 ,,Three Angles Biceps Machine,arms,biceps,machine,null,5kg,0kg,220kg,5kg,https://www.panattasport.com/wp-content/uploads/2023/11/1fw451-jpg.webp,
