@@ -50,7 +50,7 @@ def upgrade() -> None:
     conn.execute(
         sa.text("""
             INSERT INTO equipment_brands (id, name, default_bar_unit, default_stack_unit)
-            VALUES (:id, :name, :dbu, :dsu)
+            VALUES (:id, :name, :default_bar_unit, :default_stack_unit)
             ON CONFLICT (id) DO NOTHING
         """),
         _BRANDS,
