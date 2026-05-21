@@ -59,7 +59,7 @@ export default function RootNavigator() {
     // 무조건 1.8초는 스플래시 보이게
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 1800000);
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, []);
