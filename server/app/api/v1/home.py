@@ -3,17 +3,20 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models import (
+    Gym,
     Notification,
     RoutineDay,
     RoutineStatus,
     User,
+    UserGym,
     WorkoutLog,
     WorkoutLogSet,
     WorkoutRoutine,
@@ -27,26 +30,40 @@ router = APIRouter(tags=["home"])
 
 
 @router.get("/home", response_model=SuccessResponse[HomeData], summary="홈 대시보드")
+@rate_limit("60/minute")
 async def home(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 1) 최근 활성 루틴
-    active_routine = (
+    # 0) 주 헬스장 gym_id
+    primary_gym_id = (
         await db.execute(
-            select(WorkoutRoutine)
+            select(UserGym.gym_id).where(
+                UserGym.user_id == current_user.id,
+                UserGym.is_primary.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+
+    # 1) 전체 활성 루틴 (gym_name 포함 LEFT JOIN)
+    active_routines_rows = (
+        await db.execute(
+            select(WorkoutRoutine, Gym.name)
+            .outerjoin(Gym, WorkoutRoutine.gym_id == Gym.id)
             .where(
                 WorkoutRoutine.user_id == current_user.id,
                 WorkoutRoutine.deleted_at.is_(None),
                 WorkoutRoutine.status == RoutineStatus.ACTIVE,
             )
             .order_by(WorkoutRoutine.updated_at.desc())
-            .limit(1)
         )
-    ).scalar_one_or_none()
+    ).all()
 
+    # today_routine = 가장 최근 활성 루틴
     today_routine: HomeRoutineSummary | None = None
-    if active_routine is not None:
+    if active_routines_rows:
+        active_routine, _ = active_routines_rows[0]
         next_day = (
             await db.execute(
                 select(RoutineDay)
@@ -59,7 +76,24 @@ async def home(
             routine_id=str(active_routine.id),
             name=active_routine.name,
             next_day_label=next_day.label if next_day else None,
+            gym_id=str(active_routine.gym_id) if active_routine.gym_id else None,
+            gym_name=_,
         )
+
+    # routines_at_current_gym / routines_at_other_gyms 분리 (D-M9)
+    routines_at_current_gym: list[HomeRoutineSummary] = []
+    routines_at_other_gyms: list[HomeRoutineSummary] = []
+    for r, gym_name in active_routines_rows:
+        summary = HomeRoutineSummary(
+            routine_id=str(r.id),
+            name=r.name,
+            gym_id=str(r.gym_id) if r.gym_id else None,
+            gym_name=gym_name,
+        )
+        if primary_gym_id and r.gym_id == primary_gym_id:
+            routines_at_current_gym.append(summary)
+        else:
+            routines_at_other_gyms.append(summary)
 
     # 2) 최근 7일 볼륨
     since = datetime.utcnow() - timedelta(days=7)
@@ -127,5 +161,7 @@ async def home(
             today_routine=today_routine,
             upcoming_notifications=notif_items,
             recent_volume_kg=round(recent_volume, 2),
+            routines_at_current_gym=routines_at_current_gym,
+            routines_at_other_gyms=routines_at_other_gyms,
         )
     )
