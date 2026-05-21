@@ -447,8 +447,17 @@ def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
     """
     chunks_path = _chunks_path(args.batch_tag)
     if args.reuse_chunks and chunks_path.exists():
-        logger.info("chunks 재사용: %s", chunks_path)
         chunks = _load_chunks(chunks_path)
+        cached_paper_count = _count_unique_papers(chunks)
+        logger.info("chunks 재사용: %s (paper %d개)", chunks_path, cached_paper_count)
+
+        shortage = max(0, args.max_papers - cached_paper_count)
+        if shortage == 0:
+            logger.info("캐시가 요청량(%d) 충족, crawl skip", args.max_papers)
+            return chunks, []
+
+        # 부족분 fill 분기는 다음 task에서 구현 — 일단 캐시까지로 진행
+        logger.warning("부족분 %d편 — fill 분기 미구현, 캐시까지로 진행", shortage)
         return chunks, []
 
     manifest = Manifest.load(MANIFEST_PATH)

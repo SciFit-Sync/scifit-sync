@@ -3,6 +3,7 @@
 외부 의존성(crawl/HF 모델)은 모두 monkeypatch — pytest 단독 실행 가능.
 """
 
+import argparse
 import gzip
 import json
 import sys
@@ -22,6 +23,20 @@ from mlops.scripts.export_embeddings import (
     _save_chunks_atomic,
     _write_meta_sidecar,
 )
+
+
+def _make_args(**overrides) -> argparse.Namespace:
+    """_resolve_chunks 테스트용 args namespace. 필요한 키만 포함."""
+    defaults = dict(
+        batch_tag="test_tag",
+        reuse_chunks=True,
+        max_papers=10,
+        max_per_category=None,
+        min_date=None,
+        max_date=None,
+    )
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
 
 
 def _make_chunk(*, doi: str = "10.1/a", pmid: str = "1", idx: int = 0) -> Chunk:
@@ -567,3 +582,30 @@ def test_emb_path_format(export_module, tmp_path):
 
 def test_timing_path_format(export_module, tmp_path):
     assert export_module._timing_path("xyz", "bge-large") == tmp_path / "emb_bge-large" / "xyz_timing.json"
+
+
+# ── _resolve_chunks 분기 단위 테스트 ────────────────────────────────────
+
+
+def test_resolve_chunks_sufficient_cache_skips_crawl(tmp_path, monkeypatch):
+    """캐시 paper 수 >= max_papers → crawl_papers 호출 0회."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+
+    cached = [_make_chunk(doi=f"10.1/{i}", pmid=str(i), idx=0) for i in range(10)]
+    ee._save_chunks_atomic(chunks_path, cached)
+    ee._write_meta_sidecar(chunks_path, cached)
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+
+    crawl_calls: list = []
+    monkeypatch.setattr(ee, "crawl_papers", lambda **kw: crawl_calls.append(kw) or [])
+
+    args = _make_args(max_papers=10)
+    chunks, _papers = ee._resolve_chunks(args)
+
+    assert len(chunks) == 10
+    assert crawl_calls == []  # crawl 호출 안 됨
