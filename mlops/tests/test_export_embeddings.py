@@ -826,6 +826,61 @@ def test_resolve_chunks_legacy_no_sidecar_uses_cache(tmp_path, monkeypatch):
     assert len(chunks) == 1
 
 
+def test_resolve_chunks_legacy_cache_auto_creates_sidecar(tmp_path, monkeypatch):
+    """legacy 캐시(사이드카 None) + shortage=0 → 정상 완료 시 사이드카 자동 생성 (spec § 7)."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+    cached = [_make_chunk(doi="10.1/a", pmid="1")]
+    ee._save_chunks_atomic(chunks_path, cached)
+    meta_path = ee._meta_path(chunks_path)
+    assert not meta_path.exists()  # 사전 조건: 사이드카 없음
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+    monkeypatch.setattr(ee, "crawl_papers", lambda **kw: [])
+    monkeypatch.setattr(ee, "chunk_papers", lambda papers: [])
+
+    args = _make_args(max_papers=1)
+    ee._resolve_chunks(args)
+
+    # 정상 완료 후 사이드카가 자동 생성되었어야
+    assert meta_path.exists()
+    meta = json.loads(meta_path.read_text())
+    assert meta["version"] == ee.CHUNKS_META_VERSION
+    assert meta["paper_count"] == 1
+
+
+def test_resolve_chunks_sidecar_valid_but_chunks_validation_error_invalidates(tmp_path, monkeypatch):
+    """사이드카 version은 정상이지만 chunks 파일이 ValidationError → 무효화 + full crawl."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+
+    # 사이드카는 valid version으로 작성
+    meta_path = ee._meta_path(chunks_path)
+    meta_path.write_text(json.dumps({"version": ee.CHUNKS_META_VERSION, "paper_count": 0}))
+
+    # chunks 파일은 gzip은 valid지만 schema가 깨진 JSON
+    with gzip.open(chunks_path, "wt", encoding="utf-8") as f:
+        f.write(json.dumps({"unexpected_field": "x"}) + "\n")
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+    monkeypatch.setattr(ee, "crawl_papers", lambda **kw: [])
+    monkeypatch.setattr(ee, "chunk_papers", lambda papers: [])
+
+    args = _make_args(max_papers=10)
+    ee._resolve_chunks(args)
+
+    # 캐시 무효화 흔적 존재
+    assert any(p.name.startswith("test_tag.jsonl.gz.invalid") for p in chunks_dir.iterdir())
+
+
 def test_resolve_chunks_partial_fill_persists_merged_chunks(tmp_path, monkeypatch):
     """fill 후 chunks 파일과 사이드카가 merge 결과로 갱신된다."""
     from mlops.scripts import export_embeddings as ee

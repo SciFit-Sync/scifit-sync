@@ -483,6 +483,10 @@ def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
 
             shortage = max(0, args.max_papers - cached_paper_count)
             if shortage == 0:
+                # legacy 캐시(사이드카 None)는 첫 정상 완료 시점에 자동 생성 (spec § 7).
+                if meta is None:
+                    _write_meta_sidecar(chunks_path, chunks)
+                    logger.info("legacy 캐시 사이드카 자동 생성: %s", _meta_path(chunks_path))
                 logger.info("캐시가 요청량(%d) 충족, crawl skip", args.max_papers)
                 return chunks, []
 
@@ -566,7 +570,8 @@ def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
         logger.info("청크 없음.")
         return [], papers
     logger.info("크롤링 %d편 → 청크 %d개", len(indexed_papers), len(chunks))
-    _save_chunks(chunks_path, chunks)
+    _save_chunks_atomic(chunks_path, chunks)
+    _write_meta_sidecar(chunks_path, chunks)
     logger.info("chunks 저장: %s", chunks_path)
     return chunks, papers
 
