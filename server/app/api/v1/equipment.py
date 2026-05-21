@@ -49,8 +49,8 @@ def _to_item(
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
         pulley_ratio=e.pulley_ratio,
-        min_stack_kg=e.min_stack_kg,
-        max_stack_kg=e.max_stack_kg,
+        min_stack=e.min_stack,
+        max_stack=e.max_stack,
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
     )

@@ -19,6 +19,7 @@ from app.models.gym import (
     Gym,
     GymEquipment,
     UserGym,
+    WeightUnit,
 )
 from app.models.notification import Notification, NotificationType
 from app.models.paper import Paper
@@ -73,6 +74,7 @@ __all__ = [
     "EquipmentBodyCategory",
     "EquipmentType",
     "EquipmentReportStatus",
+    "WeightUnit",
     # exercise
     "Exercise",
     "ExerciseEquipmentMap",
