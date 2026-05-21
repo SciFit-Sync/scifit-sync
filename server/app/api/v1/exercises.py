@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.core.limiter import rate_limit
 from app.models import (
     Exercise,
     ExerciseEquipmentMap,
@@ -16,7 +17,6 @@ from app.models import (
     MuscleInvolvement,
     User,
 )
-from app.core.limiter import rate_limit
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import ExerciseItem, ExerciseListData
 from app.schemas.users import CoreLiftItem, CoreLiftsData

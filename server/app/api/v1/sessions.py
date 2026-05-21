@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Exercise,
     RoutineDay,
@@ -24,7 +25,6 @@ from app.models import (
     WorkoutRoutine,
     WorkoutStatus,
 )
-from app.core.limiter import rate_limit
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
     FinishSessionRequest,

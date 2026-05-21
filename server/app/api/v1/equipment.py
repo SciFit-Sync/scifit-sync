@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     EquipmentBrand,
@@ -28,7 +29,6 @@ from app.schemas.gyms import (
     SelectData,
     SelectEquipmentRequest,
 )
-from app.core.limiter import rate_limit
 from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
