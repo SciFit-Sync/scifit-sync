@@ -753,6 +753,79 @@ def test_resolve_chunks_partial_fill_below_shortage_warns(tmp_path, monkeypatch,
     assert any("미충족" in r.message for r in caplog.records)
 
 
+def test_resolve_chunks_sidecar_version_mismatch_falls_back_to_full_crawl(tmp_path, monkeypatch):
+    """사이드카 version mismatch → 캐시 무효 + 통째 재크롤링."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+    cached = [_make_chunk(doi="10.1/a", pmid="1")]
+    ee._save_chunks_atomic(chunks_path, cached)
+    # 잘못된 version으로 사이드카 직접 작성
+    meta_path = ee._meta_path(chunks_path)
+    meta_path.write_text(json.dumps({"version": 999, "paper_count": 1}))
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+
+    crawl_called = {"n": 0, "max_total": None}
+
+    def fake_crawl(**kw):
+        crawl_called["n"] += 1
+        crawl_called["max_total"] = kw.get("max_total")
+        return []
+
+    monkeypatch.setattr(ee, "crawl_papers", fake_crawl)
+    monkeypatch.setattr(ee, "chunk_papers", lambda papers: [])
+
+    args = _make_args(max_papers=10)
+    ee._resolve_chunks(args)
+    # full crawl로 떨어짐 — max_total은 args.max_papers (shortage 아님)
+    assert crawl_called["n"] == 1
+    assert crawl_called["max_total"] == 10
+
+    # invalid 흔적 파일 존재 (chunks_path 본체는 사라지고 .invalid.<ts> suffix 부착)
+    assert any(p.name.startswith("test_tag.jsonl.gz.invalid") for p in chunks_dir.iterdir())
+
+
+def test_resolve_chunks_gzip_corruption_raises(tmp_path, monkeypatch):
+    """gzip 손상은 silent fallback 금지 → 그대로 raise."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+    chunks_path.write_bytes(b"not a gzip file")
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+
+    args = _make_args(max_papers=10)
+    with pytest.raises((OSError, gzip.BadGzipFile)):
+        ee._resolve_chunks(args)
+
+
+def test_resolve_chunks_legacy_no_sidecar_uses_cache(tmp_path, monkeypatch):
+    """사이드카 없는 legacy 캐시는 _load_chunks 성공하면 그대로 사용."""
+    from mlops.scripts import export_embeddings as ee
+
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir()
+    chunks_path = chunks_dir / "test_tag.jsonl.gz"
+    cached = [_make_chunk(doi="10.1/a", pmid="1")]
+    ee._save_chunks_atomic(chunks_path, cached)
+    # 사이드카 의도적으로 생성 안 함
+
+    monkeypatch.setattr(ee, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ee, "MANIFEST_PATH", tmp_path / "manifest.json")
+    monkeypatch.setattr(ee, "crawl_papers", lambda **kw: [])
+    monkeypatch.setattr(ee, "chunk_papers", lambda papers: [])
+
+    args = _make_args(max_papers=1)
+    chunks, _ = ee._resolve_chunks(args)
+    assert len(chunks) == 1
+
+
 def test_resolve_chunks_partial_fill_persists_merged_chunks(tmp_path, monkeypatch):
     """fill 후 chunks 파일과 사이드카가 merge 결과로 갱신된다."""
     from mlops.scripts import export_embeddings as ee
