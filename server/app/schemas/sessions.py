@@ -9,12 +9,14 @@ from pydantic import BaseModel, Field
 class StartSessionRequest(BaseModel):
     routine_id: str | None = None
     routine_day_id: str | None = None
+    gym_id: str | None = None
 
 
 class SessionStartData(BaseModel):
     session_id: str
     routine_id: str | None = None
     routine_name: str | None = None
+    gym_id: str | None = None
     started_at: datetime
     message: str = "운동을 시작합니다!"
 
@@ -89,6 +91,13 @@ class RecentSessionItem(BaseModel):
     date: str  # YYYY-MM-DD
 
 
+class GymStatItem(BaseModel):
+    gym_id: str
+    gym_name: str
+    session_count: int
+    total_volume_kg: float
+
+
 class SessionStatsData(BaseModel):
     total_sessions: int
     total_volume_kg: float
@@ -97,6 +106,7 @@ class SessionStatsData(BaseModel):
     weekly_session_count: int = 0
     streak_days: int
     recent_session: RecentSessionItem | None = None
+    by_gym: list[GymStatItem] = Field(default_factory=list)
 
 
 class VolumeAnalysisItem(BaseModel):
