@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.models import (
     Exercise,
+    Gym,
     RoutineDay,
     RoutineExercise,
     User,
@@ -27,6 +28,7 @@ from app.models import (
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
     FinishSessionRequest,
+    GymStatItem,
     LogSetRequest,
     RecentSessionItem,
     RestTimerData,
@@ -118,6 +120,11 @@ async def start_session(
     session_routine_day_id = None
     session_routine_id: str | None = None
     session_routine_name: str | None = None
+    session_gym_id: uuid.UUID | None = None
+
+    # body.gym_id 명시 시 우선 사용
+    if body.gym_id:
+        session_gym_id = _parse_uuid(body.gym_id, "gym_id")
 
     if body.routine_id:
         routine_id = _parse_uuid(body.routine_id, "routine_id")
@@ -134,6 +141,9 @@ async def start_session(
             raise NotFoundError(message="루틴을 찾을 수 없습니다.")
         session_routine_id = str(routine_id)
         session_routine_name = routine.name
+        # gym_id 미지정 시 루틴의 gym_id 자동 복사 (D-M9)
+        if session_gym_id is None and routine.gym_id:
+            session_gym_id = routine.gym_id
         first_day = (
             await db.execute(
                 select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
@@ -146,6 +156,7 @@ async def start_session(
     s = WorkoutLog(
         user_id=current_user.id,
         routine_day_id=session_routine_day_id,
+        gym_id=session_gym_id,
         status=WorkoutStatus.IN_PROGRESS,
     )
     db.add(s)
@@ -157,6 +168,7 @@ async def start_session(
             session_id=str(s.id),
             routine_id=session_routine_id,
             routine_name=session_routine_name,
+            gym_id=str(session_gym_id) if session_gym_id else None,
             started_at=s.started_at,
         )
     )
@@ -391,6 +403,32 @@ async def session_stats(
 
     streak_days = await _compute_streak(current_user.id, db)
 
+    # gym별 집계 (D-M9)
+    gym_rows = (
+        await db.execute(
+            select(
+                Gym.id,
+                Gym.name,
+                func.count(WorkoutLog.id).label("session_count"),
+                func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
+            )
+            .join(WorkoutLog, WorkoutLog.gym_id == Gym.id)
+            .outerjoin(WorkoutLogSet, (WorkoutLogSet.workout_log_id == WorkoutLog.id) & WorkoutLogSet.is_completed.is_(True))
+            .where(WorkoutLog.user_id == current_user.id)
+            .group_by(Gym.id, Gym.name)
+            .order_by(func.count(WorkoutLog.id).desc())
+        )
+    ).all()
+    by_gym = [
+        GymStatItem(
+            gym_id=str(gid),
+            gym_name=gname,
+            session_count=int(cnt),
+            total_volume_kg=round(float(vol), 2),
+        )
+        for gid, gname, cnt, vol in gym_rows
+    ]
+
     return SuccessResponse(
         data=SessionStatsData(
             total_sessions=total_sessions,
@@ -400,6 +438,7 @@ async def session_stats(
             weekly_session_count=weekly_session_count,
             streak_days=streak_days,
             recent_session=recent_session,
+            by_gym=by_gym,
         )
     )
 
