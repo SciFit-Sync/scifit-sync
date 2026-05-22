@@ -5,9 +5,21 @@ on:
     - cron: '0 2 1 * *'   # 매월 1일 오전 2시 UTC (한국 오전 11시)
   workflow_dispatch:        # 수동 실행 가능
 
+permissions:
+  contents: read
+  issues: write   # 실패 시 이슈 자동 생성
+
+concurrency:
+  group: mlops-cron
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -31,9 +43,25 @@ jobs:
         if: success()
         run: echo "✅ 논문 파이프라인 완료"
 
-      - name: Report failure
+      - name: Open issue on failure
         if: failure()
-        run: |
-          echo "❌ 논문 파이프라인 실패"
-          echo "Actions URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          exit 1
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const today = new Date().toISOString().slice(0, 10);
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[mlops] 월간 논문 파이프라인 실패 (${today})`,
+              body: [
+                `매월 1회 도는 \`mlops.yml\` cron이 실패했습니다.`,
+                ``,
+                `- Run URL: ${url}`,
+                `- Trigger: ${context.eventName}`,
+                `- SHA: ${context.sha}`,
+                ``,
+                `로그 확인 후 원인 대응 부탁드립니다. (\`gh run view ${context.runId} --log-failed\`)`
+              ].join('\n'),
+              labels: ['mlops', 'ci-failure']
+            });
