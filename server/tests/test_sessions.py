@@ -390,3 +390,89 @@ class TestRestTimer:
         resp = await client.get(f"/api/v1/sessions/{uuid.uuid4()}/rest-timer")
 
         assert resp.status_code == 404
+
+
+# ── GET /sessions/analysis/muscle-volume ─────────────────────────────────────
+
+
+class TestMuscleVolumeAnalysis:
+    """근육 부위별 볼륨 분석 엔드포인트 테스트."""
+
+    @pytest.mark.asyncio
+    async def test_empty_no_workout_records(self, client):
+        """운동 기록 없으면 전체 15개 근육 모두 0볼륨, 첫 운동 안내 메시지."""
+        db = _make_db(_exec_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["period"] == "WEEK"
+        assert len(data["volume_by_muscle"]) == 15
+        assert all(item["weekly_volume"] == 0.0 for item in data["volume_by_muscle"])
+        assert all(item["status"] == "LOW" for item in data["volume_by_muscle"])
+        assert "첫 운동을 시작해보세요" in data["ai_coach_message"]
+
+    @pytest.mark.asyncio
+    async def test_optimal_volume_returns_optimal_message(self, client):
+        """볼륨이 최적 범위(4000~6000) 내이면 OPTIMAL 상태 및 격려 메시지."""
+        db = _make_db(_exec_all([("가슴", 5000.0), ("광배근", 4500.0)]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        assert chest["status"] == "OPTIMAL"
+        assert chest["weekly_volume"] == 5000.0
+        assert chest["optimal_min"] == 4000.0
+        assert chest["optimal_max"] == 6000.0
+        assert "훌륭합니다" in data["ai_coach_message"]
+
+    @pytest.mark.asyncio
+    async def test_low_volume_nonzero_returns_low_message(self, client):
+        """볼륨이 최적 하한 미만(단, 0 초과)이면 LOW 상태 및 볼륨 증가 메시지."""
+        db = _make_db(_exec_all([("가슴", 1000.0)]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        assert chest["status"] == "LOW"
+        assert "볼륨을 늘려보세요" in data["ai_coach_message"]
+
+    @pytest.mark.asyncio
+    async def test_high_volume_returns_high_message(self, client):
+        """볼륨이 최적 상한 초과이면 HIGH 상태 및 회복 권장 메시지."""
+        db = _make_db(_exec_all([("가슴", 9000.0)]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        assert chest["status"] == "HIGH"
+        assert "회복" in data["ai_coach_message"]
+
+    @pytest.mark.asyncio
+    async def test_period_month_uses_30_days(self, client):
+        """period=MONTH 파라미터가 정상 처리되고 응답 period 필드에 반영된다."""
+        db = _make_db(_exec_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume?period=MONTH")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["period"] == "MONTH"
+
+    @pytest.mark.asyncio
+    async def test_invalid_period_returns_400(self, client):
+        """허용되지 않는 period 값(DAILY 등)은 400 Bad Request 반환."""
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume?period=DAILY")
+
+        assert resp.status_code == 400

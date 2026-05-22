@@ -17,7 +17,9 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Exercise,
+    ExerciseMuscle,
     Gym,
+    MuscleGroup,
     RoutineDay,
     RoutineExercise,
     User,
@@ -31,6 +33,8 @@ from app.schemas.sessions import (
     FinishSessionRequest,
     GymStatItem,
     LogSetRequest,
+    MuscleVolumeData,
+    MuscleVolumeItem,
     RecentSessionItem,
     RestTimerData,
     SessionCalendarData,
@@ -486,6 +490,107 @@ async def volume_analysis(
         VolumeAnalysisItem(date=d.isoformat() if isinstance(d, date) else str(d), volume_kg=float(v)) for d, v in rows
     ]
     return SuccessResponse(data=VolumeAnalysisData(items=items))
+
+
+# ── GET /sessions/analysis/muscle-volume ─────────────────────────────────────
+# 근육 부위별 주간/월간 볼륨 조회 + 근비대 최적 범위 비교
+_OPTIMAL_RANGES: dict[str, tuple[float, float]] = {
+    "가슴": (4000, 6000),
+    "광배근": (4000, 6000),
+    "상부 등": (3000, 5000),
+    "승모근": (2000, 4000),
+    "어깨 전면": (2000, 4000),
+    "어깨 측면": (2000, 4000),
+    "어깨 후면": (2000, 4000),
+    "이두근": (2000, 4000),
+    "삼두근": (2000, 4000),
+    "전완근": (1000, 3000),
+    "복근": (2000, 4000),
+    "대퇴사두근": (6000, 10000),
+    "햄스트링": (4000, 8000),
+    "둔근": (4000, 8000),
+    "종아리": (2000, 4000),
+}
+
+
+@router.get(
+    "/analysis/muscle-volume",
+    response_model=SuccessResponse[MuscleVolumeData],
+    summary="근육 부위별 볼륨 분석",
+)
+@rate_limit("60/minute")
+async def muscle_volume_analysis(
+    request: Request,
+    period: str = Query("WEEK", pattern="^(WEEK|MONTH)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    days = 7 if period == "WEEK" else 30
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    rows = (
+        await db.execute(
+            select(
+                MuscleGroup.name_ko,
+                func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
+            )
+            .join(ExerciseMuscle, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
+            .join(WorkoutLogSet, WorkoutLogSet.exercise_id == ExerciseMuscle.exercise_id)
+            .join(WorkoutLog, WorkoutLog.id == WorkoutLogSet.workout_log_id)
+            .where(
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLog.started_at >= since,
+                WorkoutLogSet.is_completed.is_(True),
+            )
+            .group_by(MuscleGroup.name_ko)
+            .order_by(MuscleGroup.name_ko)
+        )
+    ).all()
+
+    volume_map = {name_ko: float(vol) for name_ko, vol in rows}
+
+    items: list[MuscleVolumeItem] = []
+    for muscle, (opt_min, opt_max) in _OPTIMAL_RANGES.items():
+        vol = volume_map.get(muscle, 0.0)
+        if vol >= opt_min and vol <= opt_max:
+            status = "OPTIMAL"
+        elif vol < opt_min:
+            status = "LOW"
+        else:
+            status = "HIGH"
+        items.append(
+            MuscleVolumeItem(
+                muscle=muscle,
+                weekly_volume=vol,
+                optimal_min=opt_min,
+                optimal_max=opt_max,
+                status=status,
+            )
+        )
+
+    # AI 코치 멘트 생성 (LLM 없이 룰 기반)
+    low_muscles = [i.muscle for i in items if i.status == "LOW" and i.weekly_volume > 0]
+    optimal_muscles = [i.muscle for i in items if i.status == "OPTIMAL"]
+    high_muscles = [i.muscle for i in items if i.status == "HIGH"]
+
+    if not any(i.weekly_volume > 0 for i in items):
+        ai_coach_message = "아직 운동 기록이 없습니다. 첫 운동을 시작해보세요!"
+    elif high_muscles:
+        ai_coach_message = f"{', '.join(high_muscles)} 볼륨이 최적 범위를 초과했습니다. 충분한 회복을 취하세요."
+    elif low_muscles:
+        ai_coach_message = f"{', '.join(low_muscles[:2])} 볼륨을 늘려보세요. 균형 잡힌 훈련이 중요합니다!"
+    elif optimal_muscles:
+        ai_coach_message = f"훌륭합니다! {', '.join(optimal_muscles[:2])} 등 볼륨이 최적 범위에 도달했습니다."
+    else:
+        ai_coach_message = "운동 기록을 쌓아가며 근육별 볼륨을 최적 범위로 맞춰나가세요!"
+
+    return SuccessResponse(
+        data=MuscleVolumeData(
+            period=period,
+            volume_by_muscle=items,
+            ai_coach_message=ai_coach_message,
+        )
+    )
 
 
 # ── GET /sessions/{id} ────────────────────────────────────────────────────────
