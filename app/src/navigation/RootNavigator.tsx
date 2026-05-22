@@ -1,14 +1,15 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ActivityIndicator, View } from "react-native";
+import { useEffect, useState } from "react";
+import WS01Splash from "../screens/splash/WS01Splash";
 import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
 import WA01Login from "../screens/auth/WA01Login";
-import WA02Signup from "../screens/auth/WA02Signin";
 import WM01Main from "../screens/main/WM01Main";
+import { useAuthStore } from "../stores/authStore";
+import WA02Signup from "../screens/auth/WA02Signin";
 import WN01Notifications from "../screens/main/WN01Notifications";
 import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
-import { useAuthStore } from "../stores/authStore";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -35,8 +36,14 @@ function MainNavigator() {
   return (
     <MainStack.Navigator screenOptions={{ headerShown: false }}>
       <MainStack.Screen name="WM01Main" component={WM01Main} />
-      <MainStack.Screen name="WN01Notifications" component={WN01Notifications} />
-      <MainStack.Screen name="WR04RoutineDetail" component={WR04RoutineDetail} />
+      <MainStack.Screen
+        name="WN01Notifications"
+        component={WN01Notifications}
+      />
+      <MainStack.Screen
+        name="WR04RoutineDetail"
+        component={WR04RoutineDetail}
+      />
       <MainStack.Screen name="WL01Record" component={WL01Record} />
     </MainStack.Navigator>
   );
@@ -45,29 +52,34 @@ function MainNavigator() {
 export default function RootNavigator() {
   const { isLoggedIn, isNewUser, isLoading } = useAuthStore();
 
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#000",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <ActivityIndicator color="#FEE500" size="large" />
-      </View>
-    );
+  // 스플래시 최소 표시 시간 (1.8초)
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // 무조건 1.8초는 스플래시 보이게
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1800);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 스플래시 표시 조건:
+  // 1. showSplash가 true (1.8초 안 지남)
+  // 2. 또는 isLoading이 true (토큰 체크 중)
+  if (showSplash || isLoading) {
+    return <WS01Splash />;
   }
 
+  // 분기: 로그인 상태에 따라
   return (
     <NavigationContainer>
       {!isLoggedIn ? (
-        <AuthNavigator />
+        <AuthNavigator /> // 로그인 안 됨
       ) : isNewUser ? (
-        <OnboardingNavigator />
+        <OnboardingNavigator /> // 신규 사용자
       ) : (
-        <MainNavigator />
+        <MainNavigator /> // 기존 로그인 사용자
       )}
     </NavigationContainer>
   );
