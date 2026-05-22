@@ -25,11 +25,11 @@ PY
 
 mkdir -p data
 TS=$(date +%Y%m%d_%H%M%S)
-TAG="2k_${TS}"
+TAG="3k_${TS}"
 LOG="data/ingest_${TAG}.log"
 
 {
-  echo "=== 2000편 단일 배치 ingest 시작: $(date) ==="
+  echo "=== 3000편 단일 배치 ingest 시작: $(date) ==="
   echo "PID=$$  TAG=$TAG  PWD=$(pwd)  VENV=$VIRTUAL_ENV"
   echo "MANIFEST(before)=$(python3 -c 'import json; m=json.load(open(\"data/manifest.json\")); print(m.get(\"stats\",{}))')"
   echo "---"
@@ -38,8 +38,8 @@ LOG="data/ingest_${TAG}.log"
 python3 -m scripts.export_embeddings \
   --batch-tag "$TAG" \
   --model bge-large \
-  --max-papers 2000 \
-  --max-per-category 400 \
+  --max-papers 3000 \
+  --max-per-category 600 \
   --update-manifest \
   --require-gpu 2>&1 | tee -a "$LOG"
 
