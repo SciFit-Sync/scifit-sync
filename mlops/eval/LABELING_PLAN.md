@@ -1,14 +1,18 @@
 # 골드셋 라벨링 작업 계획 (Goldset Labeling Plan)
 
-`mlops/eval/goldset_seed.jsonl` (88개 query 시드) → 라벨링 완료
+`mlops/eval/goldset_seed.jsonl` (102개 query 시드) → 라벨링 완료
 `mlops/eval/goldset.jsonl` 까지의 작업 단계를 정리한 워킹 플랜.
 
 ## 1. 현재 상태
 
-- 시드 파일: `mlops/eval/goldset_seed.jsonl` (88 entries, 완료)
-  - 분포: hypertrophy 12 / strength 12 / muscle_specific 10 / endurance 8 /
-    weight_loss 8 / frequency_split 8 / recovery 8 / exercise_selection 8 /
-    progressive_overload 6 / special_populations 4 / form_technique 4
+- 시드 파일: `mlops/eval/goldset_seed.jsonl` (102 entries, 완료)
+  - 분포: muscle_specific 31 / hypertrophy 11 / strength 11 / endurance 8 /
+    weight_loss 8 / frequency_split 8 / exercise_selection 8 / recovery 6 /
+    progressive_overload 6 / form_technique 4 / special_populations 1
+  - corpus scope (헬스장 기구 × 근비대·근력) 밖 항목 7개 제거:
+    Q011(유산소 병행) / Q024(단백질 섭취량) / Q062(수면) / Q064(영양 타이밍) /
+    Q092(고령자) / Q093(여성·월경 주기) / Q094(청소년)
+  - 부위별 routine_generation 21개 추가 (Q101-Q121): 등/어깨/가슴/팔/복근/상체/하체
   - `expected_pmids`: 전부 빈 배열 (라벨링 대기)
 - 평가 스크립트: `mlops/eval/run_eval.py` (mocking 테스트 22개 통과, schema 호환)
 - corpus: cloud 진행 중 (~5600 청크). `refactor/jingyu/trim-search-categories`
@@ -66,9 +70,9 @@ query 대비 현저히 낮으면 corpus gap이지 RAG 알고리즘 문제 아님
 | Query | Gap 원인 |
 |---|---|
 | Q036 (HIIT vs LISS) | crawler 카테고리에 HIIT/LISS 직접 검색어 없음 |
-| Q092 (60+ 노인) | `(humans OR adults)` 필터로 일부 캡처되나 노인 특화 검색어 없음 |
-| Q093 (여성·월경 주기) | 여성 호르몬 전용 검색어 없음 (`women_resistance`는 OAM orphan) |
-| Q094 (청소년) | `(humans OR adults)` 필터가 adolescent 배제 효과 |
+
+(Q092/Q093/Q094는 corpus scope 밖으로 판단되어 시드에서 제거됨 — §1 참조.
+Q011/Q024/Q062/Q064 도 유산소·영양·수면 등 corpus 비대상 주제라 동시에 제거.)
 
 ## 4. 작업 체크리스트
 
@@ -77,7 +81,7 @@ query 대비 현저히 낮으면 corpus gap이지 RAG 알고리즘 문제 아님
 - [ ] `extract_pmid_pool.py` 작성 + 실행 → `pmid_pool.json`
 - [ ] `pool_candidates.py` 작성 + 실행 → `candidates.jsonl`
 - [ ] Labeling 도구 결정 (CLI vs 스프레드시트) — 인원·시간 트레이드오프 검토
-- [ ] Labeling 수행 (88 × top-20 ≈ 1760건 판정. 1건 30초 가정 시 ~15시간)
+- [ ] Labeling 수행 (102 × top-20 ≈ 2040건 판정. 1건 30초 가정 시 ~17시간)
 - [ ] `build_goldset.py` 작성 + 실행 → `goldset.jsonl`
 - [ ] `run_eval.py` 실행 → 베이스라인 리포트 (`mlops/eval/reports/`)
 - [ ] 카테고리별 recall 분석 + corpus gap 검증 (§3 표 기준)
