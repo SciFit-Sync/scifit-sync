@@ -25,6 +25,8 @@ class HomeRoutineSummary(BaseModel):
     routine_id: str
     name: str
     next_day_label: str | None = None
+    gym_id: str | None = None
+    gym_name: str | None = None
 
 
 class HomeData(BaseModel):
@@ -33,3 +35,5 @@ class HomeData(BaseModel):
     today_routine: HomeRoutineSummary | None = None
     upcoming_notifications: list[NotificationItem] = Field(default_factory=list)
     recent_volume_kg: float = 0.0
+    routines_at_current_gym: list[HomeRoutineSummary] = Field(default_factory=list)
+    routines_at_other_gyms: list[HomeRoutineSummary] = Field(default_factory=list)

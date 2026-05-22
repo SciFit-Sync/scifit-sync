@@ -4,9 +4,17 @@ on:
   pull_request:
     branches: [develop, main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -27,6 +35,7 @@ jobs:
 
   test-server:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: lint
 
     services:
@@ -81,6 +90,7 @@ jobs:
 
   test-mlops:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: lint
 
     steps:

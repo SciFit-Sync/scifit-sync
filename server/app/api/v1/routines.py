@@ -15,7 +15,7 @@ import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,8 @@ from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     Exercise,
+    ExerciseEquipmentMap,
+    Gym,
     Paper,
     RoutineDay,
     RoutineExercise,
@@ -46,6 +48,7 @@ from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
     GenerateRoutineRequest,
+    GymSummary,
     PaperItem,
     RegenerateRoutineRequest,
     ReplacedExerciseData,
@@ -69,7 +72,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/routines", tags=["routines"])
 
 
-def _routine_to_summary(r: WorkoutRoutine) -> RoutineSummary:
+def _routine_to_summary(r: WorkoutRoutine, gym_name: str | None = None) -> RoutineSummary:
     return RoutineSummary(
         routine_id=str(r.id),
         name=r.name,
@@ -77,6 +80,8 @@ def _routine_to_summary(r: WorkoutRoutine) -> RoutineSummary:
         split_type=r.split_type.value if r.split_type else None,
         generated_by=r.generated_by.value if r.generated_by else "user",
         status=r.status.value if r.status else "active",
+        gym_id=str(r.gym_id) if r.gym_id else None,
+        gym_name=gym_name,
         created_at=r.created_at,
         updated_at=r.updated_at,
     )
@@ -149,6 +154,13 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             )
         )
 
+    # gym 정보
+    gym_summary: GymSummary | None = None
+    if r.gym_id:
+        gym_row = (await db.execute(select(Gym).where(Gym.id == r.gym_id))).scalar_one_or_none()
+        if gym_row:
+            gym_summary = GymSummary(gym_id=str(gym_row.id), name=gym_row.name)
+
     return RoutineDetail(
         routine_id=str(r.id),
         name=r.name,
@@ -156,6 +168,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         split_type=r.split_type.value if r.split_type else None,
         generated_by=r.generated_by.value if r.generated_by else "user",
         status=r.status.value if r.status else "active",
+        gym_id=str(r.gym_id) if r.gym_id else None,
+        gym_name=gym_summary.name if gym_summary else None,
+        gym=gym_summary,
         created_at=r.created_at,
         updated_at=r.updated_at,
         target_muscle_group_ids=r.target_muscle_group_ids,
@@ -191,21 +206,28 @@ async def _get_my_routine(routine_id: str, user: User, db: AsyncSession) -> Work
 # ── GET /routines ─────────────────────────────────────────────────────────────
 @router.get("", response_model=SuccessResponse[RoutineListData], summary="내 루틴 목록")
 async def list_routines(
+    gym_id: str | None = Query(None, description="gym_id 필터 — 해당 헬스장의 루틴만 반환"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    routines = (
-        (
-            await db.execute(
-                select(WorkoutRoutine)
-                .where(WorkoutRoutine.user_id == current_user.id, WorkoutRoutine.deleted_at.is_(None))
-                .order_by(WorkoutRoutine.updated_at.desc())
-            )
-        )
-        .scalars()
-        .all()
+    gym_uuid: uuid.UUID | None = None
+    if gym_id:
+        try:
+            gym_uuid = uuid.UUID(gym_id)
+        except ValueError as e:
+            raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
+
+    stmt = (
+        select(WorkoutRoutine, Gym.name)
+        .outerjoin(Gym, WorkoutRoutine.gym_id == Gym.id)
+        .where(WorkoutRoutine.user_id == current_user.id, WorkoutRoutine.deleted_at.is_(None))
     )
-    items = [_routine_to_summary(r) for r in routines]
+    if gym_uuid:
+        stmt = stmt.where(WorkoutRoutine.gym_id == gym_uuid)
+    stmt = stmt.order_by(WorkoutRoutine.updated_at.desc())
+
+    rows = (await db.execute(stmt)).all()
+    items = [_routine_to_summary(r, gym_name) for r, gym_name in rows]
     return SuccessResponse(data=RoutineListData(items=items))
 
 
@@ -249,7 +271,7 @@ async def replace_routine_exercise(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_my_routine(routine_id, current_user, db)
+    routine = await _get_my_routine(routine_id, current_user, db)
     rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
     rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
     if rex is None:
@@ -259,6 +281,26 @@ async def replace_routine_exercise(
     new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
     if new_ex is None:
         raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
+
+    # D-M9: 루틴에 gym_id가 있으면, 교체 운동과 연결된 equipment가 해당 gym 소속인지 검증
+    if routine.gym_id:
+        gym_eq_ids = {
+            row[0]
+            for row in (
+                await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
+            ).all()
+        }
+        ex_eq_ids = {
+            row[0]
+            for row in (
+                await db.execute(
+                    select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
+                )
+            ).all()
+        }
+        if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
+            raise ValidationError(message="교체할 운동의 기구가 해당 루틴의 헬스장에 없습니다.")
+
     rex.exercise_id = new_ex_id
     rex.equipment_id = None
     await db.commit()
