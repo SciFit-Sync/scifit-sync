@@ -2,10 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Build context는 repo root (deploy.yml과 docker-compose.yml 양쪽).
+# server/ 외에 mlops/data도 컨테이너에 넣어야 Alembic seed 마이그레이션이
+# CSV(equipments_seed.csv)를 읽을 수 있다.
+COPY server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY server/ /app/
+COPY mlops/data /app/mlops/data
 
 # Non-root user + ChromaDB 볼륨 + 정적 파일 디렉터리 권한 설정
 # - /chroma-data: EFS 마운트 대상. Access Point가 1000:1000으로 squash하지만
