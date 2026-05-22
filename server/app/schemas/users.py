@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class ProfileData(BaseModel):
     gender: str | None = None
     birth_date: date | None = None
+    age: int | None = None
     height_cm: float | None = None
     default_goals: list[str] | None = None
     career_level: str | None = None
@@ -125,7 +126,7 @@ class UserEquipmentItem(BaseModel):
     category: str | None = None
     equipment_type: str
     pulley_ratio: float | None = None
-    bar_weight_kg: float | None = None
+    bar_weight: float | None = None
     image_url: str | None = None
 
 

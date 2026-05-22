@@ -199,7 +199,7 @@ erDiagram
         decimal min_stack "최소 스택 중량 (NULL). 단위는 stack_unit. v2.1 RENAME(from min_stack_kg)"
         decimal max_stack "최대 스택 중량 (NULL). 단위는 stack_unit. v2.1 RENAME(from max_stack_kg)"
         jsonb stack_weight "스택 한 블록 무게 (NULL, v2.1 RENAME + decimal→jsonb). 단순:{value:5} / 변동:{pattern:[...]}"
-        enum stack_unit "weightunit kg|lb (NULL only when all 3 stack fields NULL, v2.1) — CHECK 동기성"
+        enum stack_unit "weightunit kg|lb (NULL only when all 3 stack fields NULL, v2.1) — min/max/stack_weight 3필드 단위 동일 강제, CHECK 동기성"
         varchar image_url "기구 이미지 (NULL) (M-6)"
         timestamp updated_at "NOT NULL DEFAULT NOW()"
     }
@@ -498,7 +498,7 @@ erDiagram
 - `equipments.category` = 근육 부위 대표 1개: `'chest' | 'back' | 'shoulders' | 'arms' | 'core' | 'legs'`
 - `equipments.sub_category` = 세부 영역 (v2.1): `'upper_back' | 'lower_back' | 'front_delt' | 'side_delt' | 'rear_delt' | 'upper_chest' | 'mid_chest' | 'lower_chest' | 'biceps' | 'triceps' | 'quads' | 'hamstrings' | 'abs'` 등. enum이 아닌 `varchar` — 향후 어휘 세분화는 스키마 변경 없이 데이터 값 진화로 대응.
 - `equipments.equipment_type` = 물리 타입: `'cable' | 'machine' | 'barbell' | 'dumbbell' | 'bodyweight'`
-- 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight_kg` + `has_weight_assist` 기준
+- 중량 계산 엔진은 `equipment_type` + `pulley_ratio` + `bar_weight` + `has_weight_assist` 기준
 
 ### 무게 단위 정책 (v2.1)
 **DB는 CSV에 표기된 원본 단위 그대로 저장하며, 단위 변환을 storage time에 강제하지 않는다.** 각 값의 단위는 같은 행의 `*_unit` 컬럼에서 즉시 확인할 수 있다. 단위 변환은 비교·합산이 필요한 컴포넌트(예: `load_calc.py`)가 compute time에 책임진다.
@@ -511,25 +511,38 @@ erDiagram
 2. **스택/원판 그룹** (`min_stack`, `max_stack`, `stack_weight`, `stack_unit`):
    - selectorized 머신(MTS 시리즈 등): 제조사 내장 스택 → 제조사 표기 단위 그대로 `stack_unit` 기록 (보통 'lb').
    - plate-loaded 머신: 사용자가 끼우는 원판 → 국내 헬스장 표준 kg (`stack_unit='kg'`).
+   - **세 스택 필드(`min_stack`/`max_stack`/`stack_weight`)는 같은 행의 `stack_unit` 하나를 공유한다** — 한 기구 안에서 스택 범위와 블록 무게는 반드시 동일 단위로 표기된다. 단일 `stack_unit` 컬럼 구조가 이 제약을 스키마 차원에서 강제하므로 `min_stack='kg', max_stack='lb'` 같은 표상 자체가 불가능하다.
 
 같은 행에서 `bar_weight_unit='lb'`이고 `stack_unit='kg'`인 조합이 정상이며, ETL은 두 그룹을 독립 처리한다. `equipment_brands.default_bar_unit` / `default_stack_unit`은 신규 import 시 명시값이 없을 때의 fallback이다.
 
-**CHECK 제약 (v2.1)** — 값과 단위의 동기성을 DB가 강제:
+**CHECK 제약 (v2.1 + v2.2)** — 값↔단위 동기성(v2.1) + JSONB shape(v2.2) 동시 강제, Alembic 008에서 단일 마이그레이션으로 신설:
 
 ```sql
+-- 바 그룹: 값과 단위 1:1 동기
 ALTER TABLE equipments ADD CONSTRAINT chk_bar_unit_synced CHECK (
   (bar_weight IS NULL AND bar_weight_unit IS NULL)
   OR (bar_weight IS NOT NULL AND bar_weight_unit IS NOT NULL)
 );
+
+-- 스택 그룹: 3필드 중 하나라도 NOT NULL이면 stack_unit 필수
 ALTER TABLE equipments ADD CONSTRAINT chk_stack_unit_synced CHECK (
   (min_stack IS NULL AND max_stack IS NULL AND stack_weight IS NULL AND stack_unit IS NULL)
   OR ((min_stack IS NOT NULL OR max_stack IS NOT NULL OR stack_weight IS NOT NULL) AND stack_unit IS NOT NULL)
 );
+
+-- JSONB stack_weight: value / pattern top-level 키 상호 배타
+ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
+  stack_weight IS NULL
+  OR (stack_weight ? 'value' AND NOT stack_weight ? 'pattern')
+  OR (stack_weight ? 'pattern' AND NOT stack_weight ? 'value')
+);
 ```
 
-즉, 무게 값이 존재할 때 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나로 결정된다 — "값은 있는데 단위 NULL" 같은 모순 상태 금지.
+즉, 무게 값이 존재할 때 단위는 반드시 `'kg'` 또는 `'lb'` 중 하나로 결정되고("값은 있는데 단위 NULL" 금지), JSONB `stack_weight`는 `value`형 또는 `pattern`형 중 하나만 가질 수 있다(혼합 객체 금지).
 
-### `stack_weight` JSONB 스키마 (v2.1)
+`chk_stack_weight_shape` (v2.2): `value`·`pattern` top-level 키 양립 차단. 빈 객체 `{}`는 세 OR 분기가 모두 FALSE가 되어 DB CHECK가 INSERT/UPDATE를 차단한다.
+
+### `stack_weight` JSONB 스키마 (v2.1 + v2.2)
 타입을 `decimal`에서 `jsonb`로 변경. 값의 **단위는 같은 행의 `stack_unit`**이 결정하며 JSONB 내부에는 단위를 넣지 않는다(단일 진실 원칙). 두 가지 형태를 허용:
 
 ```jsonc
@@ -544,7 +557,9 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_unit_synced CHECK (
 ]}                                        // 위 예시는 stack_unit='lb'
 ```
 
-앱 레이어 검증: `value`와 `pattern`은 상호 배타. `pattern[0].from == 1`, 인접 구간 (`prev.to + 1 == curr.from`).
+**DB CHECK 강제**: `value`와 `pattern` top-level 키는 상호 배타 — `chk_stack_weight_shape` (위 CHECK 제약 단락 참조). 양립 객체(`{"value": 5, "pattern": [...]}`)는 INSERT/UPDATE 시점에 차단된다.
+
+**앱 레이어 추가 검증** (JSONB CHECK로 표현이 거추장스러운 부분만 책임): `pattern[0].from == 1`, 인접 구간 (`prev.to + 1 == curr.from`), 모든 `value` 양수, `value`/`pattern` 외 다른 top-level 키 없음.
 
 ### 중량 기록
 - `weight_kg` = 기구 표시값 (사용자 입력)
@@ -583,6 +598,7 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_unit_synced CHECK (
 | 버전 | 변경 내용 |
 |------|----------|
 | v3 (29테이블, Task 12 multi-source ingestion) | `papers` / `paper_chunks` clean slate 재설계. `papers`: `doi` NOT NULL UNIQUE (primary lookup 전환), `pmcid` / `openalex_id` 신규, `publication_types` TEXT[] + `evidence_weight` NUMERIC(3,2) + `fulltext_source` + `search_categories` TEXT[] 신규. GIN 인덱스 (`publication_types`, `search_categories`), 단순 인덱스 (`pmid`, `openalex_id`, `published_year`). `paper_chunks`: `evidence_weight` / `publication_types` 청크 레벨 신규, `chroma_id` 제거, `(paper_id, chunk_index)` UNIQUE 보장. Alembic migration: `007_clean_slate_papers_multi_source.py`. |
+| v2.2 (29테이블, docs-only) | v2.1 후속 정합화 — 설계서 자체 모순 3건 해소. (1) JSONB `stack_weight`의 `value`/`pattern` top-level 키 상호 배타를 DB 레벨에서 강제하는 **신규 CHECK `chk_stack_weight_shape`** 도입 (v2.1까지는 앱 레이어 검증만 명시). (2) `stack_unit` 단일 컬럼이 `min_stack`/`max_stack`/`stack_weight` 3필드 공통 단위라는 스키마 구조적 제약을 컬럼 설명에 명시 — `min_stack='kg', max_stack='lb'` 같은 표상이 불가능함을 분명히 함. (3) 후속 마이그레이션 번호를 **Alembic 008**로 정정 (v2.1 스펙 작성 시점엔 005가 최신이라 006으로 적혀 있었으나, 007 multi-source paper ingestion 머지로 008이 됨). Alembic 008은 v2.1 + v2.2 결정을 단일 마이그레이션으로 통합 적용. |
 | v2.1 (29테이블, docs-only) | 수집 데이터셋(Hammer Strength / Newtech / Panatta CSV) 정합화. `equipments`에 `name_en` 문서 보정, `sub_category` 신규, `bar_weight_unit` / `stack_unit` 신규. **컬럼 RENAME**: `bar_weight_kg → bar_weight`, `min_stack_kg → min_stack`, `max_stack_kg → max_stack`, `stack_weight_kg → stack_weight`(추가로 `decimal → jsonb`). `equipment_brands`에 `default_bar_unit` / `default_stack_unit` 신규. 신규 enum `weightunit('kg','lb')`. 신규 CHECK 제약 `chk_bar_unit_synced`, `chk_stack_unit_synced` — 값과 단위 동기성 보장. 무게 단위 정책 변경: **단위 변환 없이 원본 그대로 저장**. CSV 템플릿: `docs/templates/equipment_template.csv`. |
 | v2 (29테이블) | Program 도메인(`programs`, `program_routines`) 추가, `equipment_muscles` 추가, `user_equipment_selections` / `user_stats` 폐기, 운동 목표 복수 정책 (D-M6), `equipments` category 의미 재정의 + `equipment_type` 분리 (API-12) |
 | v1 (28테이블) | 초기 설계 |

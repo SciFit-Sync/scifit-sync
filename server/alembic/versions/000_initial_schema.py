@@ -16,14 +16,43 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # PostgreSQL ENUM types — created before first use
+    # Idempotency guard: Supabase에 잔여 스키마가 있으면 첫 마이그레이션 전체를 skip.
+    # 이미 동등한 초기 스키마가 적용된 상태 (수동 생성 또는 이전 alembic 실행)에서
+    # 첫 배포 시 `CREATE TABLE users` 가 `relation already exists` 로 실패하는 사고 방지.
+    # 부분 잔여 (예: users는 있고 papers는 없음) 시나리오는 003 redesign 마이그레이션이 정리함.
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    if "users" in inspector.get_table_names():
+        return
+
+    # PostgreSQL ENUM types — created before first use.
+    # `DO $$ BEGIN ... EXCEPTION WHEN duplicate_object THEN NULL; END $$` 패턴으로
+    # ENUM이 이미 있어도 안전하게 통과 (PostgreSQL은 CREATE TYPE IF NOT EXISTS 미지원).
     op.execute(
-        "CREATE TYPE fitnessgoal AS ENUM ('hypertrophy', 'strength', 'endurance', 'rehabilitation', 'weight_loss')"
+        "DO $$ BEGIN "
+        "CREATE TYPE fitnessgoal AS ENUM ('hypertrophy', 'strength', 'endurance', 'rehabilitation', 'weight_loss'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
     )
-    op.execute("CREATE TYPE careerlevel AS ENUM ('beginner', 'intermediate', 'advanced')")
-    op.execute("CREATE TYPE equipmentcategory AS ENUM ('cable', 'machine', 'barbell', 'dumbbell', 'bodyweight')")
-    op.execute("CREATE TYPE muscleinvolvement AS ENUM ('primary', 'secondary', 'stabilizer')")
-    op.execute("CREATE TYPE chatrole AS ENUM ('user', 'assistant')")
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE careerlevel AS ENUM ('beginner', 'intermediate', 'advanced'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE equipmentcategory AS ENUM ('cable', 'machine', 'barbell', 'dumbbell', 'bodyweight'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE muscleinvolvement AS ENUM ('primary', 'secondary', 'stabilizer'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE chatrole AS ENUM ('user', 'assistant'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+    )
 
     # ── users ──────────────────────────────────────────────────────────────────
     # NOTE: name added by 001, provider/provider_id added by 002, password_hash made nullable by 002

@@ -3,6 +3,8 @@
 PubMed/OpenAlex API 호출은 mock 처리하여 외부 의존성 없이 테스트한다.
 """
 
+import json
+import logging
 import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock, patch
 
@@ -373,17 +375,19 @@ class TestRequestWithRateLimit:
 
 
 class TestResolvePmcId:
-    """`_resolve_pmc_id` 함수 레벨 재시도 동작 검증.
+    """`_resolve_pmc_id` 동작 검증.
 
-    HTTP 200인데 JSON body가 깨진 케이스(NCBI 일시 장애로 실측 발생)는
-    `_request_with_rate_limit`의 retry로는 못 잡으므로 함수 레벨 retry로 대응한다.
+    NCBI elink는 PMC 미존재 시 가끔 ERROR 필드에 raw control character가 포함된
+    malformed JSON을 반환한다(결정론적 server-side 버그). sanitize 후 한 번만
+    재파싱하고 그래도 실패하면 PMC 미존재로 간주해 None 반환. transient HTTP
+    에러만 함수 레벨에서 재시도한다.
     """
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
     def test_returns_pmc_id_on_success(self, mock_request, _mock_sleep):
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]}
+        mock_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]})
         mock_request.return_value = mock_resp
 
         result = _resolve_pmc_id("12345")
@@ -395,7 +399,7 @@ class TestResolvePmcId:
     def test_returns_none_when_no_pmc_version(self, mock_request, _mock_sleep):
         """PMC 버전이 없으면 None 반환 — retry 안 함."""
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"linksets": [{"linksetdbs": []}]}
+        mock_resp.text = json.dumps({"linksets": [{"linksetdbs": []}]})
         mock_request.return_value = mock_resp
 
         result = _resolve_pmc_id("12345")
@@ -404,35 +408,56 @@ class TestResolvePmcId:
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
-    def test_retries_on_json_decode_error_then_succeeds(self, mock_request, _mock_sleep):
-        """HTTP 200인데 JSON 깨진 케이스 → 재시도 후 성공."""
-        bad_resp = MagicMock()
-        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
-        good_resp = MagicMock()
-        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [88888]}]}]}
-        mock_request.side_effect = [bad_resp, good_resp]
+    def test_sanitizes_malformed_ncbi_error_response_with_retry(self, mock_request, _mock_sleep):
+        """NCBI ERROR 응답(raw \\n control char 포함)을 sanitize 후 파싱하고,
+        ERROR 필드가 있으면 transient 가능성(실측 33%)을 위해 1회만 재시도한다.
 
-        result = _resolve_pmc_id("12345")
-        assert result == "88888"
-        assert mock_request.call_count == 2
+        실제 PMID=27226389 응답 재현. 두 호출 모두 ERROR면 PMC 미존재로 처리.
+        """
+        malformed_body = (
+            '{"header":{"type":"elink","version":"0.3"},"linksets":[],'
+            '"ERROR":"NCBI C++ Exception:\n    Error: TXCLIENT(CException::eUnknown)"}'
+        )
+        bad_resp = MagicMock()
+        bad_resp.text = malformed_body
+        mock_request.return_value = bad_resp
+
+        result = _resolve_pmc_id("27226389")
+        assert result is None
+        assert mock_request.call_count == 2  # ERROR 응답 → 1회만 재시도
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
-    def test_raises_runtime_error_after_exhausting_retries(self, mock_request, _mock_sleep):
+    def test_retries_once_on_error_field_then_succeeds(self, mock_request, _mock_sleep):
+        """ERROR 응답(transient)이 다음 호출에서 정상 응답으로 복구되는 케이스 — 1회 retry 효과."""
+        error_resp = MagicMock()
+        error_resp.text = '{"linksets":[],"ERROR":"NCBI C++ Exception: transient"}'
+        good_resp = MagicMock()
+        good_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [55555]}]}]})
+        mock_request.side_effect = [error_resp, good_resp]
+
+        result = _resolve_pmc_id("12345")
+        assert result == "55555"
+        assert mock_request.call_count == 2  # 1번째 ERROR → 1번 retry → 성공
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_returns_none_when_response_unparseable_even_after_sanitize(self, mock_request, _mock_sleep):
+        """sanitize 후에도 파싱 불가하면 PMC 미존재로 처리 — retry 안 함."""
         bad_resp = MagicMock()
-        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError("Expecting value", "", 0)
+        bad_resp.text = "not a json at all{{{"
         mock_request.return_value = bad_resp
 
-        with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
-            _resolve_pmc_id("12345", max_attempts=3)
-        assert mock_request.call_count == 3
+        result = _resolve_pmc_id("12345")
+        assert result is None
+        assert mock_request.call_count == 1  # JSON parsing 실패는 결정론적 → retry 안 함
 
     @patch("mlops.pipeline.crawler.time.sleep")
     @patch("mlops.pipeline.crawler._request_with_rate_limit")
     def test_retries_on_http_failure_then_succeeds(self, mock_request, _mock_sleep):
         """HTTP layer가 모든 retry 실패해 RequestException 던지면 함수 레벨에서 한 번 더 시도."""
         good_resp = MagicMock()
-        good_resp.json.return_value = {"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]}
+        good_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [77777]}]}]})
         mock_request.side_effect = [
             requests.exceptions.ChunkedEncodingError("body cut"),
             good_resp,
@@ -441,6 +466,48 @@ class TestResolvePmcId:
         result = _resolve_pmc_id("12345")
         assert result == "77777"
         assert mock_request.call_count == 2
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_raises_runtime_error_when_all_http_retries_fail(self, mock_request, _mock_sleep):
+        """HTTP 에러가 max_attempts 내내 지속되면 RuntimeError."""
+        mock_request.side_effect = requests.exceptions.ChunkedEncodingError("body cut")
+
+        with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
+            _resolve_pmc_id("12345", max_attempts=3)
+        assert mock_request.call_count == 3
+
+    @patch("mlops.pipeline.crawler.time.sleep")
+    @patch("mlops.pipeline.crawler._request_with_rate_limit")
+    def test_retry_log_distinguishes_error_vs_http(self, mock_request, _mock_sleep, caplog):
+        """ERROR retry 로그는 '1회 한정', HTTP retry 로그는 'N/max' 형식이어야 한다.
+
+        같은 'N/5' 포맷이면 사용자가 ERROR도 5회 시도되는 줄 오해. 한도가 다르면
+        로그 메시지도 달라야 한다.
+        """
+        # 케이스 1: ERROR 응답 → ERROR transient retry 로그
+        error_resp = MagicMock()
+        error_resp.text = '{"linksets":[],"ERROR":"NCBI C++ Exception: transient"}'
+        mock_request.side_effect = [error_resp, error_resp]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            _resolve_pmc_id("12345")
+        error_retry_logs = [r.message for r in caplog.records if "ERROR transient 재시도" in r.message]
+        assert error_retry_logs, "ERROR retry 로그가 'ERROR transient 재시도 (1회 한정)' 형식이어야 한다"
+        assert "1회 한정" in error_retry_logs[0]
+        caplog.clear()
+        mock_request.reset_mock()
+
+        # 케이스 2: HTTP 에러 → HTTP retry 로그 (N/max)
+        good_resp = MagicMock()
+        good_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [9]}]}]})
+        mock_request.side_effect = [
+            requests.exceptions.ChunkedEncodingError("body cut"),
+            good_resp,
+        ]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            _resolve_pmc_id("12345")
+        http_retry_logs = [r.message for r in caplog.records if "HTTP 재시도" in r.message]
+        assert http_retry_logs, "HTTP retry 로그가 'HTTP 재시도 N/max' 형식이어야 한다"
 
 
 class TestFetchPmcSections:
@@ -971,3 +1038,126 @@ class TestMaxPerCategoryOverride:
         crawler_mod.crawl_papers(max_per_category=7, fetch_fulltext=False)
         assert captured["openalex_max"] == 7
         assert captured["pubmed_max"] == 7
+
+
+class TestAttachFulltextProgressLog:
+    """_attach_fulltext의 진행 표시 로그 검증.
+
+    실제 호출은 fetch_cascading + _resolve_pmc_id mock으로 차단.
+    """
+
+    def _mk_meta(self, pmid: str) -> PaperMeta:
+        return PaperMeta(pmid=pmid, title=f"t-{pmid}", doi=f"10.x/{pmid}")
+
+    def _mk_result(self, source: str | None):
+        """fetch_cascading 반환을 흉내내는 가벼운 객체."""
+        from types import SimpleNamespace
+
+        from mlops.pipeline.models import PaperSection
+
+        sections = [PaperSection(name="abstract", content="x")] if source else []
+        return SimpleNamespace(fulltext_source=source, sections=sections)
+
+    def test_progress_log_every_n_papers(self, monkeypatch, caplog):
+        """50편마다 + 마지막 1편에서 progress 로그 출력."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
+        # 모든 paper가 PMC로 성공한다고 가정
+        monkeypatch.setattr(
+            crawler_mod,
+            "fetch_cascading",
+            lambda **kw: self._mk_result("pmc"),
+        )
+        # 클라이언트 생성자 가짜 — 네트워크 차단
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        metas = [self._mk_meta(str(i)) for i in range(120)]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            papers = crawler_mod._attach_fulltext(metas)
+
+        assert len(papers) == 120
+        progress_lines = [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+        # 50, 100, 120 (마지막) → 3회
+        assert len(progress_lines) == 3
+        # 마지막 줄은 120/120 + 확보 120 + 미확보 0
+        last_msg = progress_lines[-1].getMessage()
+        assert "120/120" in last_msg
+        assert "확보 120" in last_msg
+        assert "미확보 0" in last_msg
+        assert "pmc 120" in last_msg
+
+    def test_progress_log_counts_failed_papers_in_missed(self, monkeypatch, caplog):
+        """본문 미확보(sections=[])는 미확보로 카운트."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
+
+        # 짝수만 성공, 홀수는 실패
+        def fake_fetch(**kw):
+            pmid = kw.get("pmid") or ""
+            success = pmid.isdigit() and int(pmid) % 2 == 0
+            return self._mk_result("europepmc" if success else None)
+
+        monkeypatch.setattr(crawler_mod, "fetch_cascading", fake_fetch)
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        metas = [self._mk_meta(str(i)) for i in range(10)]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            crawler_mod._attach_fulltext(metas)
+
+        progress_lines = [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+        # total=10이라 마지막 1회만 (PROGRESS_EVERY=50보다 작음)
+        assert len(progress_lines) == 1
+        msg = progress_lines[0].getMessage()
+        assert "10/10" in msg
+        assert "확보 5" in msg  # 짝수 0,2,4,6,8 → 5편
+        assert "미확보 5" in msg
+        assert "europepmc 5" in msg
+
+    def test_progress_log_skipped_on_empty_input(self, monkeypatch, caplog):
+        """입력이 비어있으면 progress 로그 출력 안 됨 (루프 미진입)."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            papers = crawler_mod._attach_fulltext([])
+        assert papers == []
+        assert not [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+
+    def test_progress_log_handles_mixed_sources(self, monkeypatch, caplog):
+        """다중 source 카운트가 src_summary에 정렬되어 노출되는지."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
+
+        def fake_fetch(**kw):
+            pmid = kw.get("pmid") or ""
+            idx = int(pmid)
+            if idx < 30:
+                return self._mk_result("pmc")
+            if idx < 50:
+                return self._mk_result("europepmc")
+            return self._mk_result(None)
+
+        monkeypatch.setattr(crawler_mod, "fetch_cascading", fake_fetch)
+        monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+
+        metas = [self._mk_meta(str(i)) for i in range(60)]
+        with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
+            crawler_mod._attach_fulltext(metas)
+
+        progress_lines = [r for r in caplog.records if "PMC 본문 수집 진행" in r.getMessage()]
+        # 50, 60 → 2회
+        assert len(progress_lines) == 2
+        last_msg = progress_lines[-1].getMessage()
+        # 정렬: europepmc → pmc (알파벳 순)
+        assert "europepmc 20" in last_msg
+        assert "pmc 30" in last_msg
+        assert "확보 50" in last_msg
+        assert "미확보 10" in last_msg

@@ -1,0 +1,40 @@
+# Force LF for all text files regardless of OS — Windows 작업자도 LF로 체크아웃.
+# 이전 사고: PR #99에서 Windows CRLF로 저장된 gyms.py/users.py가 +984/-905 거대 diff를
+# 만들며 머지됨. 실 변경(rate limit 데코레이터 추가)이 line ending 변경에 묻혀
+# 리뷰 부담이 커졌고, develop에 CRLF 파일이 들어가 후속 diff에도 잡음이 누적될 위험.
+* text=auto eol=lf
+
+# Source code
+*.py     text eol=lf
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.js     text eol=lf
+*.jsx    text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.toml   text eol=lf
+*.cfg    text eol=lf
+*.ini    text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+*.sh     text eol=lf
+*.sql    text eol=lf
+*.env.example text eol=lf
+Dockerfile text eol=lf
+
+# Binary — diff/merge 비활성화
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tar    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary

@@ -128,6 +128,12 @@ class TestGetMe:
         assert body["success"] is True
         assert body["data"]["username"] == "testuser"
         assert body["data"]["profile"]["height_cm"] == 175.0
+        # D-M8: birth_date(1995-01-01) 기반 age가 계산되어 반환되는지 확인
+        profile = body["data"]["profile"]
+        assert profile["birth_date"] == "1995-01-01"
+        today = date.today()
+        expected_age = today.year - 1995 - ((today.month, today.day) < (1, 1))
+        assert profile["age"] == expected_age
 
     @pytest.mark.asyncio
     async def test_success_no_profile(self, client):
@@ -332,11 +338,11 @@ def _mock_equipment() -> Equipment:
     e.equipment_type = MagicMock()
     e.equipment_type.value = "cable"
     e.pulley_ratio = 1.0
-    e.bar_weight_kg = None
+    e.bar_weight = None
     e.has_weight_assist = False
-    e.min_stack_kg = None
-    e.max_stack_kg = None
-    e.stack_weight_kg = 2.5
+    e.min_stack = None
+    e.max_stack = None
+    e.stack_weight = {"value": 2.5}
     e.image_url = None
     return e
 
