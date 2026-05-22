@@ -1,7 +1,7 @@
 # SciFit-Sync
 
-[![CI](https://github.com/SciFit-Sync/scifiit-sync/actions/workflows/test.yml/badge.svg)](https://github.com/SciFit-Sync/scifiit-sync/actions/workflows/test.yml)
-[![MLOps](https://github.com/SciFit-Sync/scifiit-sync/actions/workflows/mlops.yml/badge.svg)](https://github.com/SciFit-Sync/scifiit-sync/actions/workflows/mlops.yml)
+[![CI](https://github.com/SciFit-Sync/scifit-sync/actions/workflows/test.yml/badge.svg)](https://github.com/SciFit-Sync/scifit-sync/actions/workflows/test.yml)
+[![MLOps](https://github.com/SciFit-Sync/scifit-sync/actions/workflows/mlops.yml/badge.svg)](https://github.com/SciFit-Sync/scifit-sync/actions/workflows/mlops.yml)
 
 > 스포츠 과학 논문 RAG 기반 개인 맞춤형 운동 루틴 생성 앱
 
@@ -111,8 +111,8 @@ SciFit-Sync는 **PubMed 스포츠 과학 논문을 RAG 파이프라인**으로 �
 
 ```bash
 # 1. 리포 클론
-git clone https://github.com/SciFit-Sync/scifiit-sync.git
-cd scifiit-sync
+git clone https://github.com/SciFit-Sync/scifit-sync.git
+cd scifit-sync
 git checkout develop
 
 # 2. 환경변수 설정
@@ -180,7 +180,7 @@ cd app && npm test
 ## 프로젝트 구조
 
 ```
-scifiit-sync/
+scifit-sync/
 ├── app/                  # React Native + Expo
 │   ├── src/
 │   │   ├── screens/          # 화면 (W코드 기준, 예: WA01Login.tsx)
