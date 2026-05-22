@@ -209,14 +209,6 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "exercise_rehabilitation",
-        '("resistance training" OR "exercise therapy") AND '
-        '("rehabilitation" OR "physical therapy" OR "post-injury" OR "return to sport") AND '
-        '("muscle strength" OR "muscle hypertrophy" OR "physical function") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "warm_up_cool_down",
         '("resistance training" OR "strength training" OR "exercise performance") AND '
         '("warm-up" OR "warm up" OR "specific warm-up" OR "general warm-up" '
@@ -235,35 +227,12 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "blood_flow_restriction",
-        '("resistance training") AND '
-        '("blood flow restriction" OR "BFR" OR "occlusion training" OR "KAATSU") AND '
-        '("muscle hypertrophy" OR "muscle strength") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "explosive_power_speed",
-        '("resistance training") AND '
-        '("explosive power" OR "rate of force development" OR "ballistic training" OR "sprint performance") AND '
-        '("muscle strength" OR "athletic performance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "instability_training",
         '("resistance training" OR "strength training") AND '
         '("instability training" OR "unstable surface" OR "unstable training" '
         'OR "balance training" OR "stability ball" OR "Swiss ball" OR "BOSU" '
         'OR "wobble board") AND '
         '("muscle strength" OR "muscle activation" OR "core stability" OR "balance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "plyometric_training",
-        '("plyometric training" OR "plyometrics" OR "jump training") AND '
-        '("muscle strength" OR "athletic performance" OR "power output") AND '
         '("humans" OR "adults")',
         "strict",
     ),
@@ -299,21 +268,6 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "resistance_band",
-        '("resistance band" OR "elastic band" OR "elastic resistance") AND '
-        '("muscle strength" OR "muscle activation" OR "muscle hypertrophy") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "circuit_training",
-        '("circuit training" OR "circuit weight training" OR "circuit resistance training") AND '
-        '("muscle strength" OR "cardiorespiratory fitness" OR "body composition" '
-        'OR "muscle endurance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "functional_training",
         '("functional training" OR "functional resistance training" OR "movement-based training" '
         'OR "multi-planar exercise") AND '
@@ -330,55 +284,9 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "team_sports",
-        '("resistance training" OR "strength training") AND '
-        '("team sports" OR "soccer" OR "basketball" OR "rugby" OR "handball" OR "football") AND '
-        '("muscle strength" OR "sprint performance" OR "jump performance" OR "athletic performance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "testosterone_response",
-        '("resistance training" OR "resistance exercise" OR "strength training") AND '
-        '("testosterone" OR "androgen response" OR "anabolic hormone") AND '
-        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "growth_hormone_igf",
-        '("resistance training" OR "resistance exercise" OR "strength training") AND '
-        '("growth hormone" OR "GH response" OR "IGF-1" OR "insulin-like growth factor") AND '
-        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "foam_rolling",
-        '("foam rolling" OR "self-myofascial release" OR "myofascial release") AND '
-        '("muscle recovery" OR "range of motion" OR "DOMS" OR "muscle performance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "velocity_based_training",
-        '("velocity-based training" OR "velocity based training" OR "VBT" OR "bar velocity" '
-        'OR "mean propulsive velocity") AND '
-        '("resistance training" OR "muscle strength" OR "power output" OR "1RM") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "rpe_perceived_exertion",
         '("rating of perceived exertion" OR "RPE" OR "perceived exertion" OR "session RPE") AND '
         '("resistance training" OR "training load" OR "muscle strength" OR "intensity prescription") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "functional_movement_screen",
-        '("functional movement screen" OR "FMS" OR "Y-balance test" OR "movement screening") AND '
-        '("injury risk" OR "athletic performance" OR "resistance training" OR "movement quality") AND '
         '("humans" OR "adults")',
         "strict",
     ),
@@ -573,30 +481,6 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         'OR "inter-individual variability" OR "training response variability" '
         'OR "genetic factors") AND '
         '("muscle hypertrophy" OR "muscle strength") AND '
-        '("humans" OR "adults")',
-        "loose",
-    ),
-    (
-        "olympic_lifting",
-        '("olympic weightlifting" OR "olympic lifting" OR "clean and jerk" OR "snatch" '
-        'OR "weightlifting derivative") AND '
-        '("muscle strength" OR "power output" OR "athletic performance" OR "rate of force development") AND '
-        '("humans" OR "adults")',
-        "loose",
-    ),
-    (
-        "cyclist_strength",
-        '("resistance training" OR "strength training") AND '
-        '("cyclists" OR "cycling performance" OR "road cyclists") AND '
-        '("cycling performance" OR "power output" OR "muscle strength") AND '
-        '("humans" OR "adults")',
-        "loose",
-    ),
-    (
-        "swimmer_strength",
-        '("resistance training" OR "strength training" OR "dry-land training") AND '
-        '("swimmers" OR "swimming performance" OR "competitive swimming") AND '
-        '("swimming performance" OR "muscle strength" OR "power output") AND '
         '("humans" OR "adults")',
         "loose",
     ),
@@ -1217,46 +1101,25 @@ CATEGORY_OPENALEX_MAPPING: dict[str, dict] = {
     },
     "muscular_endurance": {"concept_ids": [], "keywords": ["muscular endurance", "endurance training"]},
     "concurrent_training": {"concept_ids": [], "keywords": ["concurrent training", "endurance and strength"]},
-    "exercise_rehabilitation": {"concept_ids": [], "keywords": ["exercise rehabilitation", "rehabilitation exercise"]},
     "warm_up_cool_down": {"concept_ids": [], "keywords": ["warm-up", "cool-down", "pre-exercise warm up"]},
     "exercise_variation": {"concept_ids": [], "keywords": ["exercise variation", "exercise selection"]},
-    "blood_flow_restriction": {
-        "concept_ids": [],
-        "keywords": ["blood flow restriction", "BFR training", "occlusion training"],
-    },
-    "explosive_power_speed": {"concept_ids": [], "keywords": ["explosive power", "power training", "speed strength"]},
     "instability_training": {
         "concept_ids": [],
         "keywords": ["instability training", "unstable surface", "balance training"],
-    },
-    "plyometric_training": {
-        "concept_ids": [],
-        "keywords": ["plyometric training", "jump training", "stretch-shortening cycle"],
     },
     "detraining": {"concept_ids": [], "keywords": ["detraining", "training cessation", "loss of strength"]},
     "protein_nutrition": {"concept_ids": [], "keywords": ["protein intake", "protein supplementation", "amino acid"]},
     "sleep_recovery": {"concept_ids": [], "keywords": ["sleep recovery", "sleep and exercise"]},
     "unilateral_training": {"concept_ids": [], "keywords": ["unilateral training", "single leg", "single arm"]},
-    "resistance_band": {"concept_ids": [], "keywords": ["resistance band", "elastic resistance"]},
-    "circuit_training": {"concept_ids": [], "keywords": ["circuit training"]},
     "functional_training": {"concept_ids": [], "keywords": ["functional training", "functional fitness"]},
     "obesity_weight_loss": {"concept_ids": [], "keywords": ["obesity", "weight loss", "fat loss"]},
-    "team_sports": {"concept_ids": [], "keywords": ["team sports", "soccer", "basketball", "football"]},
-    "testosterone_response": {"concept_ids": [], "keywords": ["testosterone response", "hormonal response"]},
-    "growth_hormone_igf": {"concept_ids": [], "keywords": ["growth hormone", "IGF-1", "anabolic hormones"]},
-    "foam_rolling": {"concept_ids": [], "keywords": ["foam rolling", "self-myofascial release"]},
-    "velocity_based_training": {"concept_ids": [], "keywords": ["velocity based training", "VBT", "bar velocity"]},
     "rpe_perceived_exertion": {"concept_ids": [], "keywords": ["rate of perceived exertion", "RPE"]},
-    "functional_movement_screen": {"concept_ids": [], "keywords": ["functional movement screen", "FMS"]},
     "exercise_adherence": {"concept_ids": [], "keywords": ["exercise adherence", "exercise compliance"]},
     "training_split": {"concept_ids": [], "keywords": ["training split", "push pull legs", "upper lower split"]},
     "advanced_techniques": {"concept_ids": [], "keywords": ["drop set", "supersets", "advanced training techniques"]},
     "bodyweight_training": {"concept_ids": [], "keywords": ["bodyweight training", "calisthenics"]},
     "mechanical_tension": {"concept_ids": [], "keywords": ["mechanical tension", "muscle tension"]},
     "individual_response": {"concept_ids": [], "keywords": ["individual response", "responders", "non-responders"]},
-    "olympic_lifting": {"concept_ids": [], "keywords": ["olympic lifting", "clean and jerk", "snatch"]},
-    "cyclist_strength": {"concept_ids": [], "keywords": ["cyclist strength", "cycling performance"]},
-    "swimmer_strength": {"concept_ids": [], "keywords": ["swimmer strength", "swimming performance"]},
     "circadian_time_of_day": {"concept_ids": [], "keywords": ["time of day", "circadian", "morning vs evening"]},
     "minimum_effective_dose": {"concept_ids": [], "keywords": ["minimum effective dose", "minimal effective volume"]},
     "stretching_flexibility": {"concept_ids": [], "keywords": ["stretching", "flexibility", "static stretching"]},
