@@ -118,6 +118,21 @@ class VolumeAnalysisData(BaseModel):
     items: list[VolumeAnalysisItem]
 
 
+# ── 근육 볼륨 분석 ───────────────────────────────────────────────────────────
+class MuscleVolumeItem(BaseModel):
+    muscle: str  # MuscleGroup.name_ko
+    weekly_volume: float
+    optimal_min: float
+    optimal_max: float
+    status: str  # "OPTIMAL" | "LOW" | "HIGH"
+
+
+class MuscleVolumeData(BaseModel):
+    period: str  # "WEEK" | "MONTH"
+    volume_by_muscle: list[MuscleVolumeItem]
+    ai_coach_message: str
+
+
 # ── 휴식 타이머 ──────────────────────────────────────────────────────────────
 class RestTimerData(BaseModel):
     rest_seconds: int
