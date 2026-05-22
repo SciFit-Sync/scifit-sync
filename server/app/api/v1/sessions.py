@@ -532,9 +532,7 @@ async def muscle_volume_analysis(
         await db.execute(
             select(
                 MuscleGroup.name_ko,
-                func.coalesce(
-                    func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0
-                ).label("volume"),
+                func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
             )
             .join(ExerciseMuscle, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
             .join(WorkoutLogSet, WorkoutLogSet.exercise_id == ExerciseMuscle.exercise_id)
