@@ -345,6 +345,9 @@ def build_paperfulls_for_ingest(
 
         if not sections:
             # OpenAlex OA fallback: PDF → HTML 순으로 시도
+            # TODO(perf): openalex_doi_lookup이 이미 같은 paper의 OpenAlex 데이터를 가져옴.
+            # 두 번 호출 방지하려면 resolve_papers 단계에서 oa_info 캐시하여 paper dict에 저장 후
+            # 여기서 재사용. 별도 PR로 분리.
             oa_info = openalex_oa_url(paper["resolved_doi"])
             if oa_info and oa_info.get("is_oa"):
                 if oa_info.get("pdf_url"):

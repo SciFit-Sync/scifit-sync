@@ -1,4 +1,5 @@
 """curated helper 단위 테스트."""
+
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -244,6 +245,8 @@ class TestFetchPdfSections:
         mock_resp = MagicMock(status_code=200)
         mock_resp.headers = {"Content-Type": "text/html"}
         mock_resp.raise_for_status.return_value = None
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
         mock_get.return_value = mock_resp
 
         result = fetch_pdf_sections("https://example.com/page")
@@ -257,6 +260,8 @@ class TestFetchPdfSections:
             "Content-Length": str(60 * 1024 * 1024),  # 60 MB > 50 MB limit
         }
         mock_resp.raise_for_status.return_value = None
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
         mock_get.return_value = mock_resp
 
         result = fetch_pdf_sections("https://example.com/big.pdf")
@@ -270,6 +275,8 @@ class TestFetchPdfSections:
         mock_resp.headers = {"Content-Type": "application/pdf"}
         mock_resp.raise_for_status.return_value = None
         mock_resp.iter_content.return_value = [b"fake pdf bytes"]
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
         mock_get.return_value = mock_resp
 
         mock_page = MagicMock()
@@ -295,6 +302,8 @@ class TestFetchPdfSections:
         mock_resp.headers = {"Content-Type": "application/pdf"}
         mock_resp.raise_for_status.return_value = None
         mock_resp.iter_content.return_value = [b"corrupted"]
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
         mock_get.return_value = mock_resp
 
         mock_pypdf = MagicMock()
@@ -302,6 +311,26 @@ class TestFetchPdfSections:
 
         with patch.dict(sys.modules, {"pypdf": mock_pypdf}):
             result = fetch_pdf_sections("https://example.com/paper.pdf")
+
+        assert result == []
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_streaming_oversized_pdf_no_content_length(self, mock_get):
+        """Content-Length 없이 streaming으로 50MB 초과 시 빈 list."""
+        from mlops.pipeline.curated import _PDF_MAX_BYTES  # noqa: PLC0415
+
+        big_chunk = b"x" * (1024 * 1024)  # 1MB per chunk
+        n_chunks = (_PDF_MAX_BYTES // (1024 * 1024)) + 2  # over the limit
+
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.headers = {"Content-Type": "application/pdf"}  # no Content-Length
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.iter_content = lambda chunk_size: (big_chunk for _ in range(n_chunks))
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_get.return_value = mock_resp
+
+        result = fetch_pdf_sections("https://example.com/big.pdf")
 
         assert result == []
 
