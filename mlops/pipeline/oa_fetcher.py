@@ -78,6 +78,26 @@ class PMCSource:
         return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
 
 
+class EuropePMCSource:
+    name: str = "europepmc"
+
+    def __init__(self, europepmc_client) -> None:
+        self.europepmc_client = europepmc_client
+
+    def try_fetch(self, ref: PaperRef) -> FulltextResult:
+        if ref.pmid:
+            result = self.europepmc_client.fetch_by_pmid(ref.pmid)
+        elif ref.doi:
+            result = self.europepmc_client.fetch_by_doi(ref.doi)
+        else:
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        if result.had_transient_error:
+            return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR)
+        if result.sections:
+            return FulltextResult(status=FulltextStatus.SUCCESS, sections=result.sections)
+        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+
+
 def fetch_chain(ref: PaperRef, sources: list[OASource]) -> ChainResult:
     """순회 sources. SUCCESS에서 stop, NOT_AVAILABLE/TRANSIENT는 다음 source로 진행."""
     tried: list[tuple[str, FulltextStatus]] = []

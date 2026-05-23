@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from mlops.pipeline.models import PaperSection
 from mlops.pipeline.oa_fetcher import (
+    EuropePMCSource,
     FulltextResult,
     FulltextStatus,
     PaperRef,
@@ -105,6 +106,60 @@ class TestPMCSource:
         source = PMCSource(pmc_client=client)
         ref = PaperRef(doi="10.1/a", pmcid="PMC789")
 
+        source.try_fetch(ref)
+
+
+class TestEuropePMCSource:
+    def _make_europepmc_client(self, sections=None, had_transient_error=False):
+        client = MagicMock()
+        client_result = MagicMock()
+        client_result.sections = sections or []
+        client_result.had_transient_error = had_transient_error
+        client.fetch_by_pmid.return_value = client_result
+        client.fetch_by_doi.return_value = client_result
+        return client
+
+    def test_no_pmid_no_doi_returns_not_available(self):
+        client = self._make_europepmc_client()
+        source = EuropePMCSource(europepmc_client=client)
+        # doi가 빈 문자열이고 pmid도 없으면(None 기본값) NOT_AVAILABLE
+        ref_no_ids = PaperRef(doi="")
+
+        result = source.try_fetch(ref_no_ids)
+
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+        client.fetch_by_pmid.assert_not_called()
+        client.fetch_by_doi.assert_not_called()
+
+    def test_success_with_pmid(self):
+        sections = [PaperSection(name="Methods", content="exercise protocol")]
+        client = self._make_europepmc_client(sections=sections)
+        source = EuropePMCSource(europepmc_client=client)
+        ref = PaperRef(doi="10.1/b", pmid="12345678")
+
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.SUCCESS
+        assert result.sections == sections
+        client.fetch_by_pmid.assert_called_once_with("12345678")
+        client.fetch_by_doi.assert_not_called()
+
+    def test_transient_error_propagates(self):
+        client = self._make_europepmc_client(had_transient_error=True)
+        source = EuropePMCSource(europepmc_client=client)
+        ref = PaperRef(doi="10.1/b", pmid="99999999")
+
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.TRANSIENT_ERROR
+
+    def test_empty_sections_returns_not_available(self):
+        client = self._make_europepmc_client(sections=[])
+        source = EuropePMCSource(europepmc_client=client)
+        # pmid=None이 기본값 → doi 경로로 진입
+        ref = PaperRef(doi="10.1/c")
+
         result = source.try_fetch(ref)
 
         assert result.status == FulltextStatus.NOT_AVAILABLE
+        client.fetch_by_doi.assert_called_once_with("10.1/c")
