@@ -7,8 +7,6 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Request, Response
-
-from app.services.ses import send_otp_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -63,6 +61,7 @@ from app.schemas.auth import (
     WithdrawRequest,
 )
 from app.schemas.common import SuccessResponse
+from app.services.ses import send_otp_email
 
 logger = logging.getLogger(__name__)
 
