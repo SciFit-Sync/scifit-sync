@@ -161,12 +161,12 @@ async def logout(
 @rate_limit("10/minute")
 async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # 이메일 중복 확인
-    result = await db.execute(select(User).where(User.email == body.email, User.is_active == True))
+    result = await db.execute(select(User).where(User.email == body.email, User.is_active))
     if result.scalar_one_or_none():
         raise EmailDuplicateError(message="이미 사용 중인 이메일입니다.")
 
     # 아이디 중복 확인
-    result = await db.execute(select(User).where(User.username == body.username, User.is_active == True))
+    result = await db.execute(select(User).where(User.username == body.username, User.is_active))
     if result.scalar_one_or_none():
         raise ConflictError(message="이미 사용 중인 아이디입니다.")
 
