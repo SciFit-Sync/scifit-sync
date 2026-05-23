@@ -40,8 +40,8 @@ from mlops.pipeline.config import (
 )
 from mlops.pipeline.europepmc import EuropePMCClient
 from mlops.pipeline.evidence import calculate_evidence_weight
-from mlops.pipeline.fulltext import fetch_cascading
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+from mlops.pipeline.oa_fetcher import PaperRef, build_default_chain, fetch_chain
 from mlops.pipeline.openalex import OpenAlexClient
 from mlops.pipeline.pmc import PMCClient
 
@@ -1217,10 +1217,9 @@ FULLTEXT_PROGRESS_LOG_EVERY = 50
 
 
 def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
-    """각 paper에 cascading fulltext (PMC → Europe PMC) 적용.
+    """각 paper에 OA chain (PMC → EuropePMC → OpenAlex PDF → OpenAlex HTML → Unpaywall) 적용.
 
     fulltext_source가 None으로 남으면 본문 회수 실패 — 호출부가 폐기 결정.
-    Task 8 이후 abstract fallback은 제거됐다.
 
     진행 표시: 매 ``FULLTEXT_PROGRESS_LOG_EVERY`` 편마다 + 마지막 1편에서
     누적 통계를 INFO 로그로 출력. ERROR/retry 로그는 산발적이라 정상 진행을
@@ -1235,6 +1234,7 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
         base_url=EUROPEPMC_BASE_URL,
         rate_limit=EUROPEPMC_RATE_LIMIT,
     )
+    chain = build_default_chain(pmc_client, europepmc_client)
 
     total = len(metas)
     indexed = 0
@@ -1246,7 +1246,7 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
         # PMC 시도 전 PMCID 보강. OpenAlex 메타만 `ids.pmcid`를 일부 채우고,
         # PubMed efetch는 pmcid를 추출하지 않는다. pmcid가 비어 있고 PMID가
         # 있으면 elink(PMID→PMCID)로 변환을 시도해 PMC fetch가 가능하도록 한다.
-        # 이 fallback이 없으면 `fetch_cascading`이 PMC 단계를 완전히 스킵하고
+        # 이 fallback이 없으면 PMC 단계를 완전히 스킵하고
         # EuropePMC만 시도해 OA 미보유 paper의 회수율이 0에 가까워진다.
         pmcid = meta.pmcid
         if not pmcid and meta.pmid:
@@ -1263,13 +1263,12 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
                     pmcid = resolved
                     meta.pmcid = resolved  # manifest 기록에도 반영
 
-        result = fetch_cascading(
-            pmcid=pmcid,
-            pmid=meta.pmid or None,
+        ref = PaperRef(
             doi=meta.doi,
-            pmc_client=pmc_client,
-            europepmc_client=europepmc_client,
+            pmid=meta.pmid or None,
+            pmcid=pmcid,
         )
+        result = fetch_chain(ref, chain)
         meta.fulltext_source = result.fulltext_source
         papers.append(PaperFull(meta=meta, sections=result.sections))
 
