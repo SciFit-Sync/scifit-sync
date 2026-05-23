@@ -26,20 +26,16 @@ def classify_paper(paper: dict) -> str:
     """spec §4.3 책임 #2 분류.
 
     Returns: 'matchable' | 'failed' | 'no_pmid'
-    - matchable: indexed=True AND resolved_pmid != "" (evaluator가 비교 가능)
-    - failed:    PMID는 있지만 indexed!=True (curated_pmids_all에는 포함)
-                 OR indexed=True지만 PMID 없음 (unmatchable)
-    - no_pmid:   resolved_pmid 비어있고 indexed!=True (coverage 계산 불가)
+    - matchable: indexed=True AND resolved_pmid != ""
+    - failed:    resolved_pmid != "" AND indexed=False
+    - no_pmid:   resolved_pmid == "" (indexed 값과 무관)
     """
     pmid = paper.get("resolved_pmid") or ""
-    indexed = paper.get("indexed")
-    if indexed and pmid:
+    if not pmid:
+        return "no_pmid"  # pmid 비어있으면 indexed 값과 무관하게 no_pmid
+    if paper.get("indexed"):
         return "matchable"
-    if pmid:
-        return "failed"  # has PMID but not matchable → curated_pmids_all 포함
-    if indexed:
-        return "failed"  # indexed=True but no PMID → unmatchable (DOI-only corpus entry)
-    return "no_pmid"  # no PMID, not indexed → coverage 계산 불가
+    return "failed"
 
 
 def build_goldset_entry(seed: dict, q_prov: dict) -> dict | None:
