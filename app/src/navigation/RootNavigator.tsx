@@ -3,13 +3,18 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useEffect, useState } from "react";
 import WS01Splash from "../screens/splash/WS01Splash";
 import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
+import WO02Equipment from "../screens/onboarding/WO02Equipment";
+import WO02EquipmentRegister from "../screens/onboarding/WO02-REquipmentRegister";
 import WA01Login from "../screens/auth/WA01Login";
 import WM01Main from "../screens/main/WM01Main";
 import { useAuthStore } from "../stores/authStore";
-import WA02Signup from "../screens/auth/WA02Signin";
+import WA02Signup from "../screens/auth/WA02Signup";
 import WN01Notifications from "../screens/main/WN01Notifications";
 import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
+import WA03SignupInfo from "../screens/auth/WA03SignupInfo";
+import WO03OneRM from "@/screens/onboarding/WO03OneRM";
+import WP01MyPage from "@/screens/main/WP01MyPage";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -20,6 +25,11 @@ function AuthNavigator() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="WA01Login" component={WA01Login} />
       <AuthStack.Screen name="WA02Signup" component={WA02Signup} />
+      <AuthStack.Screen
+        name="WA03SignupInfo"
+        component={WA03SignupInfo}
+        options={{ animation: "none" }}
+      />
     </AuthStack.Navigator>
   );
 }
@@ -28,13 +38,21 @@ function OnboardingNavigator() {
   return (
     <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>
       <OnboardingStack.Screen name="WO01GymSetup" component={WO01GymSetup} />
+      <OnboardingStack.Screen name="WO02Equipment" component={WO02Equipment} />
+      <OnboardingStack.Screen
+        name="WO02EquipmentRegister"
+        component={WO02EquipmentRegister}
+      />
+      <OnboardingStack.Screen name="WO03OneRM" component={WO03OneRM} />
     </OnboardingStack.Navigator>
   );
 }
 
 function MainNavigator() {
   return (
-    <MainStack.Navigator screenOptions={{ headerShown: false }}>
+    <MainStack.Navigator
+      screenOptions={{ headerShown: false, animation: "none" }}
+    >
       <MainStack.Screen name="WM01Main" component={WM01Main} />
       <MainStack.Screen
         name="WN01Notifications"
@@ -45,6 +63,7 @@ function MainNavigator() {
         component={WR04RoutineDetail}
       />
       <MainStack.Screen name="WL01Record" component={WL01Record} />
+      <MainStack.Screen name="WP01MyPage" component={WP01MyPage} />
     </MainStack.Navigator>
   );
 }
