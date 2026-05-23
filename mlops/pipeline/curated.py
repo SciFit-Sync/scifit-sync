@@ -179,6 +179,21 @@ def title_keyword_overlap(title: str, context: str) -> float:
 
 _PDF_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 
+# 출판사 사이트(Hindawi, Wiley, Springer 등) default python-requests UA를 봇으로 차단.
+# 학술 OA 콘텐츠 fetch는 fair use 범위라 일반 브라우저 UA로 요청.
+_BROWSER_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+_HEADERS_PDF = {
+    "User-Agent": _BROWSER_UA,
+    "Accept": "application/pdf,*/*;q=0.8",
+}
+_HEADERS_HTML = {
+    "User-Agent": _BROWSER_UA,
+    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+}
+
 
 def openalex_oa_url(doi: str, timeout: int = 30) -> dict | None:
     """OpenAlex API에서 OA URL과 type 반환.
@@ -228,7 +243,7 @@ def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
     from mlops.pipeline.models import PaperSection  # noqa: PLC0415
 
     try:
-        with requests.get(url, stream=True, timeout=timeout) as resp:
+        with requests.get(url, stream=True, timeout=timeout, headers=_HEADERS_PDF) as resp:
             resp.raise_for_status()
 
             content_type = resp.headers.get("Content-Type", "")
@@ -290,7 +305,7 @@ def fetch_html_sections(url: str, timeout: int = 60) -> list:
     from mlops.pipeline.models import PaperSection  # noqa: PLC0415
 
     try:
-        resp = requests.get(url, timeout=timeout)
+        resp = requests.get(url, timeout=timeout, headers=_HEADERS_HTML)
         resp.raise_for_status()
     except requests.RequestException as e:
         logger.warning("fetch_html_sections HTTP error for %s: %s", url, e)
