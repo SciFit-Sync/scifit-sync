@@ -278,6 +278,7 @@ async def kakao_login(
             provider=Provider.KAKAO,
             provider_id=kakao_id,
             name=kakao_nickname or "사용자",
+            is_email_verified=True,  # 소셜 로그인은 이메일 인증 불필요
         )
         db.add(user)
         await db.flush()
