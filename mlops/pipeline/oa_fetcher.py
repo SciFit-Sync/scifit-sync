@@ -11,7 +11,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
-from mlops.pipeline.curated import fetch_html_sections, fetch_pdf_sections, openalex_oa_url
+from mlops.pipeline.curated import (
+    fetch_html_sections,
+    fetch_pdf_sections,
+    openalex_oa_url,
+    unpaywall_oa_locations,
+)
 from mlops.pipeline.models import PaperSection
 
 logger = logging.getLogger(__name__)
@@ -169,4 +174,34 @@ class OpenAlexHTMLSource:
         sections = fetch_html_sections(landing)
         if sections:
             return FulltextResult(status=FulltextStatus.SUCCESS, sections=sections)
+        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+
+
+class UnpaywallSource:
+    """Unpaywall에서 OA mirror list 받아 순회. 첫 SUCCESS 반환."""
+
+    name: str = "unpaywall"
+
+    def __init__(self, email: str = "research@scifit-sync.org") -> None:
+        self.email = email
+
+    def try_fetch(self, ref: PaperRef) -> FulltextResult:
+        locations = unpaywall_oa_locations(ref.doi, email=self.email)
+        if not locations:
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        for loc in locations:
+            pdf_url = loc.get("pdf_url")
+            if pdf_url:
+                sections = fetch_pdf_sections(pdf_url)
+                if sections:
+                    return FulltextResult(
+                        status=FulltextStatus.SUCCESS, sections=sections
+                    )
+            landing_url = loc.get("landing_url")
+            if landing_url:
+                sections = fetch_html_sections(landing_url)
+                if sections:
+                    return FulltextResult(
+                        status=FulltextStatus.SUCCESS, sections=sections
+                    )
         return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)

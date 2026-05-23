@@ -11,6 +11,7 @@ from mlops.pipeline.oa_fetcher import (
     OpenAlexPDFSource,
     PaperRef,
     PMCSource,
+    UnpaywallSource,
     fetch_chain,
 )
 
@@ -392,3 +393,66 @@ class TestOpenAlexHTMLSource:
         )
         OpenAlexHTMLSource().try_fetch(ref)
         mock_oa.assert_not_called()
+
+
+class TestUnpaywallSource:
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    def test_not_available_when_no_locations(self, mock_locs):
+        mock_locs.return_value = []
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+        mock_locs.assert_called_once_with("10.1/a", email="x@y.z")
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    def test_success_via_first_mirror_pdf(self, mock_pdf, mock_locs):
+        mock_locs.return_value = [
+            {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m1/landing"},
+            {"pdf_url": "https://m2/p.pdf", "landing_url": None},
+        ]
+        mock_pdf.return_value = [PaperSection(name="M", content="x")]
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.SUCCESS
+        assert len(result.sections) == 1
+        # 첫 번째 mirror의 pdf만 시도하고 stop
+        mock_pdf.assert_called_once_with("https://m1/p.pdf")
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_success_via_second_mirror_html_after_pdf_fail(
+        self, mock_html, mock_pdf, mock_locs
+    ):
+        """첫 mirror pdf 실패 → 첫 mirror landing fail → 두번째 mirror landing 성공."""
+        mock_locs.return_value = [
+            {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m1/landing"},
+            {"pdf_url": None, "landing_url": "https://m2/landing"},
+        ]
+        mock_pdf.return_value = []
+        # 첫 mirror landing은 실패, 두번째 mirror landing은 성공
+        mock_html.side_effect = [[], [PaperSection(name="M", content="x")]]
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.SUCCESS
+        assert mock_pdf.call_count == 1
+        assert mock_html.call_count == 2
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_not_available_when_all_mirrors_fail(self, mock_html, mock_pdf, mock_locs):
+        mock_locs.return_value = [
+            {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m1/landing"},
+            {"pdf_url": None, "landing_url": "https://m2/landing"},
+        ]
+        mock_pdf.return_value = []
+        mock_html.return_value = []
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    def test_default_email(self):
+        src = UnpaywallSource()
+        assert src.email == "research@scifit-sync.org"
