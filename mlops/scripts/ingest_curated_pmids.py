@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import sys
+import time
 import xml.etree.ElementTree as ET
 from itertools import islice
 from pathlib import Path
@@ -23,7 +24,16 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from mlops.pipeline.config import NCBI_API_KEY, NCBI_BASE_URL  # noqa: E402
+from mlops.pipeline.config import (  # noqa: E402
+    ADMIN_API_TOKEN,
+    API_BASE_URL,
+    EUROPEPMC_BASE_URL,
+    EUROPEPMC_RATE_LIMIT,
+    MANIFEST_PATH,
+    NCBI_API_KEY,
+    NCBI_BASE_URL,
+    NCBI_RATE_LIMIT,
+)
 from mlops.pipeline.curated import (  # noqa: E402
     ncbi_pmid_to_doi,
     normalize_doi,
@@ -261,14 +271,6 @@ def atomic_write_json(path: Path, data) -> None:
 
 
 from mlops.pipeline.chunker import chunk_papers  # noqa: E402
-from mlops.pipeline.config import (  # noqa: E402
-    ADMIN_API_TOKEN,
-    API_BASE_URL,
-    EUROPEPMC_BASE_URL,
-    EUROPEPMC_RATE_LIMIT,
-    MANIFEST_PATH,  # noqa: E402
-    NCBI_RATE_LIMIT,
-)
 from mlops.pipeline.embedder import embed_chunks  # noqa: E402
 from mlops.pipeline.europepmc import EuropePMCClient  # noqa: E402
 from mlops.pipeline.evidence import calculate_evidence_weight  # noqa: E402
@@ -307,22 +309,16 @@ def load_existing_dois(manifest) -> set[str]:
     return manifest_dois | server_dois
 
 
-def build_paperfulls_for_ingest(papers: list[dict]) -> list[PaperFull]:
+def build_paperfulls_for_ingest(
+    papers: list[dict],
+    pmc_client: PMCClient,
+    europepmc_client: EuropePMCClient,
+) -> list[PaperFull]:
     """resolved paper들에 대해 fulltext fetch + PaperFull 구성.
 
     이미 적재됐거나(already_in_corpus=True) 실패한(failure_reason) paper는 스킵.
     fulltext 실패 시 §7.1 invariant 적용 (failure_reason="no_fulltext", indexed=False).
     """
-    pmc_client = PMCClient(
-        base_url=NCBI_BASE_URL,
-        api_key=NCBI_API_KEY,
-        rate_limit=NCBI_RATE_LIMIT,
-    )
-    europepmc_client = EuropePMCClient(
-        base_url=EUROPEPMC_BASE_URL,
-        rate_limit=EUROPEPMC_RATE_LIMIT,
-    )
-
     result: list[PaperFull] = []
     for paper in papers:
         if paper.get("failure_reason") or paper.get("already_in_corpus"):
@@ -395,15 +391,37 @@ def _build_api_payload(chunk_vectors: list[tuple]) -> dict:
     }
 
 
-def api_ingest(chunk_vectors: list[tuple]) -> int:
+def api_ingest(chunk_vectors: list[tuple], max_retries: int = 3) -> int:
     if not API_BASE_URL or not ADMIN_API_TOKEN:
-        logger.error("API_BASE_URL / ADMIN_API_TOKEN 미설정")
-        sys.exit(1)
+        raise RuntimeError("API_BASE_URL / ADMIN_API_TOKEN 미설정")
     payload = _build_api_payload(chunk_vectors)
     url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
-    resp = requests.post(url, json=payload, headers={"X-Admin-Token": ADMIN_API_TOKEN}, timeout=300)
-    resp.raise_for_status()
-    return resp.json()["data"]["upserted"]
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                url,
+                json=payload,
+                headers={"X-Admin-Token": ADMIN_API_TOKEN},
+                timeout=300,
+            )
+            resp.raise_for_status()
+            return resp.json()["data"]["upserted"]
+        except requests.RequestException as e:
+            last_exc = e
+            if attempt < max_retries - 1:
+                backoff = 2**attempt
+                logger.warning(
+                    "api_ingest attempt %d failed: %s. retry in %ds",
+                    attempt + 1,
+                    e,
+                    backoff,
+                )
+                time.sleep(backoff)
+            else:
+                logger.error("api_ingest exhausted %d retries: %s", max_retries, e)
+    raise last_exc  # type: ignore[misc]
 
 
 def _is_paper_processed(paper: dict) -> bool:
@@ -428,12 +446,33 @@ def run(
 
 
 def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None:
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.error("API_BASE_URL / ADMIN_API_TOKEN 미설정 — 종료")
+        sys.exit(1)
+
+    if not provenance_path.exists():
+        logger.error("provenance 파일 없음: %s", provenance_path)
+        sys.exit(1)
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        logger.error("provenance JSON 파싱 실패: %s", e)
+        sys.exit(1)
     logger.info("provenance loaded: %d Qs", len(provenance))
 
     manifest = Manifest.load(MANIFEST_PATH)
     existing_dois = load_existing_dois(manifest)
     logger.info("existing_dois loaded: %d (manifest + server union, normalized)", len(existing_dois))
+
+    pmc_client = PMCClient(
+        base_url=NCBI_BASE_URL,
+        api_key=NCBI_API_KEY,
+        rate_limit=NCBI_RATE_LIMIT,
+    )
+    europepmc_client = EuropePMCClient(
+        base_url=EUROPEPMC_BASE_URL,
+        rate_limit=EUROPEPMC_RATE_LIMIT,
+    )
 
     total_resolved = 0
     total_indexed = 0
@@ -441,7 +480,7 @@ def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None
 
     for qid, q_data in provenance.items():
         # 미처리 paper만 처리 (resumability)
-        unprocessed = [p for p in q_data["papers"] if not _is_paper_processed(p)]
+        unprocessed = [p for p in q_data.get("papers", []) if not _is_paper_processed(p)]
         if limit is not None and total_resolved >= limit:
             break
         if not unprocessed:
@@ -463,7 +502,7 @@ def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None
         atomic_write_json(provenance_path, provenance)
 
         # Step 6-9 (fulltext + chunk + embed + ingest)
-        paperfulls = build_paperfulls_for_ingest(unprocessed)
+        paperfulls = build_paperfulls_for_ingest(unprocessed, pmc_client, europepmc_client)
         if not paperfulls:
             total_skipped += len(unprocessed)
             atomic_write_json(provenance_path, provenance)
@@ -487,37 +526,44 @@ def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None
         try:
             chunk_vectors = embed_chunks(chunks)
         except Exception as e:
-            logger.error("embed_chunks failed for qid=%s: %s", qid, e)
-            for p in unprocessed:
-                if p.get("fulltext_ok") and not p.get("failure_reason"):
-                    _mark_failure(p, "embed_failed")
-            atomic_write_json(provenance_path, provenance)
-            total_resolved += len(unprocessed)
-            continue
+            logger.warning("embed_chunks first attempt failed for qid=%s: %s. single retry.", qid, e)
+            try:
+                chunk_vectors = embed_chunks(chunks)
+            except Exception as e2:
+                logger.error("embed_chunks retry exhausted: %s", e2)
+                for p in unprocessed:
+                    if p.get("fulltext_ok") and not p.get("failure_reason"):
+                        _mark_failure(p, "embed_failed")
+                atomic_write_json(provenance_path, provenance)
+                total_resolved += len(unprocessed)
+                continue
 
         try:
             upserted = api_ingest(chunk_vectors)
-            logger.info("qid=%s ingested %d chunks (%d upserted)", qid, len(chunks), upserted)
-            # 성공한 paper들에 indexed=True
-            for p in unprocessed:
-                if p.get("fulltext_ok") and not p.get("failure_reason"):
-                    p["indexed"] = True
-                    total_indexed += 1
-            # manifest 갱신
-            for paperfull in paperfulls:
-                manifest.record_attempt(
-                    doi=paperfull.meta.doi,
-                    pmid=paperfull.meta.pmid or None,
-                    pmcid=paperfull.meta.pmcid,
-                    openalex_id=paperfull.meta.openalex_id,
-                    fulltext_source=paperfull.meta.fulltext_source,
-                    tried_sources=list(ACTIVE_SOURCES),
-                )
         except Exception as e:
             logger.error("api_ingest failed for qid=%s: %s", qid, e)
             for p in unprocessed:
                 if p.get("fulltext_ok") and not p.get("failure_reason"):
                     _mark_failure(p, "api_ingest_failed")
+            atomic_write_json(provenance_path, provenance)
+            total_resolved += len(unprocessed)
+            continue
+
+        # api_ingest 성공: indexed=True 무조건 commit
+        logger.info("qid=%s ingested %d chunks (%d upserted)", qid, len(chunks), upserted)
+        for p in unprocessed:
+            if p.get("fulltext_ok") and not p.get("failure_reason"):
+                p["indexed"] = True
+                total_indexed += 1
+        for paperfull in paperfulls:
+            manifest.record_attempt(
+                doi=paperfull.meta.doi,
+                pmid=paperfull.meta.pmid or None,
+                pmcid=paperfull.meta.pmcid,
+                openalex_id=paperfull.meta.openalex_id,
+                fulltext_source=paperfull.meta.fulltext_source,
+                tried_sources=list(ACTIVE_SOURCES),
+            )
 
         atomic_write_json(provenance_path, provenance)
         total_resolved += len(unprocessed)
@@ -531,13 +577,20 @@ def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None
     )
 
 
+def _positive_int(s: str) -> int:
+    v = int(s)
+    if v <= 0:
+        raise argparse.ArgumentTypeError("--limit must be a positive integer")
+    return v
+
+
 def main():
     parser = argparse.ArgumentParser(description="큐레이션 PMID/DOI 명시 입력 ingest")
     parser.add_argument("--provenance", required=True, type=Path, help="curated_provenance.json 경로 (in-place 갱신)")
     parser.add_argument(
         "--dry-run", action="store_true", help="resolve + fulltext + chunk까지만, embed/api_ingest 생략"
     )
-    parser.add_argument("--limit", type=int, default=None, help="처리할 paper 상한 (smoke test용)")
+    parser.add_argument("--limit", type=_positive_int, default=None, help="처리할 paper 상한 (smoke test용, 양의 정수)")
     args = parser.parse_args()
     run(args.provenance, dry_run=args.dry_run, limit=args.limit)
 
