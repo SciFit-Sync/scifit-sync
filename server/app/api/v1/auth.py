@@ -61,6 +61,7 @@ from app.schemas.auth import (
     WithdrawRequest,
 )
 from app.schemas.common import SuccessResponse
+from app.services.ses import send_otp_email
 
 logger = logging.getLogger(__name__)
 
@@ -218,9 +219,7 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
     )
     await db.commit()
 
-    # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
-    # 현재는 로그로 대체 (개발 환경)
-    logger.info("OTP for %s: %s", body.email, otp_code)
+    await send_otp_email(body.email, otp_code)
 
     return SuccessResponse(
         data=RegisterData(
@@ -448,8 +447,7 @@ async def resend_otp(request: Request, body: ResendOtpRequest, db: AsyncSession 
             )
         )
         await db.commit()
-        # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
-        logger.info("OTP resent for %s: %s", body.email, otp_code)
+        await send_otp_email(body.email, otp_code)
 
     return SuccessResponse(data=ResendOtpData(sent=True, message="인증 코드가 재발송되었습니다."))
 
