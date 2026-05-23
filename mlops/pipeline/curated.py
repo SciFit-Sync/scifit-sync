@@ -5,7 +5,6 @@ normalize_doi, NCBI ID Converter, OpenAlex DOI lookup, title sanity check.
 
 import logging
 import re
-from typing import Optional
 
 import requests
 
@@ -15,7 +14,7 @@ _DOI_URL_PREFIX_RE = re.compile(r"^https?://(dx\.)?doi\.org/", re.IGNORECASE)
 _DOI_VALIDATE_RE = re.compile(r"^10\.\d{4,9}/")
 
 
-def normalize_doi(raw: Optional[str]) -> str:
+def normalize_doi(raw: str | None) -> str:
     """DOI 정규화 — idempotent.
 
     규칙: strip whitespace → URL prefix 제거 → lowercase → 말미 구두점(.,;) 제거.
@@ -65,7 +64,7 @@ OPENALEX_DOI_LOOKUP_URL = "https://api.openalex.org/works/doi:"
 _PMID_URL_RE = re.compile(r"https?://pubmed\.ncbi\.nlm\.nih\.gov/(\d+)")
 
 
-def openalex_doi_lookup(doi: str, timeout: int = 30) -> Optional[dict]:
+def openalex_doi_lookup(doi: str, timeout: int = 30) -> dict | None:
     """OpenAlex DOI lookup. 정상 응답이면 metadata dict 반환, 404/empty/error면 None.
 
     반환 dict 구조:
