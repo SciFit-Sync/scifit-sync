@@ -30,8 +30,15 @@ from mlops.pipeline.curated import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
+import xml.etree.ElementTree as ET
+
+import requests
+
+from mlops.pipeline.config import NCBI_API_KEY, NCBI_BASE_URL
+
 LOCK_FILENAME = ".ingest.lock"
 TITLE_OVERLAP_THRESHOLD = 0.2
+EFETCH_BATCH_SIZE = 200
 
 
 @contextlib.contextmanager
@@ -48,3 +55,77 @@ def acquire_lock(lock_path: Path):
         except Exception:
             pass
         os.close(fd)
+
+
+def efetch_pubmed_batch(pmids: list[str], timeout: int = 60) -> dict[str, dict]:
+    """PubMed efetch로 PMID batch metadata 수집.
+
+    Returns: {pmid: {doi, pmcid, title, abstract, publication_types, publication_year}}.
+    응답에 없는 PMID는 dict에서 빠진다 (호출자가 누락 처리).
+    """
+    if not pmids:
+        return {}
+    params = {
+        "db": "pubmed",
+        "id": ",".join(pmids),
+        "retmode": "xml",
+    }
+    if NCBI_API_KEY:
+        params["api_key"] = NCBI_API_KEY
+
+    try:
+        resp = requests.get(f"{NCBI_BASE_URL}/efetch.fcgi", params=params, timeout=timeout)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning("efetch batch failed (%d PMIDs): %s", len(pmids), e)
+        return {}
+
+    result: dict[str, dict] = {}
+    try:
+        root = ET.fromstring(resp.text)
+    except ET.ParseError as e:
+        logger.warning("efetch XML parse failed: %s", e)
+        return {}
+
+    for article in root.findall(".//PubmedArticle"):
+        pmid_el = article.find(".//MedlineCitation/PMID")
+        if pmid_el is None or not pmid_el.text:
+            continue
+        pmid = pmid_el.text.strip()
+
+        title_el = article.find(".//Article/ArticleTitle")
+        title = "".join(title_el.itertext()).strip() if title_el is not None else ""
+
+        abstract_el = article.find(".//Abstract/AbstractText")
+        abstract = "".join(abstract_el.itertext()).strip() if abstract_el is not None else ""
+
+        pub_types = [
+            (pt.text or "").strip()
+            for pt in article.findall(".//PublicationTypeList/PublicationType")
+            if pt.text
+        ]
+
+        year_el = article.find(".//Article/Journal/JournalIssue/PubDate/Year")
+        try:
+            year = int(year_el.text) if year_el is not None and year_el.text else None
+        except (ValueError, TypeError):
+            year = None
+
+        doi = ""
+        pmcid = ""
+        for aid in article.findall(".//ArticleIdList/ArticleId"):
+            id_type = aid.attrib.get("IdType", "").lower()
+            if id_type == "doi" and aid.text:
+                doi = normalize_doi(aid.text)
+            elif id_type == "pmc" and aid.text:
+                pmcid = aid.text.strip().upper()
+
+        result[pmid] = {
+            "doi": doi,
+            "pmcid": pmcid,
+            "title": title,
+            "abstract": abstract,
+            "publication_types": pub_types,
+            "publication_year": year,
+        }
+    return result
