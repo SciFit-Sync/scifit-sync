@@ -1,5 +1,3 @@
-// src/components/BottomNavBar.tsx
-
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { Octicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -15,35 +13,14 @@ type TabName =
 interface TabItem {
   name: TabName;
   icon: string;
-  icon_active: string;
 }
 
 const tabs: TabItem[] = [
-  {
-    name: "WN01Notifications",
-    icon: "bell",
-    icon_active: "bell-fill",
-  },
-  {
-    name: "WH01Calendar",
-    icon: "graph",
-    icon_active: "graph",
-  },
-  {
-    name: "WM01Main",
-    icon: "home",
-    icon_active: "home-fill",
-  },
-  {
-    name: "WL01Record",
-    icon: "pencil",
-    icon_active: "pencil",
-  },
-  {
-    name: "WP01MyPage",
-    icon: "person",
-    icon_active: "person-fill",
-  },
+  { name: "WN01Notifications", icon: "bell" },
+  { name: "WH01Calendar", icon: "graph" },
+  { name: "WM01Main", icon: "home" },
+  { name: "WL01Record", icon: "pencil" },
+  { name: "WP01MyPage", icon: "person" },
 ];
 
 export default function BottomNavBar() {
@@ -52,24 +29,25 @@ export default function BottomNavBar() {
 
   return (
     <View style={styles.container}>
-      {tabs.map((tab, index) => {
+      {tabs.map((tab) => {
         const is_active = route.name === tab.name;
         return (
           <TouchableOpacity
             key={tab.name}
-            style={[
-              styles.tab,
-              index === 0 && styles.tab_first,
-              index === tabs.length - 1 && styles.tab_last,
-            ]}
+            style={styles.tab}
             onPress={() => navigation.navigate(tab.name as never)}
             activeOpacity={0.7}
           >
-            <Octicons
-              name={(is_active ? tab.icon_active : tab.icon) as any}
-              size={24}
-              color={is_active ? colors.primary : colors.primary}
-            />
+            {/* 선택됐을 때 파란 배경 박스 */}
+            <View
+              style={[styles.icon_box, is_active && styles.icon_box_active]}
+            >
+              <Octicons
+                name={tab.icon as any}
+                size={24}
+                color={is_active ? colors.white : colors.primary}
+              />
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -84,7 +62,6 @@ const styles = StyleSheet.create({
     height: 70,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    // 그림자
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
@@ -96,10 +73,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tab_first: {
-    borderTopLeftRadius: 16,
+  icon_box: {
+    width: 60,
+    height: 50,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  tab_last: {
-    borderTopRightRadius: 16,
+  icon_box_active: {
+    backgroundColor: colors.primary,
   },
 });

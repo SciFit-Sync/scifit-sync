@@ -14,6 +14,7 @@ import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
 import WA03SignupInfo from "../screens/auth/WA03SignupInfo";
 import WO03OneRM from "@/screens/onboarding/WO03OneRM";
+import WP01MyPage from "@/screens/main/WP01MyPage";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -49,7 +50,9 @@ function OnboardingNavigator() {
 
 function MainNavigator() {
   return (
-    <MainStack.Navigator screenOptions={{ headerShown: false }}>
+    <MainStack.Navigator
+      screenOptions={{ headerShown: false, animation: "none" }}
+    >
       <MainStack.Screen name="WM01Main" component={WM01Main} />
       <MainStack.Screen
         name="WN01Notifications"
@@ -60,6 +63,7 @@ function MainNavigator() {
         component={WR04RoutineDetail}
       />
       <MainStack.Screen name="WL01Record" component={WL01Record} />
+      <MainStack.Screen name="WP01MyPage" component={WP01MyPage} />
     </MainStack.Navigator>
   );
 }
