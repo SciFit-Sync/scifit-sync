@@ -1,12 +1,18 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Enum, ForeignKey, String, Text, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+
+class WeightUnit(enum.StrEnum):
+    KG = "kg"
+    LB = "lb"
 
 
 class EquipmentBodyCategory(enum.StrEnum):
@@ -71,6 +77,18 @@ class EquipmentBrand(Base):
     )
     name: Mapped[str] = mapped_column(String(100), unique=True)
     logo_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    default_bar_unit: Mapped[WeightUnit] = mapped_column(
+        Enum(WeightUnit, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=WeightUnit.KG,
+        server_default="kg",
+    )
+    default_stack_unit: Mapped[WeightUnit] = mapped_column(
+        Enum(WeightUnit, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=WeightUnit.KG,
+        server_default="kg",
+    )
 
 
 class Equipment(Base):
@@ -85,6 +103,7 @@ class Equipment(Base):
     )
     name: Mapped[str] = mapped_column(String(200))
     name_en: Mapped[str | None] = mapped_column(String(200), default=None)
+    sub_category: Mapped[str | None] = mapped_column(String(50), default=None)
     category: Mapped[EquipmentBodyCategory | None] = mapped_column(
         Enum(
             EquipmentBodyCategory,
@@ -98,11 +117,19 @@ class Equipment(Base):
         Enum(EquipmentType, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x])
     )
     pulley_ratio: Mapped[float] = mapped_column(default=1.0, server_default=text("1.0"))
-    bar_weight_kg: Mapped[float | None] = mapped_column(default=None)
+    bar_weight: Mapped[float | None] = mapped_column(default=None)
+    bar_weight_unit: Mapped[WeightUnit | None] = mapped_column(
+        Enum(WeightUnit, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
+        default=None,
+    )
     has_weight_assist: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
-    min_stack_kg: Mapped[float | None] = mapped_column(default=None)
-    max_stack_kg: Mapped[float | None] = mapped_column(default=None)
-    stack_weight_kg: Mapped[float | None] = mapped_column(default=None)
+    min_stack: Mapped[float | None] = mapped_column(default=None)
+    max_stack: Mapped[float | None] = mapped_column(default=None)
+    stack_weight: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=None)
+    stack_unit: Mapped[WeightUnit | None] = mapped_column(
+        Enum(WeightUnit, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
+        default=None,
+    )
     image_url: Mapped[str | None] = mapped_column(String(500), default=None)
 
     brand: Mapped["EquipmentBrand | None"] = relationship()

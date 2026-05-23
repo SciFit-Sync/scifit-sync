@@ -29,6 +29,11 @@ class RoutineDayItem(BaseModel):
     exercises: list[RoutineExerciseItem] = Field(default_factory=list)
 
 
+class GymSummary(BaseModel):
+    gym_id: str
+    name: str
+
+
 class RoutineSummary(BaseModel):
     routine_id: str
     name: str
@@ -36,6 +41,8 @@ class RoutineSummary(BaseModel):
     split_type: str | None = None
     generated_by: str
     status: str
+    gym_id: str | None = None
+    gym_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -44,6 +51,7 @@ class RoutineDetail(RoutineSummary):
     target_muscle_group_ids: list | None = None
     session_minutes: int | None = None
     ai_reasoning: str | None = None
+    gym: GymSummary | None = None
     days: list[RoutineDayItem] = Field(default_factory=list)
 
 
