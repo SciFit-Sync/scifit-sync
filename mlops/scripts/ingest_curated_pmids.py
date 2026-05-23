@@ -35,9 +35,12 @@ from mlops.pipeline.config import (  # noqa: E402
     NCBI_RATE_LIMIT,
 )
 from mlops.pipeline.curated import (  # noqa: E402
+    fetch_html_sections,
+    fetch_pdf_sections,
     ncbi_pmid_to_doi,
     normalize_doi,
     openalex_doi_lookup,
+    openalex_oa_url,
     title_keyword_overlap,
 )
 
@@ -337,7 +340,23 @@ def build_paperfulls_for_ingest(
             pmc_client=pmc_client,
             europepmc_client=europepmc_client,
         )
-        if not cascading_result.sections:
+        sections = cascading_result.sections
+        fulltext_source = cascading_result.fulltext_source
+
+        if not sections:
+            # OpenAlex OA fallback: PDF → HTML 순으로 시도
+            oa_info = openalex_oa_url(paper["resolved_doi"])
+            if oa_info and oa_info.get("is_oa"):
+                if oa_info.get("pdf_url"):
+                    sections = fetch_pdf_sections(oa_info["pdf_url"])
+                    if sections:
+                        fulltext_source = "openalex_pdf"
+                if not sections and oa_info.get("landing_page_url"):
+                    sections = fetch_html_sections(oa_info["landing_page_url"])
+                    if sections:
+                        fulltext_source = "openalex_html"
+
+        if not sections:
             paper["fulltext_ok"] = False
             _mark_failure(paper, "no_fulltext")
             continue
@@ -358,9 +377,9 @@ def build_paperfulls_for_ingest(
                 published_year=meta_dict.get("publication_year"),
                 search_categories=paper["search_categories"],
                 evidence_weight=evidence,
-                fulltext_source=cascading_result.fulltext_source,
+                fulltext_source=fulltext_source,
             ),
-            sections=cascading_result.sections,
+            sections=sections,
         )
         result.append(paperfull)
 

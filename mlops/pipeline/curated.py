@@ -1,8 +1,10 @@
 """큐레이션 paper 적재용 공용 helper.
 
-normalize_doi, NCBI ID Converter, OpenAlex DOI lookup, title sanity check.
+normalize_doi, NCBI ID Converter, OpenAlex DOI lookup, title sanity check,
+OpenAlex OA fulltext helpers (openalex_oa_url, fetch_pdf_sections, fetch_html_sections).
 """
 
+import io
 import logging
 import re
 from urllib.parse import quote
@@ -169,3 +171,145 @@ def title_keyword_overlap(title: str, context: str) -> float:
         return 0.0
     matched = title_tokens & context_tokens
     return len(matched) / len(title_tokens)
+
+
+# ---------------------------------------------------------------------------
+# OpenAlex OA fulltext helpers
+# ---------------------------------------------------------------------------
+
+_PDF_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+def openalex_oa_url(doi: str, timeout: int = 30) -> dict | None:
+    """OpenAlex API에서 OA URL과 type 반환.
+
+    Returns:
+        {"is_oa": bool, "pdf_url": Optional[str], "landing_page_url": Optional[str]}
+        또는 None (404 or error)
+    """
+    normalized = normalize_doi(doi)
+    if not normalized:
+        return None
+    url = f"{OPENALEX_DOI_LOOKUP_URL}{quote(normalized, safe='')}"
+    try:
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.warning("openalex_oa_url failed for %s: %s", normalized, e)
+        return None
+
+    if not data:
+        return None
+
+    oa = data.get("open_access") or {}
+    best = (data.get("best_oa_location") or {})
+    return {
+        "is_oa": bool(oa.get("is_oa")),
+        "pdf_url": best.get("pdf_url") or None,
+        "landing_page_url": best.get("landing_page_url") or None,
+    }
+
+
+def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
+    """OA PDF URL에서 sections 추출.
+
+    Returns: list[PaperSection]. 실패(non-PDF / parse error / 50MB 초과 / timeout) 시 [].
+    pypdf 미설치 시 graceful degradation — 항상 [] 반환.
+    """
+    try:
+        import pypdf  # noqa: PLC0415
+    except ImportError:
+        logger.warning("fetch_pdf_sections: pypdf 미설치 — PDF parse 불가. pip install pypdf")
+        return []
+
+    from mlops.pipeline.models import PaperSection  # noqa: PLC0415
+
+    try:
+        resp = requests.get(url, stream=True, timeout=timeout)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning("fetch_pdf_sections HTTP error for %s: %s", url, e)
+        return []
+
+    content_type = resp.headers.get("Content-Type", "")
+    if "pdf" not in content_type.lower():
+        # Content-Type이 pdf가 아니면 skip (HTML landing page 등)
+        logger.debug("fetch_pdf_sections: unexpected Content-Type=%r for %s", content_type, url)
+        return []
+
+    # 크기 제한 체크
+    content_length = resp.headers.get("Content-Length")
+    if content_length and int(content_length) > _PDF_MAX_BYTES:
+        logger.warning("fetch_pdf_sections: PDF too large (%s bytes), skipping %s", content_length, url)
+        return []
+
+    buf = io.BytesIO()
+    downloaded = 0
+    try:
+        for chunk in resp.iter_content(chunk_size=1024 * 64):
+            downloaded += len(chunk)
+            if downloaded > _PDF_MAX_BYTES:
+                logger.warning("fetch_pdf_sections: download exceeded 50MB, skipping %s", url)
+                return []
+            buf.write(chunk)
+    except requests.RequestException as e:
+        logger.warning("fetch_pdf_sections: download error for %s: %s", url, e)
+        return []
+
+    buf.seek(0)
+    try:
+        reader = pypdf.PdfReader(buf)
+        texts = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            if text.strip():
+                texts.append(text)
+        full_text = "\n".join(texts).strip()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("fetch_pdf_sections: pypdf parse error for %s: %s", url, e)
+        return []
+
+    if not full_text:
+        return []
+
+    return [PaperSection(name="Full Text", content=full_text)]
+
+
+def fetch_html_sections(url: str, timeout: int = 60) -> list:
+    """OA HTML landing page에서 본문 추출.
+
+    Returns: list[PaperSection]. 실패 또는 본문 < 500자 시 [].
+    BeautifulSoup(bs4) 사용. 미설치 시 정규식 fallback.
+    """
+    from mlops.pipeline.models import PaperSection  # noqa: PLC0415
+
+    try:
+        resp = requests.get(url, timeout=timeout)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning("fetch_html_sections HTTP error for %s: %s", url, e)
+        return []
+
+    html = resp.text
+
+    try:
+        from bs4 import BeautifulSoup  # noqa: PLC0415
+
+        soup = BeautifulSoup(html, "lxml")
+        # <article>, <main>, <section> 순으로 본문 후보 탐색
+        body_el = soup.find("article") or soup.find("main") or soup.find("section")
+        text = body_el.get_text(separator=" ", strip=True) if body_el else soup.get_text(separator=" ", strip=True)
+    except ImportError:
+        logger.debug("fetch_html_sections: bs4 미설치 — 정규식 fallback 사용")
+        # 태그 제거 정규식 fallback
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) < 500:
+        logger.debug("fetch_html_sections: 본문 길이 %d < 500, 빈 list 반환 (%s)", len(text), url)
+        return []
+
+    return [PaperSection(name="Full Text", content=text)]
