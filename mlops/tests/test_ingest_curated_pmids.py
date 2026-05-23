@@ -5,6 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+_FAKE_PMC_CLIENT = MagicMock()
+_FAKE_EUROPEPMC_CLIENT = MagicMock()
+
 
 class TestLockAcquisition:
     def test_acquires_lock_when_free(self, tmp_path):
@@ -499,7 +502,7 @@ class TestBuildPaperFulls:
                 "failure_reason": None,
             }
         ]
-        result = build_paperfulls_for_ingest(papers)
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
 
         assert len(result) == 1
         paperfull = result[0]
@@ -527,7 +530,7 @@ class TestBuildPaperFulls:
                 "failure_reason": None,
             }
         ]
-        result = build_paperfulls_for_ingest(papers)
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
         # paper는 result에서 빠짐 (sections=[])
         assert len(result) == 0
         # invariant: failure_reason과 indexed=False 동시 기록
@@ -554,11 +557,13 @@ class TestBuildPaperFulls:
                 "fulltext_ok": None,
             },
         ]
-        result = build_paperfulls_for_ingest(papers)
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
         assert result == []
 
 
 class TestMainFlow:
+    @patch("mlops.scripts.ingest_curated_pmids.ADMIN_API_TOKEN", "test-token")
+    @patch("mlops.scripts.ingest_curated_pmids.API_BASE_URL", "http://localhost:8000")
     @patch("mlops.scripts.ingest_curated_pmids.api_ingest")
     @patch("mlops.scripts.ingest_curated_pmids.embed_chunks")
     @patch("mlops.scripts.ingest_curated_pmids.chunk_papers")
@@ -629,7 +634,7 @@ class TestMainFlow:
             sections=[PaperSection(name="M", content="...")],
         )
 
-        def build_side(papers):
+        def build_side(papers, pmc_client, europepmc_client):
             for p in papers:
                 if not p.get("failure_reason") and not p.get("already_in_corpus"):
                     p["fulltext_ok"] = True
@@ -650,19 +655,81 @@ class TestMainFlow:
         # api_ingest was called with 1 chunk
         mock_api.assert_called_once()
 
-    def test_dry_run_skips_api_ingest(self, tmp_path):
+    @patch("mlops.scripts.ingest_curated_pmids.ADMIN_API_TOKEN", "test-token")
+    @patch("mlops.scripts.ingest_curated_pmids.API_BASE_URL", "http://localhost:8000")
+    @patch("mlops.scripts.ingest_curated_pmids.api_ingest")
+    @patch("mlops.scripts.ingest_curated_pmids.embed_chunks")
+    @patch("mlops.scripts.ingest_curated_pmids.chunk_papers")
+    @patch("mlops.scripts.ingest_curated_pmids.build_paperfulls_for_ingest")
+    @patch("mlops.scripts.ingest_curated_pmids.resolve_papers")
+    @patch("mlops.scripts.ingest_curated_pmids.load_existing_dois")
+    @patch("mlops.scripts.ingest_curated_pmids.Manifest")
+    def test_dry_run_skips_embed_and_api_ingest(
+        self, mock_manifest_cls, mock_existing, mock_resolve, mock_build, mock_chunk, mock_embed, mock_api, tmp_path
+    ):
         from mlops.scripts.ingest_curated_pmids import run
 
-        prov = {"Q001": {"category": "x", "papers": []}}
+        prov = {
+            "Q001": {
+                "category": "x",
+                "papers": [
+                    {
+                        "raw_id": "PMID:12345",
+                        "raw_pmid": "12345",
+                        "raw_doi": None,
+                        "resolved_pmid": None,
+                        "resolved_doi": None,
+                        "resolved_title": None,
+                        "indexed": None,
+                        "already_in_corpus": None,
+                        "fulltext_ok": None,
+                        "failure_reason": None,
+                        "is_typo_autofixed": False,
+                        "search_categories": ["x"],
+                    }
+                ],
+            }
+        }
         prov_path = tmp_path / "prov.json"
         prov_path.write_text(json.dumps(prov))
 
-        # dry-run: no API calls
-        with (
-            patch("mlops.scripts.ingest_curated_pmids.Manifest") as mock_m,
-            patch("mlops.scripts.ingest_curated_pmids.load_existing_dois", return_value=set()),
-            patch("mlops.scripts.ingest_curated_pmids.api_ingest") as mock_api,
-        ):
-            mock_m.load.return_value = MagicMock(papers={})
-            run(prov_path, dry_run=True, limit=None, lock_path=tmp_path / ".lock")
-            mock_api.assert_not_called()
+        mock_manifest_cls.load.return_value = MagicMock(papers={})
+        mock_existing.return_value = set()
+
+        def resolve_side(papers, qid, query_context):
+            for p in papers:
+                p["resolved_pmid"] = "12345"
+                p["resolved_doi"] = "10.1080/test"
+                p["resolved_title"] = "T"
+                p["metadata"] = {"abstract": "", "pmcid": "", "publication_types": [], "published_year": 2020}
+            return papers
+
+        mock_resolve.side_effect = resolve_side
+
+        from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+
+        mock_build.return_value = [
+            PaperFull(
+                meta=PaperMeta(
+                    doi="10.1080/test",
+                    pmid="12345",
+                    pmcid="",
+                    openalex_id="",
+                    title="T",
+                    abstract="",
+                    publication_types=[],
+                    published_year=2020,
+                    search_categories=["x"],
+                    evidence_weight=0.5,
+                    fulltext_source="pmc",
+                ),
+                sections=[PaperSection(name="M", content="...")],
+            )
+        ]
+        mock_chunk.return_value = ["fake_chunk"]
+
+        run(prov_path, dry_run=True, limit=None, lock_path=tmp_path / ".lock")
+
+        mock_chunk.assert_called_once()  # chunking DID happen
+        mock_embed.assert_not_called()  # embedding skipped (dry-run)
+        mock_api.assert_not_called()  # API call skipped (dry-run)
