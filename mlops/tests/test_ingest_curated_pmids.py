@@ -76,3 +76,142 @@ class TestEfetchBatch:
 
         result = efetch_pubmed_batch(["35291645"])
         assert result == {}
+
+
+class TestResolveIdentifier:
+    @patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch")
+    def test_branch_a_pmid_with_doi_from_efetch(self, mock_efetch):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+
+        mock_efetch.return_value = {
+            "12345": {
+                "doi": "10.1080/test",
+                "pmcid": "PMC1",
+                "title": "T",
+                "abstract": "A",
+                "publication_types": ["RCT"],
+                "publication_year": 2020,
+            }
+        }
+        papers = [{"raw_id": "PMID:12345", "raw_pmid": "12345", "raw_doi": None,
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["hypertrophy"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="hypertrophy volume")
+
+        p = resolved[0]
+        assert p["resolved_pmid"] == "12345"
+        assert p["resolved_doi"] == "10.1080/test"
+        assert p["resolved_title"] == "T"
+        assert p["failure_reason"] is None
+        assert p["metadata"]["publication_types"] == ["RCT"]
+
+    @patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch")
+    @patch("mlops.scripts.ingest_curated_pmids.ncbi_pmid_to_doi")
+    def test_branch_a_efetch_no_doi_converter_succeeds(self, mock_conv, mock_efetch):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        mock_efetch.return_value = {
+            "12345": {"doi": "", "pmcid": "", "title": "T", "abstract": "",
+                      "publication_types": [], "publication_year": 2020}
+        }
+        mock_conv.return_value = "10.1080/converted"
+        papers = [{"raw_id": "PMID:12345", "raw_pmid": "12345", "raw_doi": None,
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["x"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["resolved_doi"] == "10.1080/converted"
+        assert resolved[0]["failure_reason"] is None
+
+    @patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch")
+    @patch("mlops.scripts.ingest_curated_pmids.ncbi_pmid_to_doi")
+    def test_branch_a_both_fail(self, mock_conv, mock_efetch):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        mock_efetch.return_value = {"12345": {"doi": "", "pmcid": "", "title": "T", "abstract": "",
+                                              "publication_types": [], "publication_year": 2020}}
+        mock_conv.return_value = ""
+        papers = [{"raw_id": "PMID:12345", "raw_pmid": "12345", "raw_doi": None,
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["x"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["failure_reason"] == "doi_resolution_failed"
+        assert resolved[0]["indexed"] is False
+
+    @patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch")
+    def test_branch_a_efetch_not_found(self, mock_efetch):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        # PMID 12345 was requested but not in efetch response
+        mock_efetch.return_value = {}
+        papers = [{"raw_id": "PMID:12345", "raw_pmid": "12345", "raw_doi": None,
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["x"]}]
+        # Patch single re-fetch to also miss
+        with patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch", return_value={}):
+            resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["failure_reason"] == "efetch_not_found"
+
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_doi_lookup")
+    def test_branch_b_doi_only_success(self, mock_lookup):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        mock_lookup.return_value = {
+            "doi": "10.1080/test",
+            "pmid": "99999",
+            "title": "OA Title",
+            "publication_year": 2021,
+            "type": "journal-article",
+        }
+        papers = [{"raw_id": "DOI:10.1080/test", "raw_pmid": None, "raw_doi": "10.1080/test",
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["x"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["resolved_pmid"] == "99999"
+        assert resolved[0]["resolved_doi"] == "10.1080/test"
+        assert resolved[0]["failure_reason"] is None
+
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_doi_lookup")
+    def test_branch_b_doi_only_no_pmid(self, mock_lookup):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        mock_lookup.return_value = {"doi": "10.1080/x", "pmid": "", "title": "T",
+                                     "publication_year": None, "type": ""}
+        papers = [{"raw_id": "DOI:10.1080/x", "raw_pmid": None, "raw_doi": "10.1080/x",
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["x"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["failure_reason"] == "no_pmid_from_openalex"
+
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_doi_lookup")
+    def test_branch_b_openalex_not_found(self, mock_lookup):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        mock_lookup.return_value = None
+        papers = [{"raw_id": "DOI:10.1080/x", "raw_pmid": None, "raw_doi": "10.1080/x",
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": False, "fulltext_ok": None,
+                   "search_categories": ["x"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["failure_reason"] == "openalex_not_found"
+
+    @patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch")
+    def test_title_mismatch_skip(self, mock_efetch):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+        mock_efetch.return_value = {
+            "12345": {"doi": "10.1080/test", "pmcid": "", "title": "Robotic Cardiology Cybernetics",
+                      "abstract": "", "publication_types": [], "publication_year": 2020}
+        }
+        papers = [{"raw_id": "PMID:12345", "raw_pmid": "12345", "raw_doi": None,
+                   "resolved_pmid": None, "resolved_doi": None, "resolved_title": None,
+                   "indexed": None, "failure_reason": None, "already_in_corpus": None,
+                   "is_typo_autofixed": True, "fulltext_ok": None,  # ← typo flag
+                   "search_categories": ["hypertrophy"]}]
+        resolved = resolve_papers(papers, qid="Q001", query_context="hypertrophy weekly set volume")
+        assert resolved[0]["failure_reason"] == "title_mismatch"
