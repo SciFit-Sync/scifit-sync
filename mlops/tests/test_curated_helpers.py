@@ -11,6 +11,7 @@ from mlops.pipeline.curated import (
     openalex_doi_lookup,
     openalex_oa_url,
     title_keyword_overlap,
+    unpaywall_oa_locations,
 )
 
 
@@ -379,3 +380,64 @@ class TestFetchHtmlSections:
         assert len(result) == 1
         assert result[0].name == "Full Text"
         assert len(result[0].content) >= 500
+
+
+class TestUnpaywallOaLocations:
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_best_and_extra_locations(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "is_oa": True,
+            "best_oa_location": {
+                "url_for_pdf": "https://best.example.com/paper.pdf",
+                "url_for_landing_page": "https://best.example.com/paper",
+                "url": None,
+            },
+            "oa_locations": [
+                {
+                    "url_for_pdf": "https://repo.example.edu/paper.pdf",
+                    "url_for_landing_page": "https://repo.example.edu/paper",
+                    "url": None,
+                },
+            ],
+        }
+        mock_get.return_value = mock_resp
+
+        result = unpaywall_oa_locations("10.1080/test")
+
+        assert len(result) == 2
+        assert result[0]["pdf_url"] == "https://best.example.com/paper.pdf"
+        assert result[0]["landing_url"] == "https://best.example.com/paper"
+        assert result[1]["pdf_url"] == "https://repo.example.edu/paper.pdf"
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_empty_on_404(self, mock_get):
+        mock_resp = MagicMock(status_code=404)
+        mock_get.return_value = mock_resp
+
+        result = unpaywall_oa_locations("10.1080/notfound")
+        assert result == []
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_empty_when_not_oa(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "is_oa": False,
+            "best_oa_location": None,
+            "oa_locations": [],
+        }
+        mock_get.return_value = mock_resp
+
+        result = unpaywall_oa_locations("10.1080/closed")
+        assert result == []
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_empty_on_request_exception(self, mock_get):
+        mock_get.side_effect = requests.RequestException("connection error")
+
+        result = unpaywall_oa_locations("10.1080/test")
+        assert result == []
+
+    def test_returns_empty_for_invalid_doi(self):
+        result = unpaywall_oa_locations("not-a-doi")
+        assert result == []

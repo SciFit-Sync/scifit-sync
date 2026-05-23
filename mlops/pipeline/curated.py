@@ -1,7 +1,8 @@
 """큐레이션 paper 적재용 공용 helper.
 
 normalize_doi, NCBI ID Converter, OpenAlex DOI lookup, title sanity check,
-OpenAlex OA fulltext helpers (openalex_oa_url, fetch_pdf_sections, fetch_html_sections).
+OpenAlex OA fulltext helpers (openalex_oa_url, fetch_pdf_sections, fetch_html_sections),
+Unpaywall OA mirror fallback (unpaywall_oa_locations).
 """
 
 import io
@@ -181,10 +182,7 @@ _PDF_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 
 # 출판사 사이트(Hindawi, Wiley, Springer 등) default python-requests UA를 봇으로 차단.
 # 학술 OA 콘텐츠 fetch는 fair use 범위라 일반 브라우저 UA로 요청.
-_BROWSER_UA = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-)
+_BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 # Wiley/Cloudflare 등 강한 봇 차단 우회용 추가 헤더.
 # Referer를 Google Scholar로 설정해 학술 traffic으로 보이게.
 _BROWSER_COMMON = {
@@ -306,6 +304,56 @@ def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
         return []
 
     return [PaperSection(name="Full Text", content=full_text)]
+
+
+UNPAYWALL_URL = "https://api.unpaywall.org/v2/"
+
+
+def unpaywall_oa_locations(doi: str, email: str = "research@example.com", timeout: int = 30) -> list[dict]:
+    """Unpaywall API로 모든 OA mirror locations 반환.
+
+    Returns: list of {"pdf_url": Optional[str], "landing_url": Optional[str]}
+        OpenAlex best_oa_location 이외의 author repository, university repo 등 alternate mirrors.
+    실패 시 빈 list.
+    """
+    normalized = normalize_doi(doi)
+    if not normalized:
+        return []
+    url = f"{UNPAYWALL_URL}{quote(normalized, safe='')}"
+    try:
+        resp = requests.get(url, params={"email": email}, timeout=timeout)
+        if resp.status_code == 404:
+            return []
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.warning("unpaywall lookup failed for %s: %s", normalized, e)
+        return []
+
+    if not data.get("is_oa"):
+        return []
+
+    locations = []
+    # best_oa_location 먼저
+    best = data.get("best_oa_location") or {}
+    if best:
+        locations.append(
+            {
+                "pdf_url": best.get("url_for_pdf"),
+                "landing_url": best.get("url_for_landing_page") or best.get("url"),
+            }
+        )
+    # 추가 oa_locations (mirrors)
+    for loc in data.get("oa_locations") or []:
+        if loc is best:
+            continue
+        locations.append(
+            {
+                "pdf_url": loc.get("url_for_pdf"),
+                "landing_url": loc.get("url_for_landing_page") or loc.get("url"),
+            }
+        )
+    return locations
 
 
 def fetch_html_sections(url: str, timeout: int = 60) -> list:
