@@ -205,7 +205,7 @@ def openalex_oa_url(doi: str, timeout: int = 30) -> dict | None:
         return None
 
     oa = data.get("open_access") or {}
-    best = (data.get("best_oa_location") or {})
+    best = data.get("best_oa_location") or {}
     return {
         "is_oa": bool(oa.get("is_oa")),
         "pdf_url": best.get("pdf_url") or None,
@@ -228,38 +228,41 @@ def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
     from mlops.pipeline.models import PaperSection  # noqa: PLC0415
 
     try:
-        resp = requests.get(url, stream=True, timeout=timeout)
-        resp.raise_for_status()
+        with requests.get(url, stream=True, timeout=timeout) as resp:
+            resp.raise_for_status()
+
+            content_type = resp.headers.get("Content-Type", "")
+            if "pdf" not in content_type.lower():
+                # Content-Type이 pdf가 아니면 skip (HTML landing page 등)
+                logger.debug("fetch_pdf_sections: unexpected Content-Type=%r for %s", content_type, url)
+                return []
+
+            # 크기 제한 체크 (Content-Length 헤더가 있는 경우)
+            content_length = resp.headers.get("Content-Length")
+            if content_length:
+                try:
+                    if int(content_length) > _PDF_MAX_BYTES:
+                        logger.warning("fetch_pdf_sections: PDF too large (%s bytes), skipping %s", content_length, url)
+                        return []
+                except ValueError:
+                    pass  # non-numeric Content-Length, proceed with streaming guard
+
+            buf = io.BytesIO()
+            downloaded = 0
+            for chunk in resp.iter_content(chunk_size=1024 * 64):
+                if not chunk:
+                    continue
+                downloaded += len(chunk)
+                if downloaded > _PDF_MAX_BYTES:
+                    logger.warning("fetch_pdf_sections: download exceeded 50MB, skipping %s", url)
+                    return []
+                buf.write(chunk)
+        # with block ended — connection closed. buf is in memory, safe to parse.
+        buf.seek(0)
     except requests.RequestException as e:
         logger.warning("fetch_pdf_sections HTTP error for %s: %s", url, e)
         return []
 
-    content_type = resp.headers.get("Content-Type", "")
-    if "pdf" not in content_type.lower():
-        # Content-Type이 pdf가 아니면 skip (HTML landing page 등)
-        logger.debug("fetch_pdf_sections: unexpected Content-Type=%r for %s", content_type, url)
-        return []
-
-    # 크기 제한 체크
-    content_length = resp.headers.get("Content-Length")
-    if content_length and int(content_length) > _PDF_MAX_BYTES:
-        logger.warning("fetch_pdf_sections: PDF too large (%s bytes), skipping %s", content_length, url)
-        return []
-
-    buf = io.BytesIO()
-    downloaded = 0
-    try:
-        for chunk in resp.iter_content(chunk_size=1024 * 64):
-            downloaded += len(chunk)
-            if downloaded > _PDF_MAX_BYTES:
-                logger.warning("fetch_pdf_sections: download exceeded 50MB, skipping %s", url)
-                return []
-            buf.write(chunk)
-    except requests.RequestException as e:
-        logger.warning("fetch_pdf_sections: download error for %s: %s", url, e)
-        return []
-
-    buf.seek(0)
     try:
         reader = pypdf.PdfReader(buf)
         texts = []
@@ -298,7 +301,10 @@ def fetch_html_sections(url: str, timeout: int = 60) -> list:
     try:
         from bs4 import BeautifulSoup  # noqa: PLC0415
 
-        soup = BeautifulSoup(html, "lxml")
+        try:
+            soup = BeautifulSoup(html, "lxml")
+        except Exception:  # noqa: BLE001  # FeatureNotFound when lxml not installed
+            soup = BeautifulSoup(html, "html.parser")
         # <article>, <main>, <section> 순으로 본문 후보 탐색
         body_el = soup.find("article") or soup.find("main") or soup.find("section")
         text = body_el.get_text(separator=" ", strip=True) if body_el else soup.get_text(separator=" ", strip=True)
