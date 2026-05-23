@@ -215,3 +215,29 @@ class UnpaywallSource:
                         status=FulltextStatus.SUCCESS, sections=sections
                     )
         return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+
+
+def build_default_chain(
+    pmc_client,
+    europepmc_client,
+    unpaywall_email: str = "research@scifit-sync.org",
+) -> list[OASource]:
+    """기본 OA chain: PMC → EuropePMC → OpenAlex PDF → OpenAlex HTML → Unpaywall.
+
+    새 source 추가는 본 함수 + default_source_names() 두 줄만 수정.
+    """
+    return [
+        PMCSource(pmc_client),
+        EuropePMCSource(europepmc_client),
+        OpenAlexPDFSource(),
+        OpenAlexHTMLSource(),
+        UnpaywallSource(email=unpaywall_email),
+    ]
+
+
+def default_source_names() -> list[str]:
+    """DEFAULT_CHAIN에 등록된 source name 리스트.
+
+    manifest의 fully-tried 판정 (ACTIVE_SOURCES) 일원화에 사용.
+    """
+    return ["pmc", "europepmc", "openalex_pdf", "openalex_html", "unpaywall"]

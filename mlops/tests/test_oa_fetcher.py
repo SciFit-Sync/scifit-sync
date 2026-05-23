@@ -460,3 +460,27 @@ class TestUnpaywallSource:
     def test_default_email(self):
         src = UnpaywallSource()
         assert src.email == "research@scifit-sync.org"
+
+
+class TestDefaultChain:
+    def test_build_default_chain_returns_five_sources(self):
+        from mlops.pipeline.oa_fetcher import build_default_chain
+        pmc = MagicMock()
+        epmc = MagicMock()
+        chain = build_default_chain(pmc, epmc)
+        assert len(chain) == 5
+        names = [s.name for s in chain]
+        assert names == ["pmc", "europepmc", "openalex_pdf", "openalex_html", "unpaywall"]
+
+    def test_default_source_names_matches_chain(self):
+        from mlops.pipeline.oa_fetcher import build_default_chain, default_source_names
+        pmc = MagicMock()
+        epmc = MagicMock()
+        chain = build_default_chain(pmc, epmc)
+        assert default_source_names() == [s.name for s in chain]
+
+    def test_unpaywall_email_propagates(self):
+        from mlops.pipeline.oa_fetcher import build_default_chain
+        chain = build_default_chain(MagicMock(), MagicMock(), unpaywall_email="custom@x.y")
+        # 마지막이 UnpaywallSource
+        assert chain[-1].email == "custom@x.y"
