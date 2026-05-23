@@ -7,6 +7,7 @@ from mlops.pipeline.oa_fetcher import (
     FulltextResult,
     FulltextStatus,
     PaperRef,
+    PMCSource,
     fetch_chain,
 )
 
@@ -58,3 +59,52 @@ class TestFetchChain:
         assert result.fulltext_source is None
         assert result.sections == []
         assert result.tried == []
+
+
+class TestPMCSource:
+    def _make_pmc_client(self, sections=None, had_transient_error=False):
+        client = MagicMock()
+        client_result = MagicMock()
+        client_result.sections = sections or []
+        client_result.had_transient_error = had_transient_error
+        client.fetch.return_value = client_result
+        return client
+
+    def test_no_pmcid_returns_not_available(self):
+        client = self._make_pmc_client()
+        source = PMCSource(pmc_client=client)
+        ref = PaperRef(doi="10.1/a", pmcid=None)
+
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+        client.fetch.assert_not_called()
+
+    def test_transient_error_propagates(self):
+        client = self._make_pmc_client(had_transient_error=True)
+        source = PMCSource(pmc_client=client)
+        ref = PaperRef(doi="10.1/a", pmcid="PMC123")
+
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.TRANSIENT_ERROR
+
+    def test_sections_present_returns_success(self):
+        sections = [PaperSection(name="Methods", content="text")]
+        client = self._make_pmc_client(sections=sections)
+        source = PMCSource(pmc_client=client)
+        ref = PaperRef(doi="10.1/a", pmcid="PMC456")
+
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.SUCCESS
+        assert result.sections == sections
+
+    def test_empty_sections_returns_not_available(self):
+        client = self._make_pmc_client(sections=[])
+        source = PMCSource(pmc_client=client)
+        ref = PaperRef(doi="10.1/a", pmcid="PMC789")
+
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.NOT_AVAILABLE

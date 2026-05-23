@@ -61,6 +61,23 @@ class OASource(Protocol):
     def try_fetch(self, ref: PaperRef) -> FulltextResult: ...
 
 
+class PMCSource:
+    name: str = "pmc"
+
+    def __init__(self, pmc_client) -> None:
+        self.pmc_client = pmc_client
+
+    def try_fetch(self, ref: PaperRef) -> FulltextResult:
+        if not ref.pmcid:
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        result = self.pmc_client.fetch(ref.pmcid)
+        if result.had_transient_error:
+            return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR)
+        if result.sections:
+            return FulltextResult(status=FulltextStatus.SUCCESS, sections=result.sections)
+        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+
+
 def fetch_chain(ref: PaperRef, sources: list[OASource]) -> ChainResult:
     """순회 sources. SUCCESS에서 stop, NOT_AVAILABLE/TRANSIENT는 다음 source로 진행."""
     tried: list[tuple[str, FulltextStatus]] = []
