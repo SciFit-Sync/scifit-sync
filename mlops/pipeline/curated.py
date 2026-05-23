@@ -27,7 +27,7 @@ def normalize_doi(raw: str | None) -> str:
     s = _DOI_URL_PREFIX_RE.sub("", s)
     s = s.lower()
     s = s.rstrip(".,;")
-    if re.search(r'[\s?#%]', s):
+    if re.search(r"[\s?#%]", s):
         logger.warning("normalize_doi: suspicious characters in DOI: %s", raw)
         return ""
     if not _DOI_VALIDATE_RE.match(s):
@@ -113,11 +113,41 @@ def openalex_doi_lookup(doi: str, timeout: int = 30) -> dict | None:
     }
 
 
-_STOPWORDS = frozenset({
-    "a", "an", "the", "of", "on", "in", "at", "to", "for", "and", "or", "but",
-    "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-    "with", "by", "from", "as", "this", "that", "these", "those", "vs",
-})
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "of",
+        "on",
+        "in",
+        "at",
+        "to",
+        "for",
+        "and",
+        "or",
+        "but",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "with",
+        "by",
+        "from",
+        "as",
+        "this",
+        "that",
+        "these",
+        "those",
+        "vs",
+    }
+)
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
