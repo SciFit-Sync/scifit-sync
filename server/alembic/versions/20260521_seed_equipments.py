@@ -21,6 +21,7 @@ down_revision = "008"
 branch_labels = None
 depends_on = None
 
+
 def _find_seed_csv() -> Path:
     """환경별 CSV 경로 탐색.
 
