@@ -4,8 +4,10 @@ Revision ID: 20260521_seed_equipments
 Revises: 008
 Create Date: 2026-05-21
 
-멱등성: ON CONFLICT (id) DO NOTHING — 중복 실행 안전
-브랜드 UUID: uuid5(DNS, brand-slug) 로 결정론적 생성
+멱등성: `ON CONFLICT DO NOTHING` (target 없음) — 모든 UNIQUE 제약 충돌 시 skip.
+브랜드 UUID는 `uuid5(DNS, brand-slug)`로 결정론적 생성하지만, 이미 prod DB에
+다른 id로 같은 이름의 brand가 들어가 있는 경우(`uq_equipment_brands_name`)에도
+안전하게 skip되도록 `(id)` target을 제거. equipments도 동일 패턴.
 """
 
 import csv
@@ -47,11 +49,13 @@ def upgrade() -> None:
     conn = op.get_bind()
 
     # ── 1) 브랜드 삽입 ──
+    # ON CONFLICT (target 없음): id UNIQUE + name UNIQUE(`uq_equipment_brands_name`)
+    # 어느 쪽 충돌이든 skip. prod DB에 이미 다른 id로 같은 name이 있는 경우 대응.
     conn.execute(
         sa.text("""
             INSERT INTO equipment_brands (id, name, default_bar_unit, default_stack_unit)
             VALUES (:id, :name, :default_bar_unit, :default_stack_unit)
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT DO NOTHING
         """),
         _BRANDS,
     )
@@ -83,6 +87,7 @@ def upgrade() -> None:
             }
         )
 
+    # equipments도 (id) target 제거 — name 등 다른 UNIQUE 제약이 추가될 경우에도 안전.
     conn.execute(
         sa.text("""
             INSERT INTO equipments (
@@ -94,7 +99,7 @@ def upgrade() -> None:
                 :pulley_ratio, :bar_weight, :bar_weight_unit, :has_weight_assist,
                 :min_stack, :max_stack, CAST(:stack_weight AS jsonb), :stack_unit, :image_url
             )
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT DO NOTHING
         """),
         params,
     )
