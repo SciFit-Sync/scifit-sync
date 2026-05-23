@@ -2,13 +2,13 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from mlops.scripts.parse_curated_papers import (
-    extract_ids_from_lines,
-    parse_papers_txt,
     detect_issues,
+    extract_ids_from_lines,
+    run,
 )
+
+FIXTURE = Path(__file__).parent / "fixtures" / "sample_curated.txt"
 
 
 SAMPLE_TXT = """Hypertrophy
@@ -78,3 +78,46 @@ class TestDetectIssues:
         assert issues["placeholder_doi"] == []
         assert issues["future_prefix_doi"] == []
         assert issues["typo_doi_autofixed"] == []
+
+
+class TestBuildProvenance:
+    def test_provenance_structure(self, tmp_path):
+        prov_path = tmp_path / "prov.json"
+        issues_path = tmp_path / "iss.json"
+        run(FIXTURE, prov_path, issues_path)
+
+        prov = json.loads(prov_path.read_text())
+        # Q001 present
+        assert "Q001" in prov
+        assert prov["Q001"]["category"] == "unknown"  # 매핑 없으면 unknown
+        # 3 papers in Q001
+        assert len(prov["Q001"]["papers"]) == 3
+        # 각 paper는 resolved_* / indexed / fulltext_ok null로 시작
+        for p in prov["Q001"]["papers"]:
+            assert p["indexed"] is None
+            assert p["fulltext_ok"] is None
+            assert p["failure_reason"] is None
+
+    def test_deleted_q_skipped(self, tmp_path):
+        prov_path = tmp_path / "prov.json"
+        issues_path = tmp_path / "iss.json"
+        run(FIXTURE, prov_path, issues_path)
+        prov = json.loads(prov_path.read_text())
+        assert "Q004" not in prov
+
+    def test_issues_recorded(self, tmp_path):
+        prov_path = tmp_path / "prov.json"
+        issues_path = tmp_path / "iss.json"
+        run(FIXTURE, prov_path, issues_path)
+        issues = json.loads(issues_path.read_text())
+        assert len(issues["future_prefix_doi"]) >= 1
+        assert any("s40279-026" in entry["value"] for entry in issues["future_prefix_doi"])
+        assert len(issues["typo_doi_autofixed"]) >= 1
+        assert any("0.1123" in entry["original"] for entry in issues["typo_doi_autofixed"])
+
+    def test_deleted_queries_in_issues(self, tmp_path):
+        prov_path = tmp_path / "prov.json"
+        issues_path = tmp_path / "iss.json"
+        run(FIXTURE, prov_path, issues_path)
+        issues = json.loads(issues_path.read_text())
+        assert "Q004" in issues["deleted_queries"]
