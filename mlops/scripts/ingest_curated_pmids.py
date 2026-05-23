@@ -15,6 +15,7 @@ import logging
 import os
 import sys
 import xml.etree.ElementTree as ET
+from itertools import islice
 from pathlib import Path
 
 import requests
@@ -76,7 +77,7 @@ def efetch_pubmed_batch(pmids: list[str], timeout: int = 60) -> dict[str, dict]:
 
     result: dict[str, dict] = {}
     try:
-        root = ET.fromstring(resp.text)
+        root = ET.fromstring(resp.content)
     except ET.ParseError as e:
         logger.warning("efetch XML parse failed: %s", e)
         return {}
@@ -123,6 +124,13 @@ def efetch_pubmed_batch(pmids: list[str], timeout: int = 60) -> dict[str, dict]:
     return result
 
 
+def _chunked(lst: list, n: int):
+    """lst를 n개 단위 청크로 분할하는 제너레이터."""
+    it = iter(lst)
+    while chunk := list(islice(it, n)):
+        yield chunk
+
+
 def _mark_failure(paper: dict, reason: str) -> None:
     """invariant: failure_reason과 indexed=false 동시 기록 (§7.1)."""
     paper["failure_reason"] = reason
@@ -145,7 +153,15 @@ def resolve_papers(
 
     if branch_a:
         pmids = [p["raw_pmid"] for p in branch_a]
-        efetch_result = efetch_pubmed_batch(pmids)
+        efetch_result: dict[str, dict] = {}
+        for chunk in _chunked(pmids, EFETCH_BATCH_SIZE):
+            efetch_result.update(efetch_pubmed_batch(chunk))
+
+        if not efetch_result and pmids:
+            logger.warning(
+                "efetch batch returned 0 records for %d PMIDs (transient or upstream issue)",
+                len(pmids),
+            )
 
         # 누락 PMID는 single re-fetch
         missing = [pmid for pmid in pmids if pmid not in efetch_result]
@@ -220,7 +236,8 @@ def mark_already_in_corpus(papers: list[dict], existing_dois: set[str]) -> None:
             continue
         doi = paper.get("resolved_doi")
         if not doi:
-            paper["already_in_corpus"] = False
+            # Defensive: 미해결 paper인데 failure도 없는 상태 → 명시적 실패 처리
+            _mark_failure(paper, "doi_resolution_failed")
             continue
         if doi in existing_dois:
             paper["already_in_corpus"] = True
