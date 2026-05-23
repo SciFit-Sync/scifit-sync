@@ -46,55 +46,71 @@ def fetch_cascading(
     pmc_client: PMCFetcher,
     europepmc_client: EuropePMCFetcher,
 ) -> CascadingFulltextResult:
-    """PMC → Europe PMC 순으로 본문 시도.
+    """DEPRECATED: use mlops.pipeline.oa_fetcher.fetch_chain instead.
 
-    첫 SUCCESS에서 멈춤. NOT_AVAILABLE은 다음 소스로 fallthrough.
-    TRANSIENT_ERROR도 cascading은 계속 진행하되 모든 소스가 transient면
-    had_transient_error=True로 마크하여 호출자가 manifest 기록을 skip 할 수 있게 한다.
+    기존 호출자 호환을 위해 90일 유지. 내부적으로 fetch_chain 호출.
+    Backward compat: tried_sources는 pmcid 없으면 'pmc' 미포함,
+    had_transient_error는 '모든 시도가 transient'일 때만 True.
     """
-    tried: list[str] = []
-    transient_count = 0
+    from mlops.pipeline.oa_fetcher import (  # noqa: PLC0415
+        FulltextResult as ChainResult,
+    )
+    from mlops.pipeline.oa_fetcher import (
+        FulltextStatus as ChainStatus,
+    )
+    from mlops.pipeline.oa_fetcher import (
+        PaperRef,
+        fetch_chain,
+    )
 
-    # Step 1: PMC
-    if pmcid:
-        tried.append("pmc")
-        r = pmc_client.fetch(pmcid)
-        if r.status == FulltextStatus.SUCCESS:
-            return CascadingFulltextResult(
-                fulltext_source="pmc",
-                tried_sources=tried,
-                sections=r.sections,
-                had_transient_error=False,
+    # PMCFetcher/EuropePMCFetcher는 europepmc.FulltextResult(status 필드)를 반환한다.
+    # PMCSource/EuropePMCSource는 자체 클라이언트 인터페이스(had_transient_error 필드)를 기대하므로
+    # 직접 쓰지 않고, europepmc.FulltextStatus를 ChainStatus로 변환하는 인라인 어댑터를 사용한다.
+
+    class _PMCAdapter:
+        name: str = "pmc"
+
+        def try_fetch(self, ref: PaperRef) -> ChainResult:
+            r = pmc_client.fetch(ref.pmcid)  # type: ignore[arg-type]
+            if r.status == FulltextStatus.SUCCESS:
+                return ChainResult(status=ChainStatus.SUCCESS, sections=r.sections)
+            if r.status == FulltextStatus.TRANSIENT_ERROR:
+                logger.warning("PMC transient error: doi=%s pmcid=%s", doi, pmcid)
+                return ChainResult(status=ChainStatus.TRANSIENT_ERROR)
+            return ChainResult(status=ChainStatus.NOT_AVAILABLE)
+
+    class _EuropePMCAdapter:
+        name: str = "europepmc"
+
+        def try_fetch(self, ref: PaperRef) -> ChainResult:
+            r = (
+                europepmc_client.fetch_by_pmid(ref.pmid)
+                if ref.pmid
+                else europepmc_client.fetch_by_doi(ref.doi)
             )
-        if r.status == FulltextStatus.TRANSIENT_ERROR:
-            transient_count += 1
-            logger.warning("PMC transient error: doi=%s pmcid=%s err=%s", doi, pmcid, r.error)
+            if r.status == FulltextStatus.SUCCESS:
+                return ChainResult(status=ChainStatus.SUCCESS, sections=r.sections)
+            if r.status == FulltextStatus.TRANSIENT_ERROR:
+                logger.warning("EuropePMC transient error: doi=%s", doi)
+                return ChainResult(status=ChainStatus.TRANSIENT_ERROR)
+            return ChainResult(status=ChainStatus.NOT_AVAILABLE)
 
-    # Step 2: Europe PMC
-    tried.append("europepmc")
-    r = europepmc_client.fetch_by_pmid(pmid) if pmid else europepmc_client.fetch_by_doi(doi)
+    chain: list = []
+    if pmcid:
+        chain.append(_PMCAdapter())
+    chain.append(_EuropePMCAdapter())
 
-    if r.status == FulltextStatus.SUCCESS:
-        return CascadingFulltextResult(
-            fulltext_source="europepmc",
-            tried_sources=tried,
-            sections=r.sections,
-            had_transient_error=False,
-        )
-    if r.status == FulltextStatus.TRANSIENT_ERROR:
-        transient_count += 1
-        logger.warning("EuropePMC transient error: doi=%s err=%s", doi, r.error)
+    ref = PaperRef(doi=doi, pmid=pmid, pmcid=pmcid)
+    chain_result = fetch_chain(ref, chain)
 
-    # Phase 2/3 추가 자리 (현재 비활성):
-    #   - bioRxiv (DOI prefix 10.1101/)
-    #   - Unpaywall (DOI → OA PDF URL → parse)
-
-    # 모든 시도가 transient면 호출자가 manifest 미기록 → 다음 실행 재시도
-    had_transient = transient_count > 0 and transient_count == len(tried)
-
+    tried = chain_result.tried
+    had_transient = (
+        len(tried) > 0
+        and all(status == ChainStatus.TRANSIENT_ERROR for _, status in tried)
+    )
     return CascadingFulltextResult(
-        fulltext_source=None,
-        tried_sources=tried,
-        sections=[],
+        fulltext_source=chain_result.fulltext_source,
+        tried_sources=[name for name, _ in tried],
+        sections=chain_result.sections,
         had_transient_error=had_transient,
     )

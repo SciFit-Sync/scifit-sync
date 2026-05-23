@@ -163,3 +163,111 @@ class TestEuropePMCSource:
 
         assert result.status == FulltextStatus.NOT_AVAILABLE
         client.fetch_by_doi.assert_called_once_with("10.1/c")
+
+
+class TestFetchCascadingWrapper:
+    """fetch_cascading이 fetch_chain wrapper로 전환 후에도 기존 계약을 유지하는지 검증.
+
+    mock client는 test_fulltext.py와 동일하게 europepmc.FulltextResult 형태를 반환한다.
+    """
+
+    def _pmc_success(self, sections=None):
+        from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+        return FulltextResult(
+            status=FulltextStatus.SUCCESS,
+            sections=sections or [PaperSection(name="S", content="c")],
+        )
+
+    def _pmc_transient(self):
+        from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+        return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR, error="err")
+
+    def _epmc_success(self, sections=None):
+        from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+        return FulltextResult(
+            status=FulltextStatus.SUCCESS,
+            sections=sections or [PaperSection(name="S", content="c")],
+        )
+
+    def _epmc_transient(self):
+        from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+        return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR, error="err")
+
+    def _epmc_not_available(self):
+        from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+
+    def _make_pmc_client(self, result):
+        client = MagicMock()
+        client.fetch.return_value = result
+        return client
+
+    def _make_europepmc_client(self, result):
+        client = MagicMock()
+        client.fetch_by_pmid.return_value = result
+        client.fetch_by_doi.return_value = result
+        return client
+
+    def test_wrapper_returns_same_shape_as_before(self):
+        """PMC SUCCESS → fulltext_source='pmc', tried_sources에 'pmc' 포함, had_transient_error=False."""
+        from mlops.pipeline.fulltext import fetch_cascading
+
+        pmc_result = self._pmc_success()
+        pmc = self._make_pmc_client(pmc_result)
+        epmc = self._make_europepmc_client(self._epmc_not_available())
+
+        result = fetch_cascading(
+            pmcid="PMC123", pmid="999", doi="10.1/z",
+            pmc_client=pmc, europepmc_client=epmc,
+        )
+
+        assert result.fulltext_source == "pmc"
+        assert "pmc" in result.tried_sources
+        assert result.sections == pmc_result.sections
+        assert result.had_transient_error is False
+
+    def test_wrapper_skips_pmc_when_no_pmcid(self):
+        """pmcid=None이면 tried_sources에 'pmc' 미포함."""
+        from mlops.pipeline.fulltext import fetch_cascading
+
+        epmc = self._make_europepmc_client(self._epmc_success())
+        pmc = self._make_pmc_client(self._epmc_not_available())  # 호출되면 안 됨
+
+        result = fetch_cascading(
+            pmcid=None, pmid="999", doi="10.1/z",
+            pmc_client=pmc, europepmc_client=epmc,
+        )
+
+        assert "pmc" not in result.tried_sources
+        assert result.fulltext_source == "europepmc"
+        assert result.had_transient_error is False
+
+    def test_wrapper_partial_transient_does_not_flag(self):
+        """PMC transient + EuropePMC SUCCESS → had_transient_error=False (모든 시도가 transient 아님)."""
+        from mlops.pipeline.fulltext import fetch_cascading
+
+        pmc = self._make_pmc_client(self._pmc_transient())
+        epmc = self._make_europepmc_client(self._epmc_success())
+
+        result = fetch_cascading(
+            pmcid="PMC123", pmid="999", doi="10.1/z",
+            pmc_client=pmc, europepmc_client=epmc,
+        )
+
+        assert result.fulltext_source == "europepmc"
+        assert result.had_transient_error is False
+
+    def test_wrapper_all_transient_flags(self):
+        """PMC transient + EuropePMC transient → had_transient_error=True."""
+        from mlops.pipeline.fulltext import fetch_cascading
+
+        pmc = self._make_pmc_client(self._pmc_transient())
+        epmc = self._make_europepmc_client(self._epmc_transient())
+
+        result = fetch_cascading(
+            pmcid="PMC123", pmid="999", doi="10.1/z",
+            pmc_client=pmc, europepmc_client=epmc,
+        )
+
+        assert result.fulltext_source is None
+        assert result.had_transient_error is True
