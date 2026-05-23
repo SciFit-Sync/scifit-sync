@@ -21,7 +21,25 @@ down_revision = "008"
 branch_labels = None
 depends_on = None
 
-_SEED_CSV = Path(__file__).parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv"
+def _find_seed_csv() -> Path:
+    """환경별 CSV 경로 탐색.
+
+    - Docker prod (Dockerfile COPY): /app/mlops/data/... (3 parents up)
+    - docker-compose (volume mount ./mlops:/app/mlops): 3 parents up
+    - Local alembic (cwd=repo_root): 4 parents up
+    """
+    _base = Path(__file__)
+    candidates = [
+        _base.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",  # 3 up
+        _base.parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",  # 4 up
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    raise FileNotFoundError(f"equipments_seed.csv를 찾을 수 없습니다. 탐색 경로: {candidates}")
+
+
+_SEED_CSV = _find_seed_csv()
 
 _BRANDS = [
     {

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import APIRouter, Depends, Request, Response
 
-from app.services.email import send_otp_email
+from app.services.ses import send_otp_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
