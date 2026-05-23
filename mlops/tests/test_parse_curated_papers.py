@@ -46,3 +46,35 @@ class TestExtractIdsFromLines:
         lines = ["DOI: 10.1080/test", "DOI: 10.1080/test"]
         _, _, dois = extract_ids_from_lines(lines)
         assert dois.count("10.1080/test") == 1
+
+
+class TestDetectIssues:
+    def test_detects_placeholder_doi(self):
+        issues = detect_issues(["10.1001/jamanetworkopen.2024.xxxx"], [], "Q039")
+        assert len(issues["placeholder_doi"]) == 1
+        assert issues["placeholder_doi"][0]["value"] == "10.1001/jamanetworkopen.2024.xxxx"
+
+    def test_detects_placeholder_doi_uppercase_normalized(self):
+        # normalize_doi lowercases, so XXXX → xxxx before detect_issues is called
+        # But detect_issues receives already-normalized dois; test that lowercase works
+        issues = detect_issues(["10.1001/jamanetworkopen.2024.xxxx"], [], "Q039")
+        assert len(issues["placeholder_doi"]) == 1
+
+    def test_detects_future_prefix_doi(self):
+        issues = detect_issues(["10.1007/s40279-026-02401-y"], [], "Q027")
+        assert len(issues["future_prefix_doi"]) == 1
+
+    def test_detects_typo_doi(self):
+        # 0.1123/... → 10.1123/...
+        raw_lines = ["3. 0.1123/ijsnem.2013-0054"]
+        issues = detect_issues([], raw_lines, "Q037")
+        assert len(issues["typo_doi_autofixed"]) == 1
+        autofixed = issues["typo_doi_autofixed"][0]
+        assert autofixed["original"] == "0.1123/ijsnem.2013-0054"
+        assert autofixed["fixed"] == "10.1123/ijsnem.2013-0054"
+
+    def test_no_false_positives(self):
+        issues = detect_issues(["10.1080/02640414.2016.1210197"], [], "Q001")
+        assert issues["placeholder_doi"] == []
+        assert issues["future_prefix_doi"] == []
+        assert issues["typo_doi_autofixed"] == []
