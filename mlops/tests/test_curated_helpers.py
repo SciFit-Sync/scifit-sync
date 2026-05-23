@@ -1,6 +1,13 @@
 """curated helper 단위 테스트."""
-import pytest
-from mlops.pipeline.curated import normalize_doi
+from unittest.mock import MagicMock, patch
+
+import requests
+from mlops.pipeline.curated import (
+    ncbi_pmid_to_doi,
+    normalize_doi,
+    openalex_doi_lookup,
+    title_keyword_overlap,
+)
 
 
 class TestNormalizeDoi:
@@ -25,11 +32,6 @@ class TestNormalizeDoi:
         first = normalize_doi("HTTPS://DOI.ORG/10.1080/JSC.001;")
         second = normalize_doi(first)
         assert first == second
-
-
-import requests
-from unittest.mock import MagicMock, patch
-from mlops.pipeline.curated import ncbi_pmid_to_doi
 
 
 class TestNcbiPmidToDoi:
@@ -62,9 +64,6 @@ class TestNcbiPmidToDoi:
         mock_get.return_value = mock_resp
 
         assert ncbi_pmid_to_doi("12345") == "10.1080/test.001"
-
-
-from mlops.pipeline.curated import openalex_doi_lookup
 
 
 class TestOpenalexDoiLookup:
@@ -110,9 +109,6 @@ class TestOpenalexDoiLookup:
     def test_returns_none_on_request_exception(self, mock_get):
         mock_get.side_effect = requests.RequestException("timeout")
         assert openalex_doi_lookup("10.1080/x") is None
-
-
-from mlops.pipeline.curated import title_keyword_overlap
 
 
 class TestTitleKeywordOverlap:
