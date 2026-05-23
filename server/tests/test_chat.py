@@ -83,18 +83,19 @@ async def client():
 
 # ── POST /chat/messages (SSE) ─────────────────────────────────────────────────
 
+_STUB_EVENTS = [
+    {"type": "chunk", "content": "안녕하세요!"},
+    {"type": "sources", "sources": []},
+    {"type": "done"},
+]
+
+_ERROR_EVENTS = [{"type": "error", "message": "관련 논문을 찾을 수 없습니다."}]
+
 
 class TestSendChatMessage:
     @pytest.mark.asyncio
     async def test_new_session_streams_sse(self, client, monkeypatch):
-        monkeypatch.setattr(
-            "app.api.v1.chat.chat_rag_stream",
-            _stub_rag_stream([
-                {"type": "chunk", "content": "안녕하세요!"},
-                {"type": "sources", "sources": []},
-                {"type": "done"},
-            ]),
-        )
+        monkeypatch.setattr("app.api.v1.chat.chat_rag_stream", _stub_rag_stream(_STUB_EVENTS))
         db = _make_db()
         db.flush = AsyncMock(side_effect=lambda: setattr(db, "_flushed", True))
         db.add = MagicMock()
@@ -113,10 +114,7 @@ class TestSendChatMessage:
     @pytest.mark.asyncio
     async def test_rag_error_event_forwarded(self, client, monkeypatch):
         """RAG가 error를 emit하면 SSE에도 error 이벤트가 흘러간다."""
-        monkeypatch.setattr(
-            "app.api.v1.chat.chat_rag_stream",
-            _stub_rag_stream([{"type": "error", "message": "관련 논문을 찾을 수 없습니다."}]),
-        )
+        monkeypatch.setattr("app.api.v1.chat.chat_rag_stream", _stub_rag_stream(_ERROR_EVENTS))
         db = _make_db()
         app.dependency_overrides[get_db] = _db_override(db)
 
