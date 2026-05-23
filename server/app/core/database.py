@@ -10,7 +10,7 @@ settings = get_settings()
 
 def _build_ssl_arg():
     """개발(로컬 postgres): SSL 비활성화. 프로덕션(Supabase): SSL 인증서 무검증."""
-    if settings.ENV == "development":
+    if settings.ENV in ("development", "test"):
         return False
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
