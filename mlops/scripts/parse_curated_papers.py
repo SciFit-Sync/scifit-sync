@@ -16,7 +16,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -76,9 +75,9 @@ def parse_papers_txt(path: Path) -> tuple[dict[str, list[str]], set[str]]:
     """
     qid_lines: dict[str, list[str]] = {}
     deleted: set[str] = set()
-    current_qid: Optional[str] = None
+    current_qid: str | None = None
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for raw in f:
             line = raw.rstrip()
             m = Q_HEADER_RE.match(line)
@@ -153,6 +152,16 @@ def build_provenance(
         ]
         dois_clean = [d for d in dois_clean if d]  # normalize 실패 제거
 
+        # DOI가 같은 라인의 PMID와 함께 등장했는지 파악하여 DOI-only 목록에서 제외
+        # 각 라인별로 PMID + DOI 동시 보유 여부를 분석
+        pmid_associated_dois: set[str] = set()
+        for line in lines:
+            line_pmids = PMID_RE.findall(line)
+            line_dois = [normalize_doi(m.group(1)) for m in DOI_RE.finditer(line)]
+            line_dois = [d for d in line_dois if d]
+            if line_pmids and line_dois:
+                pmid_associated_dois.update(line_dois)
+
         papers = []
         # PMID-bearing entries
         for pmid in pmids:
@@ -170,8 +179,10 @@ def build_provenance(
                 "is_typo_autofixed": False,
                 "search_categories": [DEFAULT_CATEGORY],
             })
-        # DOI-only entries (PMID 없는 paper)
+        # DOI-only entries (PMID 없는 paper — PMID와 같은 라인에 있던 DOI 제외)
         for doi in dois_clean:
+            if doi in pmid_associated_dois:
+                continue
             is_typo = doi in typo_map.values()
             papers.append({
                 "raw_id": f"DOI:{doi}",

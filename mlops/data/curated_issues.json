@@ -1,0 +1,43 @@
+{
+  "placeholder_doi": [
+    {
+      "qid": "Q039",
+      "value": "10.1001/jamanetworkopen.2024.xxxx"
+    },
+    {
+      "qid": "Q039",
+      "value": "10.1001/jama.2010.xxxx"
+    },
+    {
+      "qid": "Q039",
+      "value": "10.1136/bjsports-2020-xxxx"
+    }
+  ],
+  "future_prefix_doi": [
+    {
+      "qid": "Q027",
+      "value": "10.1007/s40279-026-02401-y"
+    },
+    {
+      "qid": "Q034",
+      "value": "10.1038/s41430-026-01757-8"
+    },
+    {
+      "qid": "Q063",
+      "value": "10.1038/s41598-026-40612-5"
+    }
+  ],
+  "typo_doi_autofixed": [
+    {
+      "qid": "Q037",
+      "original": "0.1123/ijsnem.2013-0054",
+      "fixed": "10.1123/ijsnem.2013-0054"
+    }
+  ],
+  "deleted_queries": [
+    "Q004",
+    "Q006",
+    "Q060",
+    "Q066"
+  ]
+}
