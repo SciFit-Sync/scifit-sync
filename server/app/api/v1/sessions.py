@@ -133,12 +133,16 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
             goal = routine.fitness_goals[0]
 
     ex_rows = (
-        await db.execute(
-            select(WorkoutLogSet.exercise_id)
-            .where(WorkoutLogSet.workout_log_id == s.id, WorkoutLogSet.is_completed.is_(True))
-            .distinct()
+        (
+            await db.execute(
+                select(WorkoutLogSet.exercise_id)
+                .where(WorkoutLogSet.workout_log_id == s.id, WorkoutLogSet.is_completed.is_(True))
+                .distinct()
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     notifications: list[Notification] = []
     for exercise_id in ex_rows:
@@ -177,9 +181,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
 
         equipment = None
         if equipment_id:
-            equipment = (
-                await db.execute(select(Equipment).where(Equipment.id == equipment_id))
-            ).scalar_one_or_none()
+            equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
 
         eq_type = equipment.equipment_type.value if equipment else "machine"
         max_stack = equipment.max_stack if equipment else None
@@ -189,8 +191,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
                 select(
                     func.max(WorkoutLogSet.weight_kg).label("weight"),
                     func.count(WorkoutLogSet.id).label("sets"),
-                )
-                .where(
+                ).where(
                     WorkoutLogSet.workout_log_id == s.id,
                     WorkoutLogSet.exercise_id == exercise_id,
                     WorkoutLogSet.is_completed.is_(True),
