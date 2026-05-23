@@ -29,6 +29,17 @@ print("deps OK")
 PY
 
 mkdir -p mlops/data
+
+# flock으로 ingest_curated_pmids.py와 동시 실행 방지.
+# 공유 락 파일: mlops/data/.ingest.lock (양쪽 스크립트가 같은 경로 사용).
+# 다른 ingest 프로세스가 락을 잡고 있으면 즉시 실패하여 manifest race 방지.
+LOCK_FILE="mlops/data/.ingest.lock"
+exec 9>"$LOCK_FILE"
+flock -n 9 || {
+  echo "!!! Another ingest process holds $LOCK_FILE — aborting" >&2
+  exit 4
+}
+
 TS=$(date +%Y%m%d_%H%M%S)
 TAG="3k_${TS}"
 LOG="mlops/data/ingest_${TAG}.log"
