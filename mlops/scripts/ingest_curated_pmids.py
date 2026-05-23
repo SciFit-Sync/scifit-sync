@@ -8,33 +8,29 @@ Spec §4.2 단일 상태머신 참조.
         [--dry-run] [--limit N]
 """
 
-import argparse
 import contextlib
 import fcntl
 import json
 import logging
 import os
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Optional
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from mlops.pipeline.curated import (
-    normalize_doi,
+from mlops.pipeline.config import NCBI_API_KEY, NCBI_BASE_URL  # noqa: E402
+from mlops.pipeline.curated import (  # noqa: E402
     ncbi_pmid_to_doi,
+    normalize_doi,
     openalex_doi_lookup,
     title_keyword_overlap,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
-
-import xml.etree.ElementTree as ET
-
-import requests
-
-from mlops.pipeline.config import NCBI_API_KEY, NCBI_BASE_URL
 
 LOCK_FILENAME = ".ingest.lock"
 TITLE_OVERLAP_THRESHOLD = 0.2
@@ -50,10 +46,8 @@ def acquire_lock(lock_path: Path):
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         yield fd
     finally:
-        try:
+        with contextlib.suppress(Exception):
             fcntl.flock(fd, fcntl.LOCK_UN)
-        except Exception:
-            pass
         os.close(fd)
 
 
@@ -100,9 +94,7 @@ def efetch_pubmed_batch(pmids: list[str], timeout: int = 60) -> dict[str, dict]:
         abstract = "".join(abstract_el.itertext()).strip() if abstract_el is not None else ""
 
         pub_types = [
-            (pt.text or "").strip()
-            for pt in article.findall(".//PublicationTypeList/PublicationType")
-            if pt.text
+            (pt.text or "").strip() for pt in article.findall(".//PublicationTypeList/PublicationType") if pt.text
         ]
 
         year_el = article.find(".//Article/Journal/JournalIssue/PubDate/Year")
@@ -216,3 +208,35 @@ def resolve_papers(
             _mark_failure(paper, "title_mismatch")
 
     return papers
+
+
+def mark_already_in_corpus(papers: list[dict], existing_dois: set[str]) -> None:
+    """Step 5: identifier 해석 후 already_in_corpus 판정.
+
+    이미 실패한 paper(failure_reason 채워진 것)는 건드리지 않음.
+    """
+    for paper in papers:
+        if paper.get("failure_reason"):
+            continue
+        doi = paper.get("resolved_doi")
+        if not doi:
+            paper["already_in_corpus"] = False
+            continue
+        if doi in existing_dois:
+            paper["already_in_corpus"] = True
+            paper["indexed"] = True
+        else:
+            paper["already_in_corpus"] = False
+
+
+def atomic_write_json(path: Path, data) -> None:
+    """tmp + os.replace 패턴 (POSIX atomic)."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        with contextlib.suppress(Exception):
+            tmp.unlink(missing_ok=True)
