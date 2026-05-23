@@ -5,6 +5,7 @@ from pathlib import Path
 from mlops.scripts.parse_curated_papers import (
     detect_issues,
     extract_ids_from_lines,
+    parse_papers_txt,
     run,
 )
 
@@ -90,8 +91,8 @@ class TestBuildProvenance:
         # Q001 present
         assert "Q001" in prov
         assert prov["Q001"]["category"] == "unknown"  # 매핑 없으면 unknown
-        # 3 papers in Q001
-        assert len(prov["Q001"]["papers"]) == 3
+        # 4 papers in Q001: DOI-only(1) + PMID+DOI same line → 2 entries + PMID-only(1)
+        assert len(prov["Q001"]["papers"]) == 4
         # 각 paper는 resolved_* / indexed / fulltext_ok null로 시작
         for p in prov["Q001"]["papers"]:
             assert p["indexed"] is None
@@ -121,3 +122,54 @@ class TestBuildProvenance:
         run(FIXTURE, prov_path, issues_path)
         issues = json.loads(issues_path.read_text())
         assert "Q004" in issues["deleted_queries"]
+
+    def test_duplicate_in_query_key_present(self, tmp_path):
+        prov_path = tmp_path / "prov.json"
+        issues_path = tmp_path / "iss.json"
+        run(FIXTURE, prov_path, issues_path)
+        issues = json.loads(issues_path.read_text())
+        assert "duplicate_in_query" in issues
+
+
+class TestDetectIssuesDuplicate:
+    def test_detects_duplicate_doi_in_query(self):
+        dois = ["10.1080/test", "10.1080/other"]
+        raw_lines = [
+            "1. DOI: 10.1080/test",
+            "2. DOI: 10.1080/test",
+            "3. DOI: 10.1080/other",
+        ]
+        issues = detect_issues(dois, raw_lines, "Q017")
+        assert len(issues["duplicate_in_query"]) == 1
+        entry = issues["duplicate_in_query"][0]
+        assert entry["qid"] == "Q017"
+        assert entry["doi"] == "10.1080/test"
+        assert entry["count"] == 2
+
+    def test_no_duplicate_when_unique(self):
+        dois = ["10.1080/a", "10.1080/b"]
+        raw_lines = ["1. DOI: 10.1080/a", "2. DOI: 10.1080/b"]
+        issues = detect_issues(dois, raw_lines, "Q099")
+        assert issues["duplicate_in_query"] == []
+
+
+class TestParsePapersTxt:
+    def test_header_deletion_mark(self, tmp_path):
+        path = tmp_path / "input.txt"
+        path.write_text("Q001: query\n1. PMID: 12345\n\nQ002 삭제\n", encoding="utf-8")
+        qid_lines, deleted = parse_papers_txt(path)
+        assert "Q002" in deleted
+        assert "Q001" not in deleted
+
+    def test_inline_deletion_mark(self, tmp_path):
+        path = tmp_path / "input.txt"
+        path.write_text("Q003: query\n질문 삭제\n", encoding="utf-8")
+        qid_lines, deleted = parse_papers_txt(path)
+        assert "Q003" in deleted
+
+    def test_collects_q_lines(self, tmp_path):
+        path = tmp_path / "input.txt"
+        path.write_text("Q001: x\n1. PMID: 12345\nQ002: y\n2. DOI: 10.1/a\n", encoding="utf-8")
+        qid_lines, _ = parse_papers_txt(path)
+        assert "Q001" in qid_lines and "Q002" in qid_lines
+        assert any("12345" in line for line in qid_lines["Q001"])
