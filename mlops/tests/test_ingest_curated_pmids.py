@@ -452,3 +452,21 @@ class TestAtomicWrite:
         assert json.loads(path.read_text()) == {"new": True}
         # tmp 파일은 남지 않아야 함
         assert not list(tmp_path.glob("*.tmp"))
+
+
+class TestLoadExistingDois:
+    def test_combines_manifest_and_server(self):
+        from mlops.scripts.ingest_curated_pmids import load_existing_dois
+
+        manifest = MagicMock()
+        manifest.papers = {
+            "10.1080/testA": MagicMock(fulltext_source="pmc", tried_sources=["pmc"]),
+            "10.1080/TESTB": MagicMock(fulltext_source=None, tried_sources=["pmc", "europepmc"]),
+        }
+        with patch("mlops.scripts.ingest_curated_pmids._fetch_server_dois") as mock_srv:
+            mock_srv.return_value = {"10.1080/TESTC", "10.1080/TESTD"}
+            result = load_existing_dois(manifest)
+            assert "10.1080/testa" in result  # normalized (lowercase)
+            assert "10.1080/testb" in result  # fully-tried → included
+            assert "10.1080/testc" in result  # from server
+            assert "10.1080/testd" in result

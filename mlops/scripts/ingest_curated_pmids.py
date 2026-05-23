@@ -257,3 +257,35 @@ def atomic_write_json(path: Path, data) -> None:
     finally:
         with contextlib.suppress(Exception):
             tmp.unlink(missing_ok=True)
+
+
+from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL  # noqa: E402
+
+ACTIVE_SOURCES = {"pmc", "europepmc"}
+
+
+def _fetch_server_dois() -> set[str]:
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.warning("API_BASE_URL/ADMIN_API_TOKEN missing - server dedup 생략")
+        return set()
+    url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/dois"
+    try:
+        resp = requests.get(url, headers={"X-Admin-Token": ADMIN_API_TOKEN}, timeout=30)
+        resp.raise_for_status()
+        return set(resp.json()["data"]["dois"])
+    except (requests.RequestException, KeyError, ValueError) as e:
+        logger.warning("server DOI fetch failed: %s", e)
+        return set()
+
+
+def load_existing_dois(manifest) -> set[str]:
+    """manifest 'indexed 또는 모든 active sources 시도' DOI + server DB DOI union.
+
+    모든 DOI는 normalize_doi() 적용 후 set에 넣음.
+    """
+    manifest_dois = set()
+    for doi, entry in manifest.papers.items():
+        if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
+            manifest_dois.add(normalize_doi(doi))
+    server_dois = {normalize_doi(d) for d in _fetch_server_dois()}
+    return manifest_dois | server_dois
