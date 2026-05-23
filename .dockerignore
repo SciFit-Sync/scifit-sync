@@ -1,0 +1,60 @@
+# PR #115 hotfix로 build context가 repo root로 이동(deploy.yml + docker-compose.yml 양쪽).
+# Docker는 context 루트의 .dockerignore만 읽으므로 server/.dockerignore는 더 이상 적용되지 않음.
+# 누락 시 전체 repo가 Docker daemon으로 전송되어 빌드 시간/이미지 사이즈 폭증.
+
+# VCS
+.git
+.gitignore
+.github
+
+# 프론트 (백엔드 이미지에 불필요)
+app/node_modules
+app/.expo
+app/ios
+app/android
+
+# Vector DB (재생성 가능, 거대)
+chroma_data
+chroma-data
+mlops/data/chroma-data
+
+# MLOps 산출물 (.gitignore와 동기 — 재생성 가능, embeddings는 GB 단위)
+mlops/data/*.jsonl
+mlops/data/*.jsonl.gz
+mlops/data/chunks
+mlops/data/emb_*
+mlops/eval/reports
+
+# Python 캐시 / 테스트 산출물
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+**/.venv
+**/.mypy_cache
+**/.ruff_cache
+
+# Env / secrets (절대 이미지에 포함 금지)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# 테스트 (런타임 불필요)
+server/tests
+mlops/tests
+app/__tests__
+
+# 문서 / 디자인 자산
+docs
+*.md
+!server/alembic/README
+
+# OS / 에디터
+.DS_Store
+.idea
+.vscode
