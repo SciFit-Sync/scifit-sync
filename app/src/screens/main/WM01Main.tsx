@@ -13,6 +13,8 @@ import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import RoutineCreate from "../../components/WR01RoutineCreate";
 import ProgramCreate from "../../components/WR02ProgramCreate";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import WC01Chatbot from "../../components/WC01Chatbot";
 
 type RoutineTab = "single" | "program";
 
@@ -91,6 +93,7 @@ export default function WM01Main() {
   const [expanded_id, set_expanded_id] = useState<string | null>(null);
   const [show_create_sheet, set_show_create_sheet] = useState(false);
   const [show_program_sheet, set_show_program_sheet] = useState(false);
+  const [show_chatbot, set_show_chatbot] = useState(false);
 
   const toggle_program = (id: string) => {
     set_expanded_id((prev) => (prev === id ? null : id));
@@ -267,15 +270,6 @@ export default function WM01Main() {
         </View>
       </ScrollView>
 
-      {/* 챗봇 FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("WC01Chatbot" as never)}
-        activeOpacity={0.8}
-      >
-        <Octicons name="comment" size={24} color={colors.white} />
-      </TouchableOpacity>
-
       {/* 하단 네브바 */}
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
@@ -301,6 +295,8 @@ export default function WM01Main() {
           onClose={() => set_show_program_sheet(false)}
         />
       )}
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
     </View>
   );
 }
@@ -478,22 +474,7 @@ const styles = StyleSheet.create({
   },
 
   // FAB
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 104,
-    width: 55,
-    height: 55,
-    borderRadius: 1000,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-  },
+
   safe_bottom: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 16,
