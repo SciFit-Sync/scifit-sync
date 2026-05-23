@@ -30,3 +30,32 @@ def normalize_doi(raw: Optional[str]) -> str:
     if not _DOI_VALIDATE_RE.match(s):
         return ""
     return s
+
+
+NCBI_ID_CONVERTER_URL = "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/"
+
+
+def ncbi_pmid_to_doi(pmid: str, timeout: int = 30) -> str:
+    """NCBI ID Converter로 PMID → DOI 변환.
+
+    실패 시 빈 문자열 반환. 정규화된 DOI를 돌려준다.
+    """
+    if not pmid:
+        return ""
+    try:
+        resp = requests.get(
+            NCBI_ID_CONVERTER_URL,
+            params={"ids": pmid, "format": "json"},
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.warning("NCBI ID Converter failed for PMID=%s: %s", pmid, e)
+        return ""
+
+    records = data.get("records", [])
+    if not records:
+        return ""
+    raw_doi = records[0].get("doi", "")
+    return normalize_doi(raw_doi)
