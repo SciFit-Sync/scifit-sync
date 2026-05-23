@@ -20,6 +20,7 @@ from app.models import (
     CareerLevel,
     Equipment,
     Exercise,
+    Gender,
     Gym,
     OnermSource,
     User,
@@ -37,6 +38,8 @@ from app.schemas.users import (
     BulkOneRMData,
     GymData,
     MeData,
+    OnboardData,
+    OnboardRequest,
     OneRMData,
     OneRMListData,
     ProfileData,
@@ -83,6 +86,68 @@ def _measurement_to_dto(m: UserBodyMeasurement | None) -> BodyMeasurementData | 
         skeletal_muscle_kg=m.skeletal_muscle_kg,
         body_fat_pct=m.body_fat_pct,
         measured_at=m.measured_at,
+    )
+
+
+# ── POST /users/me/onboard ───────────────────────────────────────────────────
+@rate_limit("60/minute")
+@router.post(
+    "/me/onboard",
+    response_model=SuccessResponse[OnboardData],
+    status_code=201,
+    summary="온보딩 완료 (최초 신체정보 등록)",
+)
+async def onboard(
+    request: Request,
+    body: OnboardRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """회원가입 직후 W-A03 화면에서 호출. UserProfile이 이미 존재하면 409."""
+    existing = (
+        await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ConflictError(message="이미 온보딩이 완료된 계정입니다.")
+
+    try:
+        career = CareerLevel(body.career_level)
+    except ValueError as e:
+        raise ValidationError(message=f"알 수 없는 경력 레벨입니다: {body.career_level}") from e
+
+    try:
+        gender = Gender(body.gender)
+    except ValueError as e:
+        raise ValidationError(message=f"알 수 없는 성별 값입니다: {body.gender}") from e
+
+    profile = UserProfile(
+        user_id=current_user.id,
+        gender=gender,
+        birth_date=body.birth_date,
+        height_cm=body.height_cm,
+        career_level=career,
+        default_goals=body.default_goals or None,
+    )
+    db.add(profile)
+
+    # 초기 체중 측정값
+    db.add(
+        UserBodyMeasurement(
+            user_id=current_user.id,
+            weight_kg=body.weight_kg,
+            measured_at=datetime.now(timezone.utc).date(),
+        )
+    )
+
+    await db.commit()
+    await db.refresh(profile)
+
+    logger.info("User %s onboarding complete", current_user.id)
+    return SuccessResponse(
+        data=OnboardData(
+            user_id=str(current_user.id),
+            profile=_profile_to_dto(profile),  # type: ignore[arg-type]
+        )
     )
 
 

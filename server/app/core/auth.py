@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.exceptions import UnauthorizedError
-from app.models.user import User
+from app.core.exceptions import OnboardingRequiredError, UnauthorizedError
+from app.models.user import User, UserProfile
 
 # Swagger UI "Authorize" 버튼 활성화용 (auto_error=False → 토큰 없어도 라우터까지 진입)
 _bearer = HTTPBearer(auto_error=False)
@@ -86,3 +86,14 @@ async def get_current_user(
         raise UnauthorizedError(message="비활성화된 계정입니다")
 
     return user
+
+
+async def get_required_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """UserProfile이 없는 사용자(온보딩 미완료)는 403 ONBOARDING_REQUIRED."""
+    profile = (await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))).scalar_one_or_none()
+    if profile is None:
+        raise OnboardingRequiredError()
+    return current_user

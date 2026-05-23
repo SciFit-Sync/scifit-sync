@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
@@ -48,7 +48,7 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
 async def send_chat_message(
     request: Request,
     body: SendChatMessageRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     # 세션 확보 (없으면 신규 생성)
@@ -88,7 +88,7 @@ async def send_chat_message(
 @router.get("/messages", response_model=SuccessResponse[ChatMessageListData], summary="챗봇 히스토리")
 async def list_chat_messages(
     session_id: str = Query(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     session = await _get_my_session(session_id, current_user, db)
@@ -123,7 +123,7 @@ async def list_chat_messages(
     summary="챗봇 기반 추천 루틴",
 )
 async def recommended_routines(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
 ):
     """⚠️ TODO: 사용자 프로필 + 최근 챗 히스토리 + RAG로 추천 생성.
     현재는 빈 목록 반환.
