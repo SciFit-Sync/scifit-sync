@@ -25,3 +25,40 @@ class TestNormalizeDoi:
         first = normalize_doi("HTTPS://DOI.ORG/10.1080/JSC.001;")
         second = normalize_doi(first)
         assert first == second
+
+
+import requests
+from unittest.mock import MagicMock, patch
+from mlops.pipeline.curated import ncbi_pmid_to_doi
+
+
+class TestNcbiPmidToDoi:
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_doi_when_present(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"records": [{"pmid": "12345", "doi": "10.1080/test"}]}
+        mock_get.return_value = mock_resp
+
+        result = ncbi_pmid_to_doi("12345")
+        assert result == "10.1080/test"
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_empty_when_doi_missing(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"records": [{"pmid": "12345"}]}
+        mock_get.return_value = mock_resp
+
+        assert ncbi_pmid_to_doi("12345") == ""
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_empty_on_http_error(self, mock_get):
+        mock_get.side_effect = requests.RequestException("503")
+        assert ncbi_pmid_to_doi("12345") == ""
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_normalizes_returned_doi(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"records": [{"pmid": "12345", "doi": "10.1080/TEST.001;"}]}
+        mock_get.return_value = mock_resp
+
+        assert ncbi_pmid_to_doi("12345") == "10.1080/test.001"
