@@ -62,3 +62,51 @@ class TestNcbiPmidToDoi:
         mock_get.return_value = mock_resp
 
         assert ncbi_pmid_to_doi("12345") == "10.1080/test.001"
+
+
+from mlops.pipeline.curated import openalex_doi_lookup
+
+
+class TestOpenalexDoiLookup:
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_metadata_with_pmid(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {
+            "id": "https://openalex.org/W123",
+            "doi": "https://doi.org/10.1080/test",
+            "title": "Sample Paper",
+            "ids": {"pmid": "https://pubmed.ncbi.nlm.nih.gov/12345"},
+            "publication_year": 2023,
+            "type": "journal-article",
+        }
+        mock_get.return_value = mock_resp
+
+        result = openalex_doi_lookup("10.1080/test")
+        assert result is not None
+        assert result["pmid"] == "12345"
+        assert result["title"] == "Sample Paper"
+        assert result["doi"] == "10.1080/test"
+        assert result["publication_year"] == 2023
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_metadata_without_pmid(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"doi": "https://doi.org/10.1080/x", "title": "X", "ids": {}}
+        mock_get.return_value = mock_resp
+
+        result = openalex_doi_lookup("10.1080/x")
+        assert result is not None
+        assert result["pmid"] == ""
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_none_on_404(self, mock_get):
+        mock_resp = MagicMock(status_code=404)
+        mock_resp.raise_for_status.side_effect = requests.HTTPError("404")
+        mock_get.return_value = mock_resp
+
+        assert openalex_doi_lookup("10.1080/notfound") is None
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_none_on_request_exception(self, mock_get):
+        mock_get.side_effect = requests.RequestException("timeout")
+        assert openalex_doi_lookup("10.1080/x") is None
