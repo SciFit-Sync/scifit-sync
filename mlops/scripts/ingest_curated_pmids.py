@@ -129,3 +129,90 @@ def efetch_pubmed_batch(pmids: list[str], timeout: int = 60) -> dict[str, dict]:
             "publication_year": year,
         }
     return result
+
+
+def _mark_failure(paper: dict, reason: str) -> None:
+    """invariant: failure_reason과 indexed=false 동시 기록 (§7.1)."""
+    paper["failure_reason"] = reason
+    paper["indexed"] = False
+
+
+def resolve_papers(
+    papers: list[dict],
+    qid: str,
+    query_context: str,
+) -> list[dict]:
+    """단일 상태머신: PMID 분기 + DOI-only 분기 + title sanity check.
+
+    in-place로 paper["resolved_*"] / paper["failure_reason"] / paper["metadata"] 채움.
+    metadata에는 publication_types, publication_year, pmcid, title, abstract 저장.
+    """
+    # 분기 A: PMID-bearing → efetch batch
+    branch_a = [p for p in papers if p["raw_pmid"]]
+    branch_b = [p for p in papers if p["raw_doi"] and not p["raw_pmid"]]
+
+    if branch_a:
+        pmids = [p["raw_pmid"] for p in branch_a]
+        efetch_result = efetch_pubmed_batch(pmids)
+
+        # 누락 PMID는 single re-fetch
+        missing = [pmid for pmid in pmids if pmid not in efetch_result]
+        if missing:
+            logger.info("efetch missing %d PMIDs, single-fetch retry", len(missing))
+            for pmid in missing:
+                single = efetch_pubmed_batch([pmid])
+                if pmid in single:
+                    efetch_result[pmid] = single[pmid]
+
+        for paper in branch_a:
+            pmid = paper["raw_pmid"]
+            if pmid not in efetch_result:
+                _mark_failure(paper, "efetch_not_found")
+                continue
+            meta = efetch_result[pmid]
+            paper["metadata"] = meta
+            paper["resolved_pmid"] = pmid
+            paper["resolved_title"] = meta["title"]
+            doi = meta["doi"]
+            if not doi:
+                # converter fallback
+                doi = ncbi_pmid_to_doi(pmid)
+            if not doi:
+                _mark_failure(paper, "doi_resolution_failed")
+                continue
+            paper["resolved_doi"] = doi
+
+    # 분기 B: DOI-only → OpenAlex
+    for paper in branch_b:
+        doi = normalize_doi(paper["raw_doi"])
+        lookup = openalex_doi_lookup(doi)
+        if lookup is None:
+            _mark_failure(paper, "openalex_not_found")
+            continue
+        if not lookup["pmid"]:
+            _mark_failure(paper, "no_pmid_from_openalex")
+            continue
+        paper["resolved_pmid"] = lookup["pmid"]
+        paper["resolved_doi"] = lookup["doi"] or doi
+        paper["resolved_title"] = lookup["title"]
+        paper["metadata"] = {
+            "doi": lookup["doi"] or doi,
+            "pmcid": "",
+            "title": lookup["title"],
+            "abstract": "",
+            "publication_types": [],
+            "publication_year": lookup["publication_year"],
+        }
+
+    # title sanity check for typo-autofixed papers
+    for paper in papers:
+        if not paper.get("is_typo_autofixed"):
+            continue
+        if paper.get("failure_reason"):
+            continue  # already failed
+        title = paper.get("resolved_title") or ""
+        overlap = title_keyword_overlap(title, query_context)
+        if overlap < TITLE_OVERLAP_THRESHOLD:
+            _mark_failure(paper, "title_mismatch")
+
+    return papers
