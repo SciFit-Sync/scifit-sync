@@ -50,8 +50,13 @@ Thumbs.db
 # 로컬 설계 메모 / 브레인스토밍 산출물 (커밋 금지)
 docs/specs/
 
-# mlops 파이프라인 로컬 산출물 (재생성 가능)
+# mlops 파이프라인 로컬 산출물 (재생성 가능 — A/B test 산출물 포함)
 mlops/data/chroma-data/
 mlops/data/*.jsonl
 mlops/data/*.jsonl.gz
+mlops/data/chunks/
+mlops/data/emb_*/
+# A/B eval 리포트는 큰 산출물 — README는 보존
+mlops/eval/reports/*.md
+!mlops/eval/reports/README.md
 app/package-lock.json

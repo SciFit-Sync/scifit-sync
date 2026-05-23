@@ -19,8 +19,8 @@
 
 ```bash
 # 1. 리포 클론
-git clone https://github.com/SciFit-Sync/scifiit-sync.git
-cd scifiit-sync
+git clone https://github.com/SciFit-Sync/scifit-sync.git
+cd scifit-sync
 git checkout develop
 ```
 

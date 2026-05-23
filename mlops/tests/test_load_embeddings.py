@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from mlops.pipeline.config import EMBEDDING_DIM
-from mlops.scripts import export_embeddings, load_embeddings
+from mlops.scripts import load_embeddings
 
 
 def _make_record(pmid: str = "12345", chunk_index: int = 0, dim: int = EMBEDDING_DIM) -> dict[str, Any]:
@@ -136,71 +136,64 @@ class TestLoadPropagation:
 
 
 class TestExportManifest:
-    def test_export_main_default_no_manifest_change(self, tmp_path: Path) -> None:
-        """update_manifest=False(기본)면 Manifest.save 호출 안 됨."""
-        output = tmp_path / "out.jsonl"
-        fake_paper = MagicMock()
-        fake_paper.meta.pmid = "1"
-        fake_paper.meta.doi = "10.1/test"
-        fake_paper.meta.pmcid = None
-        fake_paper.meta.openalex_id = None
-        fake_paper.meta.fulltext_source = "pmc"
-        fake_paper.sections = [MagicMock()]
-        fake_chunk = MagicMock()
-        fake_chunk.model_dump.return_value = {"paper_pmid": "1"}
+    """--update-manifest 플래그 동작 회귀 검증.
 
+    기본 OFF + 명시 시에만 Manifest.save 호출. 적재 도중 실패해도 manifest가
+    깨끗하면 동일 DOI로 재시도 가능하다는 안전장치를 보호한다.
+    """
+
+    def _build_fakes(self, monkeypatch, tmp_path: Path):
+        """공통: DATA_DIR 우회 + crawl/chunk/embed mock + Manifest 클래스 mock."""
+        from mlops.pipeline.models import Chunk, PaperFull, PaperMeta, PaperSection
+
+        fake_paper = PaperFull(
+            meta=PaperMeta(pmid="1", title="t", doi="10.1/test", fulltext_source="pmc"),
+            sections=[PaperSection(name="abstract", content="x" * 50)],
+        )
+        fake_chunk = Chunk(
+            paper_pmid="1",
+            paper_title="t",
+            section_name="abstract",
+            chunk_index=0,
+            content="x",
+            token_count=10,
+        )
         mock_manifest = MagicMock()
         mock_manifest.papers = {}
 
-        with (
-            patch("mlops.scripts.export_embeddings.Manifest") as mock_manifest_cls,
-            patch.object(export_embeddings, "crawl_papers", return_value=[fake_paper]),
-            patch.object(export_embeddings, "chunk_papers", return_value=[fake_chunk]),
-            patch.object(export_embeddings, "embed_chunks", return_value=[(fake_chunk, [0.0] * 4)]),
-        ):
-            mock_manifest_cls.load.return_value = mock_manifest
-            export_embeddings.main(
-                max_papers=1,
-                output=output,
-                use_gzip=False,
-                dry_run=False,
-                min_date=None,
-                max_date=None,
-                update_manifest=False,
-            )
-            mock_manifest.save.assert_not_called()
+        monkeypatch.setattr("mlops.pipeline.config.DATA_DIR", tmp_path)
+        monkeypatch.setattr("mlops.pipeline.config.MANIFEST_PATH", tmp_path / "manifest.json")
 
-    def test_export_main_update_manifest_flag(self, tmp_path: Path) -> None:
-        """update_manifest=True면 Manifest.save 호출됨."""
-        output = tmp_path / "out.jsonl"
-        fake_paper = MagicMock()
-        fake_paper.meta.pmid = "1"
-        fake_paper.meta.doi = "10.1/test"
-        fake_paper.meta.pmcid = None
-        fake_paper.meta.openalex_id = None
-        fake_paper.meta.fulltext_source = "pmc"
-        fake_paper.sections = [MagicMock()]
-        fake_chunk = MagicMock()
-        fake_chunk.model_dump.return_value = {"paper_pmid": "1"}
+        # export_embeddings 모듈 reload (DATA_DIR 캡처 갱신)
+        import sys
 
-        mock_manifest = MagicMock()
-        mock_manifest.papers = {}
+        if "mlops.scripts.export_embeddings" in sys.modules:
+            del sys.modules["mlops.scripts.export_embeddings"]
+        import mlops.scripts.export_embeddings as ee
 
-        with (
-            patch("mlops.scripts.export_embeddings.Manifest") as mock_manifest_cls,
-            patch.object(export_embeddings, "crawl_papers", return_value=[fake_paper]),
-            patch.object(export_embeddings, "chunk_papers", return_value=[fake_chunk]),
-            patch.object(export_embeddings, "embed_chunks", return_value=[(fake_chunk, [0.0] * 4)]),
-        ):
-            mock_manifest_cls.load.return_value = mock_manifest
-            export_embeddings.main(
-                max_papers=1,
-                output=output,
-                use_gzip=False,
-                dry_run=False,
-                min_date=None,
-                max_date=None,
-                update_manifest=True,
-            )
-            mock_manifest.save.assert_called_once()
-            mock_manifest.record_attempt.assert_called_once()
+        # 핵심 의존성 patch
+        monkeypatch.setattr(ee, "crawl_papers", lambda **kw: [fake_paper])
+        monkeypatch.setattr(ee, "chunk_papers", lambda papers: [fake_chunk])
+        monkeypatch.setattr(
+            ee, "embed_chunks_with_spec", lambda chunks, spec, batch_size=None: [(fake_chunk, [0.0] * spec.dim)]
+        )
+        # Manifest 클래스 자체 mock
+        mock_manifest_cls = MagicMock()
+        mock_manifest_cls.load.return_value = mock_manifest
+        monkeypatch.setattr(ee, "Manifest", mock_manifest_cls)
+        return ee, mock_manifest
+
+    def test_export_main_default_no_manifest_change(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """--update-manifest 미지정(기본 OFF) → Manifest.save 호출 안 됨."""
+        ee, mock_manifest = self._build_fakes(monkeypatch, tmp_path)
+        rc = ee.main(["--model", "bge-large", "--batch-tag", "mf-default"])
+        assert rc == 0
+        mock_manifest.save.assert_not_called()
+
+    def test_export_main_update_manifest_flag(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """--update-manifest 명시 → Manifest.save + record_attempt 호출."""
+        ee, mock_manifest = self._build_fakes(monkeypatch, tmp_path)
+        rc = ee.main(["--model", "bge-large", "--batch-tag", "mf-on", "--update-manifest"])
+        assert rc == 0
+        mock_manifest.save.assert_called_once()
+        mock_manifest.record_attempt.assert_called_once()
