@@ -185,13 +185,25 @@ _BROWSER_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
-_HEADERS_PDF = {
+# Wiley/Cloudflare 등 강한 봇 차단 우회용 추가 헤더.
+# Referer를 Google Scholar로 설정해 학술 traffic으로 보이게.
+_BROWSER_COMMON = {
     "User-Agent": _BROWSER_UA,
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://scholar.google.com/",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "cross-site",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
+_HEADERS_PDF = {
+    **_BROWSER_COMMON,
     "Accept": "application/pdf,*/*;q=0.8",
 }
 _HEADERS_HTML = {
-    "User-Agent": _BROWSER_UA,
-    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+    **_BROWSER_COMMON,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 
 
