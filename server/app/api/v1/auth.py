@@ -161,12 +161,12 @@ async def logout(
 @rate_limit("10/minute")
 async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # 이메일 중복 확인
-    result = await db.execute(select(User).where(User.email == body.email))
+    result = await db.execute(select(User).where(User.email == body.email, User.is_active == True))
     if result.scalar_one_or_none():
         raise EmailDuplicateError(message="이미 사용 중인 이메일입니다.")
 
     # 아이디 중복 확인
-    result = await db.execute(select(User).where(User.username == body.username))
+    result = await db.execute(select(User).where(User.username == body.username, User.is_active == True))
     if result.scalar_one_or_none():
         raise ConflictError(message="이미 사용 중인 아이디입니다.")
 
@@ -388,17 +388,11 @@ async def withdraw(
     if not current_user.password_hash or not verify_password(body.password, current_user.password_hash):
         raise UnauthorizedError(message="비밀번호가 올바르지 않습니다.")
 
-    current_user.is_active = False
-    # 모든 refresh token 무효화
-    refresh_tokens = (
-        (await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))).scalars().all()
-    )
-    now_utc = _utcnow()
-    for rt in refresh_tokens:
-        rt.revoked_at = now_utc
+    user_id = current_user.id
+    await db.delete(current_user)
     await db.commit()
 
-    logger.info("User %s withdrew", current_user.id)
+    logger.info("User %s withdrew", user_id)
     return SuccessResponse(data=WithdrawData(message="회원 탈퇴가 완료되었습니다."))
 
 

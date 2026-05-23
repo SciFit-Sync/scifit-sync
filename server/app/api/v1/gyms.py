@@ -33,6 +33,7 @@ from app.schemas.gyms import (
     BulkLinkData,
     CreateGymRequest,
     EquipmentItem,
+    GymEquipmentItem,
     GymEquipmentListData,
     GymItem,
     GymSearchData,
@@ -50,6 +51,21 @@ router = APIRouter(prefix="/gyms", tags=["gyms"])
 def _ratio_str(pulley_ratio: float) -> str:
     n = int(pulley_ratio) if pulley_ratio == int(pulley_ratio) else pulley_ratio
     return f"{n}:1"
+
+
+def _equipment_to_gym_dto(e: Equipment) -> GymEquipmentItem:
+    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    sw = None
+    if is_cable_machine and e.stack_weight and isinstance(e.stack_weight, dict):
+        sw = float(e.stack_weight["value"]) if "value" in e.stack_weight else None
+    return GymEquipmentItem(
+        equipment_id=str(e.id),
+        name=e.name,
+        brand=e.brand.name if e.brand else None,
+        ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
+        image_url=e.image_url,
+        stack_weight=sw,
+    )
 
 
 def _equipment_to_dto(e: Equipment) -> EquipmentItem:
@@ -137,8 +153,6 @@ async def search_gyms(
                 gym_id=str(gym.id) if gym else "",
                 name=gym.name if gym else d.get("place_name", ""),
                 address=gym.address if gym else d.get("road_address_name") or d.get("address_name", ""),
-                latitude=float(gym.latitude) if gym else float(d.get("y", 0)),
-                longitude=float(gym.longitude) if gym else float(d.get("x", 0)),
                 kakao_place_id=place_id,
                 equipment_count=eq_count,
             )
@@ -168,8 +182,6 @@ async def create_gym(
                     gym_id=str(existing.id),
                     name=existing.name,
                     address=existing.address,
-                    latitude=existing.latitude,
-                    longitude=existing.longitude,
                     kakao_place_id=existing.kakao_place_id,
                     equipment_count=len(existing.gym_equipments),
                 )
@@ -191,8 +203,6 @@ async def create_gym(
             gym_id=str(gym.id),
             name=gym.name,
             address=gym.address,
-            latitude=gym.latitude,
-            longitude=gym.longitude,
             kakao_place_id=gym.kakao_place_id,
             equipment_count=0,
         )
@@ -239,7 +249,7 @@ async def list_gym_equipment(
         data=GymEquipmentListData(
             gym_id=gym_id,
             gym_name=gym.name,
-            equipment=[_equipment_to_dto(e) for e in equipments],
+            equipment=[_equipment_to_gym_dto(e) for e in equipments],
         )
     )
 
@@ -250,7 +260,7 @@ async def list_gym_equipment(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[EquipmentItem],
     status_code=201,
-    summary="헬스장에 장비 추가",
+    summary="헬스장 장비 단건 추가",
 )
 async def add_gym_equipment(
     request: Request,
@@ -295,7 +305,7 @@ async def add_gym_equipment(
     "/{gym_id}/equipment/bulk",
     response_model=SuccessResponse[BulkLinkData],
     status_code=200,
-    summary="헬스장에 기구 일괄 연결",
+    summary="헬스장 장비 복수 추가 (일괄 연결)",
 )
 async def bulk_add_gym_equipment(
     request: Request,
@@ -427,7 +437,6 @@ async def suggest_gym_equipment(
             gym_id=gym_uuid,
             name=body.name,
             brand=body.brand,
-            description=body.description,
         )
     )
     await db.commit()
