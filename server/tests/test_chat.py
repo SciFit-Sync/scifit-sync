@@ -8,7 +8,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.main import app
 from app.models import ChatMessage, ChatRole, ChatSession, User
@@ -60,12 +60,21 @@ def _db_override(mock_db):
     return _gen
 
 
+def _stub_rag_stream(events: list[dict]):
+    """chat_rag_stream을 events list를 yield하는 stub generator로 치환."""
+
+    def _fake(_question):
+        yield from events
+
+    return _fake
+
+
 _MOCK_USER = _mock_user()
 
 
 @pytest_asyncio.fixture
 async def client():
-    app.dependency_overrides[get_current_user] = lambda: _MOCK_USER
+    app.dependency_overrides[get_required_profile] = lambda: _MOCK_USER
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -77,11 +86,18 @@ async def client():
 
 class TestSendChatMessage:
     @pytest.mark.asyncio
-    async def test_new_session_streams_sse(self, client):
+    async def test_new_session_streams_sse(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.chat.chat_rag_stream",
+            _stub_rag_stream([
+                {"type": "chunk", "content": "안녕하세요!"},
+                {"type": "sources", "sources": []},
+                {"type": "done"},
+            ]),
+        )
         db = _make_db()
         db.flush = AsyncMock(side_effect=lambda: setattr(db, "_flushed", True))
         db.add = MagicMock()
-
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(
@@ -92,6 +108,26 @@ class TestSendChatMessage:
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers["content-type"]
         assert "DONE" in resp.text
+        assert "chunk" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_rag_error_event_forwarded(self, client, monkeypatch):
+        """RAG가 error를 emit하면 SSE에도 error 이벤트가 흘러간다."""
+        monkeypatch.setattr(
+            "app.api.v1.chat.chat_rag_stream",
+            _stub_rag_stream([{"type": "error", "message": "관련 논문을 찾을 수 없습니다."}]),
+        )
+        db = _make_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            "/api/v1/chat/messages",
+            json={"content": "테스트"},
+        )
+
+        assert resp.status_code == 200
+        assert "error" in resp.text
+        assert "[DONE]" in resp.text
 
     @pytest.mark.asyncio
     async def test_existing_session_not_found(self, client):
