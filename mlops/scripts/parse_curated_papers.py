@@ -77,7 +77,8 @@ def parse_papers_txt(path: Path) -> tuple[dict[str, list[str]], set[str]]:
     deleted: set[str] = set()
     current_qid: str | None = None
 
-    with open(path, encoding="utf-8") as f:
+    # encoding="utf-8-sig": Windows에서 저장된 UTF-8 with BOM 파일 자동 처리
+    with open(path, encoding="utf-8-sig") as f:
         for raw in f:
             line = raw.rstrip()
             m = Q_HEADER_RE.match(line)
@@ -102,7 +103,8 @@ def detect_issues(dois: list[str], raw_lines: list[str], qid: str) -> dict:
         "typo_doi_autofixed": [...],
         "duplicate_in_query": [{"qid": str, "doi": str, "count": int}, ...],
     }
-    각 entry는 {"qid": str, "value": str} 또는 typo의 경우 {"qid", "original", "fixed"}.
+    각 entry는 {"qid": str, "value": str} 또는 typo의 경우
+    {"qid": str, "original": str, "fixed": str}.
     """
     issues: dict = {
         "placeholder_doi": [],
@@ -163,52 +165,62 @@ def build_provenance(
         for k, v in local_issues.items():
             issues_acc.setdefault(k, []).extend(v)
 
-        # placeholder/future는 paper에서 제거, typo는 autofixed_doi로 변환
+        # placeholder/future는 paper에서 제거
+        # typo DOI는 extract_ids_from_lines에서 매치 안 됨 → 별도로 typo_fixed_set에서 추가
         placeholder_set = {e["value"] for e in local_issues["placeholder_doi"]}
         future_set = {e["value"] for e in local_issues["future_prefix_doi"]}
-        typo_map = {e["original"]: e["fixed"] for e in local_issues["typo_doi_autofixed"]}
 
-        dois_clean = [
-            normalize_doi(typo_map.get(d, d))
-            for d in dois
-            if d not in placeholder_set and d not in future_set
-        ]
+        dois_clean = [normalize_doi(d) for d in dois if d not in placeholder_set and d not in future_set]
         dois_clean = [d for d in dois_clean if d]  # normalize 실패 제거
+
+        # typo autofixed DOI를 dois_clean에 추가 (DOI_RE 미매치라 extract_ids_from_lines에서 누락됨)
+        typo_fixed_set: set[str] = set()
+        for e in local_issues["typo_doi_autofixed"]:
+            nd = normalize_doi(e["fixed"])
+            if nd:
+                typo_fixed_set.add(nd)
+        for nd in typo_fixed_set:
+            if nd not in dois_clean:
+                dois_clean.append(nd)
 
         papers = []
         # PMID-bearing entries
         for pmid in pmids:
-            papers.append({
-                "raw_id": f"PMID:{pmid}",
-                "raw_pmid": pmid,
-                "raw_doi": None,
-                "resolved_pmid": None,
-                "resolved_doi": None,
-                "resolved_title": None,
-                "indexed": None,
-                "already_in_corpus": None,
-                "fulltext_ok": None,
-                "failure_reason": None,
-                "is_typo_autofixed": False,
-                "search_categories": [DEFAULT_CATEGORY],
-            })
+            papers.append(
+                {
+                    "raw_id": f"PMID:{pmid}",
+                    "raw_pmid": pmid,
+                    "raw_doi": None,
+                    "resolved_pmid": None,
+                    "resolved_doi": None,
+                    "resolved_title": None,
+                    "indexed": None,
+                    "already_in_corpus": None,
+                    "fulltext_ok": None,
+                    "failure_reason": None,
+                    "is_typo_autofixed": False,
+                    "search_categories": [DEFAULT_CATEGORY],
+                }
+            )
         # DOI entries — all DOIs as separate paper entries; dedup with downstream ingest
         for doi in dois_clean:
-            is_typo = doi in typo_map.values()
-            papers.append({
-                "raw_id": f"DOI:{doi}",
-                "raw_pmid": None,
-                "raw_doi": doi,
-                "resolved_pmid": None,
-                "resolved_doi": None,
-                "resolved_title": None,
-                "indexed": None,
-                "already_in_corpus": None,
-                "fulltext_ok": None,
-                "failure_reason": None,
-                "is_typo_autofixed": is_typo,
-                "search_categories": [DEFAULT_CATEGORY],
-            })
+            is_typo = doi in typo_fixed_set
+            papers.append(
+                {
+                    "raw_id": f"DOI:{doi}",
+                    "raw_pmid": None,
+                    "raw_doi": doi,
+                    "resolved_pmid": None,
+                    "resolved_doi": None,
+                    "resolved_title": None,
+                    "indexed": None,
+                    "already_in_corpus": None,
+                    "fulltext_ok": None,
+                    "failure_reason": None,
+                    "is_typo_autofixed": is_typo,
+                    "search_categories": [DEFAULT_CATEGORY],
+                }
+            )
 
         provenance[qid] = {
             "category": DEFAULT_CATEGORY,
@@ -221,15 +233,22 @@ def build_provenance(
 
 
 def _atomic_write_json(path: Path, data: object) -> None:
-    """tmp + os.replace 패턴."""
+    """tmp + os.replace 패턴. 예외 발생 시 .tmp 파일 정리."""
     tmp = path.with_suffix(path.suffix + ".tmp")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def run(input_path: Path, provenance_path: Path, issues_path: Path) -> None:
+    if not input_path.exists():
+        logger.error("Input file not found: %s", input_path)
+        sys.exit(1)
     qid_lines, deleted = parse_papers_txt(input_path)
     issues: dict = {
         "placeholder_doi": [],
