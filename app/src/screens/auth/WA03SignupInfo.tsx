@@ -53,7 +53,7 @@ export default function WA03SignupInfo() {
     await setAuth({
       accessToken: "temp_token",
       refreshToken: "temp_refresh",
-      isNewUser: false,
+      isNewUser: true,
     });
   };
 
