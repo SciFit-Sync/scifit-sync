@@ -25,3 +25,54 @@ class TestLockAcquisition:
             with pytest.raises(BlockingIOError):
                 with acquire_lock(lock_path):
                     pass
+
+
+SAMPLE_EFETCH_XML = """<?xml version="1.0"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>35291645</PMID>
+      <Article>
+        <ArticleTitle>Test Paper Title One</ArticleTitle>
+        <Abstract><AbstractText>Sample abstract one.</AbstractText></Abstract>
+        <PublicationTypeList>
+          <PublicationType>Meta-Analysis</PublicationType>
+        </PublicationTypeList>
+        <Journal><JournalIssue><PubDate><Year>2022</Year></PubDate></JournalIssue></Journal>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="doi">10.2478/hukin-2022-0017</ArticleId>
+        <ArticleId IdType="pmc">PMC8884877</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>
+"""
+
+
+class TestEfetchBatch:
+    @patch("mlops.scripts.ingest_curated_pmids.requests.get")
+    def test_parses_efetch_batch_response(self, mock_get):
+        from mlops.scripts.ingest_curated_pmids import efetch_pubmed_batch
+        mock_resp = MagicMock(status_code=200, text=SAMPLE_EFETCH_XML)
+        mock_get.return_value = mock_resp
+
+        result = efetch_pubmed_batch(["35291645"])
+        assert "35291645" in result
+        meta = result["35291645"]
+        assert meta["doi"] == "10.2478/hukin-2022-0017"
+        assert meta["pmcid"] == "PMC8884877"
+        assert meta["title"] == "Test Paper Title One"
+        assert meta["publication_year"] == 2022
+        assert "Meta-Analysis" in meta["publication_types"]
+
+    @patch("mlops.scripts.ingest_curated_pmids.requests.get")
+    def test_returns_empty_dict_on_error(self, mock_get):
+        from mlops.scripts.ingest_curated_pmids import efetch_pubmed_batch
+        import requests as _r
+        mock_get.side_effect = _r.RequestException("timeout")
+
+        result = efetch_pubmed_batch(["35291645"])
+        assert result == {}
