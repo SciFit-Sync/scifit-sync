@@ -1,4 +1,5 @@
 """parse_curated_papers 단위 테스트."""
+
 import json
 from pathlib import Path
 
@@ -10,20 +11,6 @@ from mlops.scripts.parse_curated_papers import (
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_curated.txt"
-
-
-SAMPLE_TXT = """Hypertrophy
-Q001: What is the optimal weekly set volume?
-1. DOI: 10.1080/02640414.2016.1210197
-2. PMID: 35291645 PMCID: PMC8884877 DOI: 10.2478/hukin-2022-0017
-3. PMID 20512950
-
-Q004 삭제
-
-Q027: Concurrent gains
-1. DOI: 10.1007/s40279-026-02401-y
-2. DOI: 10.1519/JSC.0000000000004304
-"""
 
 
 class TestExtractIdsFromLines:
@@ -129,6 +116,17 @@ class TestBuildProvenance:
         run(FIXTURE, prov_path, issues_path)
         issues = json.loads(issues_path.read_text())
         assert "duplicate_in_query" in issues
+
+    def test_typo_doi_included_in_papers(self, tmp_path):
+        prov_path = tmp_path / "prov.json"
+        issues_path = tmp_path / "iss.json"
+        run(FIXTURE, prov_path, issues_path)
+        prov = json.loads(prov_path.read_text())
+        # Q037 fixture has typo DOI: 0.1123/ijsnem.2013-0054 → 10.1123/ijsnem.2013-0054
+        q037 = prov.get("Q037", {})
+        typo_papers = [p for p in q037.get("papers", []) if p.get("is_typo_autofixed")]
+        assert len(typo_papers) >= 1
+        assert any(p["raw_doi"] == "10.1123/ijsnem.2013-0054" for p in typo_papers)
 
 
 class TestDetectIssuesDuplicate:

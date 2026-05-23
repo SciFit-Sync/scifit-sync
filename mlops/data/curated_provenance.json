@@ -2321,6 +2321,22 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1123/ijsnem.2013-0054",
+        "raw_pmid": null,
+        "raw_doi": "10.1123/ijsnem.2013-0054",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": true,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
