@@ -65,6 +65,38 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.2478/hukin-2022-0017",
+        "raw_pmid": null,
+        "raw_doi": "10.2478/hukin-2022-0017",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000002776",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000002776",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -120,6 +152,22 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1519/jsc.0000000000002200",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000002200",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1155/2023/9507977",
         "raw_pmid": null,
         "raw_doi": "10.1155/2023/9507977",
@@ -144,6 +192,22 @@
         "raw_id": "PMID:26605807",
         "raw_pmid": "26605807",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000001272",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000001272",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -282,6 +346,38 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000002776",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000002776",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.2478/hukin-2022-0017",
+        "raw_pmid": null,
+        "raw_doi": "10.2478/hukin-2022-0017",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -308,6 +404,22 @@
         "raw_id": "PMID:28834797",
         "raw_pmid": "28834797",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000002200",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000002200",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -3555,6 +3667,38 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1080/17461391.2020.1733672",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2020.1733672",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181e2e19b",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181e2e19b",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1139/apnm-2018-0478",
         "raw_pmid": null,
         "raw_doi": "10.1139/apnm-2018-0478",
@@ -3627,6 +3771,22 @@
         "raw_id": "PMID:19855317",
         "raw_pmid": "19855317",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181b73b8f",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181b73b8f",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -3757,9 +3917,73 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1007/s40279-016-0627-5",
+        "raw_pmid": null,
+        "raw_doi": "10.1007/s40279-016-0627-5",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.3389/fphys.2017.01105",
         "raw_pmid": null,
         "raw_doi": "10.3389/fphys.2017.01105",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1139/apnm-2015-0109",
+        "raw_pmid": null,
+        "raw_doi": "10.1139/apnm-2015-0109",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports6040160",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports6040160",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0000000000003957",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0000000000003957",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -3797,6 +4021,22 @@
         "raw_id": "DOI:10.23736/s0022-4707.21.12929-9",
         "raw_pmid": null,
         "raw_doi": "10.23736/s0022-4707.21.12929-9",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/s13102-023-00713-4",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/s13102-023-00713-4",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -3863,9 +4103,41 @@
         ]
       },
       {
+        "raw_id": "DOI:10.3389/fphys.2025.1611468",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fphys.2025.1611468",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.47206/ijsc.v4i1.254",
         "raw_pmid": null,
         "raw_doi": "10.47206/ijsc.v4i1.254",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000001493",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000001493",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -3964,6 +4236,70 @@
         ]
       },
       {
+        "raw_id": "DOI:10.3390/ijerph17197339",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17197339",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddfae7",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddfae7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/17461391.2015.1022605",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2015.1022605",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1371/journal.pone.0171632",
+        "raw_pmid": null,
+        "raw_doi": "10.1371/journal.pone.0171632",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1016/j.jelekin.2022.102722",
         "raw_pmid": null,
         "raw_doi": "10.1016/j.jelekin.2022.102722",
@@ -4020,6 +4356,38 @@
         "raw_id": "PMID:21068680",
         "raw_pmid": "21068680",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/1476-5918-3-4",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/1476-5918-3-4",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jelekin.2016.11.004",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jelekin.2016.11.004",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -4121,6 +4489,54 @@
         "raw_id": "PMID:11404665",
         "raw_pmid": "11404665",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000001228",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000001228",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1515/hukin-2016-0023",
+        "raw_pmid": null,
+        "raw_doi": "10.1515/hukin-2016-0023",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1097/00005768-200106000-00019",
+        "raw_pmid": null,
+        "raw_doi": "10.1097/00005768-200106000-00019",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -4297,6 +4713,102 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.7717/peerj.14142",
+        "raw_pmid": null,
+        "raw_doi": "10.7717/peerj.14142",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0b013e3181915670",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0b013e3181915670",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1139/apnm-2021-0515",
+        "raw_pmid": null,
+        "raw_doi": "10.1139/apnm-2021-0515",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000000758",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000000758",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fspor.2022.949021",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fspor.2022.949021",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.2478/hukin-2022-0017",
+        "raw_pmid": null,
+        "raw_doi": "10.2478/hukin-2022-0017",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -4371,6 +4883,38 @@
         "raw_id": "PMID:28755103",
         "raw_pmid": "28755103",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.7717/peerj.14142",
+        "raw_pmid": null,
+        "raw_doi": "10.7717/peerj.14142",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0b013e3181915670",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0b013e3181915670",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -4485,9 +5029,73 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1249/mss.0b013e3181915670",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0b013e3181915670",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1249/01.mss.0000144092.13813.32",
         "raw_pmid": null,
         "raw_doi": "10.1249/01.mss.0000144092.13813.32",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.7717/peerj.14142",
+        "raw_pmid": null,
+        "raw_doi": "10.7717/peerj.14142",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1007/s40279-021-01636-5",
+        "raw_pmid": null,
+        "raw_doi": "10.1007/s40279-021-01636-5",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports9020032",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports9020032",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -4616,6 +5224,70 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0b013e3181915670",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0b013e3181915670",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.7717/peerj.3695",
+        "raw_pmid": null,
+        "raw_doi": "10.7717/peerj.3695",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181c03548",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181c03548",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports9020032",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports9020032",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -4658,6 +5330,54 @@
         "raw_id": "PMID:34110327",
         "raw_pmid": "34110327",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0b013e3181915670",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0b013e3181915670",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports9020032",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports9020032",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0000000000002585",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0000000000002585",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -4756,6 +5476,22 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1007/s40279-021-01636-5",
+        "raw_pmid": null,
+        "raw_doi": "10.1007/s40279-021-01636-5",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1519/ssc.0000000000000218",
         "raw_pmid": null,
         "raw_doi": "10.1519/ssc.0000000000000218",
@@ -4791,6 +5527,22 @@
         "raw_id": "DOI:10.3389/fphys.2024.1323822",
         "raw_pmid": null,
         "raw_doi": "10.3389/fphys.2024.1323822",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports9020032",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports9020032",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -4860,6 +5612,54 @@
         "raw_id": "PMID:36334406",
         "raw_pmid": "36334406",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17197339",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17197339",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddfae7",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddfae7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/17461391.2015.1022605",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2015.1022605",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -5022,9 +5822,105 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1519/1533-4287(2002)016<0539:aceiom>2.0.co",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/1533-4287(2002)016<0539:aceiom>2.0.co",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddb0ab",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddb0ab",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1097/jsc.0000000000000232",
+        "raw_pmid": null,
+        "raw_doi": "10.1097/jsc.0000000000000232",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/1476-5918-3-4",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/1476-5918-3-4",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1080/14763141.2012.760204",
         "raw_pmid": null,
         "raw_doi": "10.1080/14763141.2012.760204",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181f1598c",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181f1598c",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jelekin.2016.11.004",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jelekin.2016.11.004",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -5192,6 +6088,54 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1249/00005768-199905001-00019",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/00005768-199905001-00019",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph18020772",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph18020772",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1097/00005768-200106000-00019",
+        "raw_pmid": null,
+        "raw_doi": "10.1097/00005768-200106000-00019",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.3389/fspor.2021.719013",
         "raw_pmid": null,
         "raw_doi": "10.3389/fspor.2021.719013",
@@ -5293,6 +6237,86 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1249/mss.0000000000003490",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0000000000003490",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0000000000002523",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0000000000002523",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.2478/hukin-2019-0124",
+        "raw_pmid": null,
+        "raw_doi": "10.2478/hukin-2019-0124",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000000302",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000000302",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/02640414.2021.1899405",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/02640414.2021.1899405",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1186/s13102-022-00555-6",
         "raw_pmid": null,
         "raw_doi": "10.1186/s13102-022-00555-6",
@@ -5376,6 +6400,54 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.7717/peerj.5165",
+        "raw_pmid": null,
+        "raw_doi": "10.7717/peerj.5165",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports11030064",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports11030064",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jse.2011.04.030",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jse.2011.04.030",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -5434,6 +6506,70 @@
         "raw_id": "PMID:20934352",
         "raw_pmid": "20934352",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/17461391.2022.2100279",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2022.2100279",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.23736/s0022-4707.17.06849-9",
+        "raw_pmid": null,
+        "raw_doi": "10.23736/s0022-4707.17.06849-9",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.aott.2018.02.005",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.aott.2018.02.005",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jelekin.2010.09.005",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jelekin.2010.09.005",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -5548,9 +6684,41 @@
         ]
       },
       {
+        "raw_id": "DOI:10.3390/ijerph17124306",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17124306",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1016/j.ptsp.2009.02.002",
         "raw_pmid": null,
         "raw_doi": "10.1016/j.ptsp.2009.02.002",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/s0003-9993(96)90195-1",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/s0003-9993(96)90195-1",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -5668,6 +6836,102 @@
         "raw_id": "PMID:33992275",
         "raw_pmid": "33992275",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.smhs.2025.03.001",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.smhs.2025.03.001",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000004460",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000004460",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fphys.2023.1272106",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fphys.2023.1272106",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fpsyg.2025.1494323",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fpsyg.2025.1494323",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1002/ejsc.70030",
+        "raw_pmid": null,
+        "raw_doi": "10.1002/ejsc.70030",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jbmt.2020.09.003",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jbmt.2020.09.003",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -5828,6 +7092,102 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000002859",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000002859",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1123/jab.2014-0301",
+        "raw_pmid": null,
+        "raw_doi": "10.1123/jab.2014-0301",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000002651",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000002651",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000003290",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000003290",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/14763141.2022.2074875",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/14763141.2022.2074875",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fphys.2023.1279170",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fphys.2023.1279170",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -5886,6 +7246,70 @@
         "raw_id": "PMID:19204579",
         "raw_pmid": "19204579",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/02640414.2016.1210197",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/02640414.2016.1210197",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/02640414.2018.1555906",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/02640414.2018.1555906",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1136/bjsports-2015-095409",
+        "raw_pmid": null,
+        "raw_doi": "10.1136/bjsports-2015-095409",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1249/mss.0b013e3181915670",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/mss.0b013e3181915670",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -5966,6 +7390,70 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1519/00124278-200208000-00014",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/00124278-200208000-00014",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e31823a3b0b",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e31823a3b0b",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1007/s00421-013-2642-7",
+        "raw_pmid": null,
+        "raw_doi": "10.1007/s00421-013-2642-7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.23736/s0022-4707.18.08313-9",
+        "raw_pmid": null,
+        "raw_doi": "10.23736/s0022-4707.18.08313-9",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -6019,6 +7507,54 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1249/00005768-200204000-00019",
+        "raw_pmid": null,
+        "raw_doi": "10.1249/00005768-200204000-00019",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1371/journal.pone.0229507",
+        "raw_pmid": null,
+        "raw_doi": "10.1371/journal.pone.0229507",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1371/journal.pone.0324786",
+        "raw_pmid": null,
+        "raw_doi": "10.1371/journal.pone.0324786",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -6045,6 +7581,22 @@
         "raw_id": "PMID:34240610",
         "raw_pmid": "34240610",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph18126373",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph18126373",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6141,6 +7693,54 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000001653",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000001653",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/1471-2474-5-21",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/1471-2474-5-21",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000000232",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000000232",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -6167,6 +7767,38 @@
         "raw_id": "PMID:28011412",
         "raw_pmid": "28011412",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/1471-2474-5-21",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/1471-2474-5-21",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000001653",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000001653",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6279,6 +7911,54 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1371/journal.pone.0229507",
+        "raw_pmid": null,
+        "raw_doi": "10.1371/journal.pone.0229507",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000003290",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000003290",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph18084093",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph18084093",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -6305,6 +7985,38 @@
         "raw_id": "PMID:28011412",
         "raw_pmid": "28011412",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/1471-2474-5-21",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/1471-2474-5-21",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000001653",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000001653",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6401,6 +8113,22 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e31823f8d2e",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e31823f8d2e",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -6443,6 +8171,22 @@
         "raw_id": "DOI:10.3389/fphys.2025.1611468",
         "raw_pmid": null,
         "raw_doi": "10.3389/fphys.2025.1611468",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17176015",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17176015",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6562,6 +8306,22 @@
         ]
       },
       {
+        "raw_id": "DOI:10.3390/ijerph17176015",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17176015",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.3389/fphys.2022.825880",
         "raw_pmid": null,
         "raw_doi": "10.3389/fphys.2022.825880",
@@ -6631,6 +8391,38 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddfae7",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddfae7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000003664",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000003664",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.3390/app13085203",
         "raw_pmid": null,
         "raw_doi": "10.3390/app13085203",
@@ -6655,6 +8447,22 @@
         "raw_id": "PMID:20512064",
         "raw_pmid": "20512064",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddfae7",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddfae7",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6737,6 +8545,38 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddfae7",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddfae7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000003664",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000003664",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.3390/app13085203",
         "raw_pmid": null,
         "raw_doi": "10.3390/app13085203",
@@ -6806,9 +8646,41 @@
         ]
       },
       {
+        "raw_id": "DOI:10.1519/jsc.0000000000000795",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000000795",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
         "raw_id": "DOI:10.1007/s11332-025-01530-7",
         "raw_pmid": null,
         "raw_doi": "10.1007/s11332-025-01530-7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1007/s00421-013-2672-1",
+        "raw_pmid": null,
+        "raw_doi": "10.1007/s00421-013-2672-1",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6873,6 +8745,54 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.1080/17461391.2022.2100279",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2022.2100279",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jse.2018.02.038",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jse.2018.02.038",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e318255d772",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e318255d772",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -6915,6 +8835,54 @@
         "raw_id": "PMID:25970493",
         "raw_pmid": "25970493",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/17461391.2022.2100279",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2022.2100279",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jse.2018.02.038",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jse.2018.02.038",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000000795",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000000795",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -6995,6 +8963,54 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17124306",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17124306",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph191811596",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph191811596",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1123/jab.22.1.78",
+        "raw_pmid": null,
+        "raw_doi": "10.1123/jab.22.1.78",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -7037,6 +9053,54 @@
         "raw_id": "PMID:36141427",
         "raw_pmid": "36141427",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jbmt.2018.12.005",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jbmt.2018.12.005",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1589/jpts.28.491",
+        "raw_pmid": null,
+        "raw_doi": "10.1589/jpts.28.491",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph191811596",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph191811596",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -7117,6 +9181,70 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17124306",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17124306",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph14040405",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph14040405",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17207410",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17207410",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1123/jab.22.1.78",
+        "raw_pmid": null,
+        "raw_doi": "10.1123/jab.22.1.78",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -7175,6 +9303,54 @@
         "raw_id": "PMID:35819335",
         "raw_pmid": "35819335",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0b013e3181ddfae7",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0b013e3181ddfae7",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1186/1471-2474-5-21",
+        "raw_pmid": null,
+        "raw_doi": "10.1186/1471-2474-5-21",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1080/17461391.2022.2100279",
+        "raw_pmid": null,
+        "raw_doi": "10.1080/17461391.2022.2100279",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -7255,6 +9431,70 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17134629",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17134629",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph18041470",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph18041470",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1002/ejsc.12078",
+        "raw_pmid": null,
+        "raw_doi": "10.1002/ejsc.12078",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/sports10120197",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/sports10120197",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -7324,6 +9564,70 @@
         "search_categories": [
           "unknown"
         ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17061950",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17061950",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000003290",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000003290",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph18084093",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph18084093",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000004390",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000004390",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
       }
     ]
   },
@@ -7382,6 +9686,70 @@
         "raw_id": "PMID:32179095",
         "raw_pmid": "32179095",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fphys.2023.1272106",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fphys.2023.1272106",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000004460",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000004460",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1016/j.jbmt.2020.09.003",
+        "raw_pmid": null,
+        "raw_doi": "10.1016/j.jbmt.2020.09.003",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fphys.2020.00102",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fphys.2020.00102",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,
@@ -7467,6 +9835,86 @@
         "raw_id": "PMID:38156065",
         "raw_pmid": "38156065",
         "raw_doi": null,
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17134629",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17134629",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph17061950",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph17061950",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3390/ijerph18041470",
+        "raw_pmid": null,
+        "raw_doi": "10.3390/ijerph18041470",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.1519/jsc.0000000000003290",
+        "raw_pmid": null,
+        "raw_doi": "10.1519/jsc.0000000000003290",
+        "resolved_pmid": null,
+        "resolved_doi": null,
+        "resolved_title": null,
+        "indexed": null,
+        "already_in_corpus": null,
+        "fulltext_ok": null,
+        "failure_reason": null,
+        "is_typo_autofixed": false,
+        "search_categories": [
+          "unknown"
+        ]
+      },
+      {
+        "raw_id": "DOI:10.3389/fphys.2023.1272106",
+        "raw_pmid": null,
+        "raw_doi": "10.3389/fphys.2023.1272106",
         "resolved_pmid": null,
         "resolved_doi": null,
         "resolved_title": null,

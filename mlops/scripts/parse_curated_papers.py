@@ -30,7 +30,7 @@ DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s,;]+)", re.IGNORECASE)
 TYPO_DOI_RE = re.compile(r"(?<![\d\.])0\.(\d{4,9}/[^\s,;]+)")
 Q_HEADER_RE = re.compile(r"^Q(\d{3})\b")
 
-PLACEHOLDER_TOKENS = ("xxxx",)
+PLACEHOLDER_TOKENS = ("XXXX",)
 FUTURE_DOI_PREFIXES = (
     "10.1007/s40279-026",
     "10.1038/s41430-026",
@@ -94,19 +94,42 @@ def parse_papers_txt(path: Path) -> tuple[dict[str, list[str]], set[str]]:
 
 
 def detect_issues(dois: list[str], raw_lines: list[str], qid: str) -> dict:
-    """DOI / raw 라인에서 placeholder, 미래 prefix, typo 검출.
+    """DOI / raw 라인에서 placeholder, 미래 prefix, typo, 중복 검출.
 
-    반환: {"placeholder_doi": [...], "future_prefix_doi": [...], "typo_doi_autofixed": [...]}
+    반환: {
+        "placeholder_doi": [...],
+        "future_prefix_doi": [...],
+        "typo_doi_autofixed": [...],
+        "duplicate_in_query": [{"qid": str, "doi": str, "count": int}, ...],
+    }
     각 entry는 {"qid": str, "value": str} 또는 typo의 경우 {"qid", "original", "fixed"}.
     """
-    issues: dict = {"placeholder_doi": [], "future_prefix_doi": [], "typo_doi_autofixed": []}
+    issues: dict = {
+        "placeholder_doi": [],
+        "future_prefix_doi": [],
+        "typo_doi_autofixed": [],
+        "duplicate_in_query": [],
+    }
 
     for doi in dois:
-        # placeholder: case-insensitive "xxxx" check (doi is already normalized/lowercased)
-        if any(tok in doi for tok in PLACEHOLDER_TOKENS):
+        # placeholder: case-insensitive check (doi may already be lowercased via normalize_doi)
+        if any(tok.lower() in doi.lower() for tok in PLACEHOLDER_TOKENS):
             issues["placeholder_doi"].append({"qid": qid, "value": doi})
         if any(doi.startswith(p) for p in FUTURE_DOI_PREFIXES):
             issues["future_prefix_doi"].append({"qid": qid, "value": doi})
+
+    # duplicate_in_query: 동일 normalized DOI가 한 Q 내 2회 이상 등장
+    # dois 파라미터는 extract_ids_from_lines이 이미 dedup한 값이므로,
+    # 여기서는 raw_lines를 재스캔해 실제 등장 횟수를 셈
+    doi_counts: dict[str, int] = {}
+    for line in raw_lines:
+        for m in DOI_RE.finditer(line):
+            nd = normalize_doi(m.group(1))
+            if nd:
+                doi_counts[nd] = doi_counts.get(nd, 0) + 1
+    for doi, count in doi_counts.items():
+        if count >= 2:
+            issues["duplicate_in_query"].append({"qid": qid, "doi": doi, "count": count})
 
     # typo: 라인 내 0.{prefix}/ 패턴 → 10.{prefix}/로 보정
     for line in raw_lines:
@@ -152,16 +175,6 @@ def build_provenance(
         ]
         dois_clean = [d for d in dois_clean if d]  # normalize 실패 제거
 
-        # DOI가 같은 라인의 PMID와 함께 등장했는지 파악하여 DOI-only 목록에서 제외
-        # 각 라인별로 PMID + DOI 동시 보유 여부를 분석
-        pmid_associated_dois: set[str] = set()
-        for line in lines:
-            line_pmids = PMID_RE.findall(line)
-            line_dois = [normalize_doi(m.group(1)) for m in DOI_RE.finditer(line)]
-            line_dois = [d for d in line_dois if d]
-            if line_pmids and line_dois:
-                pmid_associated_dois.update(line_dois)
-
         papers = []
         # PMID-bearing entries
         for pmid in pmids:
@@ -179,10 +192,8 @@ def build_provenance(
                 "is_typo_autofixed": False,
                 "search_categories": [DEFAULT_CATEGORY],
             })
-        # DOI-only entries (PMID 없는 paper — PMID와 같은 라인에 있던 DOI 제외)
+        # DOI entries — all DOIs as separate paper entries; dedup with downstream ingest
         for doi in dois_clean:
-            if doi in pmid_associated_dois:
-                continue
             is_typo = doi in typo_map.values()
             papers.append({
                 "raw_id": f"DOI:{doi}",
@@ -224,18 +235,20 @@ def run(input_path: Path, provenance_path: Path, issues_path: Path) -> None:
         "placeholder_doi": [],
         "future_prefix_doi": [],
         "typo_doi_autofixed": [],
+        "duplicate_in_query": [],
         "deleted_queries": [],
     }
     provenance = build_provenance(qid_lines, deleted, issues)
     _atomic_write_json(provenance_path, provenance)
     _atomic_write_json(issues_path, issues)
     logger.info(
-        "parsed: %d Qs (skipped %d deleted), placeholder=%d future=%d typo=%d",
+        "parsed: %d Qs (skipped %d deleted), placeholder=%d future=%d typo=%d duplicate=%d",
         len(provenance),
         len(deleted),
         len(issues["placeholder_doi"]),
         len(issues["future_prefix_doi"]),
         len(issues["typo_doi_autofixed"]),
+        len(issues["duplicate_in_query"]),
     )
 
 
