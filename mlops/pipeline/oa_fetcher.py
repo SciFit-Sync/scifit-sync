@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
+from mlops.pipeline.curated import fetch_html_sections, fetch_pdf_sections, openalex_oa_url
 from mlops.pipeline.models import PaperSection
 
 logger = logging.getLogger(__name__)
@@ -130,3 +131,42 @@ def fetch_chain(ref: PaperRef, sources: list[OASource]) -> ChainResult:
         sections=[],
         had_transient_error=had_transient,
     )
+
+
+class OpenAlexPDFSource:
+    """OpenAlex에서 OA PDF URL을 받아 PDF 본문 파싱."""
+
+    name: str = "openalex_pdf"
+
+    def try_fetch(self, ref: PaperRef) -> FulltextResult:
+        oa = ref.openalex_oa if ref.openalex_oa is not None else openalex_oa_url(ref.doi)
+        if oa is None or not oa.get("is_oa"):
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        # 다음 source(HTML)가 재사용할 수 있게 캐시
+        ref.openalex_oa = oa
+        pdf_url = oa.get("pdf_url")
+        if not pdf_url:
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        sections = fetch_pdf_sections(pdf_url)
+        if sections:
+            return FulltextResult(status=FulltextStatus.SUCCESS, sections=sections)
+        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+
+
+class OpenAlexHTMLSource:
+    """OpenAlex의 landing_page_url HTML에서 본문 파싱."""
+
+    name: str = "openalex_html"
+
+    def try_fetch(self, ref: PaperRef) -> FulltextResult:
+        oa = ref.openalex_oa if ref.openalex_oa is not None else openalex_oa_url(ref.doi)
+        if oa is None or not oa.get("is_oa"):
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        ref.openalex_oa = oa
+        landing = oa.get("landing_page_url")
+        if not landing:
+            return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        sections = fetch_html_sections(landing)
+        if sections:
+            return FulltextResult(status=FulltextStatus.SUCCESS, sections=sections)
+        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)

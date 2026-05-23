@@ -1,12 +1,14 @@
 """oa_fetcher chain + source 단위 테스트."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from mlops.pipeline.models import PaperSection
 from mlops.pipeline.oa_fetcher import (
     EuropePMCSource,
     FulltextResult,
     FulltextStatus,
+    OpenAlexHTMLSource,
+    OpenAlexPDFSource,
     PaperRef,
     PMCSource,
     fetch_chain,
@@ -271,3 +273,122 @@ class TestFetchCascadingWrapper:
 
         assert result.fulltext_source is None
         assert result.had_transient_error is True
+
+
+class TestOpenAlexPDFSource:
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    def test_success_when_pdf_url_returns_sections(self, mock_fetch, mock_oa):
+        mock_oa.return_value = {
+            "is_oa": True,
+            "pdf_url": "https://x/p.pdf",
+            "landing_page_url": None,
+        }
+        mock_fetch.return_value = [PaperSection(name="M", content="x")]
+        src = OpenAlexPDFSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.SUCCESS
+        assert len(result.sections) == 1
+        mock_fetch.assert_called_once_with("https://x/p.pdf")
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    def test_not_available_when_not_oa(self, mock_oa):
+        mock_oa.return_value = {"is_oa": False, "pdf_url": None, "landing_page_url": None}
+        src = OpenAlexPDFSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    def test_not_available_when_oa_returns_none(self, mock_oa):
+        mock_oa.return_value = None
+        src = OpenAlexPDFSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    def test_not_available_when_no_pdf_url(self, mock_oa):
+        mock_oa.return_value = {
+            "is_oa": True,
+            "pdf_url": None,
+            "landing_page_url": "https://x/landing",
+        }
+        src = OpenAlexPDFSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    def test_not_available_when_fetch_returns_empty(self, mock_fetch, mock_oa):
+        mock_oa.return_value = {
+            "is_oa": True,
+            "pdf_url": "https://x/p.pdf",
+            "landing_page_url": None,
+        }
+        mock_fetch.return_value = []
+        src = OpenAlexPDFSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    def test_cache_openalex_oa_on_ref(self, mock_fetch, mock_oa):
+        """PDFSource가 호출한 openalex_oa_url 결과를 ref.openalex_oa에 캐싱."""
+        oa_blob = {"is_oa": True, "pdf_url": "https://x/p.pdf", "landing_page_url": "https://x/l"}
+        mock_oa.return_value = oa_blob
+        mock_fetch.return_value = [PaperSection(name="M", content="x")]
+        ref = PaperRef(doi="10.1/a")
+        OpenAlexPDFSource().try_fetch(ref)
+        assert ref.openalex_oa == oa_blob
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    def test_uses_cached_openalex_oa(self, mock_fetch, mock_oa):
+        """ref.openalex_oa가 사전 set돼 있으면 openalex_oa_url 호출 안 함."""
+        mock_fetch.return_value = [PaperSection(name="M", content="x")]
+        ref = PaperRef(
+            doi="10.1/a",
+            openalex_oa={"is_oa": True, "pdf_url": "https://x/p.pdf", "landing_page_url": None},
+        )
+        OpenAlexPDFSource().try_fetch(ref)
+        mock_oa.assert_not_called()
+
+
+class TestOpenAlexHTMLSource:
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_success_when_landing_url_returns_sections(self, mock_fetch, mock_oa):
+        mock_oa.return_value = {
+            "is_oa": True,
+            "pdf_url": None,
+            "landing_page_url": "https://x/landing",
+        }
+        mock_fetch.return_value = [PaperSection(name="M", content="x")]
+        src = OpenAlexHTMLSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.SUCCESS
+        mock_fetch.assert_called_once_with("https://x/landing")
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    def test_not_available_when_not_oa(self, mock_oa):
+        mock_oa.return_value = {"is_oa": False, "pdf_url": None, "landing_page_url": None}
+        src = OpenAlexHTMLSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    def test_not_available_when_no_landing_url(self, mock_oa):
+        mock_oa.return_value = {"is_oa": True, "pdf_url": "https://x/p.pdf", "landing_page_url": None}
+        src = OpenAlexHTMLSource()
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+
+    @patch("mlops.pipeline.oa_fetcher.openalex_oa_url")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_uses_cached_openalex_oa(self, mock_fetch, mock_oa):
+        mock_fetch.return_value = [PaperSection(name="M", content="x")]
+        ref = PaperRef(
+            doi="10.1/a",
+            openalex_oa={"is_oa": True, "pdf_url": None, "landing_page_url": "https://x/landing"},
+        )
+        OpenAlexHTMLSource().try_fetch(ref)
+        mock_oa.assert_not_called()
