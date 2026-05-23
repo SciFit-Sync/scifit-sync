@@ -259,7 +259,20 @@ def atomic_write_json(path: Path, data) -> None:
             tmp.unlink(missing_ok=True)
 
 
-from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL  # noqa: E402
+from mlops.pipeline.config import (  # noqa: E402
+    ADMIN_API_TOKEN,
+    API_BASE_URL,
+    EUROPEPMC_BASE_URL,
+    EUROPEPMC_RATE_LIMIT,
+    NCBI_API_KEY,
+    NCBI_BASE_URL,
+    NCBI_RATE_LIMIT,
+)
+from mlops.pipeline.europepmc import EuropePMCClient  # noqa: E402
+from mlops.pipeline.evidence import calculate_evidence_weight  # noqa: E402
+from mlops.pipeline.fulltext import fetch_cascading  # noqa: E402
+from mlops.pipeline.models import PaperFull, PaperMeta  # noqa: E402
+from mlops.pipeline.pmc import PMCClient  # noqa: E402
 
 ACTIVE_SOURCES = {"pmc", "europepmc"}
 
@@ -289,3 +302,67 @@ def load_existing_dois(manifest) -> set[str]:
             manifest_dois.add(normalize_doi(doi))
     server_dois = {normalize_doi(d) for d in _fetch_server_dois()}
     return manifest_dois | server_dois
+
+
+def build_paperfulls_for_ingest(papers: list[dict]) -> list[PaperFull]:
+    """resolved paper들에 대해 fulltext fetch + PaperFull 구성.
+
+    이미 적재됐거나(already_in_corpus=True) 실패한(failure_reason) paper는 스킵.
+    fulltext 실패 시 §7.1 invariant 적용 (failure_reason="no_fulltext", indexed=False).
+    """
+    pmc_client = PMCClient(
+        base_url=NCBI_BASE_URL,
+        api_key=NCBI_API_KEY,
+        rate_limit=NCBI_RATE_LIMIT,
+    )
+    europepmc_client = EuropePMCClient(
+        base_url=EUROPEPMC_BASE_URL,
+        rate_limit=EUROPEPMC_RATE_LIMIT,
+    )
+
+    result: list[PaperFull] = []
+    for paper in papers:
+        if paper.get("failure_reason") or paper.get("already_in_corpus"):
+            continue
+        if not paper.get("resolved_doi") or not paper.get("resolved_pmid"):
+            continue  # defensive: should be already marked failed
+
+        meta_dict = paper.get("metadata", {})
+        pmcid = meta_dict.get("pmcid") or None
+
+        # fulltext cascade (keyword-only args)
+        cascading_result = fetch_cascading(
+            pmcid=pmcid,
+            pmid=paper["resolved_pmid"],
+            doi=paper["resolved_doi"],
+            pmc_client=pmc_client,
+            europepmc_client=europepmc_client,
+        )
+        if not cascading_result.sections:
+            paper["fulltext_ok"] = False
+            _mark_failure(paper, "no_fulltext")
+            continue
+        paper["fulltext_ok"] = True
+
+        pub_types = meta_dict.get("publication_types", [])
+        evidence = calculate_evidence_weight(pub_types)
+
+        paperfull = PaperFull(
+            meta=PaperMeta(
+                doi=paper["resolved_doi"],
+                pmid=paper["resolved_pmid"],
+                pmcid=pmcid,
+                openalex_id="",
+                title=paper["resolved_title"] or "",
+                abstract=meta_dict.get("abstract", ""),
+                publication_types=pub_types,
+                published_year=meta_dict.get("publication_year"),
+                search_categories=paper["search_categories"],
+                evidence_weight=evidence,
+                fulltext_source=cascading_result.fulltext_source,
+            ),
+            sections=cascading_result.sections,
+        )
+        result.append(paperfull)
+
+    return result

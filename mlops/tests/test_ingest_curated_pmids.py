@@ -470,3 +470,62 @@ class TestLoadExistingDois:
             assert "10.1080/testb" in result  # fully-tried → included
             assert "10.1080/testc" in result  # from server
             assert "10.1080/testd" in result
+
+
+class TestBuildPaperFulls:
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_builds_paperfull_with_fulltext(self, mock_fetch):
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+        from mlops.pipeline.models import PaperSection
+
+        mock_fetch.return_value = MagicMock(sections=[PaperSection(name="Methods", content="...")], fulltext_source="pmc")
+        papers = [{
+            "resolved_pmid": "12345",
+            "resolved_doi": "10.1080/test",
+            "resolved_title": "T",
+            "metadata": {"abstract": "abs", "pmcid": "PMC1", "publication_types": ["RCT"],
+                          "publication_year": 2020},
+            "search_categories": ["hypertrophy"],
+            "indexed": None, "already_in_corpus": False, "fulltext_ok": None,
+            "failure_reason": None,
+        }]
+        result = build_paperfulls_for_ingest(papers)
+
+        assert len(result) == 1
+        paperfull = result[0]
+        assert paperfull.meta.pmid == "12345"
+        assert paperfull.meta.doi == "10.1080/test"
+        assert paperfull.meta.publication_types == ["RCT"]
+        assert paperfull.meta.search_categories == ["hypertrophy"]
+        assert papers[0]["fulltext_ok"] is True
+
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_marks_no_fulltext_when_fetch_returns_empty(self, mock_fetch):
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+        mock_fetch.return_value = MagicMock(sections=[], fulltext_source=None)
+        papers = [{
+            "resolved_pmid": "12345", "resolved_doi": "10.1080/test", "resolved_title": "T",
+            "metadata": {"abstract": "", "pmcid": "", "publication_types": [],
+                          "publication_year": 2020},
+            "search_categories": ["x"],
+            "indexed": None, "already_in_corpus": False, "fulltext_ok": None,
+            "failure_reason": None,
+        }]
+        result = build_paperfulls_for_ingest(papers)
+        # paper는 result에서 빠짐 (sections=[])
+        assert len(result) == 0
+        # invariant: failure_reason과 indexed=False 동시 기록
+        assert papers[0]["fulltext_ok"] is False
+        assert papers[0]["failure_reason"] == "no_fulltext"
+        assert papers[0]["indexed"] is False
+
+    def test_skips_failed_and_already_in_corpus_papers(self):
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+        papers = [
+            {"resolved_pmid": "1", "indexed": True, "already_in_corpus": True,
+             "failure_reason": None, "fulltext_ok": None},
+            {"resolved_pmid": "2", "indexed": False, "already_in_corpus": False,
+             "failure_reason": "doi_resolution_failed", "fulltext_ok": None},
+        ]
+        result = build_paperfulls_for_ingest(papers)
+        assert result == []
