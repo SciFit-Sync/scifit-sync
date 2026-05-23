@@ -5,6 +5,7 @@ normalize_doi, NCBI ID Converter, OpenAlex DOI lookup, title sanity check.
 
 import logging
 import re
+from urllib.parse import quote
 
 import requests
 
@@ -26,6 +27,9 @@ def normalize_doi(raw: str | None) -> str:
     s = _DOI_URL_PREFIX_RE.sub("", s)
     s = s.lower()
     s = s.rstrip(".,;")
+    if re.search(r'[\s?#%]', s):
+        logger.warning("normalize_doi: suspicious characters in DOI: %s", raw)
+        return ""
     if not _DOI_VALIDATE_RE.match(s):
         return ""
     return s
@@ -79,7 +83,9 @@ def openalex_doi_lookup(doi: str, timeout: int = 30) -> dict | None:
     normalized = normalize_doi(doi)
     if not normalized:
         return None
-    url = f"{OPENALEX_DOI_LOOKUP_URL}{normalized}"
+    # NOTE: timeout=30 is a conservative default. Callers in Task 3/4 should
+    # consider tighter timeouts (e.g. 10s) + a retry strategy for production use.
+    url = f"{OPENALEX_DOI_LOOKUP_URL}{quote(normalized, safe='')}"
     try:
         resp = requests.get(url, timeout=timeout)
         if resp.status_code == 404:
@@ -94,7 +100,7 @@ def openalex_doi_lookup(doi: str, timeout: int = 30) -> dict | None:
         return None
 
     # PMID 추출
-    pmid_url = data.get("ids", {}).get("pmid", "")
+    pmid_url = (data.get("ids") or {}).get("pmid", "")
     pmid_match = _PMID_URL_RE.search(pmid_url) if pmid_url else None
     pmid = pmid_match.group(1) if pmid_match else ""
 

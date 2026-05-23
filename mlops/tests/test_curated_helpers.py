@@ -28,6 +28,11 @@ class TestNormalizeDoi:
         assert normalize_doi("not-a-doi") == ""
         assert normalize_doi(None) == ""
 
+    def test_rejects_doi_with_url_metacharacters(self):
+        assert normalize_doi("10.1080/test?injection=1") == ""
+        assert normalize_doi("10.1080/test#fragment") == ""
+        assert normalize_doi("10.1080/test space") == ""
+
     def test_idempotent(self):
         first = normalize_doi("HTTPS://DOI.ORG/10.1080/JSC.001;")
         second = normalize_doi(first)
@@ -98,17 +103,32 @@ class TestOpenalexDoiLookup:
         assert result["pmid"] == ""
 
     @patch("mlops.pipeline.curated.requests.get")
-    def test_returns_none_on_404(self, mock_get):
+    def test_returns_none_on_404_status_code(self, mock_get):
         mock_resp = MagicMock(status_code=404)
-        mock_resp.raise_for_status.side_effect = requests.HTTPError("404")
+        # note: no side_effect needed - production code returns before raise_for_status
         mock_get.return_value = mock_resp
-
         assert openalex_doi_lookup("10.1080/notfound") is None
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_none_on_non_404_http_error(self, mock_get):
+        mock_resp = MagicMock(status_code=429)
+        mock_resp.raise_for_status.side_effect = requests.HTTPError("429")
+        mock_get.return_value = mock_resp
+        assert openalex_doi_lookup("10.1080/x") is None
 
     @patch("mlops.pipeline.curated.requests.get")
     def test_returns_none_on_request_exception(self, mock_get):
         mock_get.side_effect = requests.RequestException("timeout")
         assert openalex_doi_lookup("10.1080/x") is None
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_handles_null_ids_field(self, mock_get):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"doi": "https://doi.org/10.1080/x", "title": "X", "ids": None}
+        mock_get.return_value = mock_resp
+        result = openalex_doi_lookup("10.1080/x")
+        assert result is not None
+        assert result["pmid"] == ""
 
 
 class TestTitleKeywordOverlap:
