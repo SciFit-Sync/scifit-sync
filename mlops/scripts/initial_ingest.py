@@ -21,10 +21,12 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from mlops.pipeline.oa_fetcher import default_source_names
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
+ACTIVE_SOURCES: set[str] = set(default_source_names())
 CHECKPOINT_INTERVAL = 100
 
 
