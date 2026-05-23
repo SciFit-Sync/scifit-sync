@@ -446,7 +446,9 @@ def run(
 
 
 def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None:
-    if not API_BASE_URL or not ADMIN_API_TOKEN:
+    # dry-run은 API 호출 안 하므로 자격증명 체크 생략.
+    # 실제 적재 모드일 때만 fail-fast 가드 적용.
+    if not dry_run and (not API_BASE_URL or not ADMIN_API_TOKEN):
         logger.error("API_BASE_URL / ADMIN_API_TOKEN 미설정 — 종료")
         sys.exit(1)
 
