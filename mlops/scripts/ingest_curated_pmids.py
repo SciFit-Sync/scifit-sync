@@ -8,6 +8,7 @@ Spec §4.2 단일 상태머신 참조.
         [--dry-run] [--limit N]
 """
 
+import argparse
 import contextlib
 import fcntl
 import json
@@ -259,18 +260,20 @@ def atomic_write_json(path: Path, data) -> None:
             tmp.unlink(missing_ok=True)
 
 
+from mlops.pipeline.chunker import chunk_papers  # noqa: E402
 from mlops.pipeline.config import (  # noqa: E402
     ADMIN_API_TOKEN,
     API_BASE_URL,
     EUROPEPMC_BASE_URL,
     EUROPEPMC_RATE_LIMIT,
-    NCBI_API_KEY,
-    NCBI_BASE_URL,
+    MANIFEST_PATH,  # noqa: E402
     NCBI_RATE_LIMIT,
 )
+from mlops.pipeline.embedder import embed_chunks  # noqa: E402
 from mlops.pipeline.europepmc import EuropePMCClient  # noqa: E402
 from mlops.pipeline.evidence import calculate_evidence_weight  # noqa: E402
 from mlops.pipeline.fulltext import fetch_cascading  # noqa: E402
+from mlops.pipeline.manifest import Manifest  # noqa: E402
 from mlops.pipeline.models import PaperFull, PaperMeta  # noqa: E402
 from mlops.pipeline.pmc import PMCClient  # noqa: E402
 
@@ -366,3 +369,178 @@ def build_paperfulls_for_ingest(papers: list[dict]) -> list[PaperFull]:
         result.append(paperfull)
 
     return result
+
+
+def _build_api_payload(chunk_vectors: list[tuple]) -> dict:
+    """initial_ingest.py와 동일한 schema."""
+    return {
+        "chunks": [
+            {
+                "paper_doi": chunk.paper_doi,
+                "paper_pmid": chunk.paper_pmid or "",
+                "paper_title": chunk.paper_title,
+                "section_name": chunk.section_name,
+                "chunk_index": chunk.chunk_index,
+                "content": chunk.content,
+                "token_count": chunk.token_count,
+                "embedding": vec,
+                "search_categories": chunk.search_categories,
+                "publication_types": chunk.publication_types,
+                "evidence_weight": chunk.evidence_weight,
+                "fulltext_source": chunk.fulltext_source or "",
+                "published_year": chunk.published_year or 0,
+            }
+            for chunk, vec in chunk_vectors
+        ]
+    }
+
+
+def api_ingest(chunk_vectors: list[tuple]) -> int:
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.error("API_BASE_URL / ADMIN_API_TOKEN 미설정")
+        sys.exit(1)
+    payload = _build_api_payload(chunk_vectors)
+    url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
+    resp = requests.post(url, json=payload, headers={"X-Admin-Token": ADMIN_API_TOKEN}, timeout=300)
+    resp.raise_for_status()
+    return resp.json()["data"]["upserted"]
+
+
+def _is_paper_processed(paper: dict) -> bool:
+    """resumability: indexed=True 또는 failure_reason 채워진 paper는 처리됨."""
+    return paper.get("indexed") is True or bool(paper.get("failure_reason"))
+
+
+def run(
+    provenance_path: Path,
+    dry_run: bool = False,
+    limit: int | None = None,
+    lock_path: Path | None = None,
+) -> None:
+    lock_path = lock_path or (provenance_path.parent / LOCK_FILENAME)
+
+    try:
+        with acquire_lock(lock_path):
+            _run_locked(provenance_path, dry_run=dry_run, limit=limit)
+    except BlockingIOError:
+        logger.error("Lock %s already held (run_3k.sh 또는 다른 ingest 진행 중?). 수동 재시도.", lock_path)
+        sys.exit(1)
+
+
+def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None:
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    logger.info("provenance loaded: %d Qs", len(provenance))
+
+    manifest = Manifest.load(MANIFEST_PATH)
+    existing_dois = load_existing_dois(manifest)
+    logger.info("existing_dois loaded: %d (manifest + server union, normalized)", len(existing_dois))
+
+    total_resolved = 0
+    total_indexed = 0
+    total_skipped = 0
+
+    for qid, q_data in provenance.items():
+        # 미처리 paper만 처리 (resumability)
+        unprocessed = [p for p in q_data["papers"] if not _is_paper_processed(p)]
+        if limit is not None and total_resolved >= limit:
+            break
+        if not unprocessed:
+            continue
+
+        if limit is not None:
+            unprocessed = unprocessed[: max(0, limit - total_resolved)]
+
+        category = q_data.get("category", "unknown")
+        # Q의 query string은 seed에서 가져와야 하지만 본 스크립트는 seed 미참조.
+        # 대신 category + qid를 sanity check 컨텍스트로 사용 (typo paper는 소수라 충분).
+        query_context = f"{category} {qid}"
+
+        # Step 3 + Step 4 (identifier + title sanity)
+        resolve_papers(unprocessed, qid=qid, query_context=query_context)
+        # Step 5 (already_in_corpus)
+        mark_already_in_corpus(unprocessed, existing_dois)
+        # batch atomic write (resolved/failed 상태)
+        atomic_write_json(provenance_path, provenance)
+
+        # Step 6-9 (fulltext + chunk + embed + ingest)
+        paperfulls = build_paperfulls_for_ingest(unprocessed)
+        if not paperfulls:
+            total_skipped += len(unprocessed)
+            atomic_write_json(provenance_path, provenance)
+            total_resolved += len(unprocessed)
+            continue
+
+        chunks = chunk_papers(paperfulls)
+        if not chunks:
+            for p in unprocessed:
+                if p.get("fulltext_ok") and not p.get("failure_reason"):
+                    _mark_failure(p, "no_fulltext")  # safety net
+            atomic_write_json(provenance_path, provenance)
+            total_resolved += len(unprocessed)
+            continue
+
+        if dry_run:
+            logger.info("[DRY RUN] qid=%s would ingest %d chunks", qid, len(chunks))
+            total_resolved += len(unprocessed)
+            continue
+
+        try:
+            chunk_vectors = embed_chunks(chunks)
+        except Exception as e:
+            logger.error("embed_chunks failed for qid=%s: %s", qid, e)
+            for p in unprocessed:
+                if p.get("fulltext_ok") and not p.get("failure_reason"):
+                    _mark_failure(p, "embed_failed")
+            atomic_write_json(provenance_path, provenance)
+            total_resolved += len(unprocessed)
+            continue
+
+        try:
+            upserted = api_ingest(chunk_vectors)
+            logger.info("qid=%s ingested %d chunks (%d upserted)", qid, len(chunks), upserted)
+            # 성공한 paper들에 indexed=True
+            for p in unprocessed:
+                if p.get("fulltext_ok") and not p.get("failure_reason"):
+                    p["indexed"] = True
+                    total_indexed += 1
+            # manifest 갱신
+            for paperfull in paperfulls:
+                manifest.record_attempt(
+                    doi=paperfull.meta.doi,
+                    pmid=paperfull.meta.pmid or None,
+                    pmcid=paperfull.meta.pmcid,
+                    openalex_id=paperfull.meta.openalex_id,
+                    fulltext_source=paperfull.meta.fulltext_source,
+                    tried_sources=list(ACTIVE_SOURCES),
+                )
+        except Exception as e:
+            logger.error("api_ingest failed for qid=%s: %s", qid, e)
+            for p in unprocessed:
+                if p.get("fulltext_ok") and not p.get("failure_reason"):
+                    _mark_failure(p, "api_ingest_failed")
+
+        atomic_write_json(provenance_path, provenance)
+        total_resolved += len(unprocessed)
+
+    manifest.save(MANIFEST_PATH)
+    logger.info(
+        "=== curated ingest done: resolved=%d indexed=%d skipped=%d ===",
+        total_resolved,
+        total_indexed,
+        total_skipped,
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="큐레이션 PMID/DOI 명시 입력 ingest")
+    parser.add_argument("--provenance", required=True, type=Path, help="curated_provenance.json 경로 (in-place 갱신)")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="resolve + fulltext + chunk까지만, embed/api_ingest 생략"
+    )
+    parser.add_argument("--limit", type=int, default=None, help="처리할 paper 상한 (smoke test용)")
+    args = parser.parse_args()
+    run(args.provenance, dry_run=args.dry_run, limit=args.limit)
+
+
+if __name__ == "__main__":
+    main()
