@@ -17,6 +17,7 @@ from mlops.pipeline.curated import (
     openalex_oa_url,
     unpaywall_oa_locations,
 )
+from mlops.pipeline.europepmc import FulltextStatus as ClientFulltextStatus
 from mlops.pipeline.models import PaperSection
 
 logger = logging.getLogger(__name__)
@@ -77,11 +78,24 @@ class PMCSource:
         if not ref.pmcid:
             return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
         result = self.pmc_client.fetch(ref.pmcid)
-        if result.had_transient_error:
-            return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR)
-        if result.sections:
-            return FulltextResult(status=FulltextStatus.SUCCESS, sections=result.sections)
-        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        return _map_client_result(result)
+
+
+def _map_client_result(result) -> FulltextResult:
+    """europepmc.FulltextResult → oa_fetcher.FulltextResult 매핑.
+
+    PMC/EuropePMC client가 반환하는 FulltextResult(status=..., sections=..., error=...)를
+    chain용 FulltextResult로 변환.
+    """
+    if result.status == ClientFulltextStatus.SUCCESS:
+        return FulltextResult(
+            status=FulltextStatus.SUCCESS, sections=result.sections
+        )
+    if result.status == ClientFulltextStatus.TRANSIENT_ERROR:
+        return FulltextResult(
+            status=FulltextStatus.TRANSIENT_ERROR, error=result.error
+        )
+    return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
 
 
 class EuropePMCSource:
@@ -97,11 +111,7 @@ class EuropePMCSource:
             result = self.europepmc_client.fetch_by_doi(ref.doi)
         else:
             return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
-        if result.had_transient_error:
-            return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR)
-        if result.sections:
-            return FulltextResult(status=FulltextStatus.SUCCESS, sections=result.sections)
-        return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
+        return _map_client_result(result)
 
 
 def fetch_chain(ref: PaperRef, sources: list[OASource]) -> ChainResult:

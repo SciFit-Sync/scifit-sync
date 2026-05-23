@@ -11,6 +11,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from mlops.pipeline.europepmc import FulltextStatus as ClientFulltextStatus
 from mlops.pipeline.models import PaperSection
 from mlops.pipeline.oa_fetcher import (
     EuropePMCSource,
@@ -37,10 +38,15 @@ class TestChainPhase1Regression:
         epmc_client = MagicMock()
 
         success = MagicMock(
+            status=ClientFulltextStatus.SUCCESS,
             sections=[PaperSection(name="Methods", content="...")],
-            had_transient_error=False,
+            error=None,
         )
-        not_available = MagicMock(sections=[], had_transient_error=False)
+        not_available = MagicMock(
+            status=ClientFulltextStatus.NOT_AVAILABLE,
+            sections=[],
+            error=None,
+        )
 
         if expected_source == "pmc":
             pmc_client.fetch.return_value = success
@@ -65,11 +71,15 @@ class TestChainPhase1Regression:
         """모든 source가 NOT_AVAILABLE이면 chain은 fulltext_source=None."""
         pmc_client = MagicMock()
         pmc_client.fetch.return_value = MagicMock(
-            sections=[], had_transient_error=False
+            status=ClientFulltextStatus.NOT_AVAILABLE,
+            sections=[],
+            error=None,
         )
         epmc_client = MagicMock()
         epmc_client.fetch_by_pmid.return_value = MagicMock(
-            sections=[], had_transient_error=False
+            status=ClientFulltextStatus.NOT_AVAILABLE,
+            sections=[],
+            error=None,
         )
 
         chain = [PMCSource(pmc_client), EuropePMCSource(epmc_client)]
@@ -85,12 +95,15 @@ class TestChainPhase1Regression:
         """PMC transient → EuropePMC success → chain은 SUCCESS 반환 + transient flag."""
         pmc_client = MagicMock()
         pmc_client.fetch.return_value = MagicMock(
-            sections=[], had_transient_error=True
+            status=ClientFulltextStatus.TRANSIENT_ERROR,
+            sections=[],
+            error="timeout",
         )
         epmc_client = MagicMock()
         epmc_client.fetch_by_pmid.return_value = MagicMock(
+            status=ClientFulltextStatus.SUCCESS,
             sections=[PaperSection(name="M", content="x")],
-            had_transient_error=False,
+            error=None,
         )
 
         chain = [PMCSource(pmc_client), EuropePMCSource(epmc_client)]

@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+from mlops.pipeline.europepmc import FulltextResult
 from mlops.pipeline.models import PaperSection
 
 
@@ -53,52 +53,19 @@ def fetch_cascading(
     had_transient_error는 '모든 시도가 transient'일 때만 True.
     """
     from mlops.pipeline.oa_fetcher import (  # noqa: PLC0415
-        FulltextResult as ChainResult,
+        EuropePMCSource,
+        PaperRef,
+        PMCSource,
+        fetch_chain,
     )
     from mlops.pipeline.oa_fetcher import (
         FulltextStatus as ChainStatus,
     )
-    from mlops.pipeline.oa_fetcher import (
-        PaperRef,
-        fetch_chain,
-    )
-
-    # PMCFetcher/EuropePMCFetcher는 europepmc.FulltextResult(status 필드)를 반환한다.
-    # PMCSource/EuropePMCSource는 자체 클라이언트 인터페이스(had_transient_error 필드)를 기대하므로
-    # 직접 쓰지 않고, europepmc.FulltextStatus를 ChainStatus로 변환하는 인라인 어댑터를 사용한다.
-
-    class _PMCAdapter:
-        name: str = "pmc"
-
-        def try_fetch(self, ref: PaperRef) -> ChainResult:
-            r = pmc_client.fetch(ref.pmcid)  # type: ignore[arg-type]
-            if r.status == FulltextStatus.SUCCESS:
-                return ChainResult(status=ChainStatus.SUCCESS, sections=r.sections)
-            if r.status == FulltextStatus.TRANSIENT_ERROR:
-                logger.warning("PMC transient error: doi=%s pmcid=%s", doi, pmcid)
-                return ChainResult(status=ChainStatus.TRANSIENT_ERROR)
-            return ChainResult(status=ChainStatus.NOT_AVAILABLE)
-
-    class _EuropePMCAdapter:
-        name: str = "europepmc"
-
-        def try_fetch(self, ref: PaperRef) -> ChainResult:
-            r = (
-                europepmc_client.fetch_by_pmid(ref.pmid)
-                if ref.pmid
-                else europepmc_client.fetch_by_doi(ref.doi)
-            )
-            if r.status == FulltextStatus.SUCCESS:
-                return ChainResult(status=ChainStatus.SUCCESS, sections=r.sections)
-            if r.status == FulltextStatus.TRANSIENT_ERROR:
-                logger.warning("EuropePMC transient error: doi=%s", doi)
-                return ChainResult(status=ChainStatus.TRANSIENT_ERROR)
-            return ChainResult(status=ChainStatus.NOT_AVAILABLE)
 
     chain: list = []
     if pmcid:
-        chain.append(_PMCAdapter())
-    chain.append(_EuropePMCAdapter())
+        chain.append(PMCSource(pmc_client))
+    chain.append(EuropePMCSource(europepmc_client))
 
     ref = PaperRef(doi=doi, pmid=pmid, pmcid=pmcid)
     chain_result = fetch_chain(ref, chain)

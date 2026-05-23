@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from mlops.pipeline.europepmc import FulltextStatus as ClientFulltextStatus
 from mlops.pipeline.models import PaperSection
 from mlops.pipeline.oa_fetcher import (
     EuropePMCSource,
@@ -66,16 +67,17 @@ class TestFetchChain:
 
 
 class TestPMCSource:
-    def _make_pmc_client(self, sections=None, had_transient_error=False):
+    def _make_pmc_client(self, status: ClientFulltextStatus, sections=None, error=None):
         client = MagicMock()
-        client_result = MagicMock()
-        client_result.sections = sections or []
-        client_result.had_transient_error = had_transient_error
-        client.fetch.return_value = client_result
+        client.fetch.return_value = MagicMock(
+            status=status,
+            sections=sections or [],
+            error=error,
+        )
         return client
 
     def test_no_pmcid_returns_not_available(self):
-        client = self._make_pmc_client()
+        client = self._make_pmc_client(ClientFulltextStatus.NOT_AVAILABLE)
         source = PMCSource(pmc_client=client)
         ref = PaperRef(doi="10.1/a", pmcid=None)
 
@@ -85,7 +87,7 @@ class TestPMCSource:
         client.fetch.assert_not_called()
 
     def test_transient_error_propagates(self):
-        client = self._make_pmc_client(had_transient_error=True)
+        client = self._make_pmc_client(ClientFulltextStatus.TRANSIENT_ERROR, error="boom")
         source = PMCSource(pmc_client=client)
         ref = PaperRef(doi="10.1/a", pmcid="PMC123")
 
@@ -95,7 +97,7 @@ class TestPMCSource:
 
     def test_sections_present_returns_success(self):
         sections = [PaperSection(name="Methods", content="text")]
-        client = self._make_pmc_client(sections=sections)
+        client = self._make_pmc_client(ClientFulltextStatus.SUCCESS, sections=sections)
         source = PMCSource(pmc_client=client)
         ref = PaperRef(doi="10.1/a", pmcid="PMC456")
 
@@ -105,7 +107,7 @@ class TestPMCSource:
         assert result.sections == sections
 
     def test_empty_sections_returns_not_available(self):
-        client = self._make_pmc_client(sections=[])
+        client = self._make_pmc_client(ClientFulltextStatus.NOT_AVAILABLE, sections=[])
         source = PMCSource(pmc_client=client)
         ref = PaperRef(doi="10.1/a", pmcid="PMC789")
 
@@ -113,17 +115,19 @@ class TestPMCSource:
 
 
 class TestEuropePMCSource:
-    def _make_europepmc_client(self, sections=None, had_transient_error=False):
+    def _make_europepmc_client(self, status: ClientFulltextStatus, sections=None, error=None):
         client = MagicMock()
-        client_result = MagicMock()
-        client_result.sections = sections or []
-        client_result.had_transient_error = had_transient_error
+        client_result = MagicMock(
+            status=status,
+            sections=sections or [],
+            error=error,
+        )
         client.fetch_by_pmid.return_value = client_result
         client.fetch_by_doi.return_value = client_result
         return client
 
     def test_no_pmid_no_doi_returns_not_available(self):
-        client = self._make_europepmc_client()
+        client = self._make_europepmc_client(ClientFulltextStatus.NOT_AVAILABLE)
         source = EuropePMCSource(europepmc_client=client)
         # doi가 빈 문자열이고 pmid도 없으면(None 기본값) NOT_AVAILABLE
         ref_no_ids = PaperRef(doi="")
@@ -136,7 +140,7 @@ class TestEuropePMCSource:
 
     def test_success_with_pmid(self):
         sections = [PaperSection(name="Methods", content="exercise protocol")]
-        client = self._make_europepmc_client(sections=sections)
+        client = self._make_europepmc_client(ClientFulltextStatus.SUCCESS, sections=sections)
         source = EuropePMCSource(europepmc_client=client)
         ref = PaperRef(doi="10.1/b", pmid="12345678")
 
@@ -148,7 +152,7 @@ class TestEuropePMCSource:
         client.fetch_by_doi.assert_not_called()
 
     def test_transient_error_propagates(self):
-        client = self._make_europepmc_client(had_transient_error=True)
+        client = self._make_europepmc_client(ClientFulltextStatus.TRANSIENT_ERROR, error="boom")
         source = EuropePMCSource(europepmc_client=client)
         ref = PaperRef(doi="10.1/b", pmid="99999999")
 
@@ -157,7 +161,7 @@ class TestEuropePMCSource:
         assert result.status == FulltextStatus.TRANSIENT_ERROR
 
     def test_empty_sections_returns_not_available(self):
-        client = self._make_europepmc_client(sections=[])
+        client = self._make_europepmc_client(ClientFulltextStatus.NOT_AVAILABLE, sections=[])
         source = EuropePMCSource(europepmc_client=client)
         # pmid=None이 기본값 → doi 경로로 진입
         ref = PaperRef(doi="10.1/c")
