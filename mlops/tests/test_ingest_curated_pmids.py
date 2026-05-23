@@ -56,7 +56,7 @@ class TestEfetchBatch:
     def test_parses_efetch_batch_response(self, mock_get):
         from mlops.scripts.ingest_curated_pmids import efetch_pubmed_batch
 
-        mock_resp = MagicMock(status_code=200, text=SAMPLE_EFETCH_XML)
+        mock_resp = MagicMock(status_code=200, content=SAMPLE_EFETCH_XML.encode())
         mock_get.return_value = mock_resp
 
         result = efetch_pubmed_batch(["35291645"])
@@ -218,6 +218,46 @@ class TestResolveIdentifier:
             resolved = resolve_papers(papers, qid="Q001", query_context="x")
         assert resolved[0]["failure_reason"] == "efetch_not_found"
 
+    @patch("mlops.scripts.ingest_curated_pmids.efetch_pubmed_batch")
+    def test_branch_a_single_retry_succeeds(self, mock_efetch):
+        from mlops.scripts.ingest_curated_pmids import resolve_papers
+
+        # First call: batch returns empty (PMID missing)
+        # Second call: single re-fetch returns the metadata
+        mock_efetch.side_effect = [
+            {},  # initial batch miss
+            {
+                "12345": {
+                    "doi": "10.1080/test",
+                    "pmcid": "",
+                    "title": "T",
+                    "abstract": "",
+                    "publication_types": [],
+                    "publication_year": 2020,
+                }
+            },
+        ]
+        papers = [
+            {
+                "raw_id": "PMID:12345",
+                "raw_pmid": "12345",
+                "raw_doi": None,
+                "resolved_pmid": None,
+                "resolved_doi": None,
+                "resolved_title": None,
+                "indexed": None,
+                "already_in_corpus": None,
+                "fulltext_ok": None,
+                "failure_reason": None,
+                "is_typo_autofixed": False,
+                "search_categories": ["x"],
+            }
+        ]
+        resolved = resolve_papers(papers, qid="Q001", query_context="x")
+        assert resolved[0]["failure_reason"] is None
+        assert resolved[0]["resolved_doi"] == "10.1080/test"
+        assert resolved[0]["resolved_pmid"] == "12345"
+
     @patch("mlops.scripts.ingest_curated_pmids.openalex_doi_lookup")
     def test_branch_b_doi_only_success(self, mock_lookup):
         from mlops.scripts.ingest_curated_pmids import resolve_papers
@@ -376,6 +416,22 @@ class TestAlreadyInCorpus:
         mark_already_in_corpus(papers, existing_dois)
         # 이미 실패한 paper는 변경하지 않음
         assert papers[0]["already_in_corpus"] is None
+
+    def test_marks_resolution_failure_when_doi_missing_and_no_failure(self):
+        from mlops.scripts.ingest_curated_pmids import mark_already_in_corpus
+
+        papers = [
+            {
+                "resolved_doi": None,
+                "resolved_pmid": "1",
+                "indexed": None,
+                "already_in_corpus": None,
+                "failure_reason": None,
+            }
+        ]
+        mark_already_in_corpus(papers, set())
+        assert papers[0]["failure_reason"] == "doi_resolution_failed"
+        assert papers[0]["indexed"] is False
 
 
 class TestAtomicWrite:
