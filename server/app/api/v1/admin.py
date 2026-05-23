@@ -9,7 +9,7 @@ import logging
 import chromadb
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,6 +138,23 @@ async def ingest_papers(
             "total_collection": collection.count(),
         },
     }
+
+
+@router.get("/rag/dois")
+async def list_dois(
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """papers 테이블에 적재된 모든 paper의 DOI 목록.
+
+    MLOps 파이프라인이 ingest 시작 시 호출해 `existing_dois`를 초기화한다 —
+    manifest는 GitHub Actions runner의 임시 디스크에 저장되어 매 cron마다 손실되므로
+    서버를 dedup의 primary source로 두고 manifest는 보조 (paper별 tried_sources 같은
+    부가 정보 보존)로 둔다.
+    """
+    result = await db.execute(select(Paper.doi).order_by(Paper.doi))
+    dois = [row[0] for row in result.all()]
+    return {"success": True, "data": {"dois": dois, "count": len(dois)}}
 
 
 @router.get("/rag/pmids")
