@@ -9,7 +9,10 @@ COPY server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server/ /app/
-COPY mlops/data /app/mlops/data
+
+# 마이그레이션이 필요한 단일 CSV만 복사 (mlops/data/ 전체 복사는 ECR 이미지 비대화 + cold start 지연).
+# 향후 brand별 raw CSV 적재 시점에 명시 추가.
+COPY mlops/data/equipments_seed.csv /app/mlops/data/equipments_seed.csv
 
 # Non-root user + ChromaDB 볼륨 + 정적 파일 디렉터리 권한 설정
 # - /chroma-data: EFS 마운트 대상. Access Point가 1000:1000으로 squash하지만
