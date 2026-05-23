@@ -106,3 +106,31 @@ def openalex_doi_lookup(doi: str, timeout: int = 30) -> Optional[dict]:
         "publication_year": data.get("publication_year"),
         "type": data.get("type", "") or "",
     }
+
+
+_STOPWORDS = frozenset({
+    "a", "an", "the", "of", "on", "in", "at", "to", "for", "and", "or", "but",
+    "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+    "with", "by", "from", "as", "this", "that", "these", "those", "vs",
+})
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize(text: str) -> set[str]:
+    return {t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS and len(t) > 2}
+
+
+def title_keyword_overlap(title: str, context: str) -> float:
+    """title과 context의 키워드 jaccard-style overlap ratio.
+
+    title의 tokens가 context tokens 안에 얼마나 들어있는지로 계산.
+    range [0.0, 1.0]. typo auto-fixed DOI의 title sanity check에 사용.
+    """
+    if not title or not context:
+        return 0.0
+    title_tokens = _tokenize(title)
+    context_tokens = _tokenize(context)
+    if not title_tokens:
+        return 0.0
+    matched = title_tokens & context_tokens
+    return len(matched) / len(title_tokens)

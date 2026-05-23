@@ -110,3 +110,30 @@ class TestOpenalexDoiLookup:
     def test_returns_none_on_request_exception(self, mock_get):
         mock_get.side_effect = requests.RequestException("timeout")
         assert openalex_doi_lookup("10.1080/x") is None
+
+
+from mlops.pipeline.curated import title_keyword_overlap
+
+
+class TestTitleKeywordOverlap:
+    def test_high_overlap(self):
+        title = "Effects of weekly training volume on muscle hypertrophy"
+        context = "weekly set volume per muscle group hypertrophy"
+        ratio = title_keyword_overlap(title, context)
+        assert ratio >= 0.5  # significant overlap
+
+    def test_low_overlap(self):
+        title = "Hammer Strength Cybernetics for Robotic Cardiology"
+        context = "weekly set volume per muscle group hypertrophy"
+        ratio = title_keyword_overlap(title, context)
+        assert ratio < 0.2
+
+    def test_empty_inputs(self):
+        assert title_keyword_overlap("", "anything") == 0.0
+        assert title_keyword_overlap("anything", "") == 0.0
+
+    def test_stopwords_ignored(self):
+        title = "The Effect of A Variable on The Outcome"
+        context = "Outcome"
+        ratio = title_keyword_overlap(title, context)
+        assert ratio > 0.0  # "outcome" matches, stopwords excluded
