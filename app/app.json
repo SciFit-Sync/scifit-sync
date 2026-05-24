@@ -7,18 +7,14 @@
     "scheme": "scifiitsync",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "splash": {
-      "backgroundColor": "#000000"
-    },
+    "jsEngine": "jsc",
+
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.scifitsync.app"
     },
     "android": {
-      "package": "com.scifitsync.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#000000"
-      }
+      "package": "com.scifitsync.app"
     },
     "plugins": [
       "expo-secure-store",
