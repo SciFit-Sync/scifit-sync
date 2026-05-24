@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 24,
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
