@@ -12,7 +12,21 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 | RDS PostgreSQL 또는 Supabase | 관계형 DB | 프로덕션 DB |
 | EFS | ChromaDB 데이터 | `/chroma-data` 영구 스토리지 (ECS Fargate는 EBS 미지원) |
 | ECR | Docker 이미지 레지스트리 | CI에서 빌드 후 push |
-| ALB | 로드 밸런서 | HTTPS 종단, 헬스체크 |
+| ALB | 로드 밸런서 | Listener 443 HTTPS(TLS 1.3) + 80 → 443 redirect, 헬스체크 |
+| Route 53 | DNS | `scifit-sync.com` apex + www A 레코드 (ALB alias) |
+| ACM | TLS 인증서 | `scifit-sync.com` + `www.scifit-sync.com` (자동 갱신, ap-northeast-2) |
+| Secrets Manager | DATABASE_URL 등 시크릿 | ECS Task Def `secrets` 참조 |
+
+## 프로덕션 endpoint
+
+| 용도 | URL |
+|---|---|
+| **공식 API Base URL** | `https://scifit-sync.com/api/v1` |
+| 헬스체크 | `https://scifit-sync.com/api/v1/health` |
+| 앱 환경변수 | `EXPO_PUBLIC_API_URL=https://scifit-sync.com` |
+| ALB 직접 DNS (디버그용) | `scifit-sync-alb-1884701506.ap-northeast-2.elb.amazonaws.com` |
+
+HTTP는 ALB Listener 80에서 자동 HTTPS 301 redirect. 모바일 ATS(iOS) / Cleartext Traffic(Android) 정책 통과.
 
 ## 배포 체크리스트
 1. `develop` → `main` PR 생성 및 승인 (리뷰어 1명)
