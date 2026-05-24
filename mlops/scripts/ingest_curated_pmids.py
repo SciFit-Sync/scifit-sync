@@ -11,6 +11,7 @@ Spec §4.2 단일 상태머신 참조.
 import argparse
 import contextlib
 import fcntl
+import gzip
 import json
 import logging
 import os
@@ -35,10 +36,14 @@ from mlops.pipeline.config import (  # noqa: E402
     NCBI_RATE_LIMIT,
 )
 from mlops.pipeline.curated import (  # noqa: E402
+    fetch_html_sections,
+    fetch_pdf_sections,
     ncbi_pmid_to_doi,
     normalize_doi,
     openalex_doi_lookup,
+    openalex_oa_url,
     title_keyword_overlap,
+    unpaywall_oa_locations,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
@@ -337,7 +342,41 @@ def build_paperfulls_for_ingest(
             pmc_client=pmc_client,
             europepmc_client=europepmc_client,
         )
-        if not cascading_result.sections:
+        sections = cascading_result.sections
+        fulltext_source = cascading_result.fulltext_source
+
+        if not sections:
+            # OpenAlex OA fallback: PDF → HTML 순으로 시도
+            # TODO(perf): openalex_doi_lookup이 이미 같은 paper의 OpenAlex 데이터를 가져옴.
+            # 두 번 호출 방지하려면 resolve_papers 단계에서 oa_info 캐시하여 paper dict에 저장 후
+            # 여기서 재사용. 별도 PR로 분리.
+            oa_info = openalex_oa_url(paper["resolved_doi"])
+            if oa_info and oa_info.get("is_oa"):
+                if oa_info.get("pdf_url"):
+                    sections = fetch_pdf_sections(oa_info["pdf_url"])
+                    if sections:
+                        fulltext_source = "openalex_pdf"
+                if not sections and oa_info.get("landing_page_url"):
+                    sections = fetch_html_sections(oa_info["landing_page_url"])
+                    if sections:
+                        fulltext_source = "openalex_html"
+
+        if not sections:
+            # Unpaywall fallback (모든 mirror 시도)
+            unp_locations = unpaywall_oa_locations(paper["resolved_doi"])
+            for loc in unp_locations:
+                if loc.get("pdf_url"):
+                    sections = fetch_pdf_sections(loc["pdf_url"])
+                    if sections:
+                        fulltext_source = "unpaywall_pdf"
+                        break
+                if loc.get("landing_url"):
+                    sections = fetch_html_sections(loc["landing_url"])
+                    if sections:
+                        fulltext_source = "unpaywall_html"
+                        break
+
+        if not sections:
             paper["fulltext_ok"] = False
             _mark_failure(paper, "no_fulltext")
             continue
@@ -358,9 +397,9 @@ def build_paperfulls_for_ingest(
                 published_year=meta_dict.get("publication_year"),
                 search_categories=paper["search_categories"],
                 evidence_weight=evidence,
-                fulltext_source=cascading_result.fulltext_source,
+                fulltext_source=fulltext_source,
             ),
-            sections=cascading_result.sections,
+            sections=sections,
         )
         result.append(paperfull)
 
@@ -424,6 +463,54 @@ def api_ingest(chunk_vectors: list[tuple], max_retries: int = 3) -> int:
     raise last_exc  # type: ignore[misc]
 
 
+def save_chunks_and_embeddings(
+    chunks: list,
+    chunk_vectors: list[tuple],
+    batch_tag: str,
+    model_key: str = "bge-large",
+    data_dir: Path | None = None,
+) -> None:
+    """chunks와 embeddings를 export_embeddings.py 호환 포맷으로 jsonl.gz 저장.
+
+    출력:
+      <data_dir>/chunks/<batch_tag>.jsonl.gz          — chunk.model_dump() 한 줄씩
+      <data_dir>/emb_<model_key>/<batch_tag>.jsonl.gz — {**chunk.model_dump(), "embedding": vec}
+
+    같은 batch_tag로 반복 호출 시 기존 파일에 append ("at" 모드).
+    """
+    if data_dir is None:
+        # mlops/data/ — scripts/ 의 두 단계 위
+        data_dir = Path(__file__).resolve().parent.parent / "data"
+
+    chunks_path = data_dir / "chunks" / f"{batch_tag}.jsonl.gz"
+    emb_path = data_dir / f"emb_{model_key}" / f"{batch_tag}.jsonl.gz"
+
+    chunks_path.parent.mkdir(parents=True, exist_ok=True)
+    emb_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # chunks 파일 (append)
+    with gzip.open(chunks_path, "at", encoding="utf-8") as f:
+        for chunk in chunks:
+            f.write(json.dumps(chunk.model_dump(), ensure_ascii=False))
+            f.write("\n")
+
+    # embeddings 파일 (append)
+    with gzip.open(emb_path, "at", encoding="utf-8") as f:
+        for chunk, vec in chunk_vectors:
+            record = chunk.model_dump()
+            record["embedding"] = vec
+            f.write(json.dumps(record, ensure_ascii=False))
+            f.write("\n")
+
+    logger.info(
+        "export-batch '%s': %d chunks → %s | %s",
+        batch_tag,
+        len(chunks),
+        chunks_path,
+        emb_path,
+    )
+
+
 def _is_paper_processed(paper: dict) -> bool:
     """resumability: indexed=True 또는 failure_reason 채워진 paper는 처리됨."""
     return paper.get("indexed") is True or bool(paper.get("failure_reason"))
@@ -434,21 +521,35 @@ def run(
     dry_run: bool = False,
     limit: int | None = None,
     lock_path: Path | None = None,
+    export_batch: str | None = None,
+    embed_model: str = "bge-large",
 ) -> None:
     lock_path = lock_path or (provenance_path.parent / LOCK_FILENAME)
 
     try:
         with acquire_lock(lock_path):
-            _run_locked(provenance_path, dry_run=dry_run, limit=limit)
+            _run_locked(
+                provenance_path,
+                dry_run=dry_run,
+                limit=limit,
+                export_batch=export_batch,
+                embed_model=embed_model,
+            )
     except BlockingIOError:
         logger.error("Lock %s already held (run_3k.sh 또는 다른 ingest 진행 중?). 수동 재시도.", lock_path)
         sys.exit(1)
 
 
-def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None:
-    # dry-run은 API 호출 안 하므로 자격증명 체크 생략.
+def _run_locked(
+    provenance_path: Path,
+    dry_run: bool,
+    limit: int | None,
+    export_batch: str | None = None,
+    embed_model: str = "bge-large",
+) -> None:
+    # dry-run과 export-batch 모드는 API 호출 안 하므로 자격증명 체크 생략.
     # 실제 적재 모드일 때만 fail-fast 가드 적용.
-    if not dry_run and (not API_BASE_URL or not ADMIN_API_TOKEN):
+    if not dry_run and not export_batch and (not API_BASE_URL or not ADMIN_API_TOKEN):
         logger.error("API_BASE_URL / ADMIN_API_TOKEN 미설정 — 종료")
         sys.exit(1)
 
@@ -540,6 +641,13 @@ def _run_locked(provenance_path: Path, dry_run: bool, limit: int | None) -> None
                 total_resolved += len(unprocessed)
                 continue
 
+        if export_batch:
+            # export 모드: chunks + embeddings를 jsonl.gz 파일로 저장, API ingest 생략
+            save_chunks_and_embeddings(chunks, chunk_vectors, batch_tag=export_batch, model_key=embed_model)
+            logger.info("qid=%s export: %d chunks saved", qid, len(chunks))
+            total_resolved += len(unprocessed)
+            continue
+
         try:
             upserted = api_ingest(chunk_vectors)
         except Exception as e:
@@ -593,8 +701,30 @@ def main():
         "--dry-run", action="store_true", help="resolve + fulltext + chunk까지만, embed/api_ingest 생략"
     )
     parser.add_argument("--limit", type=_positive_int, default=None, help="처리할 paper 상한 (smoke test용, 양의 정수)")
+    parser.add_argument(
+        "--export-batch",
+        type=str,
+        default=None,
+        help=(
+            "Export 모드: chunks와 embeddings를 jsonl.gz로 저장. "
+            "값은 batch-tag (예: 'curated_20260524'). 자격증명 없어도 동작. "
+            "출력: mlops/data/chunks/<tag>.jsonl.gz + mlops/data/emb_<model>/<tag>.jsonl.gz"
+        ),
+    )
+    parser.add_argument(
+        "--embed-model",
+        type=str,
+        default="bge-large",
+        help="embedding 모델 키 (default: bge-large). export-batch 모드에서만 사용",
+    )
     args = parser.parse_args()
-    run(args.provenance, dry_run=args.dry_run, limit=args.limit)
+    run(
+        args.provenance,
+        dry_run=args.dry_run,
+        limit=args.limit,
+        export_batch=args.export_batch,
+        embed_model=args.embed_model,
+    )
 
 
 if __name__ == "__main__":
