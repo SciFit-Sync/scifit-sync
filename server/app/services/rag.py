@@ -410,8 +410,15 @@ def _strip_markdown_fence(raw: str) -> str:
     return raw
 
 
-def chat_rag_stream(question: str) -> Generator[dict, None, None]:
+def chat_rag_stream(
+    question: str,
+    history: list[dict] | None = None,
+) -> Generator[dict, None, None]:
     """챗봇 RAG (스트리밍): 질문 → 논문 검색 → LLM 토큰 스트림 + 논문 출처 카드.
+
+    Args:
+        question: 현재 사용자 질문
+        history: 이전 대화 목록 (최근 순 정렬, 각 항목은 {"role": "user"|"assistant", "content": str})
 
     Yields:
         {"type": "chunk", "content": str}
@@ -437,10 +444,16 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다. 다른 방식으로 질문해 주세요."}
         return
 
-    # 3. 프롬프트 구성 (상위 5개 청크)
+    # 3. 프롬프트 구성 (상위 5개 청크 + 대화 히스토리)
     context = ""
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:400]}\n"
+
+    history_text = ""
+    if history:
+        for msg in history[-10:]:  # 최근 5턴(10메시지)
+            role_label = "User" if msg["role"] == "user" else "Assistant"
+            history_text += f"{role_label}: {msg['content'][:300]}\n"
 
     safe_question = question.replace("</user_query>", "</ user_query>")
     prompt = (
@@ -448,9 +461,10 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         "Always cite which paper supports each claim.\n"
         "If the papers don't contain relevant information, say so clearly.\n\n"
         f"Research papers:\n{context}\n"
-        f"<user_query>{safe_question}</user_query>\n\n"
-        "Answer in Korean. Be specific and cite paper titles."
     )
+    if history_text:
+        prompt += f"\nPrevious conversation:\n{history_text}\n"
+    prompt += f"<user_query>{safe_question}</user_query>\n\nAnswer in Korean. Be specific and cite paper titles."
 
     # 4. LLM 토큰 스트리밍
     try:
