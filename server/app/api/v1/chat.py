@@ -1,14 +1,12 @@
 """챗봇 도메인 엔드포인트.
 
 CLAUDE.md / api-endpoints.md #37-39.
-
-⚠️ POST /chat/messages 의 RAG 파이프라인은 현재 SSE 스켈레톤만 제공.
-실제 ChromaDB + LLM 연동은 별도 구현 필요.
 """
 
 import asyncio
 import json
 import logging
+import threading
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -29,6 +27,7 @@ from app.schemas.chat import (
     SendChatMessageRequest,
 )
 from app.schemas.common import SuccessResponse
+from app.services.rag import chat_rag_stream
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +39,34 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
         return uuid.UUID(v)
     except ValueError as e:
         raise ValidationError(message=f"잘못된 {name} 형식입니다.") from e
+
+
+async def _async_iter_sync_gen(make_gen):
+    """블로킹 sync generator를 백그라운드 스레드에서 돌리고 async iterator로 노출."""
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+    sentinel = object()
+
+    def producer():
+        try:
+            for item in make_gen():
+                loop.call_soon_threadsafe(queue.put_nowait, item)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("챗봇 RAG 생성 중 예외")
+            loop.call_soon_threadsafe(
+                queue.put_nowait,
+                {"type": "error", "message": f"RAG 파이프라인 오류: {e}"},
+            )
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+
+    threading.Thread(target=producer, daemon=True).start()
+
+    while True:
+        item = await queue.get()
+        if item is sentinel:
+            return
+        yield item
 
 
 # ── POST /chat/messages (SSE) ─────────────────────────────────────────────────
@@ -74,11 +101,50 @@ async def send_chat_message(
     session_id_str = str(session.id)
 
     async def stream():
-        # ⚠️ TODO: 실제 RAG 파이프라인 (한→영 번역 → ChromaDB 검색 → LLM 스트리밍)
-        # CLAUDE.md §6 RAG 파이프라인 참고
-        yield (f"id: evt_001\ndata: {json.dumps({'type': 'session', 'session_id': session_id_str})}\n\n")
-        await asyncio.sleep(0)
-        yield (f"id: evt_002\ndata: {json.dumps({'type': 'chunk', 'content': 'RAG 챗봇 미구현 — TODO'})}\n\n")
+        full_answer_parts: list[str] = []
+        source_pmids: list[str] = []
+        seq = 0
+
+        yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'session', 'session_id': session_id_str}, ensure_ascii=False)}\n\n"
+        seq += 1
+
+        try:
+            async for ev in _async_iter_sync_gen(lambda: chat_rag_stream(body.content)):
+                etype = ev.get("type")
+                seq += 1
+
+                if etype == "chunk":
+                    content = ev.get("content", "")
+                    full_answer_parts.append(content)
+                    yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'chunk', 'content': content}, ensure_ascii=False)}\n\n"
+
+                elif etype == "sources":
+                    sources = ev.get("sources", [])
+                    source_pmids = [s["pmid"] for s in sources if s.get("pmid")]
+                    yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+
+                elif etype == "error":
+                    yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'error', 'message': ev.get('message', '')}, ensure_ascii=False)}\n\n"
+
+                elif etype == "done":
+                    break
+
+        except Exception:
+            logger.exception("챗봇 SSE 스트리밍 오류")
+
+        # 어시스턴트 메시지 저장
+        full_answer = "".join(full_answer_parts)
+        if full_answer:
+            db.add(
+                ChatMessage(
+                    session_id=session.id,
+                    role=ChatRole.ASSISTANT,
+                    content=full_answer,
+                    paper_ids=source_pmids or None,
+                )
+            )
+            await db.commit()
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
