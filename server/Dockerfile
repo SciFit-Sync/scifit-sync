@@ -1,5 +1,5 @@
 # ============================================================
-# Stage 1: builder — 의존성 설치
+# Stage 1: builder — venv 격리로 의존성 설치
 # ============================================================
 FROM python:3.11-slim AS builder
 
@@ -8,18 +8,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc \
     && rm -rf /var/lib/apt/lists/*
 
+# venv 격리 — 두 RUN pip install 사이 site-packages 상태가 명시적으로 공유됨.
+# (--prefix 방식은 pip 23+에서만 target prefix 인식 보장이라 venv가 더 안전.)
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 WORKDIR /install
 COPY server/requirements.txt .
 
 # torch CPU-only wheel 명시 설치 — sentence-transformers가 default PyPI에서
-# GPU 포함 torch(~2GB) 끌어오는 것 차단. ECS Fargate는 GPU 없음 (CLAUDE.md §2 — ECS Fargate).
-# torch가 먼저 설치되면 후속 sentence-transformers는 `Requirement already satisfied`로 재사용.
-RUN pip install --no-cache-dir --prefix=/install/python \
+# GPU 포함 torch(~2GB) 끌어오는 것 차단. ECS Fargate는 GPU 없음 (CLAUDE.md §2).
+# venv 안에 먼저 설치되면 후속 sentence-transformers는 `Requirement already satisfied`로 재사용.
+RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu \
     torch==2.5.1+cpu
 
-# 나머지 의존성 — --extra-index-url로 CPU wheel 우선 검색
-RUN pip install --no-cache-dir --prefix=/install/python \
+# 나머지 의존성 — --extra-index-url로 PyPI와 CPU wheel 인덱스를 함께 검색 (CPU 우선이 아닌 동시 검색).
+# 이미 설치된 torch는 재설치 안 함.
+RUN pip install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cpu \
     -r requirements.txt
 
@@ -28,10 +34,17 @@ RUN pip install --no-cache-dir --prefix=/install/python \
 # ============================================================
 FROM python:3.11-slim AS runtime
 
+# torch CPU wheel 런타임 의존성 (OpenMP). torch 일부 op가 libgomp1 호출.
+# python:3.11-slim(bookworm-slim)에 미포함이라 명시 설치 — 미설치 시 `import torch` fail 위험.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# builder에서 설치된 site-packages + bin 복사
-COPY --from=builder /install/python /usr/local
+# venv 복사 — site-packages, bin/, lib/ 등 일관된 격리
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # 앱 코드
 COPY server/ /app/
