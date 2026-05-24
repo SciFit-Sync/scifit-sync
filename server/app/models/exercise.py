@@ -21,6 +21,7 @@ class Exercise(TimestampMixin, Base):
     name_en: Mapped[str] = mapped_column(String(200), unique=True)
     description: Mapped[str | None] = mapped_column(Text, default=None)
     category: Mapped[str] = mapped_column(String(50))
+    gif_url: Mapped[str | None] = mapped_column(String(500), default=None)
 
     equipment_maps: Mapped[list["ExerciseEquipmentMap"]] = relationship(
         back_populates="exercise", cascade="all, delete-orphan"
