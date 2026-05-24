@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # External API
     KAKAO_REST_API_KEY: str = ""
+    WORKOUTX_API_KEY: str = ""
 
     # ChromaDB
     CHROMA_PERSIST_PATH: str = "/chroma-data"

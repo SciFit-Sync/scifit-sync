@@ -3,9 +3,9 @@ import { login } from '@react-native-seoul/kakao-login';
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export interface KakaoAuthResult {
-  accessToken: string;
-  refreshToken: string;
-  isNewUser: boolean;
+  access_token: string;
+  refresh_token: string;
+  is_new_user: boolean;
   message?: string;
 }
 

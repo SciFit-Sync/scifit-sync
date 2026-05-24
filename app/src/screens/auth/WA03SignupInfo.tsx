@@ -51,9 +51,9 @@ export default function WA03SignupInfo() {
     }
     // TODO: 실제 API 연동 후 진짜 토큰으로 교체
     await setAuth({
-      accessToken: "temp_token",
-      refreshToken: "temp_refresh",
-      isNewUser: true,
+      access_token: "temp_token",
+      refresh_token: "temp_refresh",
+      is_new_user: true,
     });
   };
 
