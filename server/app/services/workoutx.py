@@ -39,7 +39,11 @@ async def get_exercise_by_name(name_en: str) -> dict | None:
             resp = await client.get(f"/exercises/name/{name_en}")
             resp.raise_for_status()
             data = resp.json()
-            # API가 배열로 반환하는 경우 첫 번째 항목 사용
+            # { total, count, data: [...] } 래퍼 구조 처리
+            if isinstance(data, dict) and "data" in data:
+                items = data["data"]
+                return items[0] if items else None
+            # 배열로 직접 반환하는 경우 대비
             if isinstance(data, list):
                 return data[0] if data else None
             return data
