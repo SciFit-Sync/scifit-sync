@@ -1,13 +1,39 @@
-FROM python:3.11-slim
+# ============================================================
+# Stage 1: builder — 의존성 설치
+# ============================================================
+FROM python:3.11-slim AS builder
+
+# native 컴파일 deps (일부 pkg가 wheel 미제공 시 빌드)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /install
+COPY server/requirements.txt .
+
+# torch CPU-only wheel 명시 설치 — sentence-transformers가 default PyPI에서
+# GPU 포함 torch(~2GB) 끌어오는 것 차단. ECS Fargate는 GPU 없음 (CLAUDE.md §2 — ECS Fargate).
+# torch가 먼저 설치되면 후속 sentence-transformers는 `Requirement already satisfied`로 재사용.
+RUN pip install --no-cache-dir --prefix=/install/python \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.5.1+cpu
+
+# 나머지 의존성 — --extra-index-url로 CPU wheel 우선 검색
+RUN pip install --no-cache-dir --prefix=/install/python \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r requirements.txt
+
+# ============================================================
+# Stage 2: runtime — 앱 실행
+# ============================================================
+FROM python:3.11-slim AS runtime
 
 WORKDIR /app
 
-# Build context는 repo root (deploy.yml과 docker-compose.yml 양쪽).
-# server/ 외에 mlops/data도 컨테이너에 넣어야 Alembic seed 마이그레이션이
-# CSV(equipments_seed.csv)를 읽을 수 있다.
-COPY server/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# builder에서 설치된 site-packages + bin 복사
+COPY --from=builder /install/python /usr/local
 
+# 앱 코드
 COPY server/ /app/
 
 # 마이그레이션이 필요한 단일 CSV만 복사 (mlops/data/ 전체 복사는 ECR 이미지 비대화 + cold start 지연).
