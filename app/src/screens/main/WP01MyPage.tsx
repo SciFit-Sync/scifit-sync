@@ -11,18 +11,26 @@ import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 
-interface InfoItem {
-  title: string;
-  value: string;
-}
-
-const mock_info: InfoItem[] = [
-  { title: "신체 정보", value: "175cm · 75kg · 27세 · 남성" },
-  { title: "운동 경력", value: "중급자 · 3년" },
-  { title: "MY 헬스장", value: "스포애니 강남점" },
+const info_items = [
+  {
+    title: "신체 정보",
+    value: "175cm · 75kg · 27세 · 남성",
+    screen: "WP02EditBodyInfo",
+  },
+  {
+    title: "운동 경력",
+    value: "중급자 · 3년",
+    screen: "WP03EditCareer",
+  },
+  {
+    title: "MY 헬스장",
+    value: "스포애니 강남점",
+    screen: "WP04EditGym",
+  },
   {
     title: "1RM",
     value: "벤치 80kg · 스쿼트 100kg · 데드리프트 · 오버헤드프레스",
+    screen: "WP05EditOneRM",
   },
 ];
 
@@ -35,11 +43,7 @@ export default function WP01MyPage() {
 
       {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Octicons name="chevron-left" size={32} color={colors.primary} />
-        </TouchableOpacity>
         <Text style={styles.logo}>SciFit-Sync</Text>
-        <View style={styles.placeholder} />
       </View>
 
       <ScrollView
@@ -55,7 +59,7 @@ export default function WP01MyPage() {
 
         {/* 정보 카드 목록 */}
         <View style={styles.info_list}>
-          {mock_info.map((item) => (
+          {info_items.map((item) => (
             <View key={item.title} style={styles.info_card}>
               <View style={styles.info_content}>
                 <Text style={styles.info_title}>{item.title}</Text>
@@ -63,7 +67,9 @@ export default function WP01MyPage() {
                   {item.value}
                 </Text>
               </View>
-              <TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => navigation.navigate(item.screen as never)} // ⭐
+              >
                 <Text style={styles.edit_text}>수정</Text>
               </TouchableOpacity>
             </View>
@@ -109,12 +115,12 @@ const styles = StyleSheet.create({
   },
   flex: { flex: 1 },
   header: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    flexDirection: "row",
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 29,
+    paddingBottom: 24,
   },
   logo: {
     fontFamily: "sacheon",
@@ -126,8 +132,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 32,
   },
-
-  // 프로필
   profile_section: {
     alignItems: "center",
     gap: 16,
@@ -146,8 +150,6 @@ const styles = StyleSheet.create({
     color: "#000000",
     textAlign: "center",
   },
-
-  // 정보 카드
   info_list: {
     gap: 8,
   },
@@ -180,8 +182,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.bluegray,
   },
-
-  // 하단 버튼
   bottom_buttons: {
     flexDirection: "row",
     justifyContent: "center",
