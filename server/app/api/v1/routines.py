@@ -357,7 +357,9 @@ async def replace_routine_exercise(
     await db.commit()
     await db.refresh(rex)
 
-    target_ex = new_ex or (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
+    target_ex = (
+        new_ex or (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
+    )
     return SuccessResponse(
         data=ReplaceRoutineExerciseData(
             message="종목이 업데이트되었습니다.",

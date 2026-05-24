@@ -378,17 +378,19 @@ async def finish_session(
         logger.exception("PO 알림 생성 실패 (session_id=%s)", s.id)
 
     total_sets = int(
-        (await db.execute(
-            select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id)
-        )).scalar_one()
+        (
+            await db.execute(select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id))
+        ).scalar_one()
     )
     completed_exercises = int(
-        (await db.execute(
-            select(func.count(func.distinct(WorkoutLogSet.exercise_id))).where(
-                WorkoutLogSet.workout_log_id == s.id,
-                WorkoutLogSet.is_completed.is_(True),
+        (
+            await db.execute(
+                select(func.count(func.distinct(WorkoutLogSet.exercise_id))).where(
+                    WorkoutLogSet.workout_log_id == s.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
             )
-        )).scalar_one()
+        ).scalar_one()
     )
 
     dto = _session_to_dto(s)
