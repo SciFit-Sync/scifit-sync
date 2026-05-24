@@ -410,6 +410,71 @@ def _strip_markdown_fence(raw: str) -> str:
     return raw
 
 
+def chat_rag_stream(question: str) -> Generator[dict, None, None]:
+    """챗봇 RAG (스트리밍): 질문 → 논문 검색 → LLM 토큰 스트림 + 논문 출처 카드.
+
+    Yields:
+        {"type": "chunk", "content": str}
+        {"type": "sources", "sources": [{"pmid": str, "title": str, "section": str}]}
+        {"type": "done"}
+        {"type": "error", "message": str}
+    """
+    question = _sanitize_query(question)
+    if not question:
+        yield {"type": "error", "message": "질문을 인식할 수 없습니다. 다시 입력해 주세요."}
+        return
+
+    # 1. 한→영 번역 (실패 시 원문 사용)
+    query_en = translate_to_english(question)
+
+    # 2. ChromaDB 검색
+    chunks = search_chunks(query_en)
+    if not chunks:
+        logger.info("번역 검색 결과 없음, 원문으로 재검색")
+        chunks = search_chunks(question)
+
+    if not chunks:
+        yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다. 다른 방식으로 질문해 주세요."}
+        return
+
+    # 3. 프롬프트 구성 (상위 5개 청크)
+    context = ""
+    for i, chunk in enumerate(chunks[:5], 1):
+        context += f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:400]}\n"
+
+    safe_question = question.replace("</user_query>", "</ user_query>")
+    prompt = (
+        "You are a sports science expert. Answer the question based ONLY on the provided research papers.\n"
+        "Always cite which paper supports each claim.\n"
+        "If the papers don't contain relevant information, say so clearly.\n\n"
+        f"Research papers:\n{context}\n"
+        f"<user_query>{safe_question}</user_query>\n\n"
+        "Answer in Korean. Be specific and cite paper titles."
+    )
+
+    # 4. LLM 토큰 스트리밍
+    try:
+        for token in llm_generate_stream(prompt):
+            yield {"type": "chunk", "content": token}
+    except Exception as e:
+        logger.error("LLM 스트리밍 실패: %s", e)
+        yield {"type": "error", "message": "AI 응답 생성 중 오류가 발생했습니다."}
+        return
+
+    # 5. 출처 카드 (중복 pmid 제거)
+    seen: set[str] = set()
+    sources: list[dict] = []
+    for chunk in chunks[:5]:
+        pmid = chunk.get("pmid") or ""
+        if pmid and pmid not in seen:
+            seen.add(pmid)
+            sources.append({"pmid": pmid, "title": chunk.get("title", ""), "section": chunk.get("section", "")})
+    if sources:
+        yield {"type": "sources", "sources": sources}
+
+    yield {"type": "done"}
+
+
 def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
     """루틴 생성 RAG (스트리밍): 프로필 → 논문 검색 → LLM 토큰 스트림 → day별 JSON.
 

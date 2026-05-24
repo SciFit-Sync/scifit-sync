@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
-import { useAuthStore } from "../../stores/authStore";
 import { colors } from "../../assets/colors/colors";
 
 type WeightUnit = "kg" | "lb";
@@ -24,14 +23,12 @@ const exercises = [
   { key: "overhead_press", label: "오버헤드프레스" },
 ];
 
-export default function WO03OneRM() {
+export default function WP05EditOneRM() {
   const navigation = useNavigation();
-  const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
-
   const [unit, set_unit] = useState<WeightUnit>("kg");
   const [values, set_values] = useState<Record<string, string>>({
-    bench_press: "",
-    squat: "",
+    bench_press: "80",
+    squat: "100",
     deadlift: "",
     overhead_press: "",
   });
@@ -40,10 +37,9 @@ export default function WO03OneRM() {
     set_values((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handle_register = async () => {
-    // TODO: 1RM API 연동
-    console.log("1RM 등록:", { unit, ...values });
-    await completeOnboarding();
+  const handle_save = () => {
+    // TODO: API 연동
+    navigation.goBack();
   };
 
   return (
@@ -66,7 +62,8 @@ export default function WO03OneRM() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <Text style={styles.card_title}>1RM 설정</Text>
+            {/* ⭐ 타이틀만 수정으로 변경 */}
+            <Text style={styles.card_title}>1RM 수정</Text>
 
             {/* 무게 단위 */}
             <View style={styles.unit_row}>
@@ -128,16 +125,13 @@ export default function WO03OneRM() {
 
             <View style={styles.spacer} />
 
-            {/* 등록하기 버튼 */}
+            {/* ⭐ 버튼 텍스트만 저장하기로 변경 */}
             <TouchableOpacity
-              style={styles.next_button}
-              onPress={handle_register}
+              style={styles.button}
+              onPress={handle_save}
               activeOpacity={0.8}
             >
-              <Text style={styles.next_button_text}>등록하기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handle_register}>
-              <Text style={styles.skip_text}>건너뛰기</Text>
+              <Text style={styles.button_text}>저장하기</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -225,36 +219,29 @@ const styles = StyleSheet.create({
   },
   input_container: {
     width: 97,
+    height: 30,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 5,
     justifyContent: "center",
     paddingHorizontal: 10,
-    paddingVertical: 10,
   },
   input: {
     fontFamily: "regular",
-    fontSize: 14,
+    fontSize: 12,
     color: colors.primary,
     padding: 0,
   },
   spacer: { height: 16 },
-  next_button: {
+  button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
-    justifyContent: "center",
   },
-  next_button_text: {
+  button_text: {
     fontFamily: "medium",
     fontSize: 16,
     color: colors.white,
-  },
-  skip_text: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-    textAlign: "center",
   },
 });

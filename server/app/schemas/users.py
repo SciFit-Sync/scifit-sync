@@ -39,6 +39,21 @@ class MeData(BaseModel):
     gyms: list[GymData] = Field(default_factory=list)
 
 
+# ── POST /users/me/onboard ───────────────────────────────────────────────────
+class OnboardRequest(BaseModel):
+    gender: str = Field(..., pattern="^(male|female)$")
+    birth_date: date
+    height_cm: float = Field(..., gt=0)
+    weight_kg: float = Field(..., gt=0)
+    career_level: str
+    default_goals: list[str] = Field(default_factory=list)
+
+
+class OnboardData(BaseModel):
+    user_id: str
+    profile: ProfileData
+
+
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
 class UpdateBodyRequest(BaseModel):
     height_cm: float | None = None

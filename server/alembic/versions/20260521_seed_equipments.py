@@ -22,25 +22,17 @@ branch_labels = None
 depends_on = None
 
 
-def _find_seed_csv() -> Path:
-    """환경별 CSV 경로 탐색.
-
-    - Docker prod (Dockerfile COPY): /app/mlops/data/... (3 parents up)
-    - docker-compose (volume mount ./mlops:/app/mlops): 3 parents up
-    - Local alembic (cwd=repo_root): 4 parents up
-    """
-    _base = Path(__file__)
-    candidates = [
-        _base.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",  # 3 up
-        _base.parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",  # 4 up
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    raise FileNotFoundError(f"equipments_seed.csv를 찾을 수 없습니다. 탐색 경로: {candidates}")
-
-
-_SEED_CSV = _find_seed_csv()
+# mlops/data/equipments_seed.csv 위치는 실행 환경에 따라 다르다:
+#   - Local alembic (cwd=repo_root): repo_root/mlops/data/...    (4 parent up)
+#   - docker-compose (mlops volume to /app/mlops): /app/mlops/data/... (3 parent up)
+#   - ECS Fargate prod (Dockerfile copies mlops/data → /app/mlops/data): /app/mlops/data/... (3 parent up)
+# 첫 번째로 존재하는 경로 채택.
+_FILE = Path(__file__).resolve()
+_CSV_CANDIDATES = [
+    _FILE.parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",
+    _FILE.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",
+]
+_SEED_CSV = next((p for p in _CSV_CANDIDATES if p.exists()), _CSV_CANDIDATES[0])
 
 _BRANDS = [
     {
