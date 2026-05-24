@@ -72,7 +72,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 3 Hack Squat — Gym80 — plate-loaded
     (
@@ -144,7 +144,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 7 Shoulder Press — NEM — selectorized
     (
@@ -162,7 +162,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 8 Chest Press — NEM — selectorized
     (
@@ -180,7 +180,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 9 Incline Press — NEM — selectorized
     (
@@ -198,7 +198,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 10 Plate Loaded Seated Row — Lexco MasterPro — plate-loaded
     (
@@ -252,7 +252,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 13 M-Torture Front Row — NEM — plate-loaded
     (
@@ -306,7 +306,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 16 Seated Leg Press — NEM — selectorized
     (
@@ -324,7 +324,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 17 Seated Cable Row — NEM — cable selectorized
     (
@@ -342,7 +342,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 18 Seated Row — Lexco MasterPro — selectorized
     (
@@ -360,7 +360,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 19 Lat Pulldown — Lexco — selectorized
     (
@@ -378,7 +378,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 20 Assisted Dip/Chin — NEM — selectorized (has_weight_assist=True)
     (
@@ -396,7 +396,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 21 Pectoral Fly / Rear Deltoid — NEM — selectorized
     (
@@ -414,7 +414,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
     # 22 Pec Fly / Rear Delt — Lexco — selectorized
     (
@@ -432,7 +432,7 @@ _EQUIPMENTS = [
         None,
         None,
         None,
-        "kg",
+        None,
     ),
 ]
 
