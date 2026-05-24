@@ -22,18 +22,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "server"))
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(REPO_ROOT / "mlops" / ".env")
 load_dotenv(REPO_ROOT / "server" / ".env", override=True)
 
-import chromadb
-from sqlalchemy import func
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
-from mlops.pipeline.config import CHROMA_COLLECTION_NAME, CHROMA_PERSIST_PATH
+import chromadb  # noqa: E402
+from mlops.pipeline.config import CHROMA_COLLECTION_NAME, CHROMA_PERSIST_PATH  # noqa: E402
+from sqlalchemy import func  # noqa: E402
+from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s %(message)s")
 logger = logging.getLogger(__name__)
