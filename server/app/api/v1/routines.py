@@ -27,9 +27,12 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
+    EquipmentBrand,
     Exercise,
     ExerciseEquipmentMap,
+    ExerciseMuscle,
     Gym,
+    MuscleGroup,
     Paper,
     RoutineDay,
     RoutineExercise,
@@ -49,11 +52,11 @@ from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
     GenerateRoutineRequest,
     GymSummary,
+    MuscleActivationItem,
     PaperItem,
     RegenerateRoutineRequest,
     ReplacedExerciseData,
     ReplaceRoutineExerciseData,
-    ReplaceRoutineExerciseRequest,
     RoutineDayItem,
     RoutineDeleteData,
     RoutineDetail,
@@ -61,6 +64,7 @@ from app.schemas.routines import (
     RoutineExercisePapersData,
     RoutineListData,
     RoutineSummary,
+    UpdateRoutineExerciseRequest,
     UpdateRoutineNameRequest,
 )
 from app.services.rag import UserProfile as RagUserProfile
@@ -112,9 +116,34 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         ex_name_map = {str(eid): name for eid, name in rows}
 
     eq_name_map: dict[str, str] = {}
+    eq_brand_map: dict[str, str] = {}
     if eq_ids:
-        rows = (await db.execute(select(Equipment.id, Equipment.name).where(Equipment.id.in_(eq_ids)))).all()
-        eq_name_map = {str(eid): name for eid, name in rows}
+        rows = (
+            await db.execute(
+                select(Equipment.id, Equipment.name, EquipmentBrand.name)
+                .outerjoin(EquipmentBrand, EquipmentBrand.id == Equipment.brand_id)
+                .where(Equipment.id.in_(eq_ids))
+            )
+        ).all()
+        for eid, eq_name, brand_name in rows:
+            eq_name_map[str(eid)] = eq_name
+            if brand_name:
+                eq_brand_map[str(eid)] = brand_name
+
+    # 근육 활성화 비율 prefetch
+    muscle_activation_map: dict[str, list[MuscleActivationItem]] = {}
+    if ex_ids:
+        ma_rows = (
+            await db.execute(
+                select(ExerciseMuscle.exercise_id, MuscleGroup.name_ko, ExerciseMuscle.activation_pct)
+                .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
+                .where(ExerciseMuscle.exercise_id.in_(ex_ids))
+            )
+        ).all()
+        for eid, name_ko, pct in ma_rows:
+            muscle_activation_map.setdefault(str(eid), []).append(
+                MuscleActivationItem(muscle=name_ko, activation_pct=pct)
+            )
 
     # 논문이 연결된 routine_exercise_id 집합
     paper_rows = await db.execute(
@@ -127,6 +156,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
 
     day_dtos: list[RoutineDayItem] = []
     for d in days:
+        sorted_exs = sorted(d.exercises, key=lambda e: e.order_index)
         ex_dtos = [
             RoutineExerciseItem(
                 routine_exercise_id=str(ex.id),
@@ -134,6 +164,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 exercise_name=ex_name_map.get(str(ex.exercise_id), ""),
                 equipment_id=str(ex.equipment_id) if ex.equipment_id else None,
                 equipment_name=eq_name_map.get(str(ex.equipment_id)) if ex.equipment_id else None,
+                brand=eq_brand_map.get(str(ex.equipment_id)) if ex.equipment_id else None,
                 order_index=ex.order_index,
                 sets=ex.sets,
                 reps_min=ex.reps_min,
@@ -142,14 +173,18 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 rest_seconds=ex.rest_seconds,
                 note=ex.note,
                 has_paper=str(ex.id) in exercise_ids_with_papers,
+                has_tips=False,
+                muscle_activation=muscle_activation_map.get(str(ex.exercise_id), []),
             )
-            for ex in sorted(d.exercises, key=lambda e: e.order_index)
+            for ex in sorted_exs
         ]
+        total_secs = sum(ex.sets * (45 + ex.rest_seconds) for ex in sorted_exs) if sorted_exs else None
         day_dtos.append(
             RoutineDayItem(
                 routine_day_id=str(d.id),
                 day_number=d.day_number,
                 label=d.label,
+                total_minutes=max(1, round(total_secs / 60)) if total_secs else None,
                 exercises=ex_dtos,
             )
         )
@@ -267,7 +302,7 @@ async def rename_routine(
 async def replace_routine_exercise(
     routine_id: str,
     routine_exercise_id: str,
-    body: ReplaceRoutineExerciseRequest,
+    body: UpdateRoutineExerciseRequest,
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
@@ -277,40 +312,58 @@ async def replace_routine_exercise(
     if rex is None:
         raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
 
-    new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
-    new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
-    if new_ex is None:
-        raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
+    new_ex = None
+    if body.new_exercise_id is not None:
+        new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
+        new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
+        if new_ex is None:
+            raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
 
-    # D-M9: 루틴에 gym_id가 있으면, 교체 운동과 연결된 equipment가 해당 gym 소속인지 검증
-    if routine.gym_id:
-        gym_eq_ids = {
-            row[0]
-            for row in (
-                await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
-            ).all()
-        }
-        ex_eq_ids = {
-            row[0]
-            for row in (
-                await db.execute(
-                    select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
-                )
-            ).all()
-        }
-        if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
-            raise ValidationError(message="교체할 운동의 기구가 해당 루틴의 헬스장에 없습니다.")
+        # D-M9: 루틴에 gym_id가 있으면, 교체 운동과 연결된 equipment가 해당 gym 소속인지 검증
+        if routine.gym_id:
+            gym_eq_ids = {
+                row[0]
+                for row in (
+                    await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
+                ).all()
+            }
+            ex_eq_ids = {
+                row[0]
+                for row in (
+                    await db.execute(
+                        select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
+                    )
+                ).all()
+            }
+            if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
+                raise ValidationError(message="교체할 운동의 기구가 해당 루틴의 헬스장에 없습니다.")
 
-    rex.exercise_id = new_ex_id
-    rex.equipment_id = None
+        rex.exercise_id = new_ex_id
+        rex.equipment_id = None
+
+    if body.sets is not None:
+        rex.sets = body.sets
+    if body.reps_min is not None:
+        rex.reps_min = body.reps_min
+    if body.reps_max is not None:
+        rex.reps_max = body.reps_max
+    if body.weight_kg is not None:
+        rex.weight_kg = body.weight_kg
+    if body.rest_seconds is not None:
+        rex.rest_seconds = body.rest_seconds
+    if body.note is not None:
+        rex.note = body.note
+
     await db.commit()
     await db.refresh(rex)
+
+    target_ex = new_ex or (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
     return SuccessResponse(
         data=ReplaceRoutineExerciseData(
-            message="종목이 교체되었습니다.",
+            message="종목이 업데이트되었습니다.",
             new_exercise=ReplacedExerciseData(
-                exercise_id=str(new_ex.id),
-                name=new_ex.name,
+                exercise_id=str(target_ex.id),
+                name=target_ex.name,
                 equipment=None,
                 brand=None,
                 sets=rex.sets,

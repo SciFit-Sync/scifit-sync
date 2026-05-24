@@ -6,12 +6,18 @@ from pydantic import BaseModel, Field
 
 
 # ── 공통 ──────────────────────────────────────────────────────────────────────
+class MuscleActivationItem(BaseModel):
+    muscle: str
+    activation_pct: int | None = None
+
+
 class RoutineExerciseItem(BaseModel):
     routine_exercise_id: str
     exercise_id: str
     exercise_name: str
     equipment_id: str | None = None
     equipment_name: str | None = None
+    brand: str | None = None
     order_index: int
     sets: int
     reps_min: int | None = None
@@ -20,12 +26,15 @@ class RoutineExerciseItem(BaseModel):
     rest_seconds: int
     note: str | None = None
     has_paper: bool = False
+    has_tips: bool = False
+    muscle_activation: list[MuscleActivationItem] = Field(default_factory=list)
 
 
 class RoutineDayItem(BaseModel):
     routine_day_id: str
     day_number: int
     label: str
+    total_minutes: int | None = None
     exercises: list[RoutineExerciseItem] = Field(default_factory=list)
 
 
