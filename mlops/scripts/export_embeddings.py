@@ -280,6 +280,57 @@ def _write_embeddings(path: Path, pairs: list[tuple[Chunk, list[float]]]) -> int
     return written
 
 
+_SHARD_SIZE = int(os.getenv("EMBED_SHARD_SIZE", "10000"))
+
+
+def _embed_and_write_streaming(
+    path: Path,
+    chunks: list[Chunk],
+    spec: "EmbeddingModelSpec",
+    batch_size: int,
+) -> int:
+    """shard 단위로 임베딩 → 즉시 디스크 기록 → 메모리 해제.
+
+    전체 벡터를 메모리에 누적하지 않으므로 대규모 청크셋에서 OOM을 방지한다.
+    """
+    import gc
+
+    from mlops.pipeline.embedder import embed_texts_with_spec
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    written = 0
+    n_shards = (len(chunks) + _SHARD_SIZE - 1) // _SHARD_SIZE
+    logger.info(
+        "[streaming] %d청크 → %d shards (shard_size=%d)",
+        len(chunks), n_shards, _SHARD_SIZE,
+    )
+
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for shard_idx in range(n_shards):
+            start = shard_idx * _SHARD_SIZE
+            end = min(start + _SHARD_SIZE, len(chunks))
+            shard_chunks = chunks[start:end]
+
+            texts = [c.content for c in shard_chunks]
+            vectors = embed_texts_with_spec(texts, spec, batch_size=batch_size)
+
+            for chunk, vec in zip(shard_chunks, vectors, strict=True):
+                record = chunk.model_dump()
+                record["embedding"] = vec
+                f.write(json.dumps(record, ensure_ascii=False))
+                f.write("\n")
+                written += 1
+
+            del texts, vectors
+            gc.collect()
+            logger.info(
+                "[streaming] shard %d/%d 완료 (%d청크 누적)",
+                shard_idx + 1, n_shards, written,
+            )
+
+    return written
+
+
 # ── goldset coverage 검증 ───────────────────────────────────────────────
 
 
@@ -631,7 +682,12 @@ def main(argv: list[str] | None = None) -> int:
         started_at = datetime.now(timezone.utc)
         t0 = time.time()
         try:
-            pairs = embed_chunks_with_spec(chunks, spec, batch_size=batch_size)
+            if len(chunks) > _SHARD_SIZE:
+                written = _embed_and_write_streaming(emb_path, chunks, spec, batch_size)
+            else:
+                pairs = embed_chunks_with_spec(chunks, spec, batch_size=batch_size)
+                written = _write_embeddings(emb_path, pairs)
+                del pairs
         except Exception:
             logger.exception("[%s] 임베딩 실패", spec.key)
             if args.test:
@@ -640,8 +696,6 @@ def main(argv: list[str] | None = None) -> int:
             return 3
         total_sec = time.time() - t0
         finished_at = datetime.now(timezone.utc)
-
-        written = _write_embeddings(emb_path, pairs)
         _write_timing(
             timing_path,
             spec,
