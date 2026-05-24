@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from sqlalchemy import null as sa_null, select  # noqa: E402
+from sqlalchemy import null as sa_null  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 
 from app.core.database import async_session_factory  # noqa: E402
 from app.models import (  # noqa: E402
