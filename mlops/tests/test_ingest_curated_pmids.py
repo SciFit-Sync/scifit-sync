@@ -561,6 +561,163 @@ class TestBuildPaperFulls:
         assert result == []
 
 
+class TestOAFallback:
+    """OpenAlex OA fallback 통합 테스트 (build_paperfulls_for_ingest 레벨)."""
+
+    def _make_paper(self):
+        return {
+            "resolved_pmid": "12345",
+            "resolved_doi": "10.1080/test",
+            "resolved_title": "T",
+            "metadata": {
+                "abstract": "abs",
+                "pmcid": None,
+                "publication_types": [],
+                "publication_year": 2022,
+            },
+            "search_categories": ["hypertrophy"],
+            "indexed": None,
+            "already_in_corpus": False,
+            "fulltext_ok": None,
+            "failure_reason": None,
+        }
+
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_oa_pdf_fallback_fills_sections(self, mock_cascade, mock_oa_url, mock_pdf):
+        from mlops.pipeline.models import PaperSection
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+
+        # cascading returns empty
+        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
+        # OpenAlex returns OA with PDF URL
+        mock_oa_url.return_value = {
+            "is_oa": True,
+            "pdf_url": "https://example.com/paper.pdf",
+            "landing_page_url": "https://example.com/paper",
+        }
+        mock_pdf.return_value = [PaperSection(name="Full Text", content="paper body text")]
+
+        papers = [self._make_paper()]
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
+
+        assert len(result) == 1
+        assert result[0].meta.fulltext_source == "openalex_pdf"
+        assert result[0].sections[0].content == "paper body text"
+        assert papers[0]["fulltext_ok"] is True
+        assert papers[0].get("failure_reason") is None
+        mock_pdf.assert_called_once_with("https://example.com/paper.pdf")
+
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_html_sections")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_oa_html_fallback_when_pdf_fails(self, mock_cascade, mock_oa_url, mock_pdf, mock_html):
+        from mlops.pipeline.models import PaperSection
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+
+        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
+        mock_oa_url.return_value = {
+            "is_oa": True,
+            "pdf_url": "https://example.com/paper.pdf",
+            "landing_page_url": "https://example.com/paper",
+        }
+        mock_pdf.return_value = []  # PDF fetch failed
+        mock_html.return_value = [PaperSection(name="Full Text", content="html body text")]
+
+        papers = [self._make_paper()]
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
+
+        assert len(result) == 1
+        assert result[0].meta.fulltext_source == "openalex_html"
+        assert result[0].sections[0].content == "html body text"
+        assert papers[0]["fulltext_ok"] is True
+        mock_html.assert_called_once_with("https://example.com/paper")
+
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_html_sections")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_oa_html_only_no_pdf_url(self, mock_cascade, mock_oa_url, mock_pdf, mock_html):
+        from mlops.pipeline.models import PaperSection
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+
+        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
+        mock_oa_url.return_value = {
+            "is_oa": True,
+            "pdf_url": None,
+            "landing_page_url": "https://example.com/paper",
+        }
+        mock_html.return_value = [PaperSection(name="Full Text", content="html only text")]
+
+        papers = [self._make_paper()]
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
+
+        assert len(result) == 1
+        assert result[0].meta.fulltext_source == "openalex_html"
+        mock_pdf.assert_not_called()
+
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_no_fulltext_when_openalex_returns_none(self, mock_cascade, mock_oa_url):
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+
+        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
+        mock_oa_url.return_value = None  # OpenAlex lookup failed
+
+        papers = [self._make_paper()]
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
+
+        assert result == []
+        assert papers[0]["fulltext_ok"] is False
+        assert papers[0]["failure_reason"] == "no_fulltext"
+        assert papers[0]["indexed"] is False
+
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_no_fulltext_when_not_oa(self, mock_cascade, mock_oa_url):
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+
+        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
+        mock_oa_url.return_value = {
+            "is_oa": False,
+            "pdf_url": None,
+            "landing_page_url": "https://example.com/paper",
+        }
+
+        papers = [self._make_paper()]
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
+
+        assert result == []
+        assert papers[0]["failure_reason"] == "no_fulltext"
+
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
+    @patch("mlops.scripts.ingest_curated_pmids.unpaywall_oa_locations")
+    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    def test_unpaywall_fallback_when_openalex_fails(self, mock_cascade, mock_oa_url, mock_unp, mock_pdf):
+        from mlops.pipeline.models import PaperSection
+        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
+
+        # cascade + OpenAlex both fail
+        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
+        mock_oa_url.return_value = {"is_oa": False, "pdf_url": None, "landing_page_url": None}
+        # Unpaywall returns one mirror with a PDF URL
+        mock_unp.return_value = [{"pdf_url": "https://unpaywall.example.com/paper.pdf", "landing_url": None}]
+        mock_pdf.return_value = [PaperSection(name="Full Text", content="unpaywall full text content")]
+
+        papers = [self._make_paper()]
+        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
+
+        assert len(result) == 1
+        assert result[0].meta.fulltext_source == "unpaywall_pdf"
+        assert result[0].sections[0].content == "unpaywall full text content"
+        assert papers[0]["fulltext_ok"] is True
+        assert papers[0].get("failure_reason") is None
+        mock_pdf.assert_called_once_with("https://unpaywall.example.com/paper.pdf")
+
+
 class TestMainFlow:
     @patch("mlops.scripts.ingest_curated_pmids.ADMIN_API_TOKEN", "test-token")
     @patch("mlops.scripts.ingest_curated_pmids.API_BASE_URL", "http://localhost:8000")
@@ -733,3 +890,242 @@ class TestMainFlow:
         mock_chunk.assert_called_once()  # chunking DID happen
         mock_embed.assert_not_called()  # embedding skipped (dry-run)
         mock_api.assert_not_called()  # API call skipped (dry-run)
+
+
+class TestSaveChunksAndEmbeddings:
+    """save_chunks_and_embeddings 단위 테스트."""
+
+    def _make_chunk(self):
+        from mlops.pipeline.models import Chunk  # noqa: PLC0415
+
+        return Chunk(
+            paper_pmid="12345",
+            paper_doi="10.1080/test",
+            paper_title="Test Paper",
+            section_name="Full Text",
+            chunk_index=0,
+            content="sample content",
+            token_count=10,
+            search_categories=["hypertrophy"],
+        )
+
+    def test_export_batch_writes_chunks_file(self, tmp_path):
+        import gzip  # noqa: PLC0415
+        import json  # noqa: PLC0415
+
+        from mlops.scripts.ingest_curated_pmids import save_chunks_and_embeddings  # noqa: PLC0415
+
+        chunk = self._make_chunk()
+        save_chunks_and_embeddings([chunk], [(chunk, [0.1] * 10)], batch_tag="test_tag", data_dir=tmp_path)
+
+        chunks_file = tmp_path / "chunks" / "test_tag.jsonl.gz"
+        assert chunks_file.exists()
+        with gzip.open(chunks_file, "rt", encoding="utf-8") as f:
+            lines = [json.loads(line) for line in f if line.strip()]
+        assert len(lines) == 1
+        assert lines[0]["paper_pmid"] == "12345"
+
+    def test_export_batch_writes_embeddings_file(self, tmp_path):
+        import gzip  # noqa: PLC0415
+        import json  # noqa: PLC0415
+
+        from mlops.scripts.ingest_curated_pmids import save_chunks_and_embeddings  # noqa: PLC0415
+
+        chunk = self._make_chunk()
+        vec = [0.5] * 1024
+        save_chunks_and_embeddings(
+            [chunk], [(chunk, vec)], batch_tag="test_tag", model_key="bge-large", data_dir=tmp_path
+        )
+
+        emb_file = tmp_path / "emb_bge-large" / "test_tag.jsonl.gz"
+        assert emb_file.exists()
+        with gzip.open(emb_file, "rt", encoding="utf-8") as f:
+            lines = [json.loads(line) for line in f if line.strip()]
+        assert len(lines) == 1
+        assert "embedding" in lines[0]
+        assert lines[0]["embedding"] == vec
+
+    def test_export_batch_appends_on_repeated_calls(self, tmp_path):
+        import gzip  # noqa: PLC0415
+        import json  # noqa: PLC0415
+
+        from mlops.scripts.ingest_curated_pmids import save_chunks_and_embeddings  # noqa: PLC0415
+
+        chunk = self._make_chunk()
+        # Call twice — should accumulate 2 lines
+        save_chunks_and_embeddings([chunk], [(chunk, [0.1])], batch_tag="append_tag", data_dir=tmp_path)
+        save_chunks_and_embeddings([chunk], [(chunk, [0.2])], batch_tag="append_tag", data_dir=tmp_path)
+
+        chunks_file = tmp_path / "chunks" / "append_tag.jsonl.gz"
+        with gzip.open(chunks_file, "rt", encoding="utf-8") as f:
+            lines = [json.loads(line) for line in f if line.strip()]
+        assert len(lines) == 2
+
+
+class TestExportBatch:
+    """--export-batch 모드 통합 테스트 (run() 레벨)."""
+
+    def _make_provenance(self, tmp_path):
+        prov = {
+            "Q001": {
+                "category": "hypertrophy",
+                "papers": [
+                    {
+                        "raw_id": "PMID:12345",
+                        "raw_pmid": "12345",
+                        "raw_doi": None,
+                        "resolved_pmid": None,
+                        "resolved_doi": None,
+                        "resolved_title": None,
+                        "indexed": None,
+                        "already_in_corpus": None,
+                        "fulltext_ok": None,
+                        "failure_reason": None,
+                        "is_typo_autofixed": False,
+                        "search_categories": ["hypertrophy"],
+                    }
+                ],
+            }
+        }
+        prov_path = tmp_path / "prov.json"
+        prov_path.write_text(json.dumps(prov))
+        return prov_path
+
+    @patch("mlops.scripts.ingest_curated_pmids.save_chunks_and_embeddings")
+    @patch("mlops.scripts.ingest_curated_pmids.embed_chunks")
+    @patch("mlops.scripts.ingest_curated_pmids.chunk_papers")
+    @patch("mlops.scripts.ingest_curated_pmids.build_paperfulls_for_ingest")
+    @patch("mlops.scripts.ingest_curated_pmids.resolve_papers")
+    @patch("mlops.scripts.ingest_curated_pmids.load_existing_dois")
+    @patch("mlops.scripts.ingest_curated_pmids.Manifest")
+    def test_export_batch_skips_api_ingest(
+        self, mock_manifest_cls, mock_existing, mock_resolve, mock_build, mock_chunk, mock_embed, mock_save, tmp_path
+    ):
+        from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+        from mlops.scripts.ingest_curated_pmids import run
+
+        prov_path = self._make_provenance(tmp_path)
+        mock_manifest_cls.load.return_value = MagicMock(papers={})
+        mock_existing.return_value = set()
+
+        def resolve_side(papers, qid, query_context):
+            for p in papers:
+                p["resolved_pmid"] = "12345"
+                p["resolved_doi"] = "10.1080/test"
+                p["resolved_title"] = "T"
+                p["metadata"] = {"abstract": "", "pmcid": "", "publication_types": [], "publication_year": 2020}
+            return papers
+
+        mock_resolve.side_effect = resolve_side
+
+        paperfull = PaperFull(
+            meta=PaperMeta(
+                doi="10.1080/test",
+                pmid="12345",
+                pmcid="",
+                openalex_id="",
+                title="T",
+                abstract="",
+                publication_types=[],
+                published_year=2020,
+                search_categories=["hypertrophy"],
+                evidence_weight=0.5,
+                fulltext_source="pmc",
+            ),
+            sections=[PaperSection(name="M", content="...")],
+        )
+
+        def build_side(papers, pmc_client, europepmc_client):
+            for p in papers:
+                if not p.get("failure_reason") and not p.get("already_in_corpus"):
+                    p["fulltext_ok"] = True
+            return [paperfull]
+
+        mock_build.side_effect = build_side
+        mock_chunk.return_value = ["fake_chunk"]
+        mock_embed.return_value = [("fake_chunk", [0.0] * 1024)]
+
+        with patch("mlops.scripts.ingest_curated_pmids.api_ingest") as mock_api:
+            run(
+                prov_path,
+                dry_run=False,
+                limit=None,
+                lock_path=tmp_path / ".lock",
+                export_batch="test_export_tag",
+                embed_model="bge-large",
+            )
+            mock_api.assert_not_called()
+
+        mock_save.assert_called_once()
+        call_kwargs = mock_save.call_args
+        assert call_kwargs.kwargs.get("batch_tag") == "test_export_tag" or call_kwargs.args[2] == "test_export_tag"
+
+    @patch("mlops.scripts.ingest_curated_pmids.embed_chunks")
+    @patch("mlops.scripts.ingest_curated_pmids.chunk_papers")
+    @patch("mlops.scripts.ingest_curated_pmids.build_paperfulls_for_ingest")
+    @patch("mlops.scripts.ingest_curated_pmids.resolve_papers")
+    @patch("mlops.scripts.ingest_curated_pmids.load_existing_dois")
+    @patch("mlops.scripts.ingest_curated_pmids.Manifest")
+    def test_export_batch_no_credentials_required(
+        self, mock_manifest_cls, mock_existing, mock_resolve, mock_build, mock_chunk, mock_embed, tmp_path
+    ):
+        """export-batch 모드는 API_BASE_URL/ADMIN_API_TOKEN 없어도 정상 동작."""
+        from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+        from mlops.scripts.ingest_curated_pmids import run
+
+        prov_path = self._make_provenance(tmp_path)
+        mock_manifest_cls.load.return_value = MagicMock(papers={})
+        mock_existing.return_value = set()
+
+        def resolve_side(papers, qid, query_context):
+            for p in papers:
+                p["resolved_pmid"] = "12345"
+                p["resolved_doi"] = "10.1080/test"
+                p["resolved_title"] = "T"
+                p["metadata"] = {"abstract": "", "pmcid": "", "publication_types": [], "publication_year": 2020}
+            return papers
+
+        mock_resolve.side_effect = resolve_side
+
+        paperfull = PaperFull(
+            meta=PaperMeta(
+                doi="10.1080/test",
+                pmid="12345",
+                pmcid="",
+                openalex_id="",
+                title="T",
+                abstract="",
+                publication_types=[],
+                published_year=2020,
+                search_categories=["hypertrophy"],
+                evidence_weight=0.5,
+                fulltext_source="pmc",
+            ),
+            sections=[PaperSection(name="M", content="...")],
+        )
+
+        def build_side(papers, pmc_client, europepmc_client):
+            for p in papers:
+                if not p.get("failure_reason") and not p.get("already_in_corpus"):
+                    p["fulltext_ok"] = True
+            return [paperfull]
+
+        mock_build.side_effect = build_side
+        mock_chunk.return_value = ["fake_chunk"]
+        mock_embed.return_value = [("fake_chunk", [0.0] * 1024)]
+
+        with (
+            patch("mlops.scripts.ingest_curated_pmids.API_BASE_URL", ""),
+            patch("mlops.scripts.ingest_curated_pmids.ADMIN_API_TOKEN", ""),
+            patch("mlops.scripts.ingest_curated_pmids.save_chunks_and_embeddings") as mock_save,
+        ):
+            # Should NOT sys.exit(1) even with no credentials
+            run(
+                prov_path,
+                dry_run=False,
+                limit=None,
+                lock_path=tmp_path / ".lock",
+                export_batch="nocred_tag",
+            )
+
+        mock_save.assert_called_once()
