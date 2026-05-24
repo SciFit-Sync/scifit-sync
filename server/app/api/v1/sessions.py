@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
@@ -121,7 +121,7 @@ async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
 async def start_session(
     request: Request,
     body: StartSessionRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     session_routine_day_id = None
@@ -193,7 +193,7 @@ async def log_set(
     request: Request,
     session_id: str,
     body: LogSetRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     s = await _get_my_session(session_id, current_user, db)
@@ -241,7 +241,7 @@ async def finish_session(
     request: Request,
     session_id: str,
     body: FinishSessionRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     s = await _get_my_session(session_id, current_user, db)
@@ -262,7 +262,7 @@ async def list_sessions(
     request: Request,
     year: int | None = Query(None, ge=2020, le=2100),
     month: int | None = Query(None, ge=1, le=12),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     now = datetime.utcnow()
@@ -328,7 +328,7 @@ async def list_sessions(
 @rate_limit("60/minute")
 async def session_stats(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     # 총 세션 수
@@ -466,7 +466,7 @@ async def session_stats(
 async def volume_analysis(
     request: Request,
     days: int = Query(30, ge=1, le=365),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -522,7 +522,7 @@ _OPTIMAL_RANGES: dict[str, tuple[float, float]] = {
 async def muscle_volume_analysis(
     request: Request,
     period: str = Query("WEEK", pattern="^(WEEK|MONTH)$"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     days = 7 if period == "WEEK" else 30
@@ -599,7 +599,7 @@ async def muscle_volume_analysis(
 async def session_detail(
     request: Request,
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     s = await _get_my_session(session_id, current_user, db)
@@ -664,7 +664,7 @@ async def rest_timer(
     session_id: str,
     routine_exercise_id: str | None = Query(None),
     goal: str | None = Query(None, description="hypertrophy / strength / endurance / rehabilitation"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     await _get_my_session(session_id, current_user, db)
