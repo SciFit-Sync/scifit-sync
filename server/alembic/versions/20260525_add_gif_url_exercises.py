@@ -2,7 +2,7 @@
 
 WorkoutX API GIF URL 저장용.
 
-Revision ID: 20260525_add_gif_url_to_exercises
+Revision ID: 20260525_add_gif_url_exercises
 Revises: 20260524_seed_ai_gym_equipments
 Create Date: 2026-05-25
 """
@@ -10,7 +10,7 @@ Create Date: 2026-05-25
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260525_add_gif_url_to_exercises"
+revision = "20260525_add_gif_url_exercises"
 down_revision = "20260524_seed_ai_gym_equipments"
 branch_labels = None
 depends_on = None
