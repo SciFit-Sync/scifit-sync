@@ -8,7 +8,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -111,20 +111,27 @@ async def search_gyms(
     documents = resp.json().get("documents", [])
     place_ids = [d["id"] for d in documents]
 
-    # 기존 DB 매칭
-    existing: dict[str, Gym] = {}
+    # 기존 DB 매칭 — equipment_count만 필요하므로 COUNT 서브쿼리 사용 (전체 로드 방지)
+    eq_count_subq = (
+        select(func.count(GymEquipment.equipment_id))
+        .where(GymEquipment.gym_id == Gym.id)
+        .correlate(Gym)
+        .scalar_subquery()
+    )
+    existing: dict[str, tuple[Gym, int]] = {}
     if place_ids:
-        result = await db.execute(
-            select(Gym).where(Gym.kakao_place_id.in_(place_ids)).options(selectinload(Gym.gym_equipments))
-        )
-        for g in result.scalars().all():
+        rows = (
+            await db.execute(select(Gym, eq_count_subq.label("eq_count")).where(Gym.kakao_place_id.in_(place_ids)))
+        ).all()
+        for g, cnt in rows:
             if g.kakao_place_id:
-                existing[g.kakao_place_id] = g
+                existing[g.kakao_place_id] = (g, cnt)
 
     items: list[GymItem] = []
     for d in documents:
         place_id = d["id"]
-        gym = existing.get(place_id)
+        entry = existing.get(place_id)
+        gym, eq_count = entry if entry else (None, 0)
         items.append(
             GymItem(
                 gym_id=str(gym.id) if gym else "",
@@ -133,7 +140,7 @@ async def search_gyms(
                 latitude=float(gym.latitude) if gym else float(d.get("y", 0)),
                 longitude=float(gym.longitude) if gym else float(d.get("x", 0)),
                 kakao_place_id=place_id,
-                equipment_count=len(gym.gym_equipments) if gym else 0,
+                equipment_count=eq_count,
             )
         )
 
@@ -210,20 +217,18 @@ async def list_gym_equipment(
     except ValueError as e:
         raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
 
-    gym = (
-        await db.execute(select(Gym).where(Gym.id == gym_uuid).options(selectinload(Gym.gym_equipments)))
-    ).scalar_one_or_none()
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
     if gym is None:
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
 
-    equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
-    if not equipment_ids:
-        return SuccessResponse(data=GymEquipmentListData(gym_id=gym_id, gym_name=gym.name, equipment=[]))
-
+    # GymEquipment JOIN Equipment — 2번 쿼리를 1번으로 단축
     equipments = (
         (
             await db.execute(
-                select(Equipment).where(Equipment.id.in_(equipment_ids)).options(selectinload(Equipment.brand))
+                select(Equipment)
+                .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
+                .where(GymEquipment.gym_id == gym_uuid)
+                .options(selectinload(Equipment.brand))
             )
         )
         .scalars()
