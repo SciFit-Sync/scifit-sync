@@ -141,7 +141,7 @@ cd app && npm install && npx expo start
 | `GEMINI_API_KEY` | Gemini API 키 | Y | Google AI Studio |
 | `KAKAO_REST_API_KEY` | 카카오 로컬 API 키 | Y | Kakao Developers |
 | `OPENAI_API_KEY` | GPT-4o-mini 폴백 키 | N | OpenAI 대시보드 |
-| `API_BASE_URL` (앱) | 서버 URL | Y | 로컬: `http://localhost:8000` |
+| `EXPO_PUBLIC_API_URL` (앱) | 서버 URL | Y | 프로덕션: `https://scifit-sync.com`<br>로컬: `http://localhost:8000` |
 
 > 전체 환경변수 목록: [`server/.env.example`](server/.env.example)
 
