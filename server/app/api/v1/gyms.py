@@ -58,7 +58,6 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
-
         brand=e.brand.name if e.brand else None,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
