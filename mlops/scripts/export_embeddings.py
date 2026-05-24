@@ -302,7 +302,9 @@ def _embed_and_write_streaming(
     n_shards = (len(chunks) + _SHARD_SIZE - 1) // _SHARD_SIZE
     logger.info(
         "[streaming] %d청크 → %d shards (shard_size=%d)",
-        len(chunks), n_shards, _SHARD_SIZE,
+        len(chunks),
+        n_shards,
+        _SHARD_SIZE,
     )
 
     with gzip.open(path, "wt", encoding="utf-8") as f:
@@ -325,7 +327,9 @@ def _embed_and_write_streaming(
             gc.collect()
             logger.info(
                 "[streaming] shard %d/%d 완료 (%d청크 누적)",
-                shard_idx + 1, n_shards, written,
+                shard_idx + 1,
+                n_shards,
+                written,
             )
 
     return written
