@@ -36,23 +36,35 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/equipment", tags=["equipment"])
 
 
+def _ratio_str(pulley_ratio: float) -> str:
+    n = int(pulley_ratio) if pulley_ratio == int(pulley_ratio) else pulley_ratio
+    return f"{n}:1"
+
+
 def _to_item(
     e: Equipment,
     brand_name: str | None,
     primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
 ) -> EquipmentItem:
+    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    is_barbell = e.equipment_type.value == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
+        name_en=e.name_en,
         brand=brand_name,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
-        pulley_ratio=e.pulley_ratio,
+        pulley_ratio=e.pulley_ratio if is_cable_machine else None,
+        bar_weight=e.bar_weight if is_barbell else None,
+        has_weight_assist=e.has_weight_assist,
         min_stack=e.min_stack,
         max_stack=e.max_stack,
+        stack_weight=e.stack_weight if is_cable_machine else None,
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
+        ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
     )
 
 
