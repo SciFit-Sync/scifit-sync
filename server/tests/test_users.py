@@ -293,12 +293,12 @@ class TestAdd1RM:
         db.refresh = AsyncMock(side_effect=_set_fields)
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post(
+        resp = await client.patch(
             "/api/v1/users/me/1rm",
             json={"exercise_id": str(_EXERCISE_ID), "weight_kg": 120.0, "source": "manual"},
         )
 
-        assert resp.status_code == 201
+        assert resp.status_code == 200
         assert resp.json()["data"]["weight_kg"] == 120.0
 
     @pytest.mark.asyncio
@@ -306,7 +306,7 @@ class TestAdd1RM:
         db = _make_db(_exec_scalar(None))
         app.dependency_overrides[get_db] = _db_override(db)
 
-        resp = await client.post(
+        resp = await client.patch(
             "/api/v1/users/me/1rm",
             json={"exercise_id": str(uuid.uuid4()), "weight_kg": 100.0, "source": "manual"},
         )

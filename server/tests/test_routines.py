@@ -245,12 +245,13 @@ class TestGetRoutine:
         day.label = "가슴"
         day.exercises = [rex]
 
-        # _get_my_routine, RoutineDay+exercises, Exercise names, Equipment names
+        # _get_my_routine, RoutineDay+exercises, Exercise names, Equipment names, muscle_activation, RoutinePaper
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([day]),
             _exec_all([(_EXERCISE_ID, "벤치프레스")]),
-            _exec_all([]),
+            _exec_all([]),  # equipment (eq_ids 없으므로 스킵되지만 muscle_activation이 소비)
+            _exec_all([]),  # RoutinePaper
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
