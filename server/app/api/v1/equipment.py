@@ -52,7 +52,6 @@ def _to_item(
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
-        name_en=e.name_en,
         brand=brand_name,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
