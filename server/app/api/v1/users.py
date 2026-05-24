@@ -337,8 +337,8 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
 
 
 @rate_limit("60/minute")
-@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 추가")
-async def add_1rm(
+@router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
+async def update_1rm(
     request: Request,
     body: Add1RMRequest,
     current_user: User = Depends(get_current_user),
@@ -353,7 +353,6 @@ async def add_1rm(
     if exercise is None:
         raise NotFoundError(message="운동을 찾을 수 없습니다.")
 
-    # reps가 주어지면 Epley로 추정, 아니면 manual
     if body.reps is not None and body.reps > 1:
         weight = estimate_1rm(body.weight_kg, body.reps)
         source = OnermSource.EPLEY
@@ -371,19 +370,6 @@ async def add_1rm(
     await db.commit()
     await db.refresh(record)
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
-
-
-@rate_limit("60/minute")
-@router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
-async def update_1rm(
-    request: Request,
-    body: Add1RMRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """가장 최근 기록을 갱신하는 대신, 새 기록을 추가하는 방식.
-    기록 추적이 가능하도록 단순히 add를 호출한다."""
-    return await add_1rm(request, body, current_user, db)
 
 
 # ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────

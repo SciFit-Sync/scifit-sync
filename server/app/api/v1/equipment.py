@@ -154,7 +154,7 @@ async def list_equipment(
 # ── GET /equipment/{equipment_id} ────────────────────────────────────────────
 @router.get(
     "/{equipment_id}",
-    response_model=PaginatedResponse[EquipmentItem],
+    response_model=SuccessResponse[EquipmentItem],
     summary="기구 상세 조회",
 )
 @rate_limit("60/minute")
@@ -184,10 +184,7 @@ async def get_equipment(
     muscles = await _fetch_muscles(db, [e.id])
     image_url = e.image_url or await get_or_generate_image_url(str(e.id), e.name, e.name_en)
     item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
-    return PaginatedResponse(
-        data=[item],
-        pagination=PaginationMeta(total=1, page=0, limit=1, has_next=False),
-    )
+    return SuccessResponse(data=item)
 
 
 # ── POST /equipment/select ────────────────────────────────────────────────────
