@@ -265,9 +265,9 @@ def atomic_write_json(path: Path, data) -> None:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         os.replace(tmp, path)
-    finally:
-        with contextlib.suppress(Exception):
-            tmp.unlink(missing_ok=True)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 from mlops.pipeline.chunker import chunk_papers  # noqa: E402
