@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 29,
     paddingBottom: 24,
   },
   logo: {
