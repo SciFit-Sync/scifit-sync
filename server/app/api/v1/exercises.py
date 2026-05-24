@@ -1,6 +1,7 @@
 """운동 카탈로그 엔드포인트 (#47 GET /exercises + GET /exercises/core-lifts)."""
 
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Exercise,
@@ -21,6 +23,7 @@ from app.schemas.common import SuccessResponse
 from app.schemas.gyms import ExerciseItem, ExerciseListData
 from app.schemas.users import CoreLiftItem, CoreLiftsData
 from app.services.core_lifts import list_core_lifts
+from app.services.workoutx import get_exercise_by_name
 
 logger = logging.getLogger(__name__)
 
@@ -132,4 +135,48 @@ async def list_exercises(
     ]
     return SuccessResponse(
         data=ExerciseListData(items=items, total_count=total_count, page=page, total_pages=total_pages)
+    )
+
+
+# ── GET /exercises/{id}/detail ────────────────────────────────────────────────
+@router.get("/{exercise_id}/detail", summary="운동 상세 정보 (GIF 포함, WorkoutX)")
+@rate_limit("60/minute")
+async def get_exercise_detail(
+    request: Request,
+    exercise_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """루틴 상세 페이지에서 운동 GIF·난이도·설명·instructions를 조회한다.
+
+    DB에서 name_en을 가져와 WorkoutX API를 호출한다.
+    WORKOUTX_API_KEY 미설정 시 gif_url=null로 graceful 처리.
+    """
+    try:
+        ex_uuid = uuid.UUID(exercise_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 exercise_id 형식입니다.") from e
+
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == ex_uuid))).scalar_one_or_none()
+
+    if exercise is None:
+        raise NotFoundError(message="운동을 찾을 수 없습니다.")
+
+    wx_data = await get_exercise_by_name(exercise.name_en) if exercise.name_en else None
+
+    return SuccessResponse(
+        data={
+            "exercise_id": str(exercise.id),
+            "name": exercise.name,
+            "name_en": exercise.name_en,
+            "description": exercise.description,
+            "gif_url": wx_data.get("gifUrl") if wx_data else None,
+            "difficulty": wx_data.get("difficulty") if wx_data else None,
+            "instructions": wx_data.get("instructions") if wx_data else None,
+            "body_part": wx_data.get("bodyPart") if wx_data else None,
+            "target": wx_data.get("target") if wx_data else None,
+            "secondary_muscles": wx_data.get("secondaryMuscles") if wx_data else None,
+            "equipment": wx_data.get("equipment") if wx_data else None,
+            "calories_per_minute": wx_data.get("caloriesPerMinute") if wx_data else None,
+        }
     )
