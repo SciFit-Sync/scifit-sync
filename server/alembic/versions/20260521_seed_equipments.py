@@ -21,7 +21,17 @@ down_revision = "008"
 branch_labels = None
 depends_on = None
 
-_SEED_CSV = Path(__file__).parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv"
+# mlops/data/equipments_seed.csv 위치는 실행 환경에 따라 다르다:
+#   - Local alembic (cwd=repo_root): repo_root/mlops/data/...    (4 parent up)
+#   - docker-compose (mlops volume to /app/mlops): /app/mlops/data/... (3 parent up)
+#   - ECS Fargate prod (Dockerfile copies mlops/data → /app/mlops/data): /app/mlops/data/... (3 parent up)
+# 첫 번째로 존재하는 경로 채택.
+_FILE = Path(__file__).resolve()
+_CSV_CANDIDATES = [
+    _FILE.parent.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",
+    _FILE.parent.parent.parent / "mlops" / "data" / "equipments_seed.csv",
+]
+_SEED_CSV = next((p for p in _CSV_CANDIDATES if p.exists()), _CSV_CANDIDATES[0])
 
 _BRANDS = [
     {
