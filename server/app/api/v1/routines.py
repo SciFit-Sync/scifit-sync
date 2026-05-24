@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
@@ -207,7 +207,7 @@ async def _get_my_routine(routine_id: str, user: User, db: AsyncSession) -> Work
 @router.get("", response_model=SuccessResponse[RoutineListData], summary="내 루틴 목록")
 async def list_routines(
     gym_id: str | None = Query(None, description="gym_id 필터 — 해당 헬스장의 루틴만 반환"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     gym_uuid: uuid.UUID | None = None
@@ -235,7 +235,7 @@ async def list_routines(
 @router.get("/{routine_id}", response_model=SuccessResponse[RoutineDetail], summary="루틴 상세")
 async def get_routine(
     routine_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
@@ -248,7 +248,7 @@ async def get_routine(
 async def rename_routine(
     routine_id: str,
     body: UpdateRoutineNameRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
@@ -268,7 +268,7 @@ async def replace_routine_exercise(
     routine_id: str,
     routine_exercise_id: str,
     body: ReplaceRoutineExerciseRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
@@ -325,7 +325,7 @@ async def replace_routine_exercise(
 @router.delete("/{routine_id}", response_model=SuccessResponse[RoutineDeleteData], summary="루틴 삭제 (soft delete)")
 async def delete_routine(
     routine_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
@@ -349,7 +349,7 @@ async def delete_routine(
 async def get_routine_exercise_papers(
     routine_id: str,
     routine_exercise_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     await _get_my_routine(routine_id, current_user, db)
@@ -728,7 +728,7 @@ async def _run_rag_to_sse(
 async def generate_routine(
     request: Request,
     body: GenerateRoutineRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     if not body.goals:
@@ -782,7 +782,7 @@ async def regenerate_routine(
     request: Request,
     routine_id: str,
     body: RegenerateRoutineRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     routine = await _get_my_routine(routine_id, current_user, db)
