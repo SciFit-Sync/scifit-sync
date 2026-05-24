@@ -643,10 +643,7 @@ if __name__ == "__main__":
             target_muscles=["chest", "triceps"],
             session_minutes=75,
         )
-        print(
-            f"프로필: 목표={profile.goals}, 체중={profile.body_weight}kg, "
-            f"레벨={profile.fitness_career}\n"
-        )
+        print(f"프로필: 목표={profile.goals}, 체중={profile.body_weight}kg, 레벨={profile.fitness_career}\n")
 
         for event in routine_rag(profile):
             etype = event["type"]
