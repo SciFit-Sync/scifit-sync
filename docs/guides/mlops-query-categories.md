@@ -164,6 +164,8 @@ python3 -m mlops.scripts.initial_ingest --dry-run --max-papers 50
 docker compose up -d server
 
 # 2) 환경변수
+# 로컬 dev: http://localhost:8000
+# 프로덕션 prod ChromaDB 적재: https://scifit-sync.com (도메인 적용)
 export API_BASE_URL=http://localhost:8000
 export ADMIN_API_TOKEN=<admin token>
 

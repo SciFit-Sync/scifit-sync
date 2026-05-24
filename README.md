@@ -258,11 +258,11 @@ fix/{이름}/{버그}         ← 버그 수정
 | 문서 | 링크 |
 |------|------|
 | 마스터 설계서 | [Notion](https://www.notion.so/Scifit-Sync-33daebb23ee080f1b3aef1f7c8b416b1) |
-| 와이어프레임 (23개 화면) | [Figma](https://www.figma.com/design/lowVkeYctKKWbXx7AYIa6V/) |
+| 와이어프레임 (25개 화면) | [Figma](https://www.figma.com/design/lowVkeYctKKWbXx7AYIa6V/) |
 | 프로젝트 설계 기준 (내부) | [`CLAUDE.md`](CLAUDE.md) |
 | API 명세 (50개 엔드포인트) | [`docs/spec/api-endpoints.md`](docs/spec/api-endpoints.md) |
 | DB 스키마 (29개 테이블) | [`docs/spec/database-schema.md`](docs/spec/database-schema.md) |
-| 화면 목록 (23개) | [`docs/spec/screens.md`](docs/spec/screens.md) |
+| 화면 목록 (25개) | [`docs/spec/screens.md`](docs/spec/screens.md) |
 | 환경 셋업 가이드 | [`docs/guides/environment-setup.md`](docs/guides/environment-setup.md) |
 | 배포 + CI/CD | [`docs/guides/deployment.md`](docs/guides/deployment.md) |
 | 에러 핸들링 | [`docs/guides/error-handling.md`](docs/guides/error-handling.md) |
