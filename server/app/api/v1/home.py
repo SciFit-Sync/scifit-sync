@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.core.limiter import rate_limit
 from app.models import (
@@ -33,7 +33,7 @@ router = APIRouter(tags=["home"])
 @rate_limit("60/minute")
 async def home(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
     # 0) 주 헬스장 gym_id

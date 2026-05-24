@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.main import app
 from app.models import CareerLevel, User
@@ -137,7 +137,7 @@ _MOCK_USER = _user()
 
 @pytest_asyncio.fixture
 async def client():
-    app.dependency_overrides[get_current_user] = lambda: _MOCK_USER
+    app.dependency_overrides[get_required_profile] = lambda: _MOCK_USER
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
