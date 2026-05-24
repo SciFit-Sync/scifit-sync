@@ -3,9 +3,9 @@ import { login } from '@react-native-seoul/kakao-login';
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export interface KakaoAuthResult {
-  accessToken: string;
-  refreshToken: string;
-  isNewUser: boolean;
+  access_token: string;
+  refresh_token: string;
+  is_new_user: boolean;
   message?: string;
 }
 
@@ -17,7 +17,7 @@ export async function signInWithKakao(): Promise<KakaoAuthResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/kakao`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken }),
+    body: JSON.stringify({ access_token: accessToken }),
   });
 
   const data = await response.json();
