@@ -382,6 +382,7 @@ async def get_routine_exercise_papers(
 
 # ── RAG/SSE 공통 헬퍼 ─────────────────────────────────────────────────────────
 
+
 def _sse(seq: int, payload: dict) -> str:
     """SSE 한 이벤트 직렬화. 한국어가 그대로 흘러갈 수 있도록 ensure_ascii=False."""
     return f"id: evt_{seq:03d}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
