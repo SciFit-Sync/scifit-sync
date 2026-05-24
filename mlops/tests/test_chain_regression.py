@@ -61,8 +61,7 @@ class TestChainPhase1Regression:
         result = fetch_chain(PaperRef(doi=doi, pmid=pmid, pmcid=pmcid), chain)
 
         assert result.fulltext_source == expected_source, (
-            f"Regression: {doi} (expected {expected_source}, "
-            f"got {result.fulltext_source})"
+            f"Regression: {doi} (expected {expected_source}, got {result.fulltext_source})"
         )
         assert len(result.sections) > 0
         assert result.had_transient_error is False
@@ -83,9 +82,7 @@ class TestChainPhase1Regression:
         )
 
         chain = [PMCSource(pmc_client), EuropePMCSource(epmc_client)]
-        result = fetch_chain(
-            PaperRef(doi="10.0/missing", pmid="000", pmcid="PMC0"), chain
-        )
+        result = fetch_chain(PaperRef(doi="10.0/missing", pmid="000", pmcid="PMC0"), chain)
 
         assert result.fulltext_source is None
         assert result.sections == []
@@ -107,9 +104,7 @@ class TestChainPhase1Regression:
         )
 
         chain = [PMCSource(pmc_client), EuropePMCSource(epmc_client)]
-        result = fetch_chain(
-            PaperRef(doi="10.1/x", pmid="123", pmcid="PMC1"), chain
-        )
+        result = fetch_chain(PaperRef(doi="10.1/x", pmid="123", pmcid="PMC1"), chain)
 
         assert result.fulltext_source == "europepmc"
         assert result.had_transient_error is True

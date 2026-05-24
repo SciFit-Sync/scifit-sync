@@ -180,6 +180,7 @@ class TestFetchCascadingWrapper:
 
     def _pmc_success(self, sections=None):
         from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+
         return FulltextResult(
             status=FulltextStatus.SUCCESS,
             sections=sections or [PaperSection(name="S", content="c")],
@@ -187,10 +188,12 @@ class TestFetchCascadingWrapper:
 
     def _pmc_transient(self):
         from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+
         return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR, error="err")
 
     def _epmc_success(self, sections=None):
         from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+
         return FulltextResult(
             status=FulltextStatus.SUCCESS,
             sections=sections or [PaperSection(name="S", content="c")],
@@ -198,10 +201,12 @@ class TestFetchCascadingWrapper:
 
     def _epmc_transient(self):
         from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+
         return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR, error="err")
 
     def _epmc_not_available(self):
         from mlops.pipeline.europepmc import FulltextResult, FulltextStatus
+
         return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
 
     def _make_pmc_client(self, result):
@@ -224,8 +229,11 @@ class TestFetchCascadingWrapper:
         epmc = self._make_europepmc_client(self._epmc_not_available())
 
         result = fetch_cascading(
-            pmcid="PMC123", pmid="999", doi="10.1/z",
-            pmc_client=pmc, europepmc_client=epmc,
+            pmcid="PMC123",
+            pmid="999",
+            doi="10.1/z",
+            pmc_client=pmc,
+            europepmc_client=epmc,
         )
 
         assert result.fulltext_source == "pmc"
@@ -241,8 +249,11 @@ class TestFetchCascadingWrapper:
         pmc = self._make_pmc_client(self._epmc_not_available())  # 호출되면 안 됨
 
         result = fetch_cascading(
-            pmcid=None, pmid="999", doi="10.1/z",
-            pmc_client=pmc, europepmc_client=epmc,
+            pmcid=None,
+            pmid="999",
+            doi="10.1/z",
+            pmc_client=pmc,
+            europepmc_client=epmc,
         )
 
         assert "pmc" not in result.tried_sources
@@ -257,8 +268,11 @@ class TestFetchCascadingWrapper:
         epmc = self._make_europepmc_client(self._epmc_success())
 
         result = fetch_cascading(
-            pmcid="PMC123", pmid="999", doi="10.1/z",
-            pmc_client=pmc, europepmc_client=epmc,
+            pmcid="PMC123",
+            pmid="999",
+            doi="10.1/z",
+            pmc_client=pmc,
+            europepmc_client=epmc,
         )
 
         assert result.fulltext_source == "europepmc"
@@ -272,8 +286,11 @@ class TestFetchCascadingWrapper:
         epmc = self._make_europepmc_client(self._epmc_transient())
 
         result = fetch_cascading(
-            pmcid="PMC123", pmid="999", doi="10.1/z",
-            pmc_client=pmc, europepmc_client=epmc,
+            pmcid="PMC123",
+            pmid="999",
+            doi="10.1/z",
+            pmc_client=pmc,
+            europepmc_client=epmc,
         )
 
         assert result.fulltext_source is None
@@ -426,9 +443,7 @@ class TestUnpaywallSource:
     @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
     @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
     @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
-    def test_success_via_second_mirror_html_after_pdf_fail(
-        self, mock_html, mock_pdf, mock_locs
-    ):
+    def test_success_via_second_mirror_html_after_pdf_fail(self, mock_html, mock_pdf, mock_locs):
         """첫 mirror pdf 실패 → 첫 mirror landing fail → 두번째 mirror landing 성공."""
         mock_locs.return_value = [
             {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m1/landing"},
@@ -465,6 +480,7 @@ class TestUnpaywallSource:
 class TestDefaultChain:
     def test_build_default_chain_returns_five_sources(self):
         from mlops.pipeline.oa_fetcher import build_default_chain
+
         pmc = MagicMock()
         epmc = MagicMock()
         chain = build_default_chain(pmc, epmc)
@@ -474,6 +490,7 @@ class TestDefaultChain:
 
     def test_default_source_names_matches_chain(self):
         from mlops.pipeline.oa_fetcher import build_default_chain, default_source_names
+
         pmc = MagicMock()
         epmc = MagicMock()
         chain = build_default_chain(pmc, epmc)
@@ -481,6 +498,7 @@ class TestDefaultChain:
 
     def test_unpaywall_email_propagates(self):
         from mlops.pipeline.oa_fetcher import build_default_chain
+
         chain = build_default_chain(MagicMock(), MagicMock(), unpaywall_email="custom@x.y")
         # 마지막이 UnpaywallSource
         assert chain[-1].email == "custom@x.y"

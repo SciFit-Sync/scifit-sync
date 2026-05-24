@@ -88,13 +88,9 @@ def _map_client_result(result) -> FulltextResult:
     chain용 FulltextResult로 변환.
     """
     if result.status == ClientFulltextStatus.SUCCESS:
-        return FulltextResult(
-            status=FulltextStatus.SUCCESS, sections=result.sections
-        )
+        return FulltextResult(status=FulltextStatus.SUCCESS, sections=result.sections)
     if result.status == ClientFulltextStatus.TRANSIENT_ERROR:
-        return FulltextResult(
-            status=FulltextStatus.TRANSIENT_ERROR, error=result.error
-        )
+        return FulltextResult(status=FulltextStatus.TRANSIENT_ERROR, error=result.error)
     return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
 
 
@@ -204,16 +200,12 @@ class UnpaywallSource:
             if pdf_url:
                 sections = fetch_pdf_sections(pdf_url)
                 if sections:
-                    return FulltextResult(
-                        status=FulltextStatus.SUCCESS, sections=sections
-                    )
+                    return FulltextResult(status=FulltextStatus.SUCCESS, sections=sections)
             landing_url = loc.get("landing_url")
             if landing_url:
                 sections = fetch_html_sections(landing_url)
                 if sections:
-                    return FulltextResult(
-                        status=FulltextStatus.SUCCESS, sections=sections
-                    )
+                    return FulltextResult(status=FulltextStatus.SUCCESS, sections=sections)
         return FulltextResult(status=FulltextStatus.NOT_AVAILABLE)
 
 

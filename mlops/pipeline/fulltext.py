@@ -71,10 +71,7 @@ def fetch_cascading(
     chain_result = fetch_chain(ref, chain)
 
     tried = chain_result.tried
-    had_transient = (
-        len(tried) > 0
-        and all(status == ChainStatus.TRANSIENT_ERROR for _, status in tried)
-    )
+    had_transient = len(tried) > 0 and all(status == ChainStatus.TRANSIENT_ERROR for _, status in tried)
     return CascadingFulltextResult(
         fulltext_source=chain_result.fulltext_source,
         tried_sources=[name for name, _ in tried],
