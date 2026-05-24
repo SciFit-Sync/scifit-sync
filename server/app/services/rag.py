@@ -206,6 +206,7 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     chunks = [
         {
             "content": r["document"],
+            "doi": (r["metadata"] or {}).get("paper_doi", ""),
             "pmid": (r["metadata"] or {}).get("paper_pmid", ""),
             "title": (r["metadata"] or {}).get("paper_title", ""),
             "section": (r["metadata"] or {}).get("section_name", ""),
@@ -324,8 +325,7 @@ class UserProfile:
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
-    days_per_week: int  # 주당 운동 일수 (split_type에서 derive)
-    available_equipment: list[str] = field(default_factory=list)  # 사용 가능한 기구명
+    available_exercises: list[str] = field(default_factory=list)  # gym 기구로 할 수 있는 운동 name_en 목록
     target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
@@ -354,11 +354,17 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
 
-    equipment_str = (
-        ", ".join(profile.available_equipment) if profile.available_equipment else "barbell, dumbbell, bodyweight"
-    )
     goals_str = ", ".join(g.lower() for g in profile.goals) if profile.goals else "hypertrophy"
     muscles_str = ", ".join(profile.target_muscles) if profile.target_muscles else "balanced full-body"
+
+    if profile.available_exercises:
+        exercise_list_str = "\n".join(f"- {name}" for name in profile.available_exercises)
+        exercises_section = (
+            f"\nAvailable exercises at this gym (use ONLY these exact names — do not invent other names):\n"
+            f"{exercise_list_str}\n"
+        )
+    else:
+        exercises_section = "\nAvailable equipment: barbell, dumbbell, bodyweight (standard exercises allowed)\n"
 
     extras = []
     if profile.session_minutes:
@@ -372,25 +378,37 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         extras.append(f"- Regenerate feedback (from user): <user_query>{safe}</user_query>")
     extras_str = ("\n" + "\n".join(extras)) if extras else ""
 
+    name_rule = (
+        '- "name" must be chosen EXACTLY from the Available exercises list above. Do not invent or paraphrase names.\n'
+        if profile.available_exercises
+        else ""
+    )
+
     return (
-        f"You are a sports science expert. Create a {profile.days_per_week}-day workout routine "
+        f"You are a sports science expert. Create a 1-day workout routine "
         f"based ONLY on the research papers below.\n\n"
         f"User Profile:\n"
         f"- Goals (primary first): {goals_str}\n"
         f"- Target muscles to emphasize: {muscles_str}\n"
         f"- Body weight: {profile.body_weight}kg\n"
-        f"- Fitness level: {profile.fitness_career}\n"
-        f"- Available equipment: {equipment_str}"
+        f"- Fitness level: {profile.fitness_career}"
+        f"{exercises_section}"
         f"{extras_str}\n\n"
         f"Research papers:\n{context}\n\n"
-        f"Output a JSON array of exactly {profile.days_per_week} day objects.\n"
+        f"Output a JSON array of exactly 1 day object.\n"
         f"Each object format:\n"
         f'{{"day": <number>, "focus": "<muscle group>", "exercises": ['
-        f'{{"name": "<English exercise name>", "sets": <number>, '
+        f'{{"name": "<exercise name>", "sets": <number>, '
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
-        f'"notes": "<paper-based rationale, mention paper number>"}}]}}\n\n'
-        f"Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
+        f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
+        f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
+        f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
+        f"Rules:\n"
+        f"{name_rule}"
+        f"- notes must be written in Korean and explain the specific finding from the paper.\n"
+        f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30).\n"
         f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
@@ -541,21 +559,25 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
         if isinstance(day_data, dict):
             yield {"type": "day_complete", **day_data}
 
-    # 6. 사용된 논문 출처 (중복 pmid 제거)
+    # 6. 사용된 논문 출처 (DOI 기준 dedup — DOI가 primary identifier, D-M11)
     seen: set[str] = set()
     sources: list[dict] = []
     for chunk in chunks[:5]:
+        doi = chunk.get("doi") or ""
         pmid = chunk.get("pmid") or ""
-        if pmid and pmid not in seen:
-            seen.add(pmid)
-            sources.append(
-                {
-                    "pmid": pmid,
-                    "title": chunk.get("title", ""),
-                    "section": chunk.get("section", ""),
-                    "score": chunk.get("score"),
-                }
-            )
+        dedup_key = doi or pmid  # DOI 우선, 없으면 PMID로 dedup
+        if not dedup_key or dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        sources.append(
+            {
+                "doi": doi,
+                "pmid": pmid,
+                "title": chunk.get("title", ""),
+                "section": chunk.get("section", ""),
+                "score": chunk.get("score"),
+            }
+        )
     if sources:
         yield {"type": "papers", "sources": sources}
 
@@ -617,14 +639,13 @@ if __name__ == "__main__":
             goals=["hypertrophy", "strength"],
             body_weight=75.0,
             fitness_career="intermediate",
-            days_per_week=3,
-            available_equipment=["barbell", "dumbbell", "cable"],
+            available_exercises=["Bench Press", "Incline Bench Press", "Cable Fly", "Tricep Pushdown", "Dumbbell Fly"],
             target_muscles=["chest", "triceps"],
             session_minutes=75,
         )
         print(
             f"프로필: 목표={profile.goals}, 체중={profile.body_weight}kg, "
-            f"레벨={profile.fitness_career}, 주{profile.days_per_week}일\n"
+            f"레벨={profile.fitness_career}\n"
         )
 
         for event in routine_rag(profile):
