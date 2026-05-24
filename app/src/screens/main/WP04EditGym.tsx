@@ -60,14 +60,15 @@ const mock_search_gyms: Gym[] = [
   },
 ];
 
-export default function WO01GymSetup() {
+export default function WP04EditGym() {
   const navigation = useNavigation();
   const [search, set_search] = useState("");
-  const [selected_gym, set_selected_gym] = useState<Gym | null>(null);
-  // 테스트용 - 나중에 원래대로 되돌리기
+  const [selected_gym, set_selected_gym] = useState<Gym | null>(
+    mock_nearby_gyms[0],
+  ); // 기존 헬스장 선택된 상태로
   const [has_location_permission, set_has_location_permission] = useState<
     boolean | null
-  >(false); // ⭐ null → false
+  >(null);
 
   useEffect(() => {
     check_location_permission();
@@ -92,12 +93,9 @@ export default function WO01GymSetup() {
       ? mock_search_gyms.filter((gym) => gym.name.includes(search))
       : mock_nearby_gyms;
 
-  const handle_next = () => {
-    navigation.navigate("WO02Equipment" as never);
-  };
-
-  const handle_skip = () => {
-    navigation.navigate("WO02Equipment" as never);
+  const handle_save = () => {
+    // TODO: API 연동
+    navigation.goBack();
   };
 
   return (
@@ -120,7 +118,8 @@ export default function WO01GymSetup() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <Text style={styles.card_title}>헬스장 설정</Text>
+            {/* ⭐ 타이틀 수정 */}
+            <Text style={styles.card_title}>MY 헬스장 수정</Text>
 
             {/* 검색창 */}
             <View style={styles.search_container}>
@@ -190,20 +189,17 @@ export default function WO01GymSetup() {
 
             <View style={styles.spacer} />
 
-            {/* 다음 / 건너뛰기 */}
+            {/* ⭐ 저장하기 버튼 */}
             <TouchableOpacity
               style={[
-                styles.next_button,
-                !selected_gym && styles.next_button_disabled,
+                styles.save_button,
+                !selected_gym && styles.save_button_disabled,
               ]}
-              onPress={handle_next}
+              onPress={handle_save}
               disabled={!selected_gym}
               activeOpacity={0.8}
             >
-              <Text style={styles.next_button_text}>다음</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handle_skip}>
-              <Text style={styles.skip_text}>건너뛰기</Text>
+              <Text style={styles.save_button_text}>저장하기</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -259,10 +255,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   location_button: {
-    marginTop: 40,
     backgroundColor: colors.select,
     borderRadius: 8,
-    paddingVertical: 13,
+    height: 45,
     width: 209,
     alignItems: "center",
     justifyContent: "center",
@@ -283,7 +278,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   gym_item_active: { backgroundColor: colors.primary },
-  gym_info: { gap: 8 },
+  gym_info: { gap: 4 },
   gym_name: {
     fontFamily: "regular",
     fontSize: 16,
@@ -303,28 +298,21 @@ const styles = StyleSheet.create({
   empty_text: {
     fontFamily: "regular",
     fontSize: 14,
-    color: colors.gray,
+    color: colors.bluegray,
     textAlign: "center",
     paddingVertical: 20,
   },
   spacer: { flex: 1 },
-  next_button: {
+  save_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
-    justifyContent: "center",
   },
-  next_button_disabled: { opacity: 0.5 },
-  next_button_text: {
+  save_button_disabled: { opacity: 0.5 },
+  save_button_text: {
     fontFamily: "medium",
     fontSize: 16,
     color: colors.white,
-  },
-  skip_text: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-    textAlign: "center",
   },
 });

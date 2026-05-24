@@ -29,7 +29,7 @@ export default function WA01Login() {
       return;
     }
     // TODO: 이메일/비밀번호 로그인 API 연동
-    console.log("이메일 로그인 시도:", email);
+    if (__DEV__) console.log("이메일 로그인 시도:", email);
   };
 
   const handleKakaoLogin = async () => {
@@ -45,13 +45,12 @@ export default function WA01Login() {
   };
 
   const handleFindPassword = () => {
-    //
-    console.log("비밀번호 찾기");
+    if (__DEV__) console.log("비밀번호 찾기");
   };
 
   const handleSignup = () => {
     navigation.navigate("WA02Signup" as never);
-    console.log("회원가입");
+    if (__DEV__) console.log("회원가입");
   };
 
   return (
