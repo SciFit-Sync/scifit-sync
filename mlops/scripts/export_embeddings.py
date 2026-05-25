@@ -27,6 +27,7 @@ from mlops.pipeline.embedder import (
 )
 from mlops.pipeline.manifest import Manifest
 from mlops.pipeline.models import Chunk
+from mlops.pipeline.oa_fetcher import default_source_names
 from mlops.pipeline.specs import (
     DEFAULT_MODEL_KEY,
     EMBEDDING_MODELS,
@@ -38,7 +39,7 @@ from mlops.pipeline.specs import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
+ACTIVE_SOURCES: set[str] = set(default_source_names())
 
 
 # ── 산출물 경로 helpers ──────────────────────────────────────────────────
