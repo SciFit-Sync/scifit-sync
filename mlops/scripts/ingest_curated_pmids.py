@@ -36,14 +36,10 @@ from mlops.pipeline.config import (  # noqa: E402
     NCBI_RATE_LIMIT,
 )
 from mlops.pipeline.curated import (  # noqa: E402
-    fetch_html_sections,
-    fetch_pdf_sections,
     ncbi_pmid_to_doi,
     normalize_doi,
     openalex_doi_lookup,
-    openalex_oa_url,
     title_keyword_overlap,
-    unpaywall_oa_locations,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
@@ -279,12 +275,17 @@ from mlops.pipeline.chunker import chunk_papers  # noqa: E402
 from mlops.pipeline.embedder import embed_chunks  # noqa: E402
 from mlops.pipeline.europepmc import EuropePMCClient  # noqa: E402
 from mlops.pipeline.evidence import calculate_evidence_weight  # noqa: E402
-from mlops.pipeline.fulltext import fetch_cascading  # noqa: E402
 from mlops.pipeline.manifest import Manifest  # noqa: E402
 from mlops.pipeline.models import PaperFull, PaperMeta  # noqa: E402
+from mlops.pipeline.oa_fetcher import (  # noqa: E402
+    PaperRef,
+    build_default_chain,
+    default_source_names,
+    fetch_chain,
+)
 from mlops.pipeline.pmc import PMCClient  # noqa: E402
 
-ACTIVE_SOURCES = {"pmc", "europepmc"}
+ACTIVE_SOURCES = set(default_source_names())  # ["pmc", "europepmc", "openalex_pdf", "openalex_html", "unpaywall"]
 
 
 def _fetch_server_dois() -> set[str]:
@@ -319,12 +320,9 @@ def build_paperfulls_for_ingest(
     pmc_client: PMCClient,
     europepmc_client: EuropePMCClient,
 ) -> list[PaperFull]:
-    """resolved paper들에 대해 fulltext fetch + PaperFull 구성.
-
-    이미 적재됐거나(already_in_corpus=True) 실패한(failure_reason) paper는 스킵.
-    fulltext 실패 시 §7.1 invariant 적용 (failure_reason="no_fulltext", indexed=False).
-    """
+    """resolved paper들에 fulltext fetch + PaperFull 구성."""
     result: list[PaperFull] = []
+    chain = build_default_chain(pmc_client, europepmc_client)
     for paper in papers:
         if paper.get("failure_reason") or paper.get("already_in_corpus"):
             continue
@@ -334,47 +332,14 @@ def build_paperfulls_for_ingest(
         meta_dict = paper.get("metadata", {})
         pmcid = meta_dict.get("pmcid") or None
 
-        # fulltext cascade (keyword-only args)
-        cascading_result = fetch_cascading(
-            pmcid=pmcid,
-            pmid=paper["resolved_pmid"],
+        ref = PaperRef(
             doi=paper["resolved_doi"],
-            pmc_client=pmc_client,
-            europepmc_client=europepmc_client,
+            pmid=paper["resolved_pmid"],
+            pmcid=pmcid,
         )
-        sections = cascading_result.sections
-        fulltext_source = cascading_result.fulltext_source
-
-        if not sections:
-            # OpenAlex OA fallback: PDF → HTML 순으로 시도
-            # TODO(perf): openalex_doi_lookup이 이미 같은 paper의 OpenAlex 데이터를 가져옴.
-            # 두 번 호출 방지하려면 resolve_papers 단계에서 oa_info 캐시하여 paper dict에 저장 후
-            # 여기서 재사용. 별도 PR로 분리.
-            oa_info = openalex_oa_url(paper["resolved_doi"])
-            if oa_info and oa_info.get("is_oa"):
-                if oa_info.get("pdf_url"):
-                    sections = fetch_pdf_sections(oa_info["pdf_url"])
-                    if sections:
-                        fulltext_source = "openalex_pdf"
-                if not sections and oa_info.get("landing_page_url"):
-                    sections = fetch_html_sections(oa_info["landing_page_url"])
-                    if sections:
-                        fulltext_source = "openalex_html"
-
-        if not sections:
-            # Unpaywall fallback (모든 mirror 시도)
-            unp_locations = unpaywall_oa_locations(paper["resolved_doi"])
-            for loc in unp_locations:
-                if loc.get("pdf_url"):
-                    sections = fetch_pdf_sections(loc["pdf_url"])
-                    if sections:
-                        fulltext_source = "unpaywall_pdf"
-                        break
-                if loc.get("landing_url"):
-                    sections = fetch_html_sections(loc["landing_url"])
-                    if sections:
-                        fulltext_source = "unpaywall_html"
-                        break
+        chain_result = fetch_chain(ref, chain)
+        sections = chain_result.sections
+        fulltext_source = chain_result.fulltext_source
 
         if not sections:
             paper["fulltext_ok"] = False

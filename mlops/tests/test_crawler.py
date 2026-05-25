@@ -763,29 +763,30 @@ class TestPublicationFilterToggle:
 
 
 class TestAttachFulltext:
-    """_attach_fulltext가 cascading 결과를 PaperMeta에 정확히 반영하는지."""
+    """_attach_fulltext가 fetch_chain 결과를 PaperMeta에 정확히 반영하는지."""
 
     def test_success_path_sets_source_and_sections(self, monkeypatch):
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
-        from mlops.pipeline.fulltext import CascadingFulltextResult
         from mlops.pipeline.models import PaperMeta, PaperSection
+        from mlops.pipeline.oa_fetcher import ChainResult, FulltextStatus
 
         called_with = {}
 
-        def fake_fetch_cascading(*, pmcid, pmid, doi, pmc_client, europepmc_client):
-            called_with.update(pmcid=pmcid, pmid=pmid, doi=doi)
-            return CascadingFulltextResult(
+        def fake_fetch_chain(ref, sources):
+            called_with.update(pmcid=ref.pmcid, pmid=ref.pmid, doi=ref.doi)
+            return ChainResult(
                 fulltext_source="pmc",
-                tried_sources=["pmc"],
+                tried=[("pmc", FulltextStatus.SUCCESS)],
                 sections=[PaperSection(name="Intro", content="x" * 50)],
                 had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_fetch_chain)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         metas = [
             PaperMeta(
@@ -811,20 +812,21 @@ class TestAttachFulltext:
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
-        from mlops.pipeline.fulltext import CascadingFulltextResult
         from mlops.pipeline.models import PaperMeta
+        from mlops.pipeline.oa_fetcher import ChainResult, FulltextStatus
 
-        def fake_fetch_cascading(**_):
-            return CascadingFulltextResult(
+        def fake_fetch_chain(ref, sources):
+            return ChainResult(
                 fulltext_source=None,
-                tried_sources=["pmc", "europepmc"],
+                tried=[("pmc", FulltextStatus.NOT_AVAILABLE), ("europepmc", FulltextStatus.NOT_AVAILABLE)],
                 sections=[],
                 had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_fetch_chain)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         metas = [
             PaperMeta(
@@ -848,19 +850,20 @@ class TestAttachFulltext:
 
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         assert _attach_fulltext([]) == []
 
     def test_pmcid_none_with_pmid_triggers_elink(self, monkeypatch):
         """meta.pmcid가 None이지만 PMID가 있으면 _resolve_pmc_id로 보강 시도.
 
-        _resolve_pmc_id가 None을 반환하면(PMC 미존재) 그대로 None을 fetch_cascading에 전달.
+        _resolve_pmc_id가 None을 반환하면(PMC 미존재) 그대로 None을 fetch_chain에 전달.
         """
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
-        from mlops.pipeline.fulltext import CascadingFulltextResult
         from mlops.pipeline.models import PaperMeta
+        from mlops.pipeline.oa_fetcher import ChainResult
 
         captured = {}
         resolve_calls = []
@@ -869,19 +872,20 @@ class TestAttachFulltext:
             resolve_calls.append(pmid)
             return None  # PMC 미존재 시뮬레이션
 
-        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
-            captured["pmcid"] = pmcid
-            return CascadingFulltextResult(
+        def fake_fetch_chain(ref, sources):
+            captured["pmcid"] = ref.pmcid
+            return ChainResult(
                 fulltext_source=None,
-                tried_sources=[],
+                tried=[],
                 sections=[],
                 had_transient_error=False,
             )
 
         monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", fake_resolve)
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_fetch_chain)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         metas = [
             PaperMeta(
@@ -893,29 +897,33 @@ class TestAttachFulltext:
         assert captured["pmcid"] is None
 
     def test_pmcid_resolved_from_pmid_via_elink(self, monkeypatch):
-        """meta.pmcid가 None일 때 _resolve_pmc_id로 보강해 cascading에 PMCID 전달.
+        """meta.pmcid가 None일 때 _resolve_pmc_id로 보강해 fetch_chain에 PMCID 전달.
 
         multi-source ingest 도입 후 누락됐던 PMC 회수 경로의 회귀 fix 검증.
         """
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
-        from mlops.pipeline.fulltext import CascadingFulltextResult
         from mlops.pipeline.models import PaperMeta
+        from mlops.pipeline.oa_fetcher import ChainResult, FulltextStatus
 
         captured = {}
 
         monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", lambda pmid: "1234567")
 
-        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
-            captured["pmcid"] = pmcid
-            return CascadingFulltextResult(
-                fulltext_source="pmc", tried_sources=["pmc"], sections=[], had_transient_error=False
+        def fake_fetch_chain(ref, sources):
+            captured["pmcid"] = ref.pmcid
+            return ChainResult(
+                fulltext_source="pmc",
+                tried=[("pmc", FulltextStatus.SUCCESS)],
+                sections=[],
+                had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_fetch_chain)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         metas = [
             PaperMeta(
@@ -935,12 +943,12 @@ class TestAttachFulltext:
         assert metas[0].pmcid == "1234567"
 
     def test_resolve_runtime_error_falls_through_to_europepmc(self, monkeypatch):
-        """_resolve_pmc_id가 RuntimeError(재시도 한도 초과)를 raise해도 cascading은 진행."""
+        """_resolve_pmc_id가 RuntimeError(재시도 한도 초과)를 raise해도 fetch_chain은 진행."""
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
-        from mlops.pipeline.fulltext import CascadingFulltextResult
         from mlops.pipeline.models import PaperMeta
+        from mlops.pipeline.oa_fetcher import ChainResult, FulltextStatus
 
         captured = {}
 
@@ -949,15 +957,19 @@ class TestAttachFulltext:
 
         monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", raising_resolve)
 
-        def fake_fetch_cascading(*, pmcid, pmid, doi, **_):
-            captured["pmcid"] = pmcid
-            return CascadingFulltextResult(
-                fulltext_source=None, tried_sources=["europepmc"], sections=[], had_transient_error=False
+        def fake_fetch_chain(ref, sources):
+            captured["pmcid"] = ref.pmcid
+            return ChainResult(
+                fulltext_source=None,
+                tried=[("europepmc", FulltextStatus.NOT_AVAILABLE)],
+                sections=[],
+                had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_fetch_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_fetch_chain)
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         metas = [
             PaperMeta(
@@ -972,15 +984,15 @@ class TestAttachFulltext:
             )
         ]
         _attach_fulltext(metas)
-        assert captured["pmcid"] is None  # RuntimeError 시 cascading은 None으로 진행
+        assert captured["pmcid"] is None  # RuntimeError 시 fetch_chain은 None으로 진행
 
     def test_resolve_not_called_when_pmid_empty(self, monkeypatch):
         """OpenAlex-only paper처럼 PMID가 빈 문자열이면 _resolve_pmc_id 호출하지 않음."""
         from unittest.mock import MagicMock
 
         from mlops.pipeline.crawler import _attach_fulltext
-        from mlops.pipeline.fulltext import CascadingFulltextResult
         from mlops.pipeline.models import PaperMeta
+        from mlops.pipeline.oa_fetcher import ChainResult
 
         resolve_calls = []
 
@@ -990,13 +1002,17 @@ class TestAttachFulltext:
 
         monkeypatch.setattr("mlops.pipeline.crawler._resolve_pmc_id", fake_resolve)
         monkeypatch.setattr(
-            "mlops.pipeline.crawler.fetch_cascading",
-            lambda **_: CascadingFulltextResult(
-                fulltext_source=None, tried_sources=[], sections=[], had_transient_error=False
+            "mlops.pipeline.crawler.fetch_chain",
+            lambda ref, sources: ChainResult(
+                fulltext_source=None,
+                tried=[],
+                sections=[],
+                had_transient_error=False,
             ),
         )
         monkeypatch.setattr("mlops.pipeline.crawler.PMCClient", MagicMock())
         monkeypatch.setattr("mlops.pipeline.crawler.EuropePMCClient", MagicMock())
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", MagicMock(return_value=[]))
 
         metas = [
             PaperMeta(
@@ -1043,14 +1059,14 @@ class TestMaxPerCategoryOverride:
 class TestAttachFulltextProgressLog:
     """_attach_fulltext의 진행 표시 로그 검증.
 
-    실제 호출은 fetch_cascading + _resolve_pmc_id mock으로 차단.
+    실제 호출은 fetch_chain + _resolve_pmc_id mock으로 차단.
     """
 
     def _mk_meta(self, pmid: str) -> PaperMeta:
         return PaperMeta(pmid=pmid, title=f"t-{pmid}", doi=f"10.x/{pmid}")
 
     def _mk_result(self, source: str | None):
-        """fetch_cascading 반환을 흉내내는 가벼운 객체."""
+        """fetch_chain 반환을 흉내내는 가벼운 객체."""
         from types import SimpleNamespace
 
         from mlops.pipeline.models import PaperSection
@@ -1066,12 +1082,13 @@ class TestAttachFulltextProgressLog:
         # 모든 paper가 PMC로 성공한다고 가정
         monkeypatch.setattr(
             crawler_mod,
-            "fetch_cascading",
-            lambda **kw: self._mk_result("pmc"),
+            "fetch_chain",
+            lambda ref, sources: self._mk_result("pmc"),
         )
         # 클라이언트 생성자 가짜 — 네트워크 차단
         monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
         monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "build_default_chain", lambda *a: [])
 
         metas = [self._mk_meta(str(i)) for i in range(120)]
         with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
@@ -1095,14 +1112,15 @@ class TestAttachFulltextProgressLog:
         monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
 
         # 짝수만 성공, 홀수는 실패
-        def fake_fetch(**kw):
-            pmid = kw.get("pmid") or ""
+        def fake_fetch(ref, sources):
+            pmid = ref.pmid or ""
             success = pmid.isdigit() and int(pmid) % 2 == 0
             return self._mk_result("europepmc" if success else None)
 
-        monkeypatch.setattr(crawler_mod, "fetch_cascading", fake_fetch)
+        monkeypatch.setattr(crawler_mod, "fetch_chain", fake_fetch)
         monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
         monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "build_default_chain", lambda *a: [])
 
         metas = [self._mk_meta(str(i)) for i in range(10)]
         with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
@@ -1123,6 +1141,7 @@ class TestAttachFulltextProgressLog:
 
         monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
         monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "build_default_chain", lambda *a: [])
 
         with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
             papers = crawler_mod._attach_fulltext([])
@@ -1135,8 +1154,8 @@ class TestAttachFulltextProgressLog:
 
         monkeypatch.setattr(crawler_mod, "_resolve_pmc_id", lambda pmid: None)
 
-        def fake_fetch(**kw):
-            pmid = kw.get("pmid") or ""
+        def fake_fetch(ref, sources):
+            pmid = ref.pmid or ""
             idx = int(pmid)
             if idx < 30:
                 return self._mk_result("pmc")
@@ -1144,9 +1163,10 @@ class TestAttachFulltextProgressLog:
                 return self._mk_result("europepmc")
             return self._mk_result(None)
 
-        monkeypatch.setattr(crawler_mod, "fetch_cascading", fake_fetch)
+        monkeypatch.setattr(crawler_mod, "fetch_chain", fake_fetch)
         monkeypatch.setattr(crawler_mod, "PMCClient", lambda **kw: object())
         monkeypatch.setattr(crawler_mod, "EuropePMCClient", lambda **kw: object())
+        monkeypatch.setattr(crawler_mod, "build_default_chain", lambda *a: [])
 
         metas = [self._mk_meta(str(i)) for i in range(60)]
         with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
