@@ -464,7 +464,10 @@ class TestLoadExistingDois:
         manifest = MagicMock()
         manifest.papers = {
             "10.1080/testA": MagicMock(fulltext_source="pmc", tried_sources=["pmc"]),
-            "10.1080/TESTB": MagicMock(fulltext_source=None, tried_sources=["pmc", "europepmc"]),
+            "10.1080/TESTB": MagicMock(
+                fulltext_source=None,
+                tried_sources=["pmc", "europepmc", "openalex_pdf", "openalex_html", "unpaywall"],
+            ),
         }
         with patch("mlops.scripts.ingest_curated_pmids._fetch_server_dois") as mock_srv:
             mock_srv.return_value = {"10.1080/TESTC", "10.1080/TESTD"}
@@ -476,13 +479,16 @@ class TestLoadExistingDois:
 
 
 class TestBuildPaperFulls:
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_chain")
     def test_builds_paperfull_with_fulltext(self, mock_fetch):
         from mlops.pipeline.models import PaperSection
         from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
 
         mock_fetch.return_value = MagicMock(
-            sections=[PaperSection(name="Methods", content="...")], fulltext_source="pmc"
+            sections=[PaperSection(name="Methods", content="...")],
+            fulltext_source="pmc",
+            tried=[("pmc", "success")],
+            had_transient_error=False,
         )
         papers = [
             {
@@ -512,11 +518,16 @@ class TestBuildPaperFulls:
         assert paperfull.meta.search_categories == ["hypertrophy"]
         assert papers[0]["fulltext_ok"] is True
 
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_chain")
     def test_marks_no_fulltext_when_fetch_returns_empty(self, mock_fetch):
         from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
 
-        mock_fetch.return_value = MagicMock(sections=[], fulltext_source=None)
+        mock_fetch.return_value = MagicMock(
+            sections=[],
+            fulltext_source=None,
+            tried=[("pmc", "not_available"), ("europepmc", "not_available")],
+            had_transient_error=False,
+        )
         papers = [
             {
                 "resolved_pmid": "12345",
@@ -561,8 +572,12 @@ class TestBuildPaperFulls:
         assert result == []
 
 
-class TestOAFallback:
-    """OpenAlex OA fallback 통합 테스트 (build_paperfulls_for_ingest 레벨)."""
+class TestChainIntegration:
+    """fetch_chain integration test (build_paperfulls_for_ingest 레벨).
+
+    OA source 단위 동작은 test_oa_fetcher.py에서 검증.
+    여기서는 chain → PaperFull 매핑만 검증.
+    """
 
     def _make_paper(self):
         return {
@@ -582,90 +597,35 @@ class TestOAFallback:
             "failure_reason": None,
         }
 
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
-    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
-    def test_oa_pdf_fallback_fills_sections(self, mock_cascade, mock_oa_url, mock_pdf):
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_chain")
+    def test_chain_success_writes_paperfull(self, mock_chain):
         from mlops.pipeline.models import PaperSection
         from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
 
-        # cascading returns empty
-        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
-        # OpenAlex returns OA with PDF URL
-        mock_oa_url.return_value = {
-            "is_oa": True,
-            "pdf_url": "https://example.com/paper.pdf",
-            "landing_page_url": "https://example.com/paper",
-        }
-        mock_pdf.return_value = [PaperSection(name="Full Text", content="paper body text")]
-
+        mock_chain.return_value = MagicMock(
+            sections=[PaperSection(name="Full", content="body")],
+            fulltext_source="openalex_pdf",
+            tried=[("pmc", "not_available"), ("europepmc", "not_available"), ("openalex_pdf", "success")],
+            had_transient_error=False,
+        )
         papers = [self._make_paper()]
         result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
 
         assert len(result) == 1
         assert result[0].meta.fulltext_source == "openalex_pdf"
-        assert result[0].sections[0].content == "paper body text"
+        assert result[0].sections[0].content == "body"
         assert papers[0]["fulltext_ok"] is True
-        assert papers[0].get("failure_reason") is None
-        mock_pdf.assert_called_once_with("https://example.com/paper.pdf")
 
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_html_sections")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
-    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
-    def test_oa_html_fallback_when_pdf_fails(self, mock_cascade, mock_oa_url, mock_pdf, mock_html):
-        from mlops.pipeline.models import PaperSection
+    @patch("mlops.scripts.ingest_curated_pmids.fetch_chain")
+    def test_chain_no_sections_marks_no_fulltext(self, mock_chain):
         from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
 
-        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
-        mock_oa_url.return_value = {
-            "is_oa": True,
-            "pdf_url": "https://example.com/paper.pdf",
-            "landing_page_url": "https://example.com/paper",
-        }
-        mock_pdf.return_value = []  # PDF fetch failed
-        mock_html.return_value = [PaperSection(name="Full Text", content="html body text")]
-
-        papers = [self._make_paper()]
-        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
-
-        assert len(result) == 1
-        assert result[0].meta.fulltext_source == "openalex_html"
-        assert result[0].sections[0].content == "html body text"
-        assert papers[0]["fulltext_ok"] is True
-        mock_html.assert_called_once_with("https://example.com/paper")
-
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_html_sections")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
-    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
-    def test_oa_html_only_no_pdf_url(self, mock_cascade, mock_oa_url, mock_pdf, mock_html):
-        from mlops.pipeline.models import PaperSection
-        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
-
-        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
-        mock_oa_url.return_value = {
-            "is_oa": True,
-            "pdf_url": None,
-            "landing_page_url": "https://example.com/paper",
-        }
-        mock_html.return_value = [PaperSection(name="Full Text", content="html only text")]
-
-        papers = [self._make_paper()]
-        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
-
-        assert len(result) == 1
-        assert result[0].meta.fulltext_source == "openalex_html"
-        mock_pdf.assert_not_called()
-
-    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
-    def test_no_fulltext_when_openalex_returns_none(self, mock_cascade, mock_oa_url):
-        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
-
-        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
-        mock_oa_url.return_value = None  # OpenAlex lookup failed
-
+        mock_chain.return_value = MagicMock(
+            sections=[],
+            fulltext_source=None,
+            tried=[("pmc", "not_available"), ("europepmc", "not_available")],
+            had_transient_error=False,
+        )
         papers = [self._make_paper()]
         result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
 
@@ -673,49 +633,6 @@ class TestOAFallback:
         assert papers[0]["fulltext_ok"] is False
         assert papers[0]["failure_reason"] == "no_fulltext"
         assert papers[0]["indexed"] is False
-
-    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
-    def test_no_fulltext_when_not_oa(self, mock_cascade, mock_oa_url):
-        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
-
-        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
-        mock_oa_url.return_value = {
-            "is_oa": False,
-            "pdf_url": None,
-            "landing_page_url": "https://example.com/paper",
-        }
-
-        papers = [self._make_paper()]
-        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
-
-        assert result == []
-        assert papers[0]["failure_reason"] == "no_fulltext"
-
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_pdf_sections")
-    @patch("mlops.scripts.ingest_curated_pmids.unpaywall_oa_locations")
-    @patch("mlops.scripts.ingest_curated_pmids.openalex_oa_url")
-    @patch("mlops.scripts.ingest_curated_pmids.fetch_cascading")
-    def test_unpaywall_fallback_when_openalex_fails(self, mock_cascade, mock_oa_url, mock_unp, mock_pdf):
-        from mlops.pipeline.models import PaperSection
-        from mlops.scripts.ingest_curated_pmids import build_paperfulls_for_ingest
-
-        # cascade + OpenAlex both fail
-        mock_cascade.return_value = MagicMock(sections=[], fulltext_source=None)
-        mock_oa_url.return_value = {"is_oa": False, "pdf_url": None, "landing_page_url": None}
-        # Unpaywall returns one mirror with a PDF URL
-        mock_unp.return_value = [{"pdf_url": "https://unpaywall.example.com/paper.pdf", "landing_url": None}]
-        mock_pdf.return_value = [PaperSection(name="Full Text", content="unpaywall full text content")]
-
-        papers = [self._make_paper()]
-        result = build_paperfulls_for_ingest(papers, _FAKE_PMC_CLIENT, _FAKE_EUROPEPMC_CLIENT)
-
-        assert len(result) == 1
-        assert result[0].meta.fulltext_source == "unpaywall_pdf"
-        assert result[0].sections[0].content == "unpaywall full text content"
-        assert papers[0]["fulltext_ok"] is True
-        assert papers[0].get("failure_reason") is None
-        mock_pdf.assert_called_once_with("https://unpaywall.example.com/paper.pdf")
 
 
 class TestMainFlow:
