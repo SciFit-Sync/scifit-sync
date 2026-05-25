@@ -12,20 +12,16 @@ from mlops.pipeline.models import PaperMeta
 logger = logging.getLogger(__name__)
 
 DEFAULT_PER_PAGE = 200
-# polite pool 상한은 10 req/s지만 mailto는 공유 IP 풀로 처리되어 다른 사용자 트래픽에
-# 같이 throttle 된다. 0.5s 간격 정도가 sustained 호출에서 429를 회피할 수 있는 보수선.
+# polite pool 공유 IP throttle 때문에 0.5s 간격이 429 회피 보수선.
 DEFAULT_RATE_LIMIT = 0.5
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 3
 
-# 429 전용 백오프 시퀀스(초). 일일 quota 차단 시 길게 기다려도 회복되지 않는 사례를
-# 관측 (Batch 5 → 9까지 동일 mailto/IP가 4시간 동안 0건 응답). circuit breaker가
-# 누적 실패를 잡아내므로 백오프 자체는 짧게 — 단발성 throttle 회복용으로만 충분.
+# 429 백오프(초). quota 차단은 CB가 잡으므로 짧게 — 단발성 throttle 회복용.
 _RATE_LIMIT_BACKOFF_SCHEDULE = (2.0, 5.0, 10.0)
 _MAX_RETRY_AFTER_SECONDS = 60.0  # 비정상적으로 큰 Retry-After 상한.
 
-# 모듈 레벨 circuit breaker 상태. 한 프로세스 안에서 OpenAlex가 N회 연속 실패하면
-# 이후 search() 호출은 즉시 빈 리스트 반환 (실패 시점부터 의미 없는 대기 시간 차단).
+# 모듈 레벨 CB: N회 연속 실패 시 이후 search()는 즉시 빈 리스트 반환.
 _circuit_breaker_consecutive_failures = 0
 _circuit_breaker_tripped = False
 
