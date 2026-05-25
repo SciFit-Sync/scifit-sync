@@ -53,7 +53,7 @@ EMBEDDING_MODELS: dict[str, EmbeddingModelSpec] = {
         dim=768,
         query_prefix="",
         default_batch_size=128,
-        revision="refs/pr/10",
+        revision="9504c2b4961c21fc92fcf3dbb800b8d7aaed4ceb",
     ),
 }
 

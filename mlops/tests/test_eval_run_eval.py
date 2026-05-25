@@ -389,6 +389,9 @@ class _StubST:
 @pytest.fixture
 def stub_sentence_transformers(monkeypatch):
     """sentence_transformers 모듈을 결정론적 stub로 교체."""
+    from mlops.pipeline import embedder
+
+    embedder._model_cache.clear()
     _StubST.last_encode_text = None
     _StubST.last_normalize = None
     fake_module = types.ModuleType("sentence_transformers")

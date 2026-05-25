@@ -256,6 +256,8 @@ def _load_embeddings_jsonl(path: Path, expected_dim: int) -> tuple["np.ndarray",
             row += 1
             if row % 100000 == 0:
                 logger.info("inmem 로드: %d/%d rows", row, n_lines)
+    if row != n_lines:
+        logger.warning("inmem 로드: pass-1/pass-2 라인 수 불일치 (expected=%d, actual=%d)", n_lines, row)
     return matrix[:row], metas
 
 
