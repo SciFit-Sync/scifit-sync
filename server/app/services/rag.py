@@ -1,14 +1,4 @@
-"""RAG 파이프라인 서비스.
-
-두 가지 기능:
-1. chat_rag()    — 챗봇: 질문 → 논문 검색 → LLM 답변 + 논문 출처 카드
-2. routine_rag() — 루틴 생성: 사용자 프로필 → 논문 검색 → LLM day별 JSON
-
-로컬 테스트 (scifit-sync/ 루트에서 실행):
-    python server/app/services/rag.py search          # ChromaDB 검색만 (LLM 불필요)
-    python server/app/services/rag.py chat             # 챗봇 RAG (LLM 필요)
-    python server/app/services/rag.py routine          # 루틴 생성 RAG (LLM 필요)
-"""
+"""RAG 파이프라인 서비스 — chat_rag_stream (챗봇) 및 routine_rag_stream (루틴 생성)."""
 
 import json
 import logging
@@ -49,12 +39,7 @@ from llm import generate_stream as llm_generate_stream  # noqa: E402, I001
 
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
-    """ChromaDB 데이터 경로를 결정한다.
-
-    컨테이너 환경(/chroma-data 마운트)과 로컬 개발 환경(WSL/macOS)을 자동 분기한다:
-    - 절대 경로: 쓰기 가능하면 그대로 사용, 권한 없으면 프로젝트 루트의 chroma-data로 fallback
-    - 상대 경로: 프로젝트 루트 기준으로 변환
-    """
+    """ChromaDB 데이터 경로 결정 (컨테이너 /chroma-data 마운트 vs 로컬 fallback)."""
     raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
     p = Path(raw)
     if p.is_absolute():
@@ -110,12 +95,7 @@ def _get_embed_model():
 
 
 def _sanitize_query(text: str) -> str:
-    """UTF-8로 인코딩 불가한 surrogate 문자(U+D800–U+DFFF)를 제거한다.
-
-    WSL/Windows 콘솔의 input()이 일부 한글을 lone surrogate로 반환하는 경우
-    sentence-transformers tokenizer가 TypeError("TextEncodeInput must be ...")를 던진다.
-    Gemini API도 surrogate 포함 문자열을 거부하므로 임베딩·번역 진입 전 일괄 정화한다.
-    """
+    """WSL/Gemini API에서 문제를 일으키는 lone surrogate(U+D800–U+DFFF)를 제거."""
     return text.encode("utf-8", errors="ignore").decode("utf-8").strip()
 
 
@@ -124,22 +104,7 @@ def _rank_by_evidence_weight(
     *,
     similarity_threshold: float = SIMILARITY_THRESHOLD,
 ) -> list[dict]:
-    """raw_results를 evidence_weight 가중 점수로 정렬한다 (Task 13).
-
-    Args:
-        raw_results: 각 항목은 ``{"distance": float, "metadata": dict, "document": str}``
-        similarity_threshold: raw similarity 컷오프 (가중 점수가 아닌 원본 유사도 기준).
-            약한 evidence_weight 청크라도 유사도가 충분히 높으면 통과시키기 위함.
-
-    Returns:
-        [{
-            "score": similarity × evidence_weight,
-            "similarity": float,
-            "weight": float,
-            "metadata": dict,
-            "document": str,
-        }] — score 내림차순.
-    """
+    """similarity × evidence_weight 가중 점수로 재정렬 후 threshold 미만 제거."""
     ranked: list[dict] = []
     for r in raw_results:
         similarity = 1.0 - float(r["distance"])
@@ -164,19 +129,7 @@ def _rank_by_evidence_weight(
 
 
 def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
-    """쿼리를 임베딩하여 ChromaDB에서 유사 청크를 검색한다.
-
-    Task 13: ``top_k × OVER_FETCH_MULTIPLIER`` 만큼 over-fetch 한 뒤
-    ``similarity × evidence_weight`` 가중 점수로 재정렬하고 상위 ``top_k`` 만 반환한다.
-    threshold 필터는 raw similarity 기준으로 유지.
-
-    Args:
-        query: 검색 쿼리 (영어 권장)
-        top_k: 최대 반환 수
-
-    Returns:
-        [{"content": str, "pmid": str, "title": str, "section": str, "score": float}]
-    """
+    """쿼리 임베딩 → ChromaDB over-fetch → evidence_weight 가중 재정렬 → 상위 top_k 반환."""
     query = _sanitize_query(query)
     if not query:
         return []
@@ -245,17 +198,7 @@ def translate_to_english(text: str) -> str:
 
 
 def chat_rag(question: str) -> dict:
-    """챗봇 RAG: 질문 → 논문 검색 → LLM 답변 + 논문 출처 카드.
-
-    Args:
-        question: 사용자 질문 (한국어 가능)
-
-    Returns:
-        {
-            "answer": str,
-            "sources": [{"pmid": str, "title": str, "section": str}]
-        }
-    """
+    """챗봇 RAG (비스트리밍): 질문 → ChromaDB 검색 → LLM 답변 + 논문 출처 카드 반환."""
     question = _sanitize_query(question)
     if not question:
         return {"answer": "질문을 인식할 수 없습니다. 다시 입력해 주세요.", "sources": []}
@@ -316,11 +259,7 @@ def chat_rag(question: str) -> dict:
 
 @dataclass
 class UserProfile:
-    """루틴 생성에 필요한 사용자 프로필.
-
-    `goals`는 복수 선택 (D-M6, CLAUDE.md §6). 첫 번째 목표가 검색 쿼리의 기준이 되고
-    나머지는 LLM 프롬프트에 함께 전달된다.
-    """
+    """루틴 생성용 사용자 프로필 (goals 첫 번째가 검색 기준, 나머지는 프롬프트 보조)."""
 
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
@@ -501,17 +440,7 @@ def chat_rag_stream(
 
 
 def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
-    """루틴 생성 RAG (스트리밍): 프로필 → 논문 검색 → LLM 토큰 스트림 → day별 JSON.
-
-    CLAUDE.md §11 RAG 파이프라인 6단계 + §7 SSE 포맷 (chunk/day_complete/done)을 따른다.
-
-    Yields:
-        {"type": "chunk", "content": str}              # LLM delta 토큰 (실시간)
-        {"type": "day_complete", "day": int, "focus": str, "exercises": [...]}
-        {"type": "papers", "sources": [{"pmid", "title", "section", "score"}]}
-        {"type": "done"}
-        {"type": "error", "message": str}
-    """
+    """루틴 생성 RAG (스트리밍): chunk / day_complete / papers / done / error 이벤트를 yield."""
     # 1. 목표별 검색 쿼리 (1차 목표 기준)
     primary = profile.primary_goal
     query = _GOAL_QUERIES.get(primary, primary)
@@ -585,10 +514,7 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
 
 
 def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
-    """루틴 생성 RAG (비스트리밍 호환): routine_rag_stream에서 chunk 이벤트만 제외.
-
-    기존 CLI 테스트 (`python rag.py routine`)와 하위 호환을 위해 유지한다.
-    """
+    """routine_rag_stream의 chunk 이벤트를 제외한 비스트리밍 호환 래퍼."""
     for event in routine_rag_stream(profile):
         if event.get("type") != "chunk":
             yield event

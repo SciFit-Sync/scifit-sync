@@ -1,11 +1,4 @@
-"""루틴 도메인 엔드포인트.
-
-CLAUDE.md / api-endpoints.md #21-28.
-
-POST /routines/generate, /routines/{id}/regenerate 는 services/rag.routine_rag_stream
-을 호출하여 LLM 토큰 → SSE chunk 이벤트로 전달하고, 파싱된 day별 결과를
-load_calc 기반 weight_kg 계산과 함께 DB에 저장한다 (CLAUDE.md §11 RAG 파이프라인).
-"""
+"""루틴 도메인 엔드포인트 — POST /routines/generate, /routines/{id}/regenerate SSE 스트리밍."""
 
 import asyncio
 import json
@@ -394,11 +387,7 @@ def _sse_done() -> str:
 
 
 async def _async_iter_sync_gen(make_gen):
-    """블로킹 sync generator를 백그라운드 스레드에서 돌리고 async iterator로 노출.
-
-    LLM 토큰 스트리밍(`generate_content_stream`)이 동기 함수이므로
-    이벤트 루프를 막지 않도록 별도 스레드로 격리한다.
-    """
+    """블로킹 sync generator를 별도 스레드로 격리해 async iterator로 노출."""
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
     sentinel = object()
@@ -456,7 +445,13 @@ async def _build_rag_profile(
     target_muscle_ids: list[uuid.UUID] = []
     target_muscle_names: list[str] = []
     if req and req.target_muscle_group_ids:
-        target_muscle_ids = [uuid.UUID(mid) for mid in req.target_muscle_group_ids if mid]
+        for mid in req.target_muscle_group_ids:
+            if not mid:
+                continue
+            try:
+                target_muscle_ids.append(uuid.UUID(mid))
+            except ValueError:
+                logger.warning("잘못된 muscle_group_id 무시: %s", mid)
     if target_muscle_ids:
         mg_rows = (
             await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
@@ -547,11 +542,7 @@ async def _persist_day(
     user_1rms: dict[uuid.UUID, float],
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
-    """LLM이 보낸 day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장.
-
-    Returns:
-        (day, [(exercise, paper_index), ...], dropped) — paper_index는 LLM이 지정한 1-5 논문 번호.
-    """
+    """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
     day_number = int(day_data.get("day") or 1)
     label = str(day_data.get("focus") or f"Day {day_number}")[:200]
 
@@ -611,14 +602,7 @@ async def _persist_papers(
     exercise_paper_pending: list[tuple[uuid.UUID, int | None, str | None]],
     db: AsyncSession,
 ) -> int:
-    """운동별 논문을 RoutinePaper에 저장한다.
-
-    exercise_paper_pending: [(routine_exercise_id, paper_index, notes_ko), ...]
-        paper_index: LLM이 지정한 1-based 논문 번호 (sources 리스트의 인덱스)
-        notes_ko: 한국어 근거 텍스트 → relevance_summary로 저장
-
-    paper_index가 None이거나 범위를 벗어나면 sources[0]으로 fallback.
-    """
+    """exercise_paper_pending의 각 운동을 sources와 매핑해 RoutinePaper에 저장. 삽입 건수 반환."""
     if not sources:
         return 0
 
