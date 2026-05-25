@@ -196,23 +196,22 @@ async def main() -> None:
     engine = create_async_engine(database_url, echo=False)
     factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    async with factory() as session:
-        async with session.begin():
-            # equipments 테이블에서 equipment_type별 id 목록 로드
-            result = await session.execute(
-                text("SELECT id, equipment_type FROM equipments WHERE equipment_type IS NOT NULL")
-            )
-            eq_by_type: dict[str, list] = {}
-            for row in result:
-                eq_by_type.setdefault(row.equipment_type, []).append(row.id)
-            logger.info("equipments 로드: %s", {k: len(v) for k, v in eq_by_type.items()})
+    async with factory() as session, session.begin():
+        # equipments 테이블에서 equipment_type별 id 목록 로드
+        result = await session.execute(
+            text("SELECT id, equipment_type FROM equipments WHERE equipment_type IS NOT NULL")
+        )
+        eq_by_type: dict[str, list] = {}
+        for row in result:
+            eq_by_type.setdefault(row.equipment_type, []).append(row.id)
+        logger.info("equipments 로드: %s", {k: len(v) for k, v in eq_by_type.items()})
 
-            ex_count = await upsert_exercises(session, exercises)
-            await session.flush()
-            logger.info("exercises upsert 완료: %d건", ex_count)
+        ex_count = await upsert_exercises(session, exercises)
+        await session.flush()
+        logger.info("exercises upsert 완료: %d건", ex_count)
 
-            map_count = await upsert_equipment_map(session, exercises, eq_by_type)
-            logger.info("exercise_equipment_map 생성 완료: %d건", map_count)
+        map_count = await upsert_equipment_map(session, exercises, eq_by_type)
+        logger.info("exercise_equipment_map 생성 완료: %d건", map_count)
 
     await engine.dispose()
     logger.info("완료. exercises %d건, exercise_equipment_map %d건", ex_count, map_count)
