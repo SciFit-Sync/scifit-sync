@@ -237,19 +237,24 @@ def chat_rag(question: str) -> dict:
     # 4. LLM 답변 생성
     answer = llm_generate(prompt)
 
-    # 5. 출처 카드 구성 (중복 제거)
+    # 5. 출처 카드 구성 (DOI 우선 dedup — DOI가 primary identifier, D-M11)
     seen: set[str] = set()
     sources = []
     for chunk in chunks[:5]:
-        if chunk["pmid"] not in seen:
-            seen.add(chunk["pmid"])
-            sources.append(
-                {
-                    "pmid": chunk["pmid"],
-                    "title": chunk["title"],
-                    "section": chunk["section"],
-                }
-            )
+        doi = chunk.get("doi") or ""
+        pmid = chunk.get("pmid") or ""
+        dedup_key = doi or pmid
+        if not dedup_key or dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        sources.append(
+            {
+                "doi": doi,
+                "pmid": pmid,
+                "title": chunk["title"],
+                "section": chunk["section"],
+            }
+        )
 
     return {
         "answer": answer,

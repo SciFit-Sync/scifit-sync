@@ -117,7 +117,7 @@ async def send_chat_message(
 
     async def stream():
         full_answer_parts: list[str] = []
-        source_pmids: list[str] = []
+        source_paper_ids: list[str] = []
         seq = 0
 
         yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'session', 'session_id': session_id_str}, ensure_ascii=False)}\n\n"
@@ -135,7 +135,7 @@ async def send_chat_message(
 
                 elif etype == "sources":
                     sources = ev.get("sources", [])
-                    source_pmids = [s.get("doi") or s.get("pmid") for s in sources if s.get("doi") or s.get("pmid")]
+                    source_paper_ids = [s.get("doi") or s.get("pmid") for s in sources if s.get("doi") or s.get("pmid")]
                     yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
 
                 elif etype == "error":
@@ -155,7 +155,7 @@ async def send_chat_message(
                     session_id=session.id,
                     role=ChatRole.ASSISTANT,
                     content=full_answer,
-                    paper_ids=source_pmids or None,
+                    paper_ids=source_paper_ids or None,
                 )
             )
             await db.commit()
