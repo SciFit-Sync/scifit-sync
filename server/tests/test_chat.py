@@ -145,6 +145,39 @@ class TestSendChatMessage:
         assert resp.status_code == 404
 
 
+# ── chat_rag_stream 단위 테스트 ───────────────────────────────────────────────
+
+
+class TestChatRagStreamUnit:
+    def test_history_included_in_prompt(self, monkeypatch):
+        """히스토리가 있을 때 'Previous conversation:' 섹션이 프롬프트에 포함된다."""
+        import app.services.rag as rag_mod
+
+        fake_chunks = [
+            {"content": "muscles adapt", "pmid": "123", "title": "Paper A", "section": "Results", "score": 0.9}
+        ]
+        captured: list[str] = []
+
+        monkeypatch.setattr(rag_mod, "translate_to_english", lambda text: text)
+        monkeypatch.setattr(rag_mod, "search_chunks", lambda q, top_k=10: fake_chunks)
+
+        def _fake_stream(prompt):
+            captured.append(prompt)
+            yield "response"
+
+        monkeypatch.setattr(rag_mod, "llm_generate_stream", _fake_stream)
+
+        history = [
+            {"role": "user", "content": "벤치프레스 세트 수 어떻게 해?"},
+            {"role": "assistant", "content": "3~4세트 권장합니다."},
+        ]
+        events = list(rag_mod.chat_rag_stream("그러면 휴식 시간은?", history=history))
+
+        assert any(e["type"] == "chunk" for e in events)
+        assert len(captured) == 1
+        assert "Previous conversation:" in captured[0]
+
+
 # ── GET /chat/messages ────────────────────────────────────────────────────────
 
 

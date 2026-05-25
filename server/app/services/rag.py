@@ -414,18 +414,7 @@ def chat_rag_stream(
     question: str,
     history: list[dict] | None = None,
 ) -> Generator[dict, None, None]:
-    """챗봇 RAG (스트리밍): 질문 → 논문 검색 → LLM 토큰 스트림 + 논문 출처 카드.
-
-    Args:
-        question: 현재 사용자 질문
-        history: 이전 대화 목록 (최근 순 정렬, 각 항목은 {"role": "user"|"assistant", "content": str})
-
-    Yields:
-        {"type": "chunk", "content": str}
-        {"type": "sources", "sources": [{"pmid": str, "title": str, "section": str}]}
-        {"type": "done"}
-        {"type": "error", "message": str}
-    """
+    """챗봇 RAG (스트리밍): 질문 + 대화 히스토리 → 논문 검색 → LLM 토큰 스트림 + 출처 카드."""
     question = _sanitize_query(question)
     if not question:
         yield {"type": "error", "message": "질문을 인식할 수 없습니다. 다시 입력해 주세요."}
@@ -453,7 +442,11 @@ def chat_rag_stream(
     if history:
         for msg in history[-10:]:  # 최근 5턴(10메시지)
             role_label = "User" if msg["role"] == "user" else "Assistant"
-            history_text += f"{role_label}: {msg['content'][:300]}\n"
+            content = msg["content"][:300].replace("</user_query>", "</ user_query>")
+            if msg["role"] == "user":
+                history_text += f"{role_label}: <user_query>{content}</user_query>\n"
+            else:
+                history_text += f"{role_label}: {content}\n"
 
     safe_question = question.replace("</user_query>", "</ user_query>")
     prompt = (
