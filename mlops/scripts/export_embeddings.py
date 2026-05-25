@@ -2,6 +2,7 @@
 
 import argparse
 import contextlib
+import gc
 import gzip
 import json
 import logging
@@ -245,7 +246,6 @@ def _embed_and_write_streaming(
     batch_size: int,
 ) -> int:
     """shard 단위 임베딩 → 즉시 디스크 기록 → OOM 방지."""
-    import gc
 
     path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
