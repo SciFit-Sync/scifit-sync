@@ -76,8 +76,13 @@ def _get_model_by_spec(spec: EmbeddingModelSpec) -> "SentenceTransformer":
                 "pip install torch --index-url https://download.pytorch.org/whl/cu121",
                 spec.key,
             )
-        logger.info("임베딩 모델 로딩: %s (key=%s, device=%s)", spec.hf_name, spec.key, device)
-        _model_cache[spec.hf_name] = SentenceTransformer(spec.hf_name, device=device)
+        logger.info(
+            "임베딩 모델 로딩: %s (key=%s, device=%s, revision=%s)", spec.hf_name, spec.key, device, spec.revision
+        )
+        kwargs = {"device": device}
+        if spec.revision:
+            kwargs["model_kwargs"] = {"revision": spec.revision}
+        _model_cache[spec.hf_name] = SentenceTransformer(spec.hf_name, **kwargs)
         logger.info("모델 로딩 완료 (key=%s, dim=%d, device=%s)", spec.key, spec.dim, device)
     return _model_cache[spec.hf_name]
 

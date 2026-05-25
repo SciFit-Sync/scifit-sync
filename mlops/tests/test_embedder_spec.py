@@ -22,7 +22,7 @@ class _FakeSentenceTransformer:
     instances_created: list[tuple[str, str]] = []  # (hf_name, device)
     encode_calls: list[dict] = []  # 각 호출의 인자 capture
 
-    def __init__(self, hf_name: str, device: str = "cpu"):
+    def __init__(self, hf_name: str, device: str = "cpu", **kwargs):
         self.hf_name = hf_name
         self.device = device
         self.__class__.instances_created.append((hf_name, device))

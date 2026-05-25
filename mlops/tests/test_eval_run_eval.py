@@ -358,7 +358,7 @@ class _StubST:
     last_encode_text: str | None = None
     last_normalize: bool | None = None
 
-    def __init__(self, hf_name: str, device: str = "cpu"):
+    def __init__(self, hf_name: str, device: str = "cpu", **kwargs):
         self.hf_name = hf_name
         self.device = device
         # dim은 hf_name으로 결정 (registry와 일치)
