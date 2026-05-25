@@ -1,13 +1,4 @@
-"""OpenAlex search 어댑터.
-
-OpenAlex API(https://api.openalex.org)로 카테고리별 논문을 검색하고
-PaperMeta 리스트로 정규화한다. mailto polite pool을 사용해 우선순위 큐로 처리됨.
-
-검색 전략:
-  - concept ID 필터 + keyword search 조합
-  - filter: type:article, open_access.is_oa:true, language:en
-  - per_page 최대 200, cursor pagination
-"""
+"""OpenAlex search 어댑터 — mailto polite pool + cursor pagination."""
 
 from __future__ import annotations
 
@@ -56,7 +47,9 @@ def _record_failure(threshold: int) -> None:
     if _circuit_breaker_consecutive_failures >= threshold and not _circuit_breaker_tripped:
         _circuit_breaker_tripped = True
         logger.warning(
-            "OpenAlex circuit breaker trip — %d회 연속 실패. 이후 이 프로세스의 OpenAlex 호출은 모두 skip.",
+            "OpenAlex circuit breaker trip — %d회 연속 실패. "
+            "이후 이 프로세스의 OpenAlex 호출은 모두 skip. "
+            "다음 run 시작 전 reset_circuit_breaker() 호출 필요.",
             _circuit_breaker_consecutive_failures,
         )
 
@@ -96,11 +89,7 @@ def _compute_backoff(
     rate_limit: float,
     retry_after: float | None,
 ) -> float:
-    """다음 시도 전 대기 시간을 산출.
-
-    - is_rate_limit=True (429): Retry-After > 스케줄.
-    - is_rate_limit=False (5xx/transient): 지수 백오프 (기존 동작 유지).
-    """
+    """다음 시도 전 대기 시간 산출 (429: 스케줄 백오프, 5xx: 지수 백오프)."""
     if is_rate_limit:
         if retry_after is not None:
             return retry_after
@@ -115,15 +104,7 @@ def _request_with_retries(
     rate_limit: float,
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> requests.Response:
-    """OpenAlex 요청을 transient 에러에 대해 재시도.
-
-    Retry 대상: ChunkedEncodingError, ConnectionError, Timeout, 429, 5xx.
-    Retry 비대상: 429/5xx 외 4xx (404 등 영구 에러).
-
-    백오프:
-      - 429: Retry-After 헤더 우선, 없으면 2/5/10s 스케줄.
-      - 5xx/transient: rate_limit × 2^attempt 지수 (상한 60s).
-    """
+    """OpenAlex 요청 재시도 (429/5xx 분리 백오프 + Retry-After 파싱)."""
     last_exc: Exception | None = None
     last_rate_limited = False
     last_retry_after: float | None = None
@@ -176,10 +157,7 @@ def _request_with_retries(
 
 
 def abstract_from_inverted_index(inverted: dict[str, list[int]]) -> str:
-    """OpenAlex abstract_inverted_index를 평문으로 재구성.
-
-    inverted = {"word": [pos1, pos2, ...]} → "word1 word2 ..."
-    """
+    """OpenAlex abstract_inverted_index를 평문으로 재구성."""
     if not inverted:
         return ""
 
@@ -192,10 +170,7 @@ def abstract_from_inverted_index(inverted: dict[str, list[int]]) -> str:
 
 
 def parse_work(work: dict) -> PaperMeta | None:
-    """OpenAlex work 객체를 PaperMeta로 정규화.
-
-    DOI가 없으면 None 반환 (폐기 신호) — DOI primary key 정책.
-    """
+    """OpenAlex work → PaperMeta 정규화. DOI 없으면 None."""
     raw_doi = work.get("doi")
     if not raw_doi:
         logger.debug("OpenAlex work에 DOI 없음, 폐기: %s", work.get("id"))
@@ -291,11 +266,7 @@ class OpenAlexClient:
         max_results: int,
         per_page: int = DEFAULT_PER_PAGE,
     ) -> list[PaperMeta]:
-        """주어진 keyword/concept 조합으로 검색, 최대 max_results까지 누적.
-
-        Circuit breaker가 trip된 상태면 즉시 빈 리스트 반환 (호출 자체 skip).
-        N회 연속 실패 시 trip되며 같은 프로세스에서는 더 이상 재시도 안 함.
-        """
+        """keyword/concept 검색, 최대 max_results까지 누적. CB trip 시 빈 리스트."""
         if _circuit_breaker_tripped:
             return []
 

@@ -56,9 +56,7 @@ MANIFEST_PATH = DATA_DIR / "manifest.json"
 OPENALEX_BASE_URL: str = os.getenv("OPENALEX_BASE_URL", "https://api.openalex.org")
 OPENALEX_MAILTO: str = os.getenv("OPENALEX_MAILTO", "")
 OPENALEX_MAX_PER_CATEGORY: int = int(os.getenv("OPENALEX_MAX_PER_CATEGORY", "500"))
-# polite pool은 10 req/s 상한이지만 mailto가 공유 IP 풀에 속해 sustained 호출에서 429가 빈번.
-# 0.5s 간격 + 3회 재시도 + 429 전용 짧은 백오프(2/5/10s)가 기본. Circuit breaker가 누적
-# 실패(3회 연속)를 잡아 일일 quota 차단 시 의미 없는 대기 시간 차단.
+# 429 빈번 → 0.5s 간격 + 3회 재시도 + circuit breaker(3연속 실패 시 trip).
 OPENALEX_RATE_LIMIT: float = float(os.getenv("OPENALEX_RATE_LIMIT", "0.5"))
 OPENALEX_MAX_RETRIES: int = int(os.getenv("OPENALEX_MAX_RETRIES", "3"))
 OPENALEX_CIRCUIT_BREAKER_THRESHOLD: int = int(os.getenv("OPENALEX_CIRCUIT_BREAKER_THRESHOLD", "3"))
