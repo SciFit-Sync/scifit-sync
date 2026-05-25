@@ -135,7 +135,7 @@ async def send_chat_message(
 
                 elif etype == "sources":
                     sources = ev.get("sources", [])
-                    source_pmids = [s["pmid"] for s in sources if s.get("pmid")]
+                    source_pmids = [s.get("doi") or s.get("pmid") for s in sources if s.get("doi") or s.get("pmid")]
                     yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
 
                 elif etype == "error":

@@ -425,14 +425,17 @@ def chat_rag_stream(
         yield {"type": "error", "message": "AI 응답 생성 중 오류가 발생했습니다."}
         return
 
-    # 5. 출처 카드 (중복 pmid 제거)
+    # 5. 출처 카드 (DOI 우선 dedup — DOI가 primary identifier, D-M11)
     seen: set[str] = set()
     sources: list[dict] = []
     for chunk in chunks[:5]:
+        doi = chunk.get("doi") or ""
         pmid = chunk.get("pmid") or ""
-        if pmid and pmid not in seen:
-            seen.add(pmid)
-            sources.append({"pmid": pmid, "title": chunk.get("title", ""), "section": chunk.get("section", "")})
+        dedup_key = doi or pmid
+        if not dedup_key or dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        sources.append({"doi": doi, "pmid": pmid, "title": chunk.get("title", ""), "section": chunk.get("section", "")})
     if sources:
         yield {"type": "sources", "sources": sources}
 
