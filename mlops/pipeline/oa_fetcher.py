@@ -1,10 +1,4 @@
-"""Unified OA fetcher chain.
-
-Chain-of-Resolvers 패턴으로 다양한 OA source를 순회한다.
-새 source 추가는 OASource Protocol 구현 + DEFAULT_CHAIN 등록 두 단계.
-
-Spec: docs/superpowers/specs/2026-05-24-oa-fetcher-chain-design.md
-"""
+"""Unified OA fetcher chain — Chain-of-Resolvers 패턴."""
 
 import logging
 from dataclasses import dataclass, field
@@ -82,11 +76,7 @@ class PMCSource:
 
 
 def _map_client_result(result) -> FulltextResult:
-    """europepmc.FulltextResult → oa_fetcher.FulltextResult 매핑.
-
-    PMC/EuropePMC client가 반환하는 FulltextResult(status=..., sections=..., error=...)를
-    chain용 FulltextResult로 변환.
-    """
+    """europepmc.FulltextResult → oa_fetcher.FulltextResult 매핑."""
     if result.status == ClientFulltextStatus.SUCCESS:
         return FulltextResult(status=FulltextStatus.SUCCESS, sections=result.sections)
     if result.status == ClientFulltextStatus.TRANSIENT_ERROR:
@@ -214,10 +204,7 @@ def build_default_chain(
     europepmc_client,
     unpaywall_email: str = "research@scifit-sync.org",
 ) -> list[OASource]:
-    """기본 OA chain: PMC → EuropePMC → OpenAlex PDF → OpenAlex HTML → Unpaywall.
-
-    새 source 추가는 본 함수 + default_source_names() 두 줄만 수정.
-    """
+    """기본 OA chain: PMC → EuropePMC → OpenAlex PDF → OpenAlex HTML → Unpaywall."""
     return [
         PMCSource(pmc_client),
         EuropePMCSource(europepmc_client),
@@ -228,8 +215,5 @@ def build_default_chain(
 
 
 def default_source_names() -> list[str]:
-    """DEFAULT_CHAIN에 등록된 source name 리스트.
-
-    manifest의 fully-tried 판정 (ACTIVE_SOURCES) 일원화에 사용.
-    """
+    """DEFAULT_CHAIN에 등록된 source name 리스트."""
     return ["pmc", "europepmc", "openalex_pdf", "openalex_html", "unpaywall"]

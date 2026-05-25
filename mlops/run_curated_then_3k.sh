@@ -9,11 +9,16 @@
 # 산출물 로그: mlops/data/combined_<TS>.log
 #   step별 rc를 같은 로그에 기록.
 
-set -uo pipefail
+set -euo pipefail
 
 # repo root로 이동
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 cd "$SCRIPT_DIR/.."
+
+LOCK="mlops/data/.ingest.lock"
+mkdir -p mlops/data
+exec 9>"$LOCK"
+flock -n 9 || { echo "!!! another ingest is running (lock: $LOCK) — aborting" >&2; exit 1; }
 
 VENV=".venv-gpu"
 if [ ! -f "$VENV/bin/activate" ]; then
@@ -22,8 +27,6 @@ if [ ! -f "$VENV/bin/activate" ]; then
 fi
 # shellcheck disable=SC1091
 source "$VENV/bin/activate" || { echo "!!! venv activate failed" >&2; exit 2; }
-
-mkdir -p mlops/data
 
 TS=$(date +%Y%m%d_%H%M%S)
 LOG="mlops/data/combined_${TS}.log"

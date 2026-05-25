@@ -266,9 +266,9 @@ def atomic_write_json(path: Path, data) -> None:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         os.replace(tmp, path)
-    finally:
-        with contextlib.suppress(Exception):
-            tmp.unlink(missing_ok=True)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 from mlops.pipeline.chunker import chunk_papers  # noqa: E402
@@ -320,12 +320,9 @@ def build_paperfulls_for_ingest(
     pmc_client: PMCClient,
     europepmc_client: EuropePMCClient,
 ) -> list[PaperFull]:
-    """resolved paper들에 대해 fulltext fetch + PaperFull 구성.
-
-    이미 적재됐거나(already_in_corpus=True) 실패한(failure_reason) paper는 스킵.
-    fulltext 실패 시 §7.1 invariant 적용 (failure_reason="no_fulltext", indexed=False).
-    """
+    """resolved paper들에 fulltext fetch + PaperFull 구성."""
     result: list[PaperFull] = []
+    chain = build_default_chain(pmc_client, europepmc_client)
     for paper in papers:
         if paper.get("failure_reason") or paper.get("already_in_corpus"):
             continue
@@ -340,7 +337,6 @@ def build_paperfulls_for_ingest(
             pmid=paper["resolved_pmid"],
             pmcid=pmcid,
         )
-        chain = build_default_chain(pmc_client, europepmc_client)
         chain_result = fetch_chain(ref, chain)
         sections = chain_result.sections
         fulltext_source = chain_result.fulltext_source

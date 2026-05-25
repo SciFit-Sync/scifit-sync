@@ -1,12 +1,4 @@
-"""Cascading fulltext orchestrator.
-
-각 paper에 대해 본문 확보 소스를 순서대로 시도하고 첫 SUCCESS에서 멈춘다.
-Phase 1: PMC → Europe PMC.
-Phase 2/3: bioRxiv, Unpaywall 추가 자리.
-
-결과의 fulltext_source가 None이고 had_transient_error=True면 호출자는
-manifest 기록을 건너뛰어 다음 실행에서 재시도하게 한다.
-"""
+"""DEPRECATED: use oa_fetcher.fetch_chain. 기존 호출자 호환 wrapper."""
 
 from __future__ import annotations
 
@@ -46,12 +38,7 @@ def fetch_cascading(
     pmc_client: PMCFetcher,
     europepmc_client: EuropePMCFetcher,
 ) -> CascadingFulltextResult:
-    """DEPRECATED: use mlops.pipeline.oa_fetcher.fetch_chain instead.
-
-    기존 호출자 호환을 위해 90일 유지. 내부적으로 fetch_chain 호출.
-    Backward compat: tried_sources는 pmcid 없으면 'pmc' 미포함,
-    had_transient_error는 '모든 시도가 transient'일 때만 True.
-    """
+    """DEPRECATED: use oa_fetcher.fetch_chain. 내부적으로 fetch_chain wrapper."""
     from mlops.pipeline.oa_fetcher import (  # noqa: PLC0415
         EuropePMCSource,
         PaperRef,

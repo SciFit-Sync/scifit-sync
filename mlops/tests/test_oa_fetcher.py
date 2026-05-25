@@ -111,7 +111,9 @@ class TestPMCSource:
         source = PMCSource(pmc_client=client)
         ref = PaperRef(doi="10.1/a", pmcid="PMC789")
 
-        source.try_fetch(ref)
+        result = source.try_fetch(ref)
+
+        assert result.status == FulltextStatus.NOT_AVAILABLE
 
 
 class TestEuropePMCSource:
