@@ -1,39 +1,4 @@
-"""크롤링 → 청킹 → 임베딩까지 실행 후 결과를 JSONL.gz 파일로 export.
-
-단일 진입점에서 **default 모드(단일 모델)** 와 **test 모드(멀티 모델 + auto eval)** 를
-모두 처리한다. 산출물 경로는 `--batch-tag` 기반으로 자동 결정된다.
-
-사용법:
-    # Default — 단일 모델 임베딩 (운영용)
-    python -m mlops.scripts.export_embeddings \
-        --model bge-large \
-        --batch-tag 2k_round1 \
-        --max-papers 2000 \
-        --update-manifest
-
-    # Test — 모델 3개 동시 + 자동 평가 (A/B 비교용)
-    python -m mlops.scripts.export_embeddings \
-        --test \
-        --batch-tag 2k_round1 \
-        --max-papers 2000 \
-        --goldset mlops/eval/gold_set.jsonl \
-        --reuse-chunks
-
-산출물 경로 (자동 결정):
-    mlops/data/chunks/<batch-tag>.jsonl.gz                    # 모델 간 공유 입력
-    mlops/data/chunks/<batch-tag>.jsonl.gz.meta.json          # 사이드카 (version, paper_count, updated_at)
-    mlops/data/emb_<model-key>/<batch-tag>.jsonl.gz           # Chunk 메타 + embedding
-    mlops/data/emb_<model-key>/<batch-tag>_timing.json        # 모델/시간/디바이스 사이드카
-    mlops/eval/reports/<batch-tag>_<model-key>.md             # test 모드 평가 리포트
-
-운영 노트 (incremental chunks cache):
-- 같은 --batch-tag로 동시에 두 번 띄우지 말 것. _save_chunks_atomic이 부분 쓰기는
-  방어하지만 lost update는 막지 못한다.
-- OpenAlex daily quota는 midnight UTC (한국 09:00)에 리셋되므로 부족분 fill을
-  새 quota로 돌리려면 그 시각 이후에 재실행.
-- `<batch-tag>.jsonl.gz.invalid.<timestamp>` 파일이 생겼다면 schema/version
-  mismatch fallback 흔적. 진단 후 삭제 가능.
-"""
+"""크롤링 → 청킹 → 임베딩 실행 후 JSONL.gz export."""
 
 import argparse
 import contextlib
@@ -56,6 +21,7 @@ from mlops.pipeline.crawler import crawl_papers
 from mlops.pipeline.embedder import (
     _resolve_device,
     embed_chunks_with_spec,
+    embed_texts_with_spec,
     log_device_status,
 )
 from mlops.pipeline.manifest import Manifest
@@ -85,14 +51,12 @@ CHUNKS_META_VERSION = 1
 
 
 def _meta_path(chunks_path: Path) -> Path:
-    """`<tag>.jsonl.gz` → `<tag>.jsonl.gz.meta.json`. Path.with_suffix는 마지막
-    suffix를 교체하므로 name에 직접 append한다."""
+    """`<tag>.jsonl.gz` → `<tag>.jsonl.gz.meta.json`."""
     return chunks_path.parent / (chunks_path.name + ".meta.json")
 
 
 def _count_unique_papers(chunks: list[Chunk]) -> int:
-    """chunks가 커버하는 고유 paper 수. paper_doi 우선, 없으면 paper_pmid 사용.
-    둘 다 빈 string이면 카운트에서 제외."""
+    """chunks가 커버하는 고유 paper 수."""
     keys: set[str] = set()
     for c in chunks:
         key = c.paper_doi or c.paper_pmid
@@ -102,16 +66,12 @@ def _count_unique_papers(chunks: list[Chunk]) -> int:
 
 
 def _chunks_doi_set(chunks: list[Chunk]) -> set[str]:
-    """캐시 chunks의 paper_doi 집합. 빈 string은 제외 — 빈 DOI를 existing_dois에
-    넣으면 crawler dedup 로직을 오염시킬 위험."""
+    """캐시 chunks의 paper_doi 집합 (빈 string 제외)."""
     return {c.paper_doi for c in chunks if c.paper_doi}
 
 
 def _merge_chunks(old: list[Chunk], new: list[Chunk]) -> list[Chunk]:
-    """기존 chunks + 신규 chunks를 paper 단위 dedup하여 합친다.
-
-    paper_doi 우선, 없으면 paper_pmid로 key 생성. 같은 paper의 chunk는 모두 보존
-    하지만 같은 paper의 신규 chunks는 통째로 폐기 (old 우선)."""
+    """기존 + 신규 chunks를 paper 단위 dedup (old 우선)."""
     old_keys: set[str] = set()
     for c in old:
         key = c.paper_doi or c.paper_pmid
@@ -128,11 +88,7 @@ def _merge_chunks(old: list[Chunk], new: list[Chunk]) -> list[Chunk]:
 
 
 def _save_chunks_atomic(path: Path, chunks: list[Chunk]) -> None:
-    """chunks를 gzip JSONL로 atomic 저장. 부분 쓰기 방어용 tmp + os.replace 패턴.
-
-    중간 실패 시 원본 path 파일은 그대로 보존된다 (.tmp는 cleanup 시도, 실패해도
-    무시 — 원본 무결성이 우선).
-    """
+    """chunks를 gzip JSONL로 atomic 저장 (tmp + os.replace)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
@@ -177,8 +133,7 @@ def _write_meta_sidecar(chunks_path: Path, chunks: list[Chunk]) -> None:
 
 
 def _invalidate_cache(chunks_path: Path, reason: str) -> None:
-    """schema mismatch/JSON 손상 시 chunks 파일과 사이드카에 .invalid.<ts> 접미사
-    부여. 원본을 즉시 삭제하지 않고 흔적을 남겨 운영자가 진단할 수 있게 한다."""
+    """schema mismatch/JSON 손상 시 .invalid.<ts> 접미사 부여."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = f".invalid.{ts}"
     for p in (chunks_path, _meta_path(chunks_path)):
@@ -289,13 +244,8 @@ def _embed_and_write_streaming(
     spec: "EmbeddingModelSpec",
     batch_size: int,
 ) -> int:
-    """shard 단위로 임베딩 → 즉시 디스크 기록 → 메모리 해제.
-
-    전체 벡터를 메모리에 누적하지 않으므로 대규모 청크셋에서 OOM을 방지한다.
-    """
+    """shard 단위 임베딩 → 즉시 디스크 기록 → OOM 방지."""
     import gc
-
-    from mlops.pipeline.embedder import embed_texts_with_spec
 
     path.parent.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -342,11 +292,7 @@ def _goldset_coverage(
     goldset_path: Path,
     chunks: list[Chunk],
 ) -> tuple[set[str], set[str]]:
-    """goldset의 expected_pmids ⊈ corpus pmids 여부 검사.
-
-    Returns:
-        (covered_pmids, missing_pmids).
-    """
+    """goldset expected_pmids의 corpus 커버리지 검사."""
     corpus_pmids = {c.paper_pmid for c in chunks if c.paper_pmid}
     expected_pmids: set[str] = set()
     with goldset_path.open("r", encoding="utf-8") as f:
@@ -367,11 +313,7 @@ def _goldset_coverage(
 
 
 def _fail_fast(args: argparse.Namespace, parser: argparse.ArgumentParser) -> list[EmbeddingModelSpec]:
-    """시작 전 사전 검증 (설계서 § 6). 실패 시 argparse.error/SystemExit.
-
-    Returns:
-        선택된 모델 spec 목록 (default: 단일, test: 복수). main이 직접 사용한다.
-    """
+    """시작 전 사전 검증. 선택된 모델 spec 목록 반환."""
     # 1. --batch-tag: argparse required=True가 처리
     # 2. default 모드 + --model 미지정
     if not args.test and not args.model:
@@ -515,13 +457,7 @@ def _print_summary(summary_rows: list[dict]) -> None:
 
 
 def _resolve_chunks(args: argparse.Namespace) -> tuple[list[Chunk], list]:
-    """Stage 1 — chunks를 결정하고 manifest 업데이트용 papers를 반환.
-
-    Returns:
-        (chunks, papers_for_manifest). papers_for_manifest는 default 모드에서만
-        의미가 있고 reuse 경로에서는 빈 리스트. chunks가 비어있으면 caller가
-        early return해야 한다 (신규 논문 없음 / 청크 없음).
-    """
+    """Stage 1 — chunks 결정 + manifest 업데이트용 papers 반환."""
     chunks_path = _chunks_path(args.batch_tag)
     if args.reuse_chunks and chunks_path.exists():
         invalid_reason: str | None = None
