@@ -1,17 +1,4 @@
-"""WorkoutX API → exercises 테이블 교체 스크립트.
-
-WorkoutX에서 전체 운동 목록을 받아:
-  1. exercises 테이블을 name_en 기준으로 upsert (gif_url 포함)
-  2. exercise_equipment_map을 WorkoutX equipment → equipments.equipment_type 매핑으로 자동 생성
-
-cardiovascular system target은 제외한다.
-
-사용법:
-    # server/.env의 DATABASE_URL과 WORKOUTX_API_KEY 필요
-    # 레포 루트에서 실행:
-    mlops\\.venv\\Scripts\\activate
-    python mlops/scripts/seed_exercises_workoutx.py
-"""
+"""WorkoutX API에서 운동 목록을 받아 exercises 테이블 upsert 및 exercise_equipment_map 자동 생성."""
 
 import asyncio
 import logging
@@ -158,6 +145,9 @@ async def upsert_equipment_map(
     """exercise_equipment_map을 equipment_type 기준으로 자동 생성. 생성 건수 반환."""
     from app.models.exercise import Exercise, ExerciseEquipmentMap  # noqa: E402
 
+    all_rows = (await session.execute(select(Exercise.id, Exercise.name_en))).all()
+    name_to_id = {name: eid for eid, name in all_rows}
+
     count = 0
     for ex in exercises:
         target = ex.get("target", "")
@@ -169,8 +159,7 @@ async def upsert_equipment_map(
         if not eq_type or not name_en:
             continue
 
-        result = await session.execute(select(Exercise.id).where(Exercise.name_en == name_en))
-        exercise_id = result.scalar_one_or_none()
+        exercise_id = name_to_id.get(name_en)
         if not exercise_id:
             continue
 
@@ -208,22 +197,22 @@ async def main() -> None:
     factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with factory() as session:
-        # equipments 테이블에서 equipment_type별 id 목록 로드
-        result = await session.execute(
-            text("SELECT id, equipment_type FROM equipments WHERE equipment_type IS NOT NULL")
-        )
-        eq_by_type: dict[str, list] = {}
-        for row in result:
-            eq_by_type.setdefault(row.equipment_type, []).append(row.id)
-        logger.info("equipments 로드: %s", {k: len(v) for k, v in eq_by_type.items()})
+        async with session.begin():
+            # equipments 테이블에서 equipment_type별 id 목록 로드
+            result = await session.execute(
+                text("SELECT id, equipment_type FROM equipments WHERE equipment_type IS NOT NULL")
+            )
+            eq_by_type: dict[str, list] = {}
+            for row in result:
+                eq_by_type.setdefault(row.equipment_type, []).append(row.id)
+            logger.info("equipments 로드: %s", {k: len(v) for k, v in eq_by_type.items()})
 
-        ex_count = await upsert_exercises(session, exercises)
-        await session.commit()
-        logger.info("exercises upsert 완료: %d건", ex_count)
+            ex_count = await upsert_exercises(session, exercises)
+            await session.flush()
+            logger.info("exercises upsert 완료: %d건", ex_count)
 
-        map_count = await upsert_equipment_map(session, exercises, eq_by_type)
-        await session.commit()
-        logger.info("exercise_equipment_map 생성 완료: %d건", map_count)
+            map_count = await upsert_equipment_map(session, exercises, eq_by_type)
+            logger.info("exercise_equipment_map 생성 완료: %d건", map_count)
 
     await engine.dispose()
     logger.info("완료. exercises %d건, exercise_equipment_map %d건", ex_count, map_count)
