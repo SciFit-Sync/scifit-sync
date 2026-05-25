@@ -367,8 +367,11 @@ def _strip_markdown_fence(raw: str) -> str:
     return raw
 
 
-def chat_rag_stream(question: str) -> Generator[dict, None, None]:
-    """챗봇 RAG (스트리밍): chunk / sources / done / error 이벤트를 yield."""
+def chat_rag_stream(
+    question: str,
+    history: list[dict] | None = None,
+) -> Generator[dict, None, None]:
+    """챗봇 RAG (스트리밍): 질문 + 대화 히스토리 → 논문 검색 → LLM 토큰 스트림 + 출처 카드."""
     question = _sanitize_query(question)
     if not question:
         yield {"type": "error", "message": "질문을 인식할 수 없습니다. 다시 입력해 주세요."}
@@ -387,10 +390,20 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다. 다른 방식으로 질문해 주세요."}
         return
 
-    # 3. 프롬프트 구성 (상위 5개 청크)
+    # 3. 프롬프트 구성 (상위 5개 청크 + 대화 히스토리)
     context = ""
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:400]}\n"
+
+    history_text = ""
+    if history:
+        for msg in history[-10:]:  # 최근 5턴(10메시지)
+            role_label = "User" if msg["role"] == "user" else "Assistant"
+            content = msg["content"][:300].replace("</user_query>", "</ user_query>")
+            if msg["role"] == "user":
+                history_text += f"{role_label}: <user_query>{content}</user_query>\n"
+            else:
+                history_text += f"{role_label}: {content}\n"
 
     safe_question = question.replace("</user_query>", "</ user_query>")
     prompt = (
@@ -398,9 +411,10 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         "Always cite which paper supports each claim.\n"
         "If the papers don't contain relevant information, say so clearly.\n\n"
         f"Research papers:\n{context}\n"
-        f"<user_query>{safe_question}</user_query>\n\n"
-        "Answer in Korean. Be specific and cite paper titles."
     )
+    if history_text:
+        prompt += f"\nPrevious conversation:\n{history_text}\n"
+    prompt += f"<user_query>{safe_question}</user_query>\n\nAnswer in Korean. Be specific and cite paper titles."
 
     # 4. LLM 토큰 스트리밍
     try:

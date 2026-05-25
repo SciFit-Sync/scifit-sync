@@ -89,6 +89,21 @@ async def send_chat_message(
         db.add(session)
         await db.flush()
 
+    # 현재 메시지 저장 전에 이전 대화 히스토리 로드 (최근 10개 메시지 = 5턴)
+    prev_msgs = (
+        (
+            await db.execute(
+                select(ChatMessage)
+                .where(ChatMessage.session_id == session.id)
+                .order_by(ChatMessage.created_at.desc())
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    history = [{"role": m.role.value, "content": m.content} for m in reversed(prev_msgs)]
+
     # 사용자 메시지 저장
     user_msg = ChatMessage(
         session_id=session.id,
@@ -109,7 +124,7 @@ async def send_chat_message(
         seq += 1
 
         try:
-            async for ev in _async_iter_sync_gen(lambda: chat_rag_stream(body.content)):
+            async for ev in _async_iter_sync_gen(lambda: chat_rag_stream(body.content, history)):
                 etype = ev.get("type")
                 seq += 1
 
