@@ -30,8 +30,11 @@ from mlops.pipeline.config import (
     NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
     OPENALEX_BASE_URL,
+    OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
     OPENALEX_MAILTO,
     OPENALEX_MAX_PER_CATEGORY,
+    OPENALEX_MAX_RETRIES,
+    OPENALEX_RATE_LIMIT,
     PMC_FULLTEXT_MAX_ATTEMPTS,
     PMC_FULLTEXT_RETRY_BACKOFF_BASE,
     PMC_FULLTEXT_RETRY_BACKOFF_MAX,
@@ -1131,7 +1134,13 @@ CATEGORY_OPENALEX_MAPPING: dict[str, dict] = {
 
 def _get_openalex_client() -> OpenAlexClient:
     """OpenAlexClient 인스턴스 생성. 테스트에서 monkeypatch 가능하도록 함수로 분리."""
-    return OpenAlexClient(base_url=OPENALEX_BASE_URL, mailto=OPENALEX_MAILTO)
+    return OpenAlexClient(
+        base_url=OPENALEX_BASE_URL,
+        mailto=OPENALEX_MAILTO,
+        rate_limit=OPENALEX_RATE_LIMIT,
+        max_retries=OPENALEX_MAX_RETRIES,
+        circuit_breaker_threshold=OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
+    )
 
 
 def search_openalex_by_category(category: str, max_results: int) -> list[PaperMeta]:
