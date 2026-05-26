@@ -126,7 +126,31 @@ python -m mlops.scripts.label_cli \
 1. **server `/admin/rag/pmids` 엔드포인트** — corpus PMID set 조회. 현재는 in-batch PMID dedup만 가능.
 2. **`efetch_pubmed_batch` 반환 schema contract test** — `ingest_curated_pmids`와 `ingest_local_pdfs`의 coupling 명시.
 
-## 4. GPU 서버 라벨링 산출물 확인 필요
+## 4. 프로덕션 upsert 완료 (2026-05-26)
+
+### local_pdf_ingest
+- **184개 논문** → **15,361 chunks** → bge-large 1024차원
+- manifest: `mlops/data/local_pdfs/manifest.json` (CrossRef DOI 검증 완료)
+- 임베딩: `mlops/data/emb_bge-large/local_pdf_ingest.jsonl.gz` (139MB)
+- 프로덕션 upsert: `load_embeddings.py --mode api` → 200 OK, 184 DOIs 확인
+- `load_embeddings.py` 버그 수정: `paper_doi` 등 5개 필드 누락 → `9f38bff`에서 수정
+
+### 미upsert 대상 (별도 진행 필요)
+| 파일 | chunks | DOIs | 비고 |
+|------|--------|------|------|
+| embeddings_3k_batch1-11 | 1,130,165 | 4,305 | 레거시 코퍼스 |
+| 3k_20260522_060614 | 476,547 | 1,812 | curated batch A |
+| 3k_20260522_152209 | 476,932 | 1,704 | curated batch B |
+| **합계** | **2,083,644** | **7,821** | 겹침 36 DOIs |
+
+upsert 명령:
+```bash
+cd /mnt/data/scifit-sync/scifit-sync
+.venv-gpu/bin/python3 -m mlops.scripts.load_embeddings \
+    --input <FILE> --mode api --batch-size 200 --skip-errors
+```
+
+## 5. GPU 서버 라벨링 산출물 확인 필요
 
 WSL에서 `ssh gpu`가 BatchMode에서 실패 (passphrase 또는 키 미등록). 다른 컴퓨터에서 GPU 서버 직접 접속해 라벨링 산출물 위치 확인 부탁:
 ```bash
