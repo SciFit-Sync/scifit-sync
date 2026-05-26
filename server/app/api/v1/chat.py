@@ -89,6 +89,21 @@ async def send_chat_message(
         db.add(session)
         await db.flush()
 
+    # 현재 메시지 저장 전에 이전 대화 히스토리 로드 (최근 10개 메시지 = 5턴)
+    prev_msgs = (
+        (
+            await db.execute(
+                select(ChatMessage)
+                .where(ChatMessage.session_id == session.id)
+                .order_by(ChatMessage.created_at.desc())
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    history = [{"role": m.role.value, "content": m.content} for m in reversed(prev_msgs)]
+
     # 사용자 메시지 저장
     user_msg = ChatMessage(
         session_id=session.id,
@@ -102,14 +117,14 @@ async def send_chat_message(
 
     async def stream():
         full_answer_parts: list[str] = []
-        source_pmids: list[str] = []
+        source_paper_ids: list[str] = []
         seq = 0
 
         yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'session', 'session_id': session_id_str}, ensure_ascii=False)}\n\n"
         seq += 1
 
         try:
-            async for ev in _async_iter_sync_gen(lambda: chat_rag_stream(body.content)):
+            async for ev in _async_iter_sync_gen(lambda: chat_rag_stream(body.content, history)):
                 etype = ev.get("type")
                 seq += 1
 
@@ -120,7 +135,7 @@ async def send_chat_message(
 
                 elif etype == "sources":
                     sources = ev.get("sources", [])
-                    source_pmids = [s["pmid"] for s in sources if s.get("pmid")]
+                    source_paper_ids = [s.get("doi") or s.get("pmid") for s in sources if s.get("doi") or s.get("pmid")]
                     yield f"id: evt_{seq:03d}\ndata: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
 
                 elif etype == "error":
@@ -140,7 +155,7 @@ async def send_chat_message(
                     session_id=session.id,
                     role=ChatRole.ASSISTANT,
                     content=full_answer,
-                    paper_ids=source_pmids or None,
+                    paper_ids=source_paper_ids or None,
                 )
             )
             await db.commit()
