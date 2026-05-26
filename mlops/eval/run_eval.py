@@ -41,6 +41,7 @@ class GoldSetItem:
     query: str
     category: str
     expected_pmids: tuple[str, ...]
+    expected_dois: tuple[str, ...] = ()
     notes: str = ""
 
     @classmethod
@@ -50,6 +51,7 @@ class GoldSetItem:
             query=str(raw["query"]),
             category=str(raw["category"]),
             expected_pmids=tuple(str(p) for p in raw.get("expected_pmids", [])),
+            expected_dois=tuple(str(d).lower() for d in raw.get("expected_dois", [])),
             notes=str(raw.get("notes", "")),
         )
 
@@ -86,12 +88,31 @@ def load_goldset(path: Path) -> list[GoldSetItem]:
 
 
 def recall_at_k(expected: Iterable[str], retrieved_pmids: list[str], k: int) -> float:
-    """Set-based recall@k — 정답 중 top-k에 포함된 비율."""
+    """Set-based recall@k — 정답 중 top-k에 포함된 비율. (PMID-only 레거시)"""
     expected_set = {p for p in expected if p}
     if not expected_set:
         return 0.0
     top_k = set(retrieved_pmids[:k])
     return len(expected_set & top_k) / len(expected_set)
+
+
+def _recall_at_k_union(expected_ids: set[str], retrieved_id_sets: list[set[str]], k: int) -> float:
+    """PMID∪DOI union recall@k — 정답 PMID 또는 DOI 중 하나라도 매칭이면 hit."""
+    if not expected_ids:
+        return 0.0
+    hits = 0
+    for id_set in retrieved_id_sets[:k]:
+        if expected_ids & id_set:
+            hits += 1
+    return min(hits, len(expected_ids)) / len(expected_ids)
+
+
+def _mrr_union(expected_ids: set[str], retrieved_id_sets: list[set[str]]) -> float:
+    """PMID∪DOI union MRR — 첫 hit의 역순위."""
+    for rank, id_set in enumerate(retrieved_id_sets, start=1):
+        if expected_ids & id_set:
+            return 1.0 / rank
+    return 0.0
 
 
 def reciprocal_rank(expected: Iterable[str], retrieved_pmids: list[str]) -> float:
@@ -121,16 +142,30 @@ def evaluate_query(
 
     seen: set[str] = set()
     retrieved_pmids: list[str] = []
+    retrieved_dois: list[str] = []
     for c in chunks:
-        pmid = c.get("pmid") or ""
-        if not pmid or pmid in seen:
+        pmid = c.get("pmid") or c.get("paper_pmid") or ""
+        doi = (c.get("doi") or c.get("paper_doi") or "").lower()
+        paper_key = doi or pmid
+        if not paper_key or paper_key in seen:
             continue
-        seen.add(pmid)
+        seen.add(paper_key)
+        if pmid:
+            seen.add(pmid)
+        if doi:
+            seen.add(doi)
         retrieved_pmids.append(pmid)
+        retrieved_dois.append(doi)
 
-    recalls = {k: recall_at_k(item.expected_pmids, retrieved_pmids, k) for k in top_k_values}
-    mrr = reciprocal_rank(item.expected_pmids, retrieved_pmids)
-    return QueryResult(item=item, retrieved_pmids=retrieved_pmids, recall=recalls, mrr=mrr)
+    expected_ids = {p for p in item.expected_pmids if p} | {d for d in item.expected_dois if d}
+    retrieved_ids = []
+    for pmid, doi in zip(retrieved_pmids, retrieved_dois, strict=True):
+        ids = {pmid, doi} - {""}
+        retrieved_ids.append(ids)
+
+    recalls = {k: _recall_at_k_union(expected_ids, retrieved_ids, k) for k in top_k_values}
+    mrr_val = _mrr_union(expected_ids, retrieved_ids)
+    return QueryResult(item=item, retrieved_pmids=retrieved_pmids, recall=recalls, mrr=mrr_val)
 
 
 def run_evaluation(
