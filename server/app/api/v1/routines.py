@@ -299,6 +299,19 @@ async def replace_routine_exercise(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
+    if all(
+        v is None
+        for v in [
+            body.new_exercise_id,
+            body.sets,
+            body.reps_min,
+            body.reps_max,
+            body.weight_kg,
+            body.rest_seconds,
+            body.note,
+        ]
+    ):
+        raise ValidationError(message="변경할 필드를 최소 하나 이상 입력해주세요.")
     routine = await _get_my_routine(routine_id, current_user, db)
     rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
     rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
