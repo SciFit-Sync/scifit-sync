@@ -1,9 +1,9 @@
 # 핸드오프: 로컬 PDF ingest + 골드셋 갭 보강
 
 > 작성일: 2026-05-26
-> 작업자: namgw (이어서 진행)
-> 브랜치: `feat/namgw/local-pdf-ingest`
-> 관련 PR: (TBD — 이 브랜치에서 develop으로)
+> 작업자: jingyu (이어서 진행)
+> 브랜치: `feat/jingyu/local-pdf-ingest`
+> 관련 PR: https://github.com/SciFit-Sync/scifit-sync/pull/149
 
 ## 1. 진행 상황 요약
 
