@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_required_profile
 from app.core.database import get_db
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
@@ -46,9 +46,6 @@ from app.schemas.routines import (
     GymSummary,
     PaperItem,
     RegenerateRoutineRequest,
-    ReplacedExerciseData,
-    ReplaceRoutineExerciseData,
-    ReplaceRoutineExerciseRequest,
     RoutineDayItem,
     RoutineDeleteData,
     RoutineDetail,
@@ -56,6 +53,7 @@ from app.schemas.routines import (
     RoutineExercisePapersData,
     RoutineListData,
     RoutineSummary,
+    UpdateRoutineExerciseRequest,
     UpdateRoutineNameRequest,
 )
 from app.services.rag import UserProfile as RagUserProfile
@@ -256,13 +254,13 @@ async def rename_routine(
 # ── PATCH /routines/{id}/exercises/{exId} ─────────────────────────────────────
 @router.patch(
     "/{routine_id}/exercises/{routine_exercise_id}",
-    response_model=SuccessResponse[ReplaceRoutineExerciseData],
-    summary="루틴 종목 교체",
+    response_model=SuccessResponse[RoutineExerciseItem],
+    summary="루틴 운동 부분 수정 (PATCH semantics — 보낸 필드만 업데이트)",
 )
-async def replace_routine_exercise(
+async def update_routine_exercise(
     routine_id: str,
     routine_exercise_id: str,
-    body: ReplaceRoutineExerciseRequest,
+    body: UpdateRoutineExerciseRequest,
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
@@ -272,46 +270,90 @@ async def replace_routine_exercise(
     if rex is None:
         raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
 
-    new_ex_id = _parse_uuid(body.new_exercise_id, "new_exercise_id")
-    new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
-    if new_ex is None:
-        raise NotFoundError(message="교체할 운동을 찾을 수 없습니다.")
+    # 종목 교체
+    if body.exercise_id is not None:
+        new_ex_id = _parse_uuid(body.exercise_id, "exercise_id")
+        new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
+        if new_ex is None:
+            raise NotFoundError(message="운동을 찾을 수 없습니다.")
+        # D-M9: 교체 운동의 기구가 루틴 헬스장 소속인지 검증
+        if routine.gym_id:
+            gym_eq_ids = {
+                row[0]
+                for row in (
+                    await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
+                ).all()
+            }
+            ex_eq_ids = {
+                row[0]
+                for row in (
+                    await db.execute(
+                        select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
+                    )
+                ).all()
+            }
+            if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
+                raise ConflictError(message="선택한 기구가 헬스장에 등록되어 있지 않습니다.")
+        rex.exercise_id = new_ex_id
+        rex.equipment_id = None  # 종목 바뀌면 기구 초기화
 
-    # D-M9: 루틴에 gym_id가 있으면, 교체 운동과 연결된 equipment가 해당 gym 소속인지 검증
-    if routine.gym_id:
-        gym_eq_ids = {
-            row[0]
-            for row in (
-                await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
-            ).all()
-        }
-        ex_eq_ids = {
-            row[0]
-            for row in (
-                await db.execute(
-                    select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
-                )
-            ).all()
-        }
-        if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
-            raise ValidationError(message="교체할 운동의 기구가 해당 루틴의 헬스장에 없습니다.")
+    # 기구 변경
+    if body.equipment_id is not None:
+        eq_id = _parse_uuid(body.equipment_id, "equipment_id")
+        if routine.gym_id:
+            gym_eq_ids = {
+                row[0]
+                for row in (
+                    await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
+                ).all()
+            }
+            if eq_id not in gym_eq_ids:
+                raise ConflictError(message="선택한 기구가 헬스장에 등록되어 있지 않습니다.")
+        rex.equipment_id = eq_id
 
-    rex.exercise_id = new_ex_id
-    rex.equipment_id = None
+    # reps_min ≤ reps_max 검증 (기존값과 혼합 고려)
+    effective_min = body.reps_min if body.reps_min is not None else rex.reps_min
+    effective_max = body.reps_max if body.reps_max is not None else rex.reps_max
+    if effective_min is not None and effective_max is not None and effective_min > effective_max:
+        raise ValidationError(message="reps_min은 reps_max보다 작거나 같아야 합니다.")
+
+    if body.sets is not None:
+        rex.sets = body.sets
+    if body.reps_min is not None:
+        rex.reps_min = body.reps_min
+    if body.reps_max is not None:
+        rex.reps_max = body.reps_max
+    if body.weight_kg is not None:
+        rex.weight_kg = body.weight_kg
+    if body.rest_seconds is not None:
+        rex.rest_seconds = body.rest_seconds
+    if body.note is not None:
+        rex.note = body.note
+
     await db.commit()
     await db.refresh(rex)
+
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
+    equipment: Equipment | None = None
+    if rex.equipment_id:
+        equipment = (
+            await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))
+        ).scalar_one_or_none()
+
     return SuccessResponse(
-        data=ReplaceRoutineExerciseData(
-            message="종목이 교체되었습니다.",
-            new_exercise=ReplacedExerciseData(
-                exercise_id=str(new_ex.id),
-                name=new_ex.name,
-                equipment=None,
-                brand=None,
-                sets=rex.sets,
-                reps_min=rex.reps_min,
-                reps_max=rex.reps_max,
-            ),
+        data=RoutineExerciseItem(
+            routine_exercise_id=str(rex.id),
+            exercise_id=str(rex.exercise_id),
+            exercise_name=exercise.name,
+            equipment_id=str(rex.equipment_id) if rex.equipment_id else None,
+            equipment_name=equipment.name if equipment else None,
+            order_index=rex.order_index,
+            sets=rex.sets,
+            reps_min=rex.reps_min,
+            reps_max=rex.reps_max,
+            weight_kg=rex.weight_kg,
+            rest_seconds=rex.rest_seconds,
+            note=rex.note,
         )
     )
 
@@ -733,9 +775,15 @@ async def _run_rag_to_sse(
                 yield _sse(
                     seq,
                     {
-                        "type": "papers",
-                        "count": inserted,
-                        "sources": sources,
+                        "type": "paper_found",
+                        "papers": [
+                            {
+                                "pmid": s.get("pmid"),
+                                "title": s.get("title"),
+                                "similarity": s.get("score"),
+                            }
+                            for s in sources
+                        ],
                     },
                 )
 

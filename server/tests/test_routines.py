@@ -316,30 +316,30 @@ class TestRenameRoutine:
 class TestUpdateRoutineExercise:
     @pytest.mark.asyncio
     async def test_success(self, client):
+        """sets/reps 부분 업데이트 — exercise_id 없이도 성공."""
         r = _routine()
         rex = _routine_exercise()
-        new_ex = MagicMock()
-        new_ex.id = _EXERCISE_ID
-        new_ex.name = "스쿼트"
+        exercise_mock = MagicMock()
+        exercise_mock.id = _EXERCISE_ID
+        exercise_mock.name = "벤치프레스"
 
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
-            _exec_scalar(new_ex),  # 교체할 Exercise 조회
+            _exec_scalar(exercise_mock),  # 응답용 Exercise 조회
         )
         db.refresh = AsyncMock(side_effect=lambda obj: None)
         app.dependency_overrides[get_db] = _db_override(db)
 
-        new_exercise_id = str(uuid.uuid4())
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": new_exercise_id},
+            json={"sets": 4, "reps_min": 8, "reps_max": 12, "rest_seconds": 90},
         )
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        assert data["message"] == "종목이 교체되었습니다."
-        assert data["new_exercise"]["name"] == "스쿼트"
+        assert data["exercise_name"] == "벤치프레스"
+        assert "routine_exercise_id" in data
         db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -349,13 +349,14 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": str(uuid.uuid4())},
+            json={"sets": 3},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
     async def test_exercise_not_found(self, client):
+        """루틴 내 운동(RoutineExercise)이 없을 때 404."""
         r = _routine()
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
@@ -365,19 +366,25 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": str(uuid.uuid4())},
+            json={"sets": 3},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_missing_new_exercise_id_returns_400(self, client):
-        db = _make_db()
+    async def test_invalid_reps_returns_400(self, client):
+        """reps_min > reps_max 이면 400."""
+        r = _routine()
+        rex = _routine_exercise()
+        db = _make_db(
+            _exec_scalar(r),
+            _exec_scalar(rex),
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={},
+            json={"reps_min": 15, "reps_max": 8},
         )
 
         assert resp.status_code == 400
