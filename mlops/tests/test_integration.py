@@ -5,12 +5,12 @@ from unittest.mock import MagicMock
 
 import pytest
 from mlops.pipeline.crawler import _attach_fulltext
-from mlops.pipeline.fulltext import CascadingFulltextResult
 from mlops.pipeline.manifest import Manifest
 from mlops.pipeline.models import (
     PaperMeta,
     PaperSection,
 )
+from mlops.pipeline.oa_fetcher import ChainResult, FulltextStatus
 
 
 def _meta(doi: str, pmid: str = "1", pmcid: str | None = None) -> PaperMeta:
@@ -41,15 +41,16 @@ class TestCascadingScenarios:
     def test_pmc_success(self, monkeypatch, mock_clients):
         """PMC 본문 확보 성공 → fulltext_source='pmc'."""
 
-        def fake_cascading(**_):
-            return CascadingFulltextResult(
+        def fake_chain(ref, sources):
+            return ChainResult(
                 fulltext_source="pmc",
-                tried_sources=["pmc"],
+                tried=[("pmc", FulltextStatus.SUCCESS)],
                 sections=[PaperSection(name="Intro", content="content")],
                 had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", lambda *a, **kw: [])
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_chain)
 
         papers = _attach_fulltext([_meta("10.1/a", pmcid="PMC1")])
         assert papers[0].meta.fulltext_source == "pmc"
@@ -58,31 +59,39 @@ class TestCascadingScenarios:
     def test_europepmc_fallback(self, monkeypatch, mock_clients):
         """PMC 실패 → EuropePMC 성공 → fulltext_source='europepmc'."""
 
-        def fake_cascading(**_):
-            return CascadingFulltextResult(
+        def fake_chain(ref, sources):
+            return ChainResult(
                 fulltext_source="europepmc",
-                tried_sources=["pmc", "europepmc"],
+                tried=[
+                    ("pmc", FulltextStatus.NOT_AVAILABLE),
+                    ("europepmc", FulltextStatus.SUCCESS),
+                ],
                 sections=[PaperSection(name="Intro", content="content")],
                 had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", lambda *a, **kw: [])
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_chain)
 
         papers = _attach_fulltext([_meta("10.1/b", pmcid="PMC2")])
         assert papers[0].meta.fulltext_source == "europepmc"
 
     def test_all_sources_fail(self, monkeypatch, mock_clients):
-        """PMC + EuropePMC 모두 not_available → paper 폐기 (sections=[])."""
+        """모든 source not_available → paper 폐기 (sections=[])."""
 
-        def fake_cascading(**_):
-            return CascadingFulltextResult(
+        def fake_chain(ref, sources):
+            return ChainResult(
                 fulltext_source=None,
-                tried_sources=["pmc", "europepmc"],
+                tried=[
+                    ("pmc", FulltextStatus.NOT_AVAILABLE),
+                    ("europepmc", FulltextStatus.NOT_AVAILABLE),
+                ],
                 sections=[],
                 had_transient_error=False,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", lambda *a, **kw: [])
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_chain)
 
         papers = _attach_fulltext([_meta("10.1/c", pmcid="PMC3")])
         assert papers[0].meta.fulltext_source is None
@@ -91,19 +100,21 @@ class TestCascadingScenarios:
     def test_all_transient_keeps_open(self, monkeypatch, mock_clients):
         """모든 소스 transient → fulltext_source=None, had_transient_error=True 시그널."""
 
-        def fake_cascading(**_):
-            return CascadingFulltextResult(
+        def fake_chain(ref, sources):
+            return ChainResult(
                 fulltext_source=None,
-                tried_sources=["pmc", "europepmc"],
+                tried=[
+                    ("pmc", FulltextStatus.TRANSIENT_ERROR),
+                    ("europepmc", FulltextStatus.TRANSIENT_ERROR),
+                ],
                 sections=[],
                 had_transient_error=True,
             )
 
-        monkeypatch.setattr("mlops.pipeline.crawler.fetch_cascading", fake_cascading)
+        monkeypatch.setattr("mlops.pipeline.crawler.build_default_chain", lambda *a, **kw: [])
+        monkeypatch.setattr("mlops.pipeline.crawler.fetch_chain", fake_chain)
 
         papers = _attach_fulltext([_meta("10.1/d", pmcid="PMC4")])
-        # _attach_fulltext 자체는 transient 신호를 propagate하지 않음 — manifest 호출 흐름에서 사용.
-        # 본 테스트는 paper structure가 cascading 결과를 충실히 반영하는지만 검증.
         assert papers[0].meta.fulltext_source is None
 
 

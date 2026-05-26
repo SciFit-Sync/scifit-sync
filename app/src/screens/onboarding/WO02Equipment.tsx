@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 24,
     paddingBottom: 24,
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
@@ -296,14 +296,14 @@ const styles = StyleSheet.create({
   equipment_info: { gap: 8 },
   equipment_name: {
     fontFamily: "regular",
-    fontSize: 16,
+    fontSize: 14,
     color: colors.primary,
   },
   equipment_name_active: { color: colors.white },
   equipment_spec: {
     fontFamily: "regular",
-    fontSize: 14,
-    color: "#C8D5FF",
+    fontSize: 12,
+    color: colors.bluegray,
   },
   add_button: {
     backgroundColor: colors.select,

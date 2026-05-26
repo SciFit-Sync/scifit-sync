@@ -14,7 +14,7 @@ interface AuthState {
   isNewUser: boolean;
   isLoading: boolean;
   init: () => Promise<void>;
-  setAuth: (params: { accessToken: string; refreshToken: string; isNewUser: boolean }) => Promise<void>;
+  setAuth: (params: { access_token: string; refresh_token: string; is_new_user: boolean }) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   clearAuth: () => Promise<void>;
 }
@@ -45,13 +45,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  setAuth: async ({ accessToken, refreshToken, isNewUser }) => {
+  setAuth: async ({ access_token, refresh_token, is_new_user }) => {
     await Promise.all([
-      SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, accessToken),
-      SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refreshToken),
-      SecureStore.setItemAsync(KEYS.ONBOARDING_COMPLETE, isNewUser ? 'false' : 'true'),
+      SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, access_token),
+      SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refresh_token),
+      SecureStore.setItemAsync(KEYS.ONBOARDING_COMPLETE, is_new_user ? 'false' : 'true'),
     ]);
-    set({ accessToken, refreshToken, isLoggedIn: true, isNewUser });
+    set({ accessToken: access_token, refreshToken: refresh_token, isLoggedIn: true, isNewUser: is_new_user });
   },
 
   completeOnboarding: async () => {
