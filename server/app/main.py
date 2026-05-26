@@ -28,6 +28,7 @@ settings = get_settings()
 logging.basicConfig(
     level=logging.WARNING if settings.ENV == "production" else logging.INFO,
     format="%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s",
+    force=True,
 )
 
 
