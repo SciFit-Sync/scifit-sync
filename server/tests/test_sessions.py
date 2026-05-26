@@ -210,10 +210,10 @@ class TestFinishSession:
     async def test_success(self, client):
         session = _mock_session()
         db = _make_db(
-            _exec_scalar(session),       # _get_my_session
-            _exec_scalars_all([]),       # ex_rows in _create_po_notifications (routine_day_id=None이므로 루틴 조회 없음)
-            _exec_scalar_one(0),         # total_sets
-            _exec_scalar_one(0),         # completed_exercises
+            _exec_scalar(session),  # _get_my_session
+            _exec_scalars_all([]),  # ex_rows in _create_po_notifications (routine_day_id=None이므로 루틴 조회 없음)
+            _exec_scalar_one(0),  # total_sets
+            _exec_scalar_one(0),  # completed_exercises
         )
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)

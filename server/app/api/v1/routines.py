@@ -308,7 +308,15 @@ async def replace_routine_exercise(
 ):
     if all(
         v is None
-        for v in [body.new_exercise_id, body.sets, body.reps_min, body.reps_max, body.weight_kg, body.rest_seconds, body.note]
+        for v in [
+            body.new_exercise_id,
+            body.sets,
+            body.reps_min,
+            body.reps_max,
+            body.weight_kg,
+            body.rest_seconds,
+            body.note,
+        ]
     ):
         raise ValidationError(message="변경할 필드를 최소 하나 이상 입력해주세요.")
     routine = await _get_my_routine(routine_id, current_user, db)
