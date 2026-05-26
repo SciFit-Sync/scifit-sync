@@ -124,6 +124,7 @@ def load_api(input_path: Path, batch_size: int, skip_errors: bool = False) -> in
         payload = {
             "chunks": [
                 {
+                    "paper_doi": chunk.paper_doi,
                     "paper_pmid": chunk.paper_pmid,
                     "paper_title": chunk.paper_title,
                     "section_name": chunk.section_name,
@@ -132,6 +133,10 @@ def load_api(input_path: Path, batch_size: int, skip_errors: bool = False) -> in
                     "token_count": chunk.token_count,
                     "embedding": vec,
                     "search_categories": chunk.search_categories,
+                    "publication_types": chunk.publication_types,
+                    "evidence_weight": chunk.evidence_weight,
+                    "fulltext_source": chunk.fulltext_source or "",
+                    "published_year": chunk.published_year or 0,
                 }
                 for chunk, vec in batch
             ]
