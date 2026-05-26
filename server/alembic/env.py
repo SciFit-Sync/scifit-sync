@@ -1,5 +1,6 @@
 import asyncio
 import os
+import ssl
 from logging.config import fileConfig
 
 from alembic import context
@@ -21,6 +22,28 @@ config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", "").replace("
 from app.models import Base  # noqa: E402
 
 target_metadata = Base.metadata
+
+
+def _build_connect_args() -> dict:
+    """URL에 ssl=disable 이 없는 경우 Windows 한글 경로 SSL 버그를 우회하는 SSLContext를 주입한다."""
+    url = os.getenv("DATABASE_URL", "")
+    args: dict = {"statement_cache_size": 0}
+    if "ssl=disable" not in url and "sslmode=disable" not in url:
+        args["ssl"] = _make_ssl_ctx()
+    return args
+
+
+def _make_ssl_ctx() -> ssl.SSLContext:
+    """파일시스템 탐색 없이 SSL 암호화만 활성화하는 SSLContext.
+
+    asyncpg 기본 동작은 ~/.postgresql/root.crt 등 시스템 cert를 로드하는데,
+    경로에 한글이 포함된 Windows 환경에서 OSError(Errno 42)가 발생한다.
+    직접 SSLContext를 생성하면 파일 탐색을 건너뛴다.
+    """
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 
 def run_migrations_offline() -> None:
@@ -50,7 +73,7 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args={"statement_cache_size": 0},
+        connect_args=_build_connect_args(),
     )
 
     async with connectable.connect() as connection:
