@@ -1,11 +1,4 @@
-"""루틴 도메인 엔드포인트.
-
-CLAUDE.md / api-endpoints.md #21-28.
-
-POST /routines/generate, /routines/{id}/regenerate 는 services/rag.routine_rag_stream
-을 호출하여 LLM 토큰 → SSE chunk 이벤트로 전달하고, 파싱된 day별 결과를
-load_calc 기반 weight_kg 계산과 함께 DB에 저장한다 (CLAUDE.md §11 RAG 파이프라인).
-"""
+"""루틴 도메인 엔드포인트 — POST /routines/generate, /routines/{id}/regenerate SSE 스트리밍."""
 
 import asyncio
 import json
@@ -448,13 +441,6 @@ async def get_routine_exercise_papers(
 
 # ── RAG/SSE 공통 헬퍼 ─────────────────────────────────────────────────────────
 
-_SPLIT_TO_DAYS: dict[SplitType, int] = {
-    SplitType.TWO: 2,
-    SplitType.THREE: 3,
-    SplitType.FOUR: 4,
-    SplitType.FIVE: 5,
-}
-
 
 def _sse(seq: int, payload: dict) -> str:
     """SSE 한 이벤트 직렬화. 한국어가 그대로 흘러갈 수 있도록 ensure_ascii=False."""
@@ -467,11 +453,7 @@ def _sse_done() -> str:
 
 
 async def _async_iter_sync_gen(make_gen):
-    """블로킹 sync generator를 백그라운드 스레드에서 돌리고 async iterator로 노출.
-
-    LLM 토큰 스트리밍(`generate_content_stream`)이 동기 함수이므로
-    이벤트 루프를 막지 않도록 별도 스레드로 격리한다.
-    """
+    """블로킹 sync generator를 별도 스레드로 격리해 async iterator로 노출."""
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
     sentinel = object()
@@ -523,30 +505,49 @@ async def _build_rag_profile(
     ).scalar_one_or_none()
     body_weight = float(body_row.weight_kg) if body_row else 70.0  # fallback (성인 평균)
 
-    # 3. days_per_week ← split_type
     req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
-    days_per_week = 3
-    if req and req.split_type:
-        try:
-            days_per_week = _SPLIT_TO_DAYS.get(SplitType(req.split_type), 3)
-        except ValueError:
-            days_per_week = 3
 
-    # 4. gym_equipments → equipment_type 리스트
-    available_equipment: list[str] = []
+    # 3. target_muscle_group_ids(UUID) → 영어 근육 이름으로 해석
+    target_muscle_ids: list[uuid.UUID] = []
+    target_muscle_names: list[str] = []
+    if req and req.target_muscle_group_ids:
+        for mid in req.target_muscle_group_ids:
+            if not mid:
+                continue
+            try:
+                target_muscle_ids.append(uuid.UUID(mid))
+            except ValueError:
+                logger.warning("잘못된 muscle_group_id 무시: %s", mid)
+    if target_muscle_ids:
+        mg_rows = (
+            await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
+        ).all()
+        target_muscle_names = [name for _, name in mg_rows]
+
+    # 5. gym 기구 × 선택 근육 필터링 → LLM에게 전달할 운동 목록
+    #    target_muscles 선택 시: 해당 근육을 주동근(PRIMARY)으로 쓰는 운동만
+    #    선택 없으면(전신 루틴): gym 기구로 할 수 있는 모든 운동
+    available_exercises: list[str] = []
     gym_id_str = req.gym_id if req else None
     if gym_id_str:
         try:
             gid = uuid.UUID(gym_id_str)
-            rows = (
-                await db.execute(
-                    select(Equipment.equipment_type)
-                    .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
-                    .where(GymEquipment.gym_id == gid)
-                    .distinct()
+            stmt = (
+                select(Exercise.name_en)
+                .join(ExerciseEquipmentMap, ExerciseEquipmentMap.exercise_id == Exercise.id)
+                .join(GymEquipment, GymEquipment.equipment_id == ExerciseEquipmentMap.equipment_id)
+                .where(GymEquipment.gym_id == gid)
+                .distinct()
+                .order_by(Exercise.name_en)
+            )
+            if target_muscle_ids:
+                # 선택된 근육을 주동근으로 쓰는 운동만 포함
+                stmt = stmt.join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id).where(
+                    ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
+                    ExerciseMuscle.involvement == "primary",
                 )
-            ).all()
-            available_equipment = sorted({et.value if hasattr(et, "value") else str(et) for (et,) in rows})
+            rows = (await db.execute(stmt)).all()
+            available_exercises = [row[0] for row in rows]
         except ValueError:
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
@@ -554,9 +555,8 @@ async def _build_rag_profile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
         fitness_career=profile.career_level.value,
-        days_per_week=days_per_week,
-        available_equipment=available_equipment,
-        target_muscles=(req.target_muscle_group_ids if req else []) or [],
+        available_exercises=available_exercises,
+        target_muscles=target_muscle_names,
         session_minutes=(req.session_minutes if req else None),
         injury=(req.injury if req else None),
         feedback=feedback,
@@ -607,12 +607,8 @@ async def _persist_day(
     primary_goal: str,
     user_1rms: dict[uuid.UUID, float],
     db: AsyncSession,
-) -> tuple[RoutineDay, list[RoutineExercise], list[uuid.UUID]]:
-    """LLM이 보낸 day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장.
-
-    Returns:
-        (day, exercises, dropped_exercise_indices) — 매칭 실패해 제외된 LLM 운동 위치.
-    """
+) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
+    """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
     day_number = int(day_data.get("day") or 1)
     label = str(day_data.get("focus") or f"Day {day_number}")[:200]
 
@@ -620,7 +616,7 @@ async def _persist_day(
     db.add(day)
     await db.flush()  # day.id 확보
 
-    exercises: list[RoutineExercise] = []
+    exercise_pairs: list[tuple[RoutineExercise, int | None]] = []
     llm_exercises = day_data.get("exercises") or []
     for idx, ex_data in enumerate(llm_exercises):
         if not isinstance(ex_data, dict):
@@ -640,6 +636,13 @@ async def _persist_day(
             llm_rest_seconds=ex_data.get("rest_seconds"),
         )
 
+        # paper_index: LLM이 지정한 1-5 논문 번호 (없으면 None)
+        raw_idx = ex_data.get("paper_index")
+        try:
+            paper_index: int | None = int(raw_idx) if raw_idx is not None else None
+        except (TypeError, ValueError):
+            paper_index = None
+
         rex = RoutineExercise(
             routine_day_id=day.id,
             exercise_id=exercise_id,
@@ -652,40 +655,65 @@ async def _persist_day(
             note=(ex_data.get("notes") or None),
         )
         db.add(rex)
-        exercises.append(rex)
+        exercise_pairs.append((rex, paper_index))
 
     await db.flush()
-    return day, exercises, []
+    return day, exercise_pairs, []
 
 
 async def _persist_papers(
     *,
     routine_id: uuid.UUID,
     sources: list[dict],
+    exercise_paper_pending: list[tuple[uuid.UUID, int | None, str | None]],
     db: AsyncSession,
 ) -> int:
-    """sources 의 pmid를 papers.id로 변환하여 RoutinePaper를 일괄 insert. 저장 개수 반환."""
-    pmids = [s.get("pmid") for s in sources if s.get("pmid")]
-    if not pmids:
+    """exercise_paper_pending의 각 운동을 sources와 매핑해 RoutinePaper에 저장. 삽입 건수 반환."""
+    if not sources:
         return 0
 
-    rows = (await db.execute(select(Paper.id, Paper.pmid).where(Paper.pmid.in_(pmids)))).all()
-    pmid_to_id: dict[str, uuid.UUID] = {pmid: pid for pid, pmid in rows}
+    # DOI가 primary identifier (D-M11). PMID는 fallback.
+    dois = [s.get("doi") for s in sources if s.get("doi")]
+    pmids = [s.get("pmid") for s in sources if s.get("pmid")]
+    if not dois and not pmids:
+        return 0
+
+    doi_to_id: dict[str, uuid.UUID] = {}
+    pmid_to_id: dict[str, uuid.UUID] = {}
+
+    if dois:
+        rows = (await db.execute(select(Paper.id, Paper.doi).where(Paper.doi.in_(dois)))).all()
+        doi_to_id = {doi: pid for pid, doi in rows}
+    if pmids:
+        rows = (await db.execute(select(Paper.id, Paper.pmid).where(Paper.pmid.in_(pmids)))).all()
+        pmid_to_id = {pmid: pid for pid, pmid in rows}
 
     inserted = 0
-    for src in sources:
-        pmid = src.get("pmid")
-        paper_id = pmid_to_id.get(pmid)
+    seen: set[tuple[uuid.UUID, uuid.UUID]] = set()  # (routine_exercise_id, paper_id) 중복 방지
+
+    for rex_id, paper_index, notes_ko in exercise_paper_pending:
+        # paper_index(1-based) → sources 인덱스(0-based). 범위 밖이면 0으로 fallback.
+        src_idx = (paper_index - 1) if (paper_index and 1 <= paper_index <= len(sources)) else 0
+        src = sources[src_idx]
+        # DOI 우선 조회, 없으면 PMID fallback
+        paper_id = doi_to_id.get(src.get("doi") or "") or pmid_to_id.get(src.get("pmid") or "")
         if paper_id is None:
+            logger.warning("논문 매칭 실패 — doi=%s pmid=%s", src.get("doi"), src.get("pmid"))
             continue
+        key = (rex_id, paper_id)
+        if key in seen:
+            continue
+        seen.add(key)
         db.add(
             RoutinePaper(
                 routine_id=routine_id,
                 paper_id=paper_id,
-                relevance_summary=src.get("section") or None,
+                routine_exercise_id=rex_id,
+                relevance_summary=notes_ko,
             )
         )
         inserted += 1
+
     if inserted:
         await db.flush()
     return inserted
@@ -706,6 +734,10 @@ async def _run_rag_to_sse(
     primary_goal = profile.primary_goal
     user_1rms = await _fetch_user_1rms(user.id, db)
 
+    # day_complete 처리 중 수집: (routine_exercise_id, paper_index, notes_ko)
+    # papers 이벤트 도착 후 운동별 RoutinePaper 저장에 사용
+    exercise_paper_pending: list[tuple[uuid.UUID, int | None, str | None]] = []
+
     error_emitted = False
     try:
         async for ev in _async_iter_sync_gen(lambda: routine_rag_stream(profile)):
@@ -717,13 +749,17 @@ async def _run_rag_to_sse(
                 yield _sse(seq, {"type": "chunk", "content": ev.get("content", "")})
 
             elif etype == "day_complete":
-                day, rexes, _dropped = await _persist_day(
+                day, rex_pairs, _dropped = await _persist_day(
                     routine_id=routine.id,
                     day_data=ev,
                     primary_goal=primary_goal,
                     user_1rms=user_1rms,
                     db=db,
                 )
+                # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
+                for rex, paper_index in rex_pairs:
+                    exercise_paper_pending.append((rex.id, paper_index, rex.note))
+
                 yield _sse(
                     seq,
                     {
@@ -745,16 +781,19 @@ async def _run_rag_to_sse(
                                     "rest_seconds": rex.rest_seconds,
                                     "note": rex.note,
                                 }
-                                for rex in rexes
+                                for rex, _ in rex_pairs
                             ],
                         },
                     },
                 )
 
             elif etype == "papers":
+                # papers 이벤트: 수집된 exercise_paper_pending과 연결하여 운동별 저장
+                sources = ev.get("sources") or []
                 inserted = await _persist_papers(
                     routine_id=routine.id,
-                    sources=ev.get("sources") or [],
+                    sources=sources,
+                    exercise_paper_pending=exercise_paper_pending,
                     db=db,
                 )
                 yield _sse(
@@ -762,7 +801,7 @@ async def _run_rag_to_sse(
                     {
                         "type": "papers",
                         "count": inserted,
-                        "sources": ev.get("sources") or [],
+                        "sources": sources,
                     },
                 )
 
