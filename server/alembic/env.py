@@ -24,11 +24,22 @@ from app.models import Base  # noqa: E402
 target_metadata = Base.metadata
 
 
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", "@db:", "@db/")
+
+
 def _build_connect_args() -> dict:
-    """URL에 ssl=disable 이 없는 경우 Windows 한글 경로 SSL 버그를 우회하는 SSLContext를 주입한다."""
+    """URL에 따라 asyncpg connect_args를 결정한다.
+
+    Windows 한글 홈 디렉토리에서 asyncpg가 ~/.postgresql/root.crt를 로드할 때
+    OSError(Errno 42)가 발생하므로, 원격 호스트(Supabase 등)에 연결할 때만
+    파일시스템 탐색을 건너뛰는 SSLContext를 주입한다.
+    로컬·CI 환경(localhost, 127.0.0.1, Docker db 서비스)은 SSL을 사용하지 않는다.
+    """
     url = os.getenv("DATABASE_URL", "")
     args: dict = {"statement_cache_size": 0}
-    if "ssl=disable" not in url and "sslmode=disable" not in url:
+    ssl_disabled = "ssl=disable" in url or "sslmode=disable" in url
+    is_local = any(h in url for h in _LOCAL_HOSTS)
+    if not ssl_disabled and not is_local:
         args["ssl"] = _make_ssl_ctx()
     return args
 
