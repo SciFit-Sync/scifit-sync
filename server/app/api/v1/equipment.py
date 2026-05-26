@@ -36,23 +36,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/equipment", tags=["equipment"])
 
 
+def _ratio_str(pulley_ratio: float) -> str:
+    n = int(pulley_ratio) if pulley_ratio == int(pulley_ratio) else pulley_ratio
+    return f"{n}:1"
+
+
 def _to_item(
     e: Equipment,
     brand_name: str | None,
     primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
 ) -> EquipmentItem:
+    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    is_barbell = e.equipment_type.value == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
         brand=brand_name,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
-        pulley_ratio=e.pulley_ratio,
+        pulley_ratio=e.pulley_ratio if is_cable_machine else None,
+        bar_weight=e.bar_weight if is_barbell else None,
+        has_weight_assist=e.has_weight_assist,
         min_stack=e.min_stack,
         max_stack=e.max_stack,
+        stack_weight=e.stack_weight if is_cable_machine else None,
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
+        ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
     )
 
 
@@ -143,7 +154,7 @@ async def list_equipment(
 # ── GET /equipment/{equipment_id} ────────────────────────────────────────────
 @router.get(
     "/{equipment_id}",
-    response_model=PaginatedResponse[EquipmentItem],
+    response_model=SuccessResponse[EquipmentItem],
     summary="기구 상세 조회",
 )
 @rate_limit("60/minute")
@@ -173,10 +184,7 @@ async def get_equipment(
     muscles = await _fetch_muscles(db, [e.id])
     image_url = e.image_url or await get_or_generate_image_url(str(e.id), e.name, e.name_en)
     item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
-    return PaginatedResponse(
-        data=[item],
-        pagination=PaginationMeta(total=1, page=0, limit=1, has_next=False),
-    )
+    return SuccessResponse(data=item)
 
 
 # ── POST /equipment/select ────────────────────────────────────────────────────

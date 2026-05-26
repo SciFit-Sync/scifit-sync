@@ -245,12 +245,13 @@ class TestGetRoutine:
         day.label = "가슴"
         day.exercises = [rex]
 
-        # _get_my_routine, RoutineDay+exercises, Exercise names, Equipment names
+        # _get_my_routine, RoutineDay+exercises, Exercise names, muscle_activation, RoutinePaper
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([day]),
             _exec_all([(_EXERCISE_ID, "벤치프레스")]),
-            _exec_all([]),
+            _exec_all([]),  # muscle_activation
+            _exec_all([]),  # RoutinePaper
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -338,7 +339,7 @@ class TestUpdateRoutineExercise:
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        assert data["message"] == "종목이 교체되었습니다."
+        assert data["message"] == "종목이 업데이트되었습니다."
         assert data["new_exercise"]["name"] == "스쿼트"
         db.commit.assert_awaited_once()
 
