@@ -217,9 +217,6 @@ def upgrade() -> None:
         mg_rows,
     )
 
-    # slug → id 맵 (exercise_muscles insert 시 참조)
-    mg_id_map: dict[str, str] = {slug: _uid(f"muscle_group:{slug}") for slug, _, _ in _MUSCLE_GROUPS}
-
     # ── 2. exercises ─────────────────────────────────────────────────────────
     ex_rows = [
         {
