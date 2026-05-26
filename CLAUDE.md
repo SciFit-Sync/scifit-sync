@@ -26,6 +26,8 @@
 - 논문 출처 카드 AI 챗봇
 - Progressive Overload 자동 제안
 
+**프로덕션 endpoint**: `https://scifit-sync.com` (Route 53 + ACM HTTPS, ALB 443 + 80 redirect). 상세는 [`docs/guides/deployment.md`](docs/guides/deployment.md) 참조.
+
 ---
 
 ## 2. 기술 스택
@@ -41,7 +43,8 @@
 | Vector DB | ChromaDB 인프로세스 (PersistentClient, /chroma-data 볼륨 필수) |
 | LLM | Gemini 1.5 Flash → GPT-4o-mini (환경변수로 전환, 자동 fallback) |
 | 임베딩 | BAAI/bge-large-en-v1.5 (1024차원) |
-| 배포 | AWS ECS Fargate, ALB + HTTPS, EFS (/chroma-data) |
+| 배포 | AWS ECS Fargate, ALB + ACM HTTPS (`scifit-sync.com`), EFS (/chroma-data) |
+| 시크릿 관리 | AWS Secrets Manager (DATABASE_URL + ADMIN_API_TOKEN + GEMINI/KAKAO/OPENAI/JWT) — ECS Task Def `secrets` 참조, env 평문 0건 |
 | CI/CD | GitHub Actions (PR 테스트 + 월간 논문 파이프라인) |
 
 ---

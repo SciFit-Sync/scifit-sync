@@ -6,7 +6,6 @@ import {
   View,
   Modal,
   Animated,
-  ScrollView,
 } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { colors } from "../assets/colors/colors";
@@ -31,7 +30,7 @@ export default function RoutineCreate({
   onClose,
 }: RoutineCreateProps) {
   const [selected_goal, set_selected_goal] = useState<string>("근력");
-  const [selected_parts, set_selected_parts] = useState<string[]>(["어깨"]);
+  const [selected_parts, set_selected_parts] = useState<string[]>([]);
   const [selected_time, set_selected_time] = useState<string>("30분");
   const [injury, set_injury] = useState("");
 
@@ -130,32 +129,33 @@ export default function RoutineCreate({
 
             {/* 부위 선택 */}
             <View style={styles.section}>
-              <Text style={styles.section_title}>부위 선택</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.chip_row}>
-                  {body_parts.map((part) => (
-                    <TouchableOpacity
-                      key={part}
+              <View style={styles.section_header}>
+                <Text style={styles.section_title}>부위 선택</Text>
+                <Text style={styles.section_hint}>복수 선택 가능</Text>
+              </View>
+              <View style={styles.chip_wrap}>
+                {body_parts.map((part) => (
+                  <TouchableOpacity
+                    key={part}
+                    style={[
+                      styles.chip,
+                      selected_parts.includes(part) && styles.chip_active,
+                    ]}
+                    onPress={() => toggle_part(part)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
                       style={[
-                        styles.chip,
-                        selected_parts.includes(part) && styles.chip_active,
+                        styles.chip_text,
+                        selected_parts.includes(part) &&
+                          styles.chip_text_active,
                       ]}
-                      onPress={() => toggle_part(part)}
-                      activeOpacity={0.8}
                     >
-                      <Text
-                        style={[
-                          styles.chip_text,
-                          selected_parts.includes(part) &&
-                            styles.chip_text_active,
-                        ]}
-                      >
-                        {part}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </ScrollView>
+                      {part}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* 세션 시간 */}
@@ -200,9 +200,10 @@ export default function RoutineCreate({
 
           {/* 확인 버튼 */}
           <TouchableOpacity
-            style={styles.confirm_button}
+            style={[styles.confirm_button, selected_parts.length === 0 && styles.confirm_button_disabled]}
             onPress={handle_confirm}
             activeOpacity={0.8}
+            disabled={selected_parts.length === 0}
           >
             <Text style={styles.confirm_button_text}>확인</Text>
           </TouchableOpacity>
@@ -261,9 +262,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
+  section_header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  section_hint: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
+  },
   chip_row: {
     flexDirection: "row",
     gap: 8,
+  },
+  chip_wrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  confirm_button_disabled: {
+    opacity: 0.4,
   },
   chip: {
     backgroundColor: colors.select,

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 # ── 공통 ──────────────────────────────────────────────────────────────────────
@@ -107,6 +107,11 @@ class PaperItem(BaseModel):
     doi: str | None = None
     pmid: str | None = None
     relevance_summary: str | None = None
+
+    @computed_field
+    @property
+    def doi_url(self) -> str | None:
+        return f"https://doi.org/{self.doi}" if self.doi else None
 
 
 class RoutineExercisePapersData(BaseModel):

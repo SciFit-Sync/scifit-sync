@@ -8,12 +8,13 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from mlops.pipeline.oa_fetcher import default_source_names
 from mlops.scripts import monthly_ingest
 
 
-def test_active_sources_phase1():
-    """Phase 1 ACTIVE_SOURCES = {pmc, europepmc} — initial_ingest와 동일해야 함."""
-    assert {"pmc", "europepmc"} == monthly_ingest.ACTIVE_SOURCES
+def test_active_sources_matches_default_chain():
+    """ACTIVE_SOURCES가 default_source_names()와 일치하는지 검증 (단일 정의 보장)."""
+    assert set(default_source_names()) == monthly_ingest.ACTIVE_SOURCES
 
 
 def test_fetch_dois_returns_empty_when_env_missing(monkeypatch):

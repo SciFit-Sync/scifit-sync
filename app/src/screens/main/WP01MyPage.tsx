@@ -81,7 +81,9 @@ export default function WP01MyPage() {
           <TouchableOpacity>
             <Text style={styles.logout_text}>로그아웃</Text>
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("WP06Withdraw" as never)}
+          >
             <Text style={styles.withdraw_text}>회원 탈퇴</Text>
           </TouchableOpacity>
         </View>
