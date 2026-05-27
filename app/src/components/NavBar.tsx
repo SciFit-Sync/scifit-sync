@@ -5,7 +5,7 @@ import { colors } from "../assets/colors/colors";
 
 type TabName =
   | "WM01Main"
-  | "WH01Calendar"
+  | "WH02Analysis"
   | "WL01Record"
   | "WN01Notifications"
   | "WP01MyPage";
@@ -17,7 +17,7 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: "WN01Notifications", icon: "bell" },
-  { name: "WH01Calendar", icon: "graph" },
+  { name: "WH02Analysis", icon: "graph" },
   { name: "WM01Main", icon: "home" },
   { name: "WL01Record", icon: "pencil" },
   { name: "WP01MyPage", icon: "person" },

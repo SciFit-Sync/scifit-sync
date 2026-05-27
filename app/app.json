@@ -4,21 +4,17 @@
     "slug": "scifiit-sync",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "scifiitsync",
+    "scheme": "kakao31250347642127059188b6723d38cca3",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "splash": {
-      "backgroundColor": "#000000"
-    },
+    "jsEngine": "jsc",
+
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.scifitsync.app"
     },
     "android": {
-      "package": "com.scifitsync.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#000000"
-      }
+      "package": "com.scifitsync.app"
     },
     "plugins": [
       "expo-secure-store",

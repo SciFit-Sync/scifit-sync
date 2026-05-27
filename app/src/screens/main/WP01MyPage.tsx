@@ -1,4 +1,5 @@
 import {
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -10,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
+import { useAuthStore } from "../../stores/authStore";
 
 const info_items = [
   {
@@ -36,6 +38,14 @@ const info_items = [
 
 export default function WP01MyPage() {
   const navigation = useNavigation();
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  const handleLogout = () => {
+    Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      { text: "로그아웃", style: "destructive", onPress: clearAuth },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
@@ -78,7 +88,7 @@ export default function WP01MyPage() {
 
         {/* 로그아웃 / 회원탈퇴 */}
         <View style={styles.bottom_buttons}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout}>
             <Text style={styles.logout_text}>로그아웃</Text>
           </TouchableOpacity>
           <TouchableOpacity
