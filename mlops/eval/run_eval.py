@@ -343,12 +343,59 @@ def _build_inmem_retriever(
     model_key: str,
     shard_size: int = DEFAULT_SHARD_SIZE,
 ) -> Retriever:
-    """JSONL.gz에서 shard 단위로 cosine retrieval — OOM 방지.
+    """소형 코퍼스용 — 전체 파일을 메모리에 올려서 빠르게 검색."""
+    import numpy as np
+    from mlops.pipeline.embedder import _get_model_by_spec
+    from mlops.pipeline.specs import get_spec
 
-    대형 코퍼스(49만+ chunks)도 24GB 컨테이너에서 동작한다.
-    각 shard를 순차 로드→검색→해제하고, 전체 shard의 top-k를 병합한다.
+    spec = get_spec(model_key)
+    matrix, metas = _load_embeddings_jsonl(embeddings_path, expected_dim=spec.dim)
+
+    if spec.normalize:
+        norms = np.linalg.norm(matrix, axis=1)
+        if not np.allclose(norms, 1.0, atol=1e-3):
+            raise ValueError(f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 (mean_norm={float(norms.mean()):.4f})")
+
+    model = _get_model_by_spec(spec)
+    logger.info("inmem retriever: %d chunks loaded (model=%s)", len(metas), model_key)
+
+    def _retrieve(query: str, top_k: int) -> list[dict]:
+        q_text = (spec.query_prefix + query) if spec.query_prefix else query
+        qvec = model.encode(q_text, normalize_embeddings=spec.normalize)
+        qvec_arr = np.asarray(qvec, dtype=np.float32)
+        scores = matrix @ qvec_arr
+        top_idx = np.argsort(scores)[::-1][:top_k]
+        return [
+            {
+                "pmid": metas[i].get("paper_pmid", ""),
+                "doi": metas[i].get("paper_doi", ""),
+                "paper_doi": metas[i].get("paper_doi", ""),
+                "paper_pmid": metas[i].get("paper_pmid", ""),
+                "title": metas[i].get("paper_title", ""),
+                "section": metas[i].get("section_name", ""),
+                "score": float(scores[i]),
+            }
+            for i in top_idx
+        ]
+
+    return _retrieve
+
+
+def _run_shard_evaluation(
+    embeddings_path: Path,
+    model_key: str,
+    goldset: list[GoldSetItem],
+    top_k_values: tuple[int, ...] = DEFAULT_TOP_K_VALUES,
+    chunk_over_fetch: int = DEFAULT_CHUNK_OVER_FETCH,
+    shard_size: int = DEFAULT_SHARD_SIZE,
+) -> list[QueryResult]:
+    """대형 코퍼스용 shard 기반 평가 — 파일 1회 순회, 전체 쿼리 batch 처리.
+
+    shard마다 전체 질의를 한 번에 dot product하고, per-query top-k를 누적 병합한다.
+    파일을 쿼리 수만큼 다시 읽지 않으므로 O(shards)로 끝난다.
     """
     import gc
+    import heapq
 
     import numpy as np
     from mlops.pipeline.embedder import _get_model_by_spec
@@ -357,61 +404,87 @@ def _build_inmem_retriever(
     spec = get_spec(model_key)
     model = _get_model_by_spec(spec)
 
-    # shard 수 미리 세지 않음 — 파일을 두 번 읽는 비용 회피.
-    # 대신 첫 shard의 norm 검증만 수행하고, 나머지는 동일 export 파이프라인 산출물이라 신뢰.
-    total_lines = 0
-    opener = gzip.open if embeddings_path.suffix == ".gz" else open
-    with opener(embeddings_path, "rt", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                total_lines += 1
-    n_shards = (total_lines + shard_size - 1) // shard_size
-    logger.info(
-        "inmem retriever: %d chunks → %d shards (shard_size=%d)",
-        total_lines,
-        n_shards,
-        shard_size,
+    max_paper_k = max(top_k_values)
+    fetch_k = max_paper_k * chunk_over_fetch
+
+    queries = [item.query for item in goldset]
+    q_texts = [(spec.query_prefix + q) if spec.query_prefix else q for q in queries]
+    q_matrix = np.asarray(
+        model.encode(q_texts, normalize_embeddings=spec.normalize, show_progress_bar=True),
+        dtype=np.float32,
     )
+    logger.info("쿼리 %d개 인코딩 완료 (dim=%d)", len(queries), q_matrix.shape[1])
 
-    def _retrieve(query: str, top_k: int) -> list[dict]:
-        q_text = (spec.query_prefix + query) if spec.query_prefix else query
-        qvec = model.encode(q_text, normalize_embeddings=spec.normalize)
-        qvec_arr = np.asarray(qvec, dtype=np.float32)
+    per_query_heap: list[list[tuple[float, dict]]] = [[] for _ in goldset]
 
-        all_candidates: list[tuple[float, dict]] = []
-
-        for shard_idx, (matrix, metas) in enumerate(_iter_embedding_shards(embeddings_path, spec.dim, shard_size)):
-            if shard_idx == 0 and spec.normalize:
-                norms = np.linalg.norm(matrix, axis=1)
-                if not np.allclose(norms, 1.0, atol=1e-3):
-                    raise ValueError(
-                        f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 (mean_norm={float(norms.mean()):.4f})"
-                    )
-
-            scores = matrix @ qvec_arr
-            top_idx = np.argsort(scores)[::-1][:top_k]
-            for i in top_idx:
-                all_candidates.append(
-                    (
-                        float(scores[i]),
-                        {
-                            "pmid": metas[i].get("paper_pmid", ""),
-                            "doi": metas[i].get("paper_doi", ""),
-                            "paper_doi": metas[i].get("paper_doi", ""),
-                            "paper_pmid": metas[i].get("paper_pmid", ""),
-                            "title": metas[i].get("paper_title", ""),
-                            "section": metas[i].get("section_name", ""),
-                            "score": float(scores[i]),
-                        },
-                    )
+    for shard_idx, (matrix, metas) in enumerate(_iter_embedding_shards(embeddings_path, spec.dim, shard_size)):
+        if shard_idx == 0 and spec.normalize:
+            norms = np.linalg.norm(matrix, axis=1)
+            if not np.allclose(norms, 1.0, atol=1e-3):
+                raise ValueError(
+                    f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 (mean_norm={float(norms.mean()):.4f})"
                 )
-            del matrix, metas
-            gc.collect()
 
-        all_candidates.sort(key=lambda x: x[0], reverse=True)
-        return [c[1] for c in all_candidates[:top_k]]
+        all_scores = matrix @ q_matrix.T
 
-    return _retrieve
+        for qi in range(len(goldset)):
+            scores = all_scores[:, qi]
+            top_idx = np.argsort(scores)[::-1][:fetch_k]
+            for i in top_idx:
+                entry = (
+                    float(scores[i]),
+                    {
+                        "pmid": metas[i].get("paper_pmid", ""),
+                        "doi": metas[i].get("paper_doi", ""),
+                        "paper_doi": metas[i].get("paper_doi", ""),
+                        "paper_pmid": metas[i].get("paper_pmid", ""),
+                        "title": metas[i].get("paper_title", ""),
+                        "section": metas[i].get("section_name", ""),
+                        "score": float(scores[i]),
+                    },
+                )
+                if len(per_query_heap[qi]) < fetch_k:
+                    heapq.heappush(per_query_heap[qi], entry)
+                elif entry[0] > per_query_heap[qi][0][0]:
+                    heapq.heapreplace(per_query_heap[qi], entry)
+
+        logger.info("shard %d 완료 (%d chunks)", shard_idx + 1, matrix.shape[0])
+        del matrix, metas, all_scores
+        gc.collect()
+
+    results: list[QueryResult] = []
+    for qi, item in enumerate(goldset):
+        candidates = sorted(per_query_heap[qi], key=lambda x: x[0], reverse=True)
+        chunks = [c[1] for c in candidates]
+
+        seen: set[str] = set()
+        retrieved_pmids: list[str] = []
+        retrieved_dois: list[str] = []
+        for c in chunks:
+            pmid = c.get("pmid") or c.get("paper_pmid") or ""
+            doi = (c.get("doi") or c.get("paper_doi") or "").lower()
+            paper_key = doi or pmid
+            if not paper_key or paper_key in seen:
+                continue
+            seen.add(paper_key)
+            if pmid:
+                seen.add(pmid)
+            if doi:
+                seen.add(doi)
+            retrieved_pmids.append(pmid)
+            retrieved_dois.append(doi)
+
+        expected_ids = {p for p in item.expected_pmids if p} | {d for d in item.expected_dois if d}
+        retrieved_ids = []
+        for pmid, doi in zip(retrieved_pmids, retrieved_dois, strict=True):
+            ids = {pmid, doi} - {""}
+            retrieved_ids.append(ids)
+
+        recalls = {k: _recall_at_k_union(expected_ids, retrieved_ids, k) for k in top_k_values}
+        mrr_val = _mrr_union(expected_ids, retrieved_ids)
+        results.append(QueryResult(item=item, retrieved_pmids=retrieved_pmids, recall=recalls, mrr=mrr_val))
+
+    return results
 
 
 def _build_chroma_retriever() -> Retriever:
@@ -488,6 +561,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="inmem retriever용 모델 key (registry 등록값) — --retriever=inmem 시 필수",
     )
+    parser.add_argument(
+        "--shard-size",
+        type=int,
+        default=DEFAULT_SHARD_SIZE,
+        help=f"shard 기반 평가 시 shard 크기 (default: {DEFAULT_SHARD_SIZE}). 0이면 전체 로드 (소형 코퍼스용)",
+    )
     args = parser.parse_args(argv)
 
     if args.retriever == "inmem":
@@ -505,13 +584,26 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("골드셋 로드 완료 n=%d", len(goldset))
 
     if args.retriever == "inmem":
-        retriever = _build_inmem_retriever(args.embeddings_file, args.model_key)
-        retriever_name = args.retriever_name or f"inmem+{args.model_key}"
+        use_shard = args.shard_size > 0 and args.embeddings_file.stat().st_size > 500_000_000
+        if use_shard:
+            logger.info("대형 코퍼스 감지 → shard 기반 평가 (shard_size=%d)", args.shard_size)
+            results = _run_shard_evaluation(
+                args.embeddings_file,
+                args.model_key,
+                goldset,
+                top_k_values,
+                shard_size=args.shard_size,
+            )
+            retriever_name = args.retriever_name or f"inmem+shard+{args.model_key}"
+        else:
+            retriever = _build_inmem_retriever(args.embeddings_file, args.model_key)
+            retriever_name = args.retriever_name or f"inmem+{args.model_key}"
+            results = run_evaluation(goldset, retriever, top_k_values)
     else:
         retriever = _build_chroma_retriever()
         retriever_name = args.retriever_name or "chroma+bge-large-en-v1.5"
+        results = run_evaluation(goldset, retriever, top_k_values)
 
-    results = run_evaluation(goldset, retriever, top_k_values)
     overall = aggregate(results, top_k_values)
     per_cat = aggregate_by_category(results, top_k_values)
 
