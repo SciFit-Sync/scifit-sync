@@ -4,8 +4,19 @@ conftest.py가 ADMIN_API_TOKEN을 'test-admin-token'으로 설정한다.
 """
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+from app.core.database import get_db
+from app.main import app
 
 ADMIN_TOKEN = "test-admin-token"
+
+
+def _db_override(mock_db):
+    async def _override():
+        yield mock_db
+
+    return _override
 
 
 @pytest.mark.asyncio
@@ -26,7 +37,17 @@ async def test_list_dois_rejects_bad_token(client):
 @pytest.mark.asyncio
 async def test_list_dois_returns_envelope(client):
     """올바른 토큰 → 200 + 표준 success envelope. clean test DB 기준 빈 list."""
-    resp = await client.get("/api/v1/admin/rag/dois", headers={"X-Admin-Token": ADMIN_TOKEN})
+    result_mock = MagicMock()
+    result_mock.all.return_value = []
+    db = AsyncMock()
+    db.execute.return_value = result_mock
+
+    app.dependency_overrides[get_db] = _db_override(db)
+    try:
+        resp = await client.get("/api/v1/admin/rag/dois", headers={"X-Admin-Token": ADMIN_TOKEN})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
     assert resp.status_code == 200
     body = resp.json()
     assert body["success"] is True
