@@ -1,236 +1,321 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getNotifications, markNotificationRead, type NotificationItem } from '../../services/notifications';
-import { useAuthStore } from '../../stores/authStore';
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Octicons } from "@expo/vector-icons";
+import { colors } from "../../assets/colors/colors";
+import BottomNavBar from "../../components/NavBar";
 
-type FilterType = 'all' | 'unread';
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  time: string;
+  is_read: boolean;
+  type: "routine" | "ai" | "system";
+}
 
-const TYPE_ICON: Record<string, string> = {
-  WORKOUT_REMINDER: '🏋️',
-  MOTIVATION: '🔥',
-  PROGRESSIVE_OVERLOAD: '📈',
-  SYSTEM: '🔔',
+const mock_notifications: Notification[] = [
+  {
+    id: "1",
+    title: "루틴 알림",
+    body: "오늘 상체 근비대 루틴이 예정되어 있어요!",
+    time: "방금 전",
+    is_read: false,
+    type: "routine",
+  },
+  {
+    id: "2",
+    title: "AI 가이드",
+    body: "벤치프레스 1RM이 5kg 증가했어요! 새로운 루틴을 추천해드릴까요?",
+    time: "1시간 전",
+    is_read: false,
+    type: "ai",
+  },
+  {
+    id: "3",
+    title: "루틴 알림",
+    body: "어제 하체 강화 루틴을 완료하지 못했어요. 오늘 진행해보세요!",
+    time: "어제",
+    is_read: true,
+    type: "routine",
+  },
+  {
+    id: "4",
+    title: "시스템",
+    body: "SciFit-Sync 앱이 업데이트 되었어요. 새로운 기능을 확인해보세요!",
+    time: "3일 전",
+    is_read: true,
+    type: "system",
+  },
+  {
+    id: "5",
+    title: "AI 가이드",
+    body: "이번 주 운동 목표의 80%를 달성했어요. 조금만 더 힘내세요!",
+    time: "5일 전",
+    is_read: true,
+    type: "ai",
+  },
+];
+
+const get_icon = (type: Notification["type"]) => {
+  switch (type) {
+    case "routine":
+      return "calendar";
+    case "ai":
+      return "light-bulb";
+    case "system":
+      return "bell";
+  }
 };
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return '방금 전';
-  if (min < 60) return `${min}분 전`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}시간 전`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}일 전`;
-  return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-}
+export default function WN01Notifications() {
+  const navigation = useNavigation();
+  const [notifications, set_notifications] = useState(mock_notifications);
 
-interface NotificationCardProps {
-  item: NotificationItem;
-  onRead: (id: string) => void;
-  isLoading: boolean;
-}
+  const mark_all_read = () => {
+    set_notifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  };
 
-function NotificationCard({ item, onRead, isLoading }: NotificationCardProps) {
-  const icon = TYPE_ICON[item.type] ?? '📣';
+  const unread_count = notifications.filter((n) => !n.is_read).length;
 
   return (
-    <TouchableOpacity
-      style={[styles.card, item.is_read && styles.cardRead]}
-      onPress={() => !item.is_read && onRead(item.notification_id)}
-      activeOpacity={item.is_read ? 1 : 0.7}
-      disabled={isLoading}
-    >
-      <View style={styles.cardLeft}>
-        <Text style={styles.icon}>{icon}</Text>
-      </View>
-      <View style={styles.cardBody}>
-        <View style={styles.cardHeader}>
-          <Text style={[styles.cardTitle, item.is_read && styles.textDim]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          {!item.is_read && <View style={styles.unreadDot} />}
-        </View>
-        <Text style={[styles.cardBodyText, item.is_read && styles.textDim]} numberOfLines={2}>
-          {item.body}
-        </Text>
-        <Text style={styles.cardTime}>{timeAgo(item.created_at)}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
+    <View style={styles.container}>
+      <SafeAreaView edges={["top"]} style={styles.safe_top} />
 
-export default function WN01Notifications({ navigation }: { navigation: any }) {
-  const token = useAuthStore((s) => s.accessToken) ?? '';
-  const [filter, set_filter] = useState<FilterType>('all');
-  const queryClient = useQueryClient();
-
-  const { data, isLoading, isRefetching, refetch, isError } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => getNotifications(token),
-    enabled: !!token,
-  });
-
-  const { mutate: read, variables: readingId } = useMutation({
-    mutationFn: (id: string) => markNotificationRead(token, id),
-    onSuccess: (updated) => {
-      queryClient.setQueryData<typeof data>(['notifications'], (old) => {
-        if (!old) return old;
-        return {
-          items: old.items.map((n) =>
-            n.notification_id === updated.notification_id ? updated : n,
-          ),
-          unread_count: Math.max(0, old.unread_count - 1),
-        };
-      });
-    },
-    onError: () => Alert.alert('오류', '읽음 처리에 실패했습니다.'),
-  });
-
-  const items = data?.items ?? [];
-  const unread_count = data?.unread_count ?? 0;
-  const filtered = filter === 'unread' ? items.filter((n) => !n.is_read) : items;
-
-  return (
-    <SafeAreaView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Octicons name="chevron-left" size={32} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>알림</Text>
-        {unread_count > 0 ? (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{unread_count > 99 ? '99+' : unread_count}</Text>
+        <Text style={styles.logo}>SciFit-Sync</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        style={styles.flex}
+      >
+        <View style={styles.card}>
+          {/* 카드 헤더 */}
+          <View style={styles.card_header}>
+            <View style={styles.placeholder} />
+            <Text style={styles.card_title}>알림</Text>
+            <TouchableOpacity onPress={mark_all_read}>
+              <Text style={styles.all_read_text}>모두 읽음</Text>
+            </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.backButton} />
-        )}
-      </View>
 
-      {/* 필터 탭 */}
-      <View style={styles.tabs}>
-        {(['all', 'unread'] as FilterType[]).map((f) => (
-          <TouchableOpacity key={f} style={[styles.tab, filter === f && styles.tabActive]} onPress={() => set_filter(f)}>
-            <Text style={[styles.tabText, filter === f && styles.tabTextActive]}>
-              {f === 'all' ? '전체' : '안읽음'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+          {/* 알림 목록 */}
+          {notifications.length > 0 ? (
+            <View style={styles.notification_list}>
+              {notifications.map((item, index) => (
+                <View key={item.id}>
+                  <TouchableOpacity
+                    style={[
+                      styles.notification_item,
+                      !item.is_read && styles.notification_item_unread,
+                    ]}
+                    onPress={() =>
+                      set_notifications((prev) =>
+                        prev.map((n) =>
+                          n.id === item.id ? { ...n, is_read: true } : n,
+                        ),
+                      )
+                    }
+                    activeOpacity={0.8}
+                  >
+                    {/* 아이콘 */}
+                    <View
+                      style={[
+                        styles.icon_box,
+                        !item.is_read && styles.icon_box_unread,
+                      ]}
+                    >
+                      <Octicons
+                        name={get_icon(item.type) as any}
+                        size={18}
+                        color={!item.is_read ? colors.white : colors.bluegray}
+                      />
+                    </View>
 
-      {/* 리스트 */}
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color="#fff" size="large" />
-        </View>
-      ) : isError ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>알림을 불러오지 못했습니다.</Text>
-          <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
-            <Text style={styles.retryText}>다시 시도</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.notification_id}
-          renderItem={({ item }) => (
-            <NotificationCard
-              item={item}
-              onRead={read}
-              isLoading={readingId === item.notification_id}
-            />
+                    {/* 내용 */}
+                    <View style={styles.notification_content}>
+                      <View style={styles.notification_header}>
+                        <Text style={styles.notification_title}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.notification_time}>
+                          {item.time}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.notification_body,
+                          item.is_read && styles.notification_body_read,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {item.body}
+                      </Text>
+                    </View>
+
+                    {/* 읽지 않은 점 */}
+                    {!item.is_read && <View style={styles.unread_dot} />}
+                  </TouchableOpacity>
+
+                  {/* 구분선 */}
+                  {index < notifications.length - 1 && (
+                    <View style={styles.divider} />
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.empty_container}>
+              <Octicons name="bell" size={40} color={colors.border} />
+              <Text style={styles.empty_text}>알림이 없어요</Text>
+            </View>
           )}
-          refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#fff" />
-          }
-          contentContainerStyle={filtered.length === 0 ? styles.emptyContainer : styles.listContent}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {filter === 'unread' ? '읽지 않은 알림이 없습니다.' : '알림이 없습니다.'}
-            </Text>
-          }
-        />
-      )}
-    </SafeAreaView>
+        </View>
+      </ScrollView>
+
+      {/* 하단 네브바 */}
+      <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
+        <BottomNavBar />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-
+  container: { flex: 1, backgroundColor: colors.background },
+  safe_top: { backgroundColor: colors.background },
+  safe_bottom: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  flex: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
-  backButton: { width: 40 },
-  backText: { color: '#fff', fontSize: 22 },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  badge: {
-    width: 40,
-    alignItems: 'flex-end',
-  },
-  badgeText: {
-    backgroundColor: '#ff4444',
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 8 },
-  tab: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  tabActive: { backgroundColor: '#fff', borderColor: '#fff' },
-  tabText: { color: '#888', fontSize: 13 },
-  tabTextActive: { color: '#000', fontWeight: '600' },
-
-  listContent: { paddingHorizontal: 16, paddingBottom: 32 },
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
-
+  logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
+  placeholder: { width: 60 },
+  scroll: { paddingHorizontal: 24, paddingBottom: 32 },
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#111',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+  },
+  card_header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  card_title: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+  },
+  all_read_text: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
+  },
+  notification_list: { gap: 0 },
+  notification_item: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 14,
+    gap: 12,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+  },
+  notification_item_unread: {
+    backgroundColor: colors.select,
+    paddingHorizontal: 8,
+    marginHorizontal: -4,
+  },
+  icon_box: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.select,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  icon_box_unread: {
+    backgroundColor: colors.primary,
+  },
+  notification_content: {
+    flex: 1,
+    gap: 4,
+  },
+  notification_header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  notification_title: {
+    fontFamily: "semibold",
+    fontSize: 14,
+    color: colors.primary,
+  },
+  notification_time: {
+    fontFamily: "regular",
+    fontSize: 11,
+    color: colors.bluegray,
+  },
+  notification_body: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.primary,
+    lineHeight: 18,
+  },
+  notification_body_read: {
+    color: colors.bluegray,
+  },
+  unread_dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 6,
+    flexShrink: 0,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  empty_container: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
     gap: 12,
   },
-  cardRead: { opacity: 0.6 },
-  cardLeft: { justifyContent: 'flex-start', paddingTop: 2 },
-  icon: { fontSize: 22 },
-  cardBody: { flex: 1, gap: 4 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardTitle: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
-  cardBodyText: { color: '#ccc', fontSize: 13, lineHeight: 18 },
-  cardTime: { color: '#555', fontSize: 11, marginTop: 2 },
-  textDim: { color: '#666' },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4a9eff' },
-
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
-  emptyText: { color: '#555', fontSize: 14 },
-  retryButton: { backgroundColor: '#222', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 8 },
-  retryText: { color: '#fff', fontSize: 14 },
+  empty_text: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+  },
 });
