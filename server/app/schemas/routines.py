@@ -5,6 +5,58 @@ from datetime import datetime
 from pydantic import BaseModel, Field, computed_field
 
 
+# ── AI 루틴 상세 조회 전용 ─────────────────────────────────────────────────────
+
+
+class SetItem(BaseModel):
+    set_number: int
+    weight_kg: float | None = None
+    reps: int | None = None
+    rest_seconds: int
+    completed: bool = False
+    completed_at: datetime | None = None
+
+
+class MuscleActivationDetailItem(BaseModel):
+    muscle: str
+    muscle_en: str
+    percentage: int | None = None
+    type: str
+
+
+class ExerciseDetailItem(BaseModel):
+    order: int
+    exercise_id: str
+    name: str
+    name_en: str | None = None
+    gif_url: str | None = None
+    thumbnail_url: str | None = None
+    category: str | None = None
+    equipment: str | None = None
+    difficulty: str | None = None
+    mechanic: str | None = None
+    force: str | None = None
+    muscle_activation: list[MuscleActivationDetailItem] = Field(default_factory=list)
+    sets: list[SetItem] = Field(default_factory=list)
+    tips_count: int = 0
+    tips_available: bool = False
+    calories_per_minute: float | None = None
+    met: float | None = None
+    ai_reasoning: str | None = None
+    is_replaceable: bool = True
+
+
+class AIRoutineDetail(BaseModel):
+    routine_id: str
+    title: str
+    goal: str | None = None
+    estimated_duration_min: int | None = None
+    default_rest_seconds: int | None = None
+    created_by: str
+    created_at: datetime
+    exercises: list[ExerciseDetailItem] = Field(default_factory=list)
+
+
 # ── 공통 ──────────────────────────────────────────────────────────────────────
 class MuscleActivationItem(BaseModel):
     muscle: str
