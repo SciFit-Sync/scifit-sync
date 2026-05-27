@@ -29,6 +29,7 @@ class EmbeddingModelSpec:
     query_prefix: str
     normalize: bool = True
     default_batch_size: int = 64
+    revision: str | None = None
 
 
 EMBEDDING_MODELS: dict[str, EmbeddingModelSpec] = {
@@ -52,6 +53,7 @@ EMBEDDING_MODELS: dict[str, EmbeddingModelSpec] = {
         dim=768,
         query_prefix="",
         default_batch_size=128,
+        revision="9504c2b4961c21fc92fcf3dbb800b8d7aaed4ceb",
     ),
 }
 
