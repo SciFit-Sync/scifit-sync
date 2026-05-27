@@ -168,7 +168,7 @@ A/B 모델 비교와는 별개로, **프로덕션과 동일한 환경(GPU 서버
   ssh gpu 'cd /mnt/data/scifit-sync/scifit-sync && .venv-gpu/bin/python3 -c "
   import chromadb
   client = chromadb.PersistentClient(path=\"/chroma-data\")  # 또는 실제 경로
-  col = client.get_collection(\"scifit_chunks\")
+  col = client.get_collection(\"paper_chunks\")
   print(f\"ChromaDB chunks: {col.count()}\")
   "'
   ```

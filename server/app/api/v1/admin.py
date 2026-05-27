@@ -181,7 +181,8 @@ async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
     collection = _get_collection()
-    data = collection.get(include=["metadatas"])
+    # ChromaDB get()은 동기 블로킹 → 이벤트 루프 비차단 위해 워커 스레드로 오프로드
+    data = await asyncio.to_thread(collection.get, include=["metadatas"])
     metas = data.get("metadatas") or []
     pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
     return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
@@ -202,7 +203,8 @@ async def refresh_categories(
     변경된 후 RAG 검색 가중치를 동기화하는 용도.
     """
     collection = _get_collection()
-    data = collection.get(include=["metadatas"])
+    # ChromaDB get()/update()는 동기 블로킹 → 워커 스레드로 오프로드
+    data = await asyncio.to_thread(collection.get, include=["metadatas"])
     ids = data.get("ids") or []
     metas = data.get("metadatas") or []
 
@@ -225,7 +227,8 @@ async def refresh_categories(
     if update_ids:
         batch_size = 500
         for i in range(0, len(update_ids), batch_size):
-            collection.update(
+            await asyncio.to_thread(
+                collection.update,
                 ids=update_ids[i : i + batch_size],
                 metadatas=update_metas[i : i + batch_size],
             )

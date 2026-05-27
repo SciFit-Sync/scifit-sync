@@ -20,7 +20,7 @@ export default function WO02EquipmentRegister() {
 
   const handle_register = () => {
     // TODO: 기구 등록 API 연동
-    console.log("기구 등록:", { equipment_name, brand_name });
+    if (__DEV__) console.log("기구 등록:", { equipment_name, brand_name });
     navigation.goBack();
   };
 
