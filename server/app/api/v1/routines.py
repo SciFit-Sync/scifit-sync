@@ -812,7 +812,7 @@ async def _run_rag_to_sse(
             elif etype == "papers":
                 # papers 이벤트: 수집된 exercise_paper_pending과 연결하여 운동별 저장
                 sources = ev.get("sources") or []
-                inserted = await _persist_papers(
+                await _persist_papers(
                     routine_id=routine.id,
                     sources=sources,
                     exercise_paper_pending=exercise_paper_pending,
