@@ -195,11 +195,13 @@ def translate_to_english(text: str) -> str:
     if korean_chars < 3:
         return text  # 영어면 번역 불필요
 
+    # 사용자 입력은 <user_query> 태그로 격리 (CLAUDE.md §12 프롬프트 인젝션 방어)
+    safe_text = text.replace("</user_query>", "</ user_query>")
     try:
         translated = llm_generate(
             "Translate the following Korean fitness/exercise query to English. "
             "Return only the translation, no explanation.\n\n"
-            f"<user_query>{text}</user_query>"
+            f"<user_query>{safe_text}</user_query>"
         )
         logger.info("번역: '%s' → '%s'", text[:30], translated[:50])
         return translated
