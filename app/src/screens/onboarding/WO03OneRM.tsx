@@ -42,7 +42,7 @@ export default function WO03OneRM() {
 
   const handle_register = async () => {
     // TODO: 1RM API 연동
-    console.log("1RM 등록:", { unit, ...values });
+    if (__DEV__) console.log("1RM 등록:", { unit, ...values });
     await completeOnboarding();
   };
 
