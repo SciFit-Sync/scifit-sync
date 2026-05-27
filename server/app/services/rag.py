@@ -74,8 +74,19 @@ def _get_collection():
 
         logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
         client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+        existing = [c.name for c in client.list_collections()]
+        if CHROMA_COLLECTION_NAME not in existing:
+            raise RuntimeError(
+                f"ChromaDB 컬렉션 '{CHROMA_COLLECTION_NAME}'이 없습니다. "
+                f"(경로: {CHROMA_PERSIST_PATH}, 존재하는 컬렉션: {existing}) "
+                "mlops 파이프라인 실행 후 재시도하세요."
+            )
         _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
-        logger.info("ChromaDB 준비 완료 (문서 수: %d)", _chroma_collection.count())
+        count = _chroma_collection.count()
+        if count == 0:
+            logger.warning("ChromaDB 컬렉션이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.")
+        else:
+            logger.info("ChromaDB 준비 완료 (문서 수: %d)", count)
     return _chroma_collection
 
 
