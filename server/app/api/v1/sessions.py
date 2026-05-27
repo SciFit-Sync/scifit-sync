@@ -285,7 +285,7 @@ async def list_sessions(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     q_year = year or now.year
     q_month = month or now.month
 
