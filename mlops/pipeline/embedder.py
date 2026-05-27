@@ -56,7 +56,7 @@ def log_device_status(logger_: logging.Logger | None = None) -> str:
         log.warning(
             "GPU 미감지 → CPU 추론 예정. BGE-large는 CPU에서 매우 느립니다(20s/batch+). "
             "GPU 서버라면 CUDA torch 재설치 필요: "
-            "pip install torch --index-url https://download.pytorch.org/whl/cu121"
+            "pip install torch --index-url https://download.pytorch.org/whl/cu126"
         )
     else:
         log.info("임베딩 device 사전 확인: %s", device)
@@ -74,7 +74,7 @@ def _get_model_by_spec(spec: EmbeddingModelSpec) -> "SentenceTransformer":
             logger.warning(
                 "GPU 미감지 → CPU 추론. %s는 CPU에서 매우 느립니다. "
                 "GPU 서버라면 CUDA torch 재설치 필요: "
-                "pip install torch --index-url https://download.pytorch.org/whl/cu121",
+                "pip install torch --index-url https://download.pytorch.org/whl/cu126",
                 spec.key,
             )
         logger.info(

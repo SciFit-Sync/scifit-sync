@@ -1,142 +1,205 @@
-# 핸드오프: 로컬 PDF ingest + 골드셋 갭 보강
+# 핸드오프: 로컬 PDF ingest + 골드셋 A/B 평가 + 전체 upsert
 
-> 작성일: 2026-05-26
-> 작업자: jingyu (이어서 진행)
+> 최종 업데이트: 2026-05-27 00:15 KST
 > 브랜치: `feat/jingyu/local-pdf-ingest`
-> 관련 PR: https://github.com/SciFit-Sync/scifit-sync/pull/149
+> GPU 서버: `ssh gpu` (cscloud.gpu3.hufs.ac.kr:30007, venv: `.venv-gpu`)
 
-## 1. 진행 상황 요약
+---
 
-### 출발점
-- 골드셋 평가에서 OpenAlex/PMC/EuropePMC 체인이 못 가져온 RT 핵심 paper들을 사용자가 직접 PDF로 다운로드해 보강하기로 결정.
-- 사용자가 `data/goldset_paper/` 폴더에 PDF 약 330편 (메인 317 + uncertain 13) 배치.
+## 1. 완료된 작업
 
-### 본 브랜치에서 완료된 일
-1. **`mlops/scripts/ingest_local_pdfs.py` 신규 작성** — 로컬 PDF → chunk/embed/upsert 파이프라인.
-   - `parse_pdf`: pypdf로 단일 "Full Text" 섹션 추출 (`curated.fetch_pdf_sections` 패턴 재사용).
-   - `enrich_metadata`: manifest 명시값 > PMID efetch > DOI OpenAlex 우선순위 보강.
-   - `build_paperfull`: PaperFull 구성 (DOI 또는 PMID 중 하나 필수).
-   - dedup 3-레이어:
-     - manifest 내 DOI 중복 → skip
-     - corpus 기존 DOI (`Manifest.is_indexed` ∪ server `/admin/rag/dois`) → skip
-     - `--no-skip-existing` 으로 강제 재임베딩 가능
-   - 보안: `_safe_pdf_path`로 path traversal / 절대 경로 / symlink-out 차단.
-   - PMID-only in-batch dedup, filename in-batch dedup, manifest dict 타입 검증.
+### 1.1 manifest.json 작성 (184개 논문)
+- **3단계 자동 검증**: draft manifest (43편) → CrossRef API 검증 → pdf_topic_report DOI 병합
+- 사용자 수동 확인 6편 DOI 추가
+- 최종: **184 unique DOI** (CrossRef 검증 완료)
+- 파일: `mlops/data/local_pdfs/manifest.json`
 
-2. **`mlops/tests/test_ingest_local_pdfs.py`** — 14 tests pass.
-   - build_paperfull 분기 / manifest override / PMID/DOI 우선순위 / dedup 3-레이어 / path traversal / PMID-only dedup / non-dict entry / duplicate filename / dry-run.
+### 1.2 임베딩 생성 (bge-large)
+- **15,361 chunks** → 1024차원 bge-large 벡터
+- GPU 서버 산출물: `mlops/data/emb_bge-large/local_pdf_ingest.jsonl.gz` (139MB)
+- chunks: `mlops/data/chunks/local_pdf_ingest.jsonl.gz` (3.5MB)
 
-3. **`mlops/scripts/diagnose_doi_recall_gap.py`** — 평가 매칭 키 불일치 진단 도구 (사전 작업).
-   - 평가(`run_eval.py`)는 PMID-only 매칭인데 corpus 적재는 DOI-first → mismatch 진단.
+### 1.3 프로덕션 upsert (local_pdf_ingest)
+- `load_embeddings.py --mode api` → **184 DOIs upsert 완료**
+- `load_embeddings.py` 버그 수정: `paper_doi` 등 5개 필드 누락 → `9f38bff`
 
-### 검증
-- `pytest mlops/tests/` — 459/459 pass
-- `ruff check` + `ruff format --check mlops/` — clean
-- 실제 데이터: 317개 PDF 파싱 100% 성공, 평균 14,667 토큰
-- Codex 리뷰 (block → critical 2건 수정 후 OK):
-  - ✅ Path traversal 차단
-  - ✅ PMID-only in-batch dedup
-  - ⏳ corpus PMID set 검사용 server endpoint(`/admin/rag/pmids`) — **별도 PR로 위임**
-  - ⏳ `efetch_pubmed_batch` 반환 schema contract test — **별도 PR로 위임**
+### 1.4 골드셋 최신화
+- `goldset.jsonl` → `expected_dois` 필드 추가 (PMID→DOI 변환)
+- 코퍼스 미커버 14개 질문 제거: **85 → 71 questions**, `corpus_coverage=1.0`
 
-## 2. 데이터 분석 결과 (이어서 진행할 때 참고)
+### 1.5 run_eval.py PMID∪DOI 매칭 확장
+- `evaluate_query`: PMID 또는 DOI 중 하나라도 매칭이면 hit
+- `_recall_at_k_union`, `_mrr_union` 헬퍼 추가
+- 기존 PMID-only 테스트 호환 (`expected_dois` 기본값 빈 튜플)
+- 459 tests pass
 
-### PDF 파싱 (317 메인 + 13 uncertain)
-- 100% 파싱 성공
-- file hash 중복 94편 (메인) → unique 223편
-- uncertain 13편은 모두 RT 핵심 (Schoenfeld/Helms/Grgic/Ralston 등)
+### 1.6 커밋 이력
+| 커밋 | 내용 |
+|------|------|
+| `fcc6f9e` | manifest.json 184개 논문 |
+| `9f38bff` | load_embeddings payload 버그 수정 |
+| `1be47c0` | 핸드오프 문서 + upsert 결과 |
+| `881fee2` | 골드셋 DOI 매칭 확장 + run_eval union recall |
+| `c60ccd5` | 골드셋 미커버 질문 제거 (85→71) |
 
-### 도메인 무관 paper 제외 — 20개 이동 완료
-`data/goldset_paper/_discarded/`로 이동 (rm 아닌 mv, 복구 가능).
-- 명백 무관 10편 + 약한 관련 6편 + hash sibling 4편 = 20개
-- 메인 폴더 남은 PDF: 297개
+---
 
-### DOI 자동 보강 (A+C 알고리즘)
-| 메서드 | 결과 |
-|---|---|
-| A. 파일명 정규식 (sci-hub `@` 패턴) | 4편 |
-| C. OpenAlex confident (≥0.5) | 39편 |
-| **자동 manifest 등록 가능** | **43편 (31.6%)** |
-| C. review 필요 (0.3~0.5) | 38편 |
-| 실패 (low_overlap / no_results) | 55편 |
+## 2. 실행 중 (GPU 서버 nohup)
 
-### 산출물 위치 (Windows 접근)
-`C:\Users\DOCTOR\Desktop\coding\college_4-1\capstone\data\`
-- `dois_to_check.tsv` — 직접 확인할 93편 (review + fail)
-- `doi_recovery_manifest_draft.json` — 자동 회수 43편 manifest 초안
-- `doi_recovery_full_report.tsv` — 전체 136편 결과 (cand title + OpenAlex match)
-- `pdf_topic_report.tsv` — unique 223편 토큰/DOI/kw_density
+### 스크립트: `run_ab_eval_and_upsert.sh`
+### 로그: `/mnt/data/scifit-sync/ab_eval_and_upsert.log`
 
-### 산출물 위치 (프로젝트 안)
-- `mlops/eval/candidates.cleaned.jsonl` — 102 question에서 corpus 미보유 PMID 제거. **88 question이 0개로 비어버림** — corpus가 retrieval candidates와 거의 안 겹친다는 신호. **PDF ingest 후 retrieval 재실행이 선행되어야 라벨링 의미 있음** (지금 상태로 라벨링 ❌).
-- `mlops/eval/goldset_seed.cleaned.jsonl` — `expected_pmids=[]`라 cleanup 영향 0건. 라벨링 진행 전 상태.
+```
+Phase 1: Re-embedding (3k_060614 + local_pdf → bge-base, pubmedbert)
+Phase 2: Merge (noise + goldset per model)
+Phase 3: A/B Eval (3모델 × 골드셋 71 questions)
+Phase 4: Full upsert (legacy + 3k batches → production)
+```
 
-## 3. 다음 단계 (다른 컴퓨터에서 이어서)
+### Phase 1 — 재임베딩
+| 단계 | chunks | 모델 | 예상 시간 |
+|------|--------|------|-----------|
+| 1a. 3k_060614 | 476,547 | bge-base | ~8분 |
+| 1b. 3k_060614 | 476,547 | pubmedbert-msmarco | ~8분 |
+| 1c. local_pdf | 15,361 | bge-base | ~2분 |
+| 1d. local_pdf | 15,361 | pubmedbert-msmarco | ~2분 |
 
-### 우선순위 1: manifest.json 작성 (사용자 직접 작업)
-1. `data/doi_recovery_manifest_draft.json` 의 43편 entry는 자동 회수 — `search_categories` 채우면 즉시 사용 가능.
-2. `data/dois_to_check.tsv` 의 93편은 사용자 검토:
-   - **Group A** (review 38편): cand title vs OpenAlex match만 보고 OK/NG 결정. 다수가 명백 동일 paper (algo 단방향 overlap 한계).
-   - **Group B** (fail low_overlap 43편): 일부는 실제 동일 paper (예: `jssm-*`, `msse-56-1893`, `williams2021`, `41598_2026_Article_40612` 등). 일부는 잘못된 매칭(`helms2016 (1)`, `cochrane2015`, `harries2015` 등).
-   - **Group C** (fail no_results 6편): 수동 PubMed/OpenAlex 검색 필요.
-   - **Group D** (uncertain 6편): schoenfeld 시리즈 중복. file hash dedup으로 자동 처리됨.
+### Phase 2 — 합치기
+모델별 `ab_eval_merged.jsonl.gz` = `3k_060614` (노이즈 1,812 DOIs) + `local_pdf` (골드셋 184 DOIs)
 
-### 우선순위 2: PDF ingest 실행 (GPU 서버 권장)
+### Phase 3 — A/B 평가
+| 모델 | 임베딩 차원 | 리포트 |
+|------|------------|--------|
+| bge-large | 1024 | `mlops/eval/reports/ab_bge-large.md` |
+| bge-base | 768 | `mlops/eval/reports/ab_bge-base.md` |
+| pubmedbert-msmarco | 768 | `mlops/eval/reports/ab_pubmedbert-msmarco.md` |
+
+메트릭: recall@5, recall@10, MRR (전체 + 카테고리별)
+
+### Phase 4 — 전체 프로덕션 upsert (bge-large)
+| 파일 | chunks | DOIs |
+|------|--------|------|
+| embeddings_3k_batch1-11 | 1,130,165 | 4,305 |
+| emb_bge-large/3k_20260522_060614 | 476,547 | 1,812 |
+| emb_bge-large/3k_20260522_152209 | 476,932 | 1,704 |
+| **합계** | **2,083,644** | **~7,821** |
+
+기존 local_pdf 184 DOIs 포함 → 최종 프로덕션: **~7,910 unique DOIs**
+
+---
+
+## 3. 확인 필요 사항 (내일)
+
+### 3.1 A/B 평가 결과 확인
 ```bash
-# manifest.json 완성 후 GPU 서버에서
-ssh gpu  # cscloud.gpu3.hufs.ac.kr:30007
-cd ~/scifit-sync
-git pull origin feat/namgw/local-pdf-ingest
-
-# 작업 PDF를 GPU 서버로 전송 (scp or rsync)
-# 그 후:
-python -m mlops.scripts.ingest_local_pdfs \
-    --pdf-dir mlops/data/local_pdfs/ \
-    --manifest mlops/data/local_pdfs/manifest.json \
-    --dry-run                              # 먼저 dry-run 검증
-python -m mlops.scripts.ingest_local_pdfs \
-    --pdf-dir mlops/data/local_pdfs/ \
-    --manifest mlops/data/local_pdfs/manifest.json
+ssh gpu
+cat /mnt/data/scifit-sync/scifit-sync/mlops/eval/reports/ab_bge-large.md
+cat /mnt/data/scifit-sync/scifit-sync/mlops/eval/reports/ab_bge-base.md
+cat /mnt/data/scifit-sync/scifit-sync/mlops/eval/reports/ab_pubmedbert-msmarco.md
 ```
 
-### 우선순위 3: candidates 재생성 + 라벨링
-PDF ingest 완료 후 corpus 변경됨 → retrieval candidates 다시 만들기:
+### 3.2 upsert 완료 확인
 ```bash
-# build_candidates 스크립트 또는 build_goldset.py 재실행
-# (현재 build_candidates 스크립트는 미작성 — 별도 PR 필요할 수도)
-python -m mlops.scripts.build_goldset --seed mlops/eval/goldset_seed.jsonl ...
-
-# 라벨링
-python -m mlops.scripts.label_cli \
-    --candidates mlops/eval/candidates.jsonl \
-    --output mlops/eval/labels.jsonl
+ssh gpu 'cd /mnt/data/scifit-sync/scifit-sync && .venv-gpu/bin/python3 -c "
+from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
+import requests
+r = requests.get(API_BASE_URL + \"/api/v1/admin/rag/dois\", headers={\"X-Admin-Token\": ADMIN_API_TOKEN}, timeout=10)
+print(r.json()[\"data\"][\"count\"], \"DOIs in production\")
+"'
 ```
+기대값: ~7,910
 
-### 우선순위 4: 평가 매칭 키 확장 (별도 PR)
-현재 `mlops/eval/run_eval.py`는 PMID-only 매칭. corpus는 DOI primary라 PMID 빈 paper는 평가에서 영구 누락. **PMID ∪ DOI 매칭으로 확장** 권장.
-
-```python
-# run_eval.py:43 GoldSetItem에 expected_dois 추가
-# run_eval.py:88 recall_at_k가 PMID 또는 DOI 매칭이면 hit
-```
-
-`diagnose_doi_recall_gap.py`로 회복 폭 사전 측정 가능.
-
-### 우선순위 5: 후속 PR (Codex 권고)
-1. **server `/admin/rag/pmids` 엔드포인트** — corpus PMID set 조회. 현재는 in-batch PMID dedup만 가능.
-2. **`efetch_pubmed_batch` 반환 schema contract test** — `ingest_curated_pmids`와 `ingest_local_pdfs`의 coupling 명시.
-
-## 4. GPU 서버 라벨링 산출물 확인 필요
-
-WSL에서 `ssh gpu`가 BatchMode에서 실패 (passphrase 또는 키 미등록). 다른 컴퓨터에서 GPU 서버 직접 접속해 라벨링 산출물 위치 확인 부탁:
+### 3.3 에러 발생 시
 ```bash
-ssh gpu 'find ~ -name "labels.jsonl" 2>/dev/null; ls ~/scifit-sync/mlops/eval/'
+# 로그 전체 확인
+ssh gpu "cat /mnt/data/scifit-sync/ab_eval_and_upsert.log"
+
+# 특정 phase에서 실패했으면 해당 부분만 재실행
+ssh gpu "tail -50 /mnt/data/scifit-sync/ab_eval_and_upsert.log | grep -i error"
 ```
-- 있으면 → `mlops/eval/labels.jsonl`로 가져와서 goldset.jsonl과 merge
-- 없으면 → 위 우선순위 3대로 라벨링 새로 진행
 
-## 5. 알려진 제약 / 주의사항
+---
 
-- `ingest_local_pdfs.py`의 PMID-only dedup은 **in-batch만**: 사용자 manifest에 같은 PMID 두 번 있는 케이스만 잡음. corpus에 이미 PMID로 적재된 paper와의 중복은 server endpoint 추가 후 가능. 본 PR에서는 위 codex 권고와 함께 별도 작업.
-- `_make_doc_id` (upserter.py:38)가 DOI 우선, 없으면 PMID fallback이라 PMID-only re-ingest가 `_make_doc_id`로 같은 id 생성하므로 ChromaDB upsert에서 덮어쓰긴 함 — 즉 데이터 손상은 없음, GPU 시간 낭비만.
-- candidates.cleaned.jsonl을 그대로 라벨링하면 14 question만 가능. **PDF ingest → candidates 재생성**이 정상 흐름.
+## 4. 임베딩 데이터 파일 맵
+
+### 프로덕션용 (bge-large)
+| 파일 | 용도 |
+|------|------|
+| `embeddings_3k_batch1-11.jsonl.gz` | 레거시 코퍼스 (4,305 DOIs) |
+| `emb_bge-large/3k_20260522_060614.jsonl.gz` | curated batch A (1,812 DOIs) |
+| `emb_bge-large/3k_20260522_152209.jsonl.gz` | curated batch B (1,704 DOIs) |
+| `emb_bge-large/local_pdf_ingest.jsonl.gz` | 골드셋 보강 (184 DOIs) |
+
+### A/B 평가용
+| 파일 | 용도 |
+|------|------|
+| `emb_*/ab_eval_merged.jsonl.gz` | 노이즈(1,812) + 골드셋(184) 합본 |
+
+### 아카이브 대상
+| 파일 | 이유 |
+|------|------|
+| `emb_*/3k_curated_merged.*` | merged 대신 개별 파일 사용 |
+| `emb_*/curated_20260523_*` | 내용 품질 이슈로 제외 |
+| `chunks/3k_20260523_204636.*` | 구버전 intermediate |
+| `chunks/prod_smoke_*` | 테스트용 |
+
+---
+
+## 6. 다음 작업: 파이프라인 자동화 + 골드셋 자동 평가
+
+### 6.1 크롤링→청킹→임베딩→upsert 자동화
+현재 파이프라인은 각 단계가 수동 실행. 새로운 논문이 추가될 때:
+```
+크롤링 → 청킹 → 임베딩 → export → upsert (프로덕션 API)
+```
+이 전체 흐름이 한 번에 돌아야 한다. `ingest_curated_pmids.py`는 crawl→chunk→embed→api_ingest를 하지만, `--export-batch` 모드에서는 api_ingest를 건너뛴다. 자동화를 위해:
+- `--export-batch` 없이 실행 시 자동 upsert가 동작하도록 보장
+- 또는 export 후 `load_embeddings.py --mode api`를 자동 체인
+
+### 6.2 골드셋 자동 평가 (GPU 서버 ChromaDB 기반)
+A/B 모델 비교와는 별개로, **프로덕션과 동일한 환경(GPU 서버 ChromaDB)**에서 골드셋 평가가 자동 실행되어야 한다.
+
+**전제 조건: GPU 서버 ChromaDB에 임베딩 적재 확인**
+- 프로덕션 upsert는 AWS 서버 ChromaDB에 적재
+- GPU 서버의 로컬 ChromaDB에도 동일 데이터가 있어야 eval 가능
+- `load_embeddings.py --mode local`로 GPU ChromaDB에 적재 필요
+- 적재 여부 확인:
+  ```bash
+  ssh gpu 'cd /mnt/data/scifit-sync/scifit-sync && .venv-gpu/bin/python3 -c "
+  import chromadb
+  client = chromadb.PersistentClient(path=\"/chroma-data\")  # 또는 실제 경로
+  col = client.get_collection(\"scifit_chunks\")
+  print(f\"ChromaDB chunks: {col.count()}\")
+  "'
+  ```
+- 미적재 시: 모든 bge-large 임베딩을 `--mode local`로 적재 후 평가
+
+**평가 흐름:**
+```
+임베딩 upsert 완료 → GPU ChromaDB 적재 확인/실행
+→ run_eval.py --retriever chroma --goldset goldset.jsonl
+→ 리포트 생성 (mlops/eval/reports/)
+```
+
+### 6.3 구현 방안 (후속 PR)
+1. **파이프라인 자동화 스크립트** — `ingest_curated_pmids.py` 또는 새 wrapper가 crawl→chunk→embed→upsert→eval 전체를 순차 실행
+2. **GPU ChromaDB 초기 적재** — 현재 모든 bge-large 임베딩 파일을 `--mode local`로 GPU ChromaDB에 적재
+3. **eval 자동 트리거** — upsert 완료 후 `run_eval.py --retriever chroma` 자동 실행, 리포트 저장
+
+---
+
+## 7. 전체 upsert 실행 중 (2026-05-27)
+
+- **ALB 타임아웃**: 60초 → **300초**로 변경 완료
+- **batch-size 테스트 결과**: 200(32s) / 500(53s) / 1000(79s) 모두 성공
+- **실행 중**: `upsert_full_v4.log` (batch=1000, retry 5회)
+- **예상 소요**: 2.1M chunks ÷ 1000 × 79초 ≈ ~46시간
+- **로그**: `ssh gpu "tail -f /mnt/data/scifit-sync/upsert_full_v4.log"`
+- **DOI 확인**: `ssh gpu` → 위 §3.2 명령어
+
+## 8. 알려진 제약
+
+- `load_embeddings.py`는 manifest 업데이트를 하지 않음 — ChromaDB에는 들어가지만 `curated_provenance.json` 미반영
+- legacy batch의 `search_categories`가 구버전 (덜 세분화). 나중 파일이 같은 DOI를 덮어쓰면 새 카테고리로 교체됨
+- 전체 upsert 시 2.1M chunks × HTTP POST → 수십 분~수 시간 소요
+- OOM 방지: 항상 `--batch-size 200 --skip-errors` 사용
