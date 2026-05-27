@@ -11,7 +11,7 @@ services:
       - ./chroma_data:/chroma-data
     env_file: ./server/.env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scifiitsync
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/scifiitsync?ssl=disable
       - HF_HOME=/tmp/hf
       - HUGGINGFACE_HUB_CACHE=/tmp/hf
       - ENV=development

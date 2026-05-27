@@ -49,6 +49,12 @@ def _exec_scalar_raw(value):
     return r
 
 
+def _exec_scalar_one(value):
+    r = MagicMock()
+    r.scalar_one.return_value = value
+    return r
+
+
 def _exec_scalars_all(values):
     r = MagicMock()
     r.scalars.return_value.all.return_value = values
@@ -203,7 +209,11 @@ class TestFinishSession:
     @pytest.mark.asyncio
     async def test_success(self, client):
         session = _mock_session()
-        db = _make_db(_exec_scalar(session))
+        db = _make_db(
+            _exec_scalar(session),  # _get_my_session
+            _exec_scalar_one(0),  # total_sets
+            _exec_scalar_one(0),  # completed_exercises
+        )
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)
 
