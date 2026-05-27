@@ -25,7 +25,8 @@
       [
         "@react-native-seoul/kakao-login",
         {
-          "kotlinVersion": "1.9.25"
+          "kotlinVersion": "1.9.25",
+          "nativeAppKey": "31250347642127059188b6723d38cca3"
         }
       ],
       "expo-build-properties",
