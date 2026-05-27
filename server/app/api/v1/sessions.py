@@ -108,11 +108,7 @@ async def _get_my_session(session_id: str, user: User, db: AsyncSession) -> Work
 
 async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
     rows = (
-        await db.execute(
-            select(func.date(WorkoutLog.started_at))
-            .where(WorkoutLog.user_id == user_id)
-            .distinct()
-        )
+        await db.execute(select(func.date(WorkoutLog.started_at)).where(WorkoutLog.user_id == user_id).distinct())
     ).all()
     dates = sorted({r[0] for r in rows}, reverse=True)
     if not dates:
@@ -200,9 +196,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
 
         equipment = None
         if equipment_id:
-            equipment = (
-                await db.execute(select(Equipment).where(Equipment.id == equipment_id))
-            ).scalar_one_or_none()
+            equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
 
         eq_type = equipment.equipment_type.value if equipment else "machine"
         max_stack = equipment.max_stack if equipment else None
@@ -298,10 +292,7 @@ async def start_session(
 
         first_day = (
             await db.execute(
-                select(RoutineDay)
-                .where(RoutineDay.routine_id == routine_id)
-                .order_by(RoutineDay.day_number)
-                .limit(1)
+                select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
             )
         ).scalar_one_or_none()
 
@@ -367,9 +358,7 @@ async def log_set(
     await db.commit()
     await db.refresh(set_record)
 
-    ex_name = (
-        await db.execute(select(Exercise.name).where(Exercise.id == exercise_id))
-    ).scalar_one_or_none()
+    ex_name = (await db.execute(select(Exercise.name).where(Exercise.id == exercise_id))).scalar_one_or_none()
 
     return SuccessResponse(
         data=WorkoutSetItem(
@@ -413,9 +402,7 @@ async def finish_session(
 
     total_sets = int(
         (
-            await db.execute(
-                select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id)
-            )
+            await db.execute(select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id))
         ).scalar_one()
     )
 
@@ -517,12 +504,7 @@ async def session_stats(
 ):
     # 총 세션 수
     total_sessions = int(
-        (
-            await db.execute(
-                select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == current_user.id)
-            )
-        ).scalar()
-        or 0
+        (await db.execute(select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == current_user.id))).scalar() or 0
     )
 
     # 총 볼륨
@@ -628,8 +610,7 @@ async def session_stats(
             .join(WorkoutLog, WorkoutLog.gym_id == Gym.id)
             .outerjoin(
                 WorkoutLogSet,
-                (WorkoutLogSet.workout_log_id == WorkoutLog.id)
-                & WorkoutLogSet.is_completed.is_(True),
+                (WorkoutLogSet.workout_log_id == WorkoutLog.id) & WorkoutLogSet.is_completed.is_(True),
             )
             .where(WorkoutLog.user_id == current_user.id)
             .group_by(Gym.id, Gym.name)
@@ -886,9 +867,7 @@ async def rest_timer(
 
     if routine_exercise_id:
         rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
-        rex = (
-            await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))
-        ).scalar_one_or_none()
+        rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
 
         if rex is not None:
             return SuccessResponse(data=RestTimerData(rest_seconds=rex.rest_seconds, based_on="routine"))

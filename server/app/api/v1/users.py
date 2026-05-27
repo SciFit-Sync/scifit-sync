@@ -315,6 +315,7 @@ async def change_primary_gym(
 ):
     return await add_primary_gym(request, body, current_user, db)
 
+
 # ── 1RM ───────────────────────────────────────────────────────────────────────
 def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> OneRMData:
     return OneRMData(
