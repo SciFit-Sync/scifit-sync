@@ -226,6 +226,7 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
         data=RegisterData(
             user_id=str(user.id),
             username=user.username,
+            otp_code=otp_code,
         )
     )
 
