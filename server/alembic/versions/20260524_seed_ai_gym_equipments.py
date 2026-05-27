@@ -1,4 +1,4 @@
-"""AI팀 제공 헬스장 머신 22개 seed (브랜드 6개 포함)
+"""AI팀 제공 헬스장 머신 22개 seed (브랜드 5개 포함)
 
 Revision ID: 20260524_seed_ai_gym_equipments
 Revises: 20260521_seed_equipments
@@ -6,7 +6,7 @@ Create Date: 2026-05-24
 
 멱등성: ON CONFLICT DO NOTHING — brand name UNIQUE / equipment id UNIQUE 충돌 모두 skip.
 UUID: uuid5(NAMESPACE_DNS, "scifit-brand-{slug}") / "scifit-ai-eq-{n}" 결정론적 생성.
-브랜드 통합: Lexco Master → Lexco (같은 제조사, 제품 라인 차이)
+브랜드 통합: Lexco MasterPro 제거 → 모든 Lexco 계열 기구를 Lexco 단일 브랜드로 통일.
 """
 
 import sqlalchemy as sa
@@ -22,7 +22,6 @@ _BRANDS = [
     # (id, name, default_bar_unit, default_stack_unit)
     ("ae5eaca3-7a8c-5957-99db-a902ba8acc5b", "Gym80", "kg", "kg"),
     ("00450d91-d251-5353-a003-0e1ca6adcc43", "NEM", "kg", "kg"),
-    ("df8ceb47-02dc-5e8d-aeff-fefc1ef151b6", "Lexco MasterPro", "kg", "kg"),
     ("c0802a7e-b07a-5bcb-826a-ef45a8188a7c", "Booty Builder", "kg", "kg"),
     ("6dc8a99d-5fe9-5736-9704-e8820d9805b3", "Salus", "kg", "kg"),
     ("d151cfa6-307d-5fff-acb4-8223c8db85d9", "Lexco", "kg", "kg"),
@@ -95,7 +94,7 @@ _EQUIPMENTS = [
     # 4 Hack Slide — Lexco MasterPro — plate-loaded
     (
         "c86e2020-ff51-5bc5-aa6b-9440abc25ece",
-        "df8ceb47-02dc-5e8d-aeff-fefc1ef151b6",
+        "d151cfa6-307d-5fff-acb4-8223c8db85d9",
         "Hack Slide",
         "Hack Slide",
         "legs",
@@ -203,7 +202,7 @@ _EQUIPMENTS = [
     # 10 Plate Loaded Seated Row — Lexco MasterPro — plate-loaded
     (
         "38060bd0-ef8d-50a5-8953-19444f3c1056",
-        "df8ceb47-02dc-5e8d-aeff-fefc1ef151b6",
+        "d151cfa6-307d-5fff-acb4-8223c8db85d9",
         "Plate Loaded Seated Row",
         "Seated Row",
         "back",
@@ -221,7 +220,7 @@ _EQUIPMENTS = [
     # 11 Plate Loaded Shoulder Press — Lexco MasterPro — plate-loaded
     (
         "5baf0161-7833-539f-8b76-6813affd32ce",
-        "df8ceb47-02dc-5e8d-aeff-fefc1ef151b6",
+        "d151cfa6-307d-5fff-acb4-8223c8db85d9",
         "Plate Loaded Shoulder Press",
         "Shoulder Press",
         "shoulders",
@@ -275,7 +274,7 @@ _EQUIPMENTS = [
     # 14 Plate Loaded Pulldown — Lexco MasterPro — plate-loaded
     (
         "3a27816b-32ff-5d43-828f-d5392f159289",
-        "df8ceb47-02dc-5e8d-aeff-fefc1ef151b6",
+        "d151cfa6-307d-5fff-acb4-8223c8db85d9",
         "Plate Loaded Pulldown",
         "Lat Pulldown",
         "back",
@@ -347,7 +346,7 @@ _EQUIPMENTS = [
     # 18 Seated Row — Lexco MasterPro — selectorized
     (
         "12ef7faa-0f32-535a-80b8-dbba78d2e142",
-        "df8ceb47-02dc-5e8d-aeff-fefc1ef151b6",
+        "d151cfa6-307d-5fff-acb4-8223c8db85d9",
         "Seated Row",
         "Seated Row",
         "back",
