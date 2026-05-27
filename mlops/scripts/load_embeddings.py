@@ -120,7 +120,7 @@ def load_api(input_path: Path, batch_size: int, skip_errors: bool = False) -> in
     headers = {"X-Admin-Token": ADMIN_API_TOKEN}
     logger.info("서버 API 적재 시작: POST %s (skip_errors=%s)", url, skip_errors)
 
-    def _post(batch: list[tuple[Chunk, list[float]]]) -> int:
+    def _post(batch: list[tuple[Chunk, list[float]]], max_retries: int = 5) -> int:
         payload = {
             "chunks": [
                 {
@@ -141,10 +141,28 @@ def load_api(input_path: Path, batch_size: int, skip_errors: bool = False) -> in
                 for chunk, vec in batch
             ]
         }
-        resp = requests.post(url, json=payload, headers=headers, timeout=300)
-        resp.raise_for_status()
-        result = resp.json()
-        return result["data"]["upserted"]
+        import time
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = requests.post(url, json=payload, headers=headers, timeout=300)
+                resp.raise_for_status()
+                return resp.json()["data"]["upserted"]
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code if e.response is not None else 0
+                if status in (502, 503, 504) and attempt < max_retries:
+                    wait = min(2**attempt, 30)
+                    logger.warning("API %d 에러 (attempt %d/%d), %ds 후 재시도", status, attempt, max_retries, wait)
+                    time.sleep(wait)
+                    continue
+                raise
+            except requests.exceptions.ConnectionError:
+                if attempt < max_retries:
+                    wait = min(2**attempt, 30)
+                    logger.warning("연결 에러 (attempt %d/%d), %ds 후 재시도", attempt, max_retries, wait)
+                    time.sleep(wait)
+                    continue
+                raise
 
     buffer: list[tuple[Chunk, list[float]]] = []
     total = 0
