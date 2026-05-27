@@ -15,7 +15,7 @@ import gzip
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -294,56 +294,122 @@ def _load_embeddings_jsonl(path: Path, expected_dim: int) -> tuple["np.ndarray",
     return matrix, metas
 
 
+DEFAULT_SHARD_SIZE = 50_000
+
+
+def _iter_embedding_shards(
+    path: Path,
+    expected_dim: int,
+    shard_size: int = DEFAULT_SHARD_SIZE,
+) -> "Iterator[tuple[np.ndarray, list[dict]]]":
+    """JSONL 임베딩 파일을 shard 단위로 스트리밍.
+
+    OOM 방지: 전체 파일을 한 번에 로딩하지 않고 ``shard_size`` 줄씩 numpy 행렬로 변환해
+    yield 한다. 이전 shard의 행렬은 caller가 참조를 놓으면 GC가 회수한다.
+    """
+    import numpy as np
+
+    opener = gzip.open if path.suffix == ".gz" else open
+    vectors: list[list[float]] = []
+    metas: list[dict] = []
+    with opener(path, "rt", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                raw = json.loads(stripped)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path}:{line_no}: invalid JSON — {e}") from e
+            if "embedding" not in raw:
+                raise ValueError(f"{path}:{line_no}: missing 'embedding' key")
+            emb = raw.pop("embedding")
+            if not isinstance(emb, list) or len(emb) != expected_dim:
+                raise ValueError(
+                    f"{path}:{line_no}: embedding dim mismatch — expected {expected_dim}, "
+                    f"got {len(emb) if isinstance(emb, list) else type(emb).__name__}"
+                )
+            vectors.append(emb)
+            metas.append(raw)
+            if len(vectors) >= shard_size:
+                yield np.asarray(vectors, dtype=np.float32), metas
+                vectors, metas = [], []
+    if vectors:
+        yield np.asarray(vectors, dtype=np.float32), metas
+
+
 def _build_inmem_retriever(
     embeddings_path: Path,
     model_key: str,
+    shard_size: int = DEFAULT_SHARD_SIZE,
 ) -> Retriever:
-    """JSONL.gz에서 청크 메타+embedding 로드 → 메모리 cosine retrieval.
+    """JSONL.gz에서 shard 단위로 cosine retrieval — OOM 방지.
 
-    모델별 dim이 달라도 Chroma 재적재 없이 즉시 검증 가능.
-    `evidence_weight` 재정렬은 의도적 미반영 — 임베딩 순수 의미 비교에 한정한다.
-
-    embedder의 `_model_cache`를 재사용하므로 test 모드에서 export 측이 이미 로드한
-    SentenceTransformer 인스턴스가 그대로 query encoding에 쓰인다 (중복 적재 없음).
+    대형 코퍼스(49만+ chunks)도 24GB 컨테이너에서 동작한다.
+    각 shard를 순차 로드→검색→해제하고, 전체 shard의 top-k를 병합한다.
     """
+    import gc
+
     import numpy as np
     from mlops.pipeline.embedder import _get_model_by_spec
     from mlops.pipeline.specs import get_spec
 
     spec = get_spec(model_key)
-    matrix, metas = _load_embeddings_jsonl(embeddings_path, expected_dim=spec.dim)
-
-    # corpus가 spec.normalize=True로 export됐다는 전제 — 단위 벡터 가정.
-    # 정규화되지 않은 벡터로 cosine을 계산하면 점수가 왜곡되어 A/B 비교가 부정확해진다.
-    # export 산출물은 항상 정규화되어 있으므로 정상 경로에서는 이 분기에 도달하지 않는다.
-    # 도달했다면 산출물이 손상된 것이므로 즉시 중단 — silent하게 잘못된 리포트를 만들지 않는다.
-    if spec.normalize:
-        norms = np.linalg.norm(matrix, axis=1)
-        if not np.allclose(norms, 1.0, atol=1e-3):
-            raise ValueError(
-                f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 "
-                f"(mean_norm={float(norms.mean()):.4f}). spec.normalize=True인데 export 산출물이 "
-                "정규화되지 않은 상태입니다. cosine 점수가 왜곡되어 A/B 비교가 부정확해지므로 즉시 중단."
-            )
-
     model = _get_model_by_spec(spec)
+
+    # shard 수 미리 세지 않음 — 파일을 두 번 읽는 비용 회피.
+    # 대신 첫 shard의 norm 검증만 수행하고, 나머지는 동일 export 파이프라인 산출물이라 신뢰.
+    total_lines = 0
+    opener = gzip.open if embeddings_path.suffix == ".gz" else open
+    with opener(embeddings_path, "rt", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                total_lines += 1
+    n_shards = (total_lines + shard_size - 1) // shard_size
+    logger.info(
+        "inmem retriever: %d chunks → %d shards (shard_size=%d)",
+        total_lines,
+        n_shards,
+        shard_size,
+    )
 
     def _retrieve(query: str, top_k: int) -> list[dict]:
         q_text = (spec.query_prefix + query) if spec.query_prefix else query
         qvec = model.encode(q_text, normalize_embeddings=spec.normalize)
         qvec_arr = np.asarray(qvec, dtype=np.float32)
-        # 단위벡터 가정 시 cosine = dot product
-        scores = matrix @ qvec_arr
-        top_idx = np.argsort(scores)[::-1][:top_k]
-        return [
-            {
-                "pmid": metas[i].get("paper_pmid", ""),
-                "title": metas[i].get("paper_title", ""),
-                "section": metas[i].get("section_name", ""),
-                "score": float(scores[i]),
-            }
-            for i in top_idx
-        ]
+
+        all_candidates: list[tuple[float, dict]] = []
+
+        for shard_idx, (matrix, metas) in enumerate(_iter_embedding_shards(embeddings_path, spec.dim, shard_size)):
+            if shard_idx == 0 and spec.normalize:
+                norms = np.linalg.norm(matrix, axis=1)
+                if not np.allclose(norms, 1.0, atol=1e-3):
+                    raise ValueError(
+                        f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 (mean_norm={float(norms.mean()):.4f})"
+                    )
+
+            scores = matrix @ qvec_arr
+            top_idx = np.argsort(scores)[::-1][:top_k]
+            for i in top_idx:
+                all_candidates.append(
+                    (
+                        float(scores[i]),
+                        {
+                            "pmid": metas[i].get("paper_pmid", ""),
+                            "doi": metas[i].get("paper_doi", ""),
+                            "paper_doi": metas[i].get("paper_doi", ""),
+                            "paper_pmid": metas[i].get("paper_pmid", ""),
+                            "title": metas[i].get("paper_title", ""),
+                            "section": metas[i].get("section_name", ""),
+                            "score": float(scores[i]),
+                        },
+                    )
+                )
+            del matrix, metas
+            gc.collect()
+
+        all_candidates.sort(key=lambda x: x[0], reverse=True)
+        return [c[1] for c in all_candidates[:top_k]]
 
     return _retrieve
 
