@@ -17,9 +17,11 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     CareerLevel,
+    Equipment,
     Exercise,
     Gender,
     Gym,
+    GymEquipment,
     OnermSource,
     User,
     UserBodyMeasurement,
@@ -30,18 +32,22 @@ from app.models import (
 from app.schemas.common import SuccessResponse
 from app.schemas.users import (
     Add1RMRequest,
+    AddUserEquipmentRequest,
     BodyMeasurementData,
     GymData,
     MeData,
     OnboardData,
     OnboardRequest,
     OneRMData,
+    OneRMListData,
     ProfileData,
     SetPrimaryGymRequest,
     UpdateBodyData,
     UpdateBodyRequest,
     UpdateCareerRequest,
     UpdateGoalRequest,
+    UserEquipmentItem,
+    UserEquipmentListData,
 )
 from app.services.load_calc import estimate_1rm
 
@@ -316,6 +322,19 @@ async def change_primary_gym(
     return await add_primary_gym(request, body, current_user, db)
 
 
+# ── equipment DTO ─────────────────────────────────────────────────────────────
+def _equipment_to_dto(e: Equipment) -> UserEquipmentItem:
+    return UserEquipmentItem(
+        equipment_id=str(e.id),
+        name=e.name,
+        category=e.category.value if e.category else None,
+        equipment_type=e.equipment_type.value if e.equipment_type else "machine",
+        pulley_ratio=e.pulley_ratio,
+        bar_weight=e.bar_weight,
+        image_url=e.image_url,
+    )
+
+
 # ── 1RM ───────────────────────────────────────────────────────────────────────
 def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> OneRMData:
     return OneRMData(
@@ -326,6 +345,23 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
         source=record.source.value if record.source else "manual",
         estimated_at=record.estimated_at,
     )
+
+
+@rate_limit("60/minute")
+@router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록 조회")
+async def list_1rm(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(UserExercise1RM, Exercise.name)
+        .join(Exercise, UserExercise1RM.exercise_id == Exercise.id)
+        .where(UserExercise1RM.user_id == current_user.id)
+        .order_by(UserExercise1RM.estimated_at.desc())
+    )
+    rows = result.all()
+    return SuccessResponse(data=OneRMListData(items=[_onerm_to_dto(record, name) for record, name in rows]))
 
 
 @rate_limit("60/minute")
@@ -416,3 +452,71 @@ async def update_1rm(
     await db.refresh(record)
 
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
+
+
+# ── /users/me/equipment ────────────────────────────────────────────────────────
+@rate_limit("60/minute")
+@router.get("/me/equipment", response_model=SuccessResponse[UserEquipmentListData], summary="내 헬스장 장비 목록 조회")
+async def list_my_equipment(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user_gym = (
+        await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
+    ).scalar_one_or_none()
+    if user_gym is None:
+        return SuccessResponse(data=UserEquipmentListData(items=[]))
+
+    gym = (await db.execute(select(Gym).where(Gym.id == user_gym.gym_id))).scalar_one_or_none()
+    if gym is None or not gym.gym_equipments:
+        return SuccessResponse(data=UserEquipmentListData(items=[]))
+
+    equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
+    equipments = (
+        await db.execute(select(Equipment).where(Equipment.id.in_(equipment_ids)))
+    ).scalars().all()
+
+    return SuccessResponse(data=UserEquipmentListData(items=[_equipment_to_dto(e) for e in equipments]))
+
+
+@rate_limit("60/minute")
+@router.post("/me/equipment", response_model=SuccessResponse[UserEquipmentItem], status_code=201, summary="내 헬스장 장비 추가")
+async def add_my_equipment(
+    request: Request,
+    body: AddUserEquipmentRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        equipment_uuid = uuid.UUID(body.equipment_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 equipment_id 형식입니다.") from e
+
+    equipment = (
+        await db.execute(select(Equipment).where(Equipment.id == equipment_uuid))
+    ).scalar_one_or_none()
+    if equipment is None:
+        raise NotFoundError(message="장비를 찾을 수 없습니다.")
+
+    user_gym = (
+        await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
+    ).scalar_one_or_none()
+    if user_gym is None:
+        raise ValidationError(message="주 헬스장을 먼저 등록해주세요.")
+
+    existing = (
+        await db.execute(
+            select(GymEquipment).where(
+                GymEquipment.gym_id == user_gym.gym_id,
+                GymEquipment.equipment_id == equipment_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ConflictError(message="이미 등록된 장비입니다.")
+
+    db.add(GymEquipment(gym_id=user_gym.gym_id, equipment_id=equipment_uuid))
+    await db.commit()
+
+    return SuccessResponse(data=_equipment_to_dto(equipment))
