@@ -300,7 +300,7 @@ async def update_routine_exercise(
     if all(
         v is None
         for v in [
-            body.new_exercise_id,
+            body.exercise_id,
             body.sets,
             body.reps_min,
             body.reps_max,
