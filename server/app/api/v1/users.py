@@ -10,7 +10,6 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
@@ -18,7 +17,6 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     CareerLevel,
-    Equipment,
     Exercise,
     Gender,
     Gym,
@@ -32,24 +30,18 @@ from app.models import (
 from app.schemas.common import SuccessResponse
 from app.schemas.users import (
     Add1RMRequest,
-    AddUserEquipmentRequest,
     BodyMeasurementData,
-    BulkAdd1RMRequest,
-    BulkOneRMData,
     GymData,
     MeData,
     OnboardData,
     OnboardRequest,
     OneRMData,
-    OneRMListData,
     ProfileData,
     SetPrimaryGymRequest,
     UpdateBodyData,
     UpdateBodyRequest,
     UpdateCareerRequest,
     UpdateGoalRequest,
-    UserEquipmentItem,
-    UserEquipmentListData,
 )
 from app.services.load_calc import estimate_1rm
 
