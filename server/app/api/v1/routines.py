@@ -539,7 +539,9 @@ async def get_ai_routine_detail(
         *[get_exercise_by_name(e.name_en) for e in unique_exs],
         return_exceptions=True,
     )
-    wx_map: dict[uuid.UUID, dict] = {e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)}
+    wx_map: dict[uuid.UUID, dict] = {
+        e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
+    }
 
     # 6. ExerciseDetailItem 빌드
     exercise_items: list[ExerciseDetailItem] = []
