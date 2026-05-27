@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from sqlalchemy import null as sa_null  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 from app.core.database import async_session_factory  # noqa: E402
@@ -477,15 +478,18 @@ async def seed() -> None:
         ) in EQUIPMENTS:
             row = (await session.execute(select(Equipment).where(Equipment.name == name))).scalar_one_or_none()
             if not row:
+                has_stack = max_stack is not None or stack_weight_val is not None
                 row = Equipment(
                     name=name,
                     name_en=name_en,
                     equipment_type=equipment_type,
                     bar_weight=bar_weight,
+                    bar_weight_unit="kg" if bar_weight is not None else None,
                     pulley_ratio=pulley_ratio,
                     has_weight_assist=has_weight_assist,
                     max_stack=max_stack,
-                    stack_weight={"value": stack_weight_val} if stack_weight_val is not None else None,
+                    stack_weight={"value": stack_weight_val} if stack_weight_val is not None else sa_null(),
+                    stack_unit="kg" if has_stack else None,
                 )
                 session.add(row)
                 await session.flush()

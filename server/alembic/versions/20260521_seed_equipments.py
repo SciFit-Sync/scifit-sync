@@ -74,15 +74,20 @@ def upgrade() -> None:
     with open(_SEED_CSV, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
+    _registered_brand_ids = {b["id"] for b in _BRANDS}
     params = []
     for r in rows:
+        bid = r["brand_id"] or None
+        if bid is not None and bid not in _registered_brand_ids:
+            # brand registered in a later migration; skip to avoid FK violation
+            continue
         params.append(
             {
                 "id": r["id"],
-                "brand_id": r["brand_id"],
+                "brand_id": bid,
                 "name": r["name"],
                 "name_en": r["name_en"] or None,
-                "category": r["category"],
+                "category": r["category"] or None,
                 "sub_category": r["sub_category"] or None,
                 "equipment_type": r["equipment_type"],
                 "pulley_ratio": float(r["pulley_ratio"]),

@@ -252,7 +252,27 @@ async def finish_session(
     s.status = WorkoutStatus.COMPLETED
     await db.commit()
     await db.refresh(s)
-    return SuccessResponse(data=_session_to_dto(s))
+
+    total_sets = int(
+        (
+            await db.execute(select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id))
+        ).scalar_one()
+    )
+    completed_exercises = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(WorkoutLogSet.exercise_id))).where(
+                    WorkoutLogSet.workout_log_id == s.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+            )
+        ).scalar_one()
+    )
+
+    dto = _session_to_dto(s)
+    dto.total_sets = total_sets
+    dto.completed_exercises = completed_exercises
+    return SuccessResponse(data=dto)
 
 
 # ── GET /sessions?year=&month= ────────────────────────────────────────────────
@@ -265,7 +285,7 @@ async def list_sessions(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     q_year = year or now.year
     q_month = month or now.month
 

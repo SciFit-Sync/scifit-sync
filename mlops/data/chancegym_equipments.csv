@@ -1,0 +1,34 @@
+brand,name,category,sub_category,equipment_type,pulley_ratio,min_stack,max_stack,stack_unit,stack_weight,bar_weight,bar_weight_unit,has_weight_assist
+GYM80,Preacher Curl,arms,biceps,machine,1,0,120,kg,5,null,kg,FALSE
+Newtech,Leg Press,legs,quads,machine,1,0,300,kg,5,null,kg,FALSE
+GYM80,Hack Squat,legs,quads,machine,1,0,120,kg,5,null,kg,FALSE
+Lexco,Hack Slide,legs,quads,machine,1,0,120,kg,5,null,kg,FALSE
+Lexco,Plate Loaded Incline Press,chest,upper_chest,machine,1,0,120,kg,5,null,kg,FALSE
+Newtech,Lat Pulldown,back,upper_back,machine,1,5,100,kg,5,null,kg,FALSE
+Newtech,Shoulder Press,shoulders,front_delt,machine,2,5,100,kg,5,null,kg,FALSE
+Newtech,Chest Press,chest,mid_chest,machine,1,5,100,kg,5,null,kg,FALSE
+Newtech,Incline Press,chest,upper_chest,machine,1,5,100,kg,5,null,kg,FALSE
+Lexco,Plate Loaded Seated Row,back,lower_back,machine,1,0,120,kg,5,null,kg,FALSE
+Lexco,Plate Loaded Shoulder Press,shoulders,front_delt,machine,1,0,120,kg,5,null,kg,FALSE
+Booty Builder,Hip Thrust Machine,legs,,machine,1,0,120,kg,5,null,kg,FALSE
+Newtech,M-Torture Front Row,back,upper_back,machine,1,0,120,kg,5,null,kg,FALSE
+Lexco,Plate Loaded Pulldown,back,upper_back,machine,1,0,120,kg,5,null,kg,FALSE
+Salus,Linear Row / Assisted T-Bar Row,back,lower_back,machine,1,0,120,kg,5,null,kg,FALSE
+Newtech,Seated Leg Press,legs,quads,machine,1,7.5,150,kg,7.5,null,kg,FALSE
+Newtech,Low Pulley (Seated Cable Row),back,lower_back,machine,1,5,100,kg,5,null,kg,FALSE
+Lexco MasterPro,Seated Row,back,lower_back,machine,2,5,100,kg,5,null,kg,FALSE
+Lexco,Lat Pulldown,back,upper_back,machine,1,5,100,kg,5,null,kg,FALSE
+Newtech,Assisted Dip/Chin,arms,triceps,machine,1,5,90,kg,5,null,kg,FALSE
+Newtech,Pectoral Fly / Rear Deltoid,shoulders,rear_delt,machine,2,5,100,kg,5,null,kg,FALSE
+Lexco,Pec Fly / Rear Delt,shoulders,rear_delt,machine,2,5,100,kg,5,null,kg,FALSE
+Lexco,Inner out thigh,legs,,machine,1,5,100,kg,5,null,kg,FALSE
+Newtech,Hip adduction/abduction,legs,,machine,1,7.5,112.5,kg,7.5,null,kg,FALSE
+Lexco,Seated leg curl,legs,hamstrings,machine,1,5,100,kg,5,null,kg,FALSE
+Lexco,Leg curl,legs,hamstrings,machine,1,5,100,kg,5,null,kg,FALSE
+Lexco,Leg extension,legs,quads,machine,1,5,100,kg,5,null,kg,FALSE
+Newtech,Leg extension,legs,quads,machine,1,5,100,kg,5,null,kg,FALSE
+Lexco master,Cable,back,upper_back,cable,2,5,75,kg,5,null,kg,FALSE
+Newtech,Cable,back,upper_back,cable,2,5,100,kg,5,null,kg,FALSE
+,Barbell,legs,quads,barbell,1,0,200,kg,5,20,kg,FALSE
+,dumbbell,arms,,dumbbell,1,2,40,kg,"{""pattern"": [{""from"": 1, ""to"": 10, ""value"": 2.0}, {""from"": 11, ""to"": 14, ""value"": 2.5}, {""from"": 15, ""to"": 16, ""value"": 5.0}]}",null,kg,FALSE
+,Smith machine,legs,quads,barbell,1,0,200,kg,5,15,kg,FALSE

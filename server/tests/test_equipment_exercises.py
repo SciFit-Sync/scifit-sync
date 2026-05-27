@@ -284,10 +284,8 @@ class TestGetEquipment:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["pagination"]["total"] == 1
-        assert body["pagination"]["page"] == 0
-        assert body["pagination"]["has_next"] is False
-        data = body["data"][0]
+        assert body["success"] is True
+        data = body["data"]
         assert data["equipment_id"] == str(eq.id)
         assert data["name"] == "바벨"
         assert data["brand"] == "브랜드A"

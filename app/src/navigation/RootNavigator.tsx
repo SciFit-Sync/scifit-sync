@@ -20,6 +20,7 @@ import WP03EditCareer from "@/screens/main/WP03EditCareer";
 import WP05EditOneRM from "@/screens/main/WP05EditOneRM";
 import WP04EditGym from "@/screens/main/WP04EditGym";
 import WP06Withdraw from "@/screens/main/WP06Withdraw";
+import WH02Analysis from "../screens/main/WH02Analysis";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -74,6 +75,7 @@ function MainNavigator() {
       <MainStack.Screen name="WP04EditGym" component={WP04EditGym} />
       <MainStack.Screen name="WP05EditOneRM" component={WP05EditOneRM} />
       <MainStack.Screen name="WP06Withdraw" component={WP06Withdraw} />
+      <MainStack.Screen name="WH02Analysis" component={WH02Analysis} />
     </MainStack.Navigator>
   );
 }
