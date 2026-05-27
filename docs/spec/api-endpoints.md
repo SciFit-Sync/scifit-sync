@@ -66,7 +66,6 @@ data: [DONE]
 | 12 | PATCH | /users/me/career | Yes | ✅ | |
 | 13 | POST | /users/me/gym | Yes | ✅ | |
 | 14 | PATCH | /users/me/gym | Yes | ✅ | |
-| 15 | POST | /users/me/1rm | Yes | ✅ | |
 | 16 | PATCH | /users/me/1rm | Yes | ✅ | |
 | 17 | POST | /users/me/equipment | Yes | ✅ | |
 | 18 | GET | /gyms?keyword= | Yes | ✅ | |
@@ -102,3 +101,29 @@ data: [DONE]
 | 48 | GET | /sessions/{id} | Yes | ✅ | |
 | 49 | GET | /health | No | ✅ | |
 | 50 | GET | /users/me/equipment | Yes | ✅ | |
+| 51 | POST | /auth/verify-email | No | ✅ | 이메일 OTP 인증 (D-01) |
+| 52 | POST | /auth/resend-otp | No | ✅ | OTP 재발송 (D-01) |
+| 53 | GET | /equipment/brands | Yes | ✅ | 기구 브랜드 목록 |
+| 54 | GET | /equipment/{equipment_id} | Yes | ✅ | 기구 단일 상세 조회 |
+| 55 | POST | /equipment/select | Yes | ✅ | 온보딩 기구 선택 저장 (기존 목록 교체) |
+| 56 | GET | /exercises/core-lifts | Yes | ✅ | 핵심 4대 운동(벤치/스쿼트/데드/OHP) 식별자 |
+| 57 | POST | /gyms/{gym_id}/equipment/bulk | Yes | ✅ | 헬스장 기구 일괄 연결 |
+| 58 | POST | /gyms/{gym_id}/equipment/suggest | Yes | ✅ | 미등록 기구 제보 |
+| 59 | POST | /users/me/onboard | Yes | ✅ | 온보딩 완료 (최초 신체정보 등록) |
+| 60 | POST | /users/me/1rm/bulk | Yes | ✅ | 1RM 일괄 등록 (온보딩용) |
+| 61 | GET | /sessions/analysis/muscle-volume | Yes | ✅ | 근육 부위별 볼륨 분석 |
+
+## Admin 엔드포인트 (내부용, 인증 없음)
+
+| # | Method | Path | Auth | 상태 | 비고 |
+|---|---|---|---|---|---|
+| A1 | POST | /admin/rag/ingest | No | ✅ | MLOps 파이프라인 논문 청크 적재 |
+| A2 | GET | /admin/rag/dois | No | ✅ | papers 테이블 DOI 목록 |
+| A3 | GET | /admin/rag/pmids | No | ✅ | ChromaDB 적재된 PMID 목록 |
+| A4 | POST | /admin/rag/refresh-categories | No | ✅ | ChromaDB 청크 메타 카테고리 갱신 |
+
+## 경로 불일치 (수정 필요)
+
+| 명세서 경로 | 실제 구현 경로 | 비고 |
+|---|---|---|
+| POST /auth/oauth/kakao | POST /auth/kakao | 명세서를 실제 경로에 맞춰 수정 필요 |

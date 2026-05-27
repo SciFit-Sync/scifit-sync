@@ -20,6 +20,7 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
+    EquipmentBrand,
     Exercise,
     ExerciseEquipmentMap,
     ExerciseMuscle,
@@ -44,6 +45,7 @@ from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
     GenerateRoutineRequest,
     GymSummary,
+    MuscleActivationItem,
     PaperItem,
     RegenerateRoutineRequest,
     RoutineDayItem,
@@ -105,9 +107,34 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         ex_name_map = {str(eid): name for eid, name in rows}
 
     eq_name_map: dict[str, str] = {}
+    eq_brand_map: dict[str, str] = {}
     if eq_ids:
-        rows = (await db.execute(select(Equipment.id, Equipment.name).where(Equipment.id.in_(eq_ids)))).all()
-        eq_name_map = {str(eid): name for eid, name in rows}
+        rows = (
+            await db.execute(
+                select(Equipment.id, Equipment.name, EquipmentBrand.name)
+                .outerjoin(EquipmentBrand, EquipmentBrand.id == Equipment.brand_id)
+                .where(Equipment.id.in_(eq_ids))
+            )
+        ).all()
+        for eid, eq_name, brand_name in rows:
+            eq_name_map[str(eid)] = eq_name
+            if brand_name:
+                eq_brand_map[str(eid)] = brand_name
+
+    # 근육 활성화 비율 prefetch
+    muscle_activation_map: dict[str, list[MuscleActivationItem]] = {}
+    if ex_ids:
+        ma_rows = (
+            await db.execute(
+                select(ExerciseMuscle.exercise_id, MuscleGroup.name_ko, ExerciseMuscle.activation_pct)
+                .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
+                .where(ExerciseMuscle.exercise_id.in_(ex_ids))
+            )
+        ).all()
+        for eid, name_ko, pct in ma_rows:
+            muscle_activation_map.setdefault(str(eid), []).append(
+                MuscleActivationItem(muscle=name_ko, activation_pct=pct)
+            )
 
     # 논문이 연결된 routine_exercise_id 집합
     paper_rows = await db.execute(
@@ -120,6 +147,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
 
     day_dtos: list[RoutineDayItem] = []
     for d in days:
+        sorted_exs = sorted(d.exercises, key=lambda e: e.order_index)
         ex_dtos = [
             RoutineExerciseItem(
                 routine_exercise_id=str(ex.id),
@@ -127,6 +155,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 exercise_name=ex_name_map.get(str(ex.exercise_id), ""),
                 equipment_id=str(ex.equipment_id) if ex.equipment_id else None,
                 equipment_name=eq_name_map.get(str(ex.equipment_id)) if ex.equipment_id else None,
+                brand=eq_brand_map.get(str(ex.equipment_id)) if ex.equipment_id else None,
                 order_index=ex.order_index,
                 sets=ex.sets,
                 reps_min=ex.reps_min,
@@ -135,14 +164,18 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 rest_seconds=ex.rest_seconds,
                 note=ex.note,
                 has_paper=str(ex.id) in exercise_ids_with_papers,
+                has_tips=False,
+                muscle_activation=muscle_activation_map.get(str(ex.exercise_id), []),
             )
-            for ex in sorted(d.exercises, key=lambda e: e.order_index)
+            for ex in sorted_exs
         ]
+        total_secs = sum(ex.sets * (45 + ex.rest_seconds) for ex in sorted_exs) if sorted_exs else None
         day_dtos.append(
             RoutineDayItem(
                 routine_day_id=str(d.id),
                 day_number=d.day_number,
                 label=d.label,
+                total_minutes=max(1, round(total_secs / 60)) if total_secs else None,
                 exercises=ex_dtos,
             )
         )
@@ -264,6 +297,19 @@ async def update_routine_exercise(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
+    if all(
+        v is None
+        for v in [
+            body.new_exercise_id,
+            body.sets,
+            body.reps_min,
+            body.reps_max,
+            body.weight_kg,
+            body.rest_seconds,
+            body.note,
+        ]
+    ):
+        raise ValidationError(message="변경할 필드를 최소 하나 이상 입력해주세요.")
     routine = await _get_my_routine(routine_id, current_user, db)
     rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
     rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()

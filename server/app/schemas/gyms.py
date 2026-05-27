@@ -30,7 +30,6 @@ class CreateGymRequest(BaseModel):
 class EquipmentItem(BaseModel):
     equipment_id: str
     name: str
-    name_en: str | None = None
     brand: str | None = None
     category: str | None = None
     equipment_type: str | None = None

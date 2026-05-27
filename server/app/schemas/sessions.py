@@ -30,6 +30,8 @@ class SessionData(BaseModel):
     status: str
     routine_name: str | None = None
     duration_minutes: int | None = None
+    total_sets: int | None = None
+    completed_exercises: int | None = None
 
 
 # ── 세트 기록 ─────────────────────────────────────────────────────────────────
