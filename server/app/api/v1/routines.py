@@ -519,12 +519,16 @@ async def get_ai_routine_detail(
 
         if active_log:
             log_sets = (
-                await db.execute(
-                    select(WorkoutLogSet)
-                    .where(WorkoutLogSet.workout_log_id == active_log.id)
-                    .order_by(WorkoutLogSet.set_number)
+                (
+                    await db.execute(
+                        select(WorkoutLogSet)
+                        .where(WorkoutLogSet.workout_log_id == active_log.id)
+                        .order_by(WorkoutLogSet.set_number)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             for s in log_sets:
                 if s.routine_exercise_id:
                     completed_sets_map.setdefault(s.routine_exercise_id, {})[s.set_number] = s
@@ -535,11 +539,7 @@ async def get_ai_routine_detail(
         *[get_exercise_by_name(e.name_en) for e in unique_exs],
         return_exceptions=True,
     )
-    wx_map: dict[uuid.UUID, dict] = {
-        e.id: r
-        for e, r in zip(unique_exs, wx_results)
-        if isinstance(r, dict)
-    }
+    wx_map: dict[uuid.UUID, dict] = {e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)}
 
     # 6. ExerciseDetailItem 빌드
     exercise_items: list[ExerciseDetailItem] = []
