@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20260527_seed_chancegym_equipments"
-down_revision = "20260525_seed_muscle_groups_exercises"
+down_revision = "20260525_seed_exercises"
 branch_labels = None
 depends_on = None
 
