@@ -84,6 +84,7 @@ class RegisterRequest(BaseModel):
 class RegisterData(BaseModel):
     user_id: str
     username: str
+    otp_code: str | None = None  # SES 미설정 개발 환경에서만 반환
 
 
 class LoginRequest(BaseModel):
