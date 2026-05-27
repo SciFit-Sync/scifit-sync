@@ -79,10 +79,10 @@ def upgrade() -> None:
         params.append(
             {
                 "id": r["id"],
-                "brand_id": r["brand_id"],
+                "brand_id": r["brand_id"] or None,
                 "name": r["name"],
                 "name_en": r["name_en"] or None,
-                "category": r["category"],
+                "category": r["category"] or None,
                 "sub_category": r["sub_category"] or None,
                 "equipment_type": r["equipment_type"],
                 "pulley_ratio": float(r["pulley_ratio"]),
