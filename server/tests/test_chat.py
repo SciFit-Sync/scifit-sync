@@ -63,7 +63,7 @@ def _db_override(mock_db):
 def _stub_rag_stream(events: list[dict]):
     """chat_rag_stream을 events list를 yield하는 stub generator로 치환."""
 
-    def _fake(_question):
+    def _fake(_question, _history=None):
         yield from events
 
     return _fake
@@ -96,7 +96,9 @@ class TestSendChatMessage:
     @pytest.mark.asyncio
     async def test_new_session_streams_sse(self, client, monkeypatch):
         monkeypatch.setattr("app.api.v1.chat.chat_rag_stream", _stub_rag_stream(_STUB_EVENTS))
-        db = _make_db()
+        db = _make_db(
+            _exec_scalars_all([]),  # 히스토리 쿼리 (새 세션 → 빈 결과)
+        )
         db.flush = AsyncMock(side_effect=lambda: setattr(db, "_flushed", True))
         db.add = MagicMock()
         app.dependency_overrides[get_db] = _db_override(db)
@@ -115,7 +117,9 @@ class TestSendChatMessage:
     async def test_rag_error_event_forwarded(self, client, monkeypatch):
         """RAG가 error를 emit하면 SSE에도 error 이벤트가 흘러간다."""
         monkeypatch.setattr("app.api.v1.chat.chat_rag_stream", _stub_rag_stream(_ERROR_EVENTS))
-        db = _make_db()
+        db = _make_db(
+            _exec_scalars_all([]),  # 히스토리 쿼리 (빈 결과)
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.post(
@@ -139,6 +143,39 @@ class TestSendChatMessage:
         )
 
         assert resp.status_code == 404
+
+
+# ── chat_rag_stream 단위 테스트 ───────────────────────────────────────────────
+
+
+class TestChatRagStreamUnit:
+    def test_history_included_in_prompt(self, monkeypatch):
+        """히스토리가 있을 때 'Previous conversation:' 섹션이 프롬프트에 포함된다."""
+        import app.services.rag as rag_mod
+
+        fake_chunks = [
+            {"content": "muscles adapt", "pmid": "123", "title": "Paper A", "section": "Results", "score": 0.9}
+        ]
+        captured: list[str] = []
+
+        monkeypatch.setattr(rag_mod, "translate_to_english", lambda text: text)
+        monkeypatch.setattr(rag_mod, "search_chunks", lambda q, top_k=10: fake_chunks)
+
+        def _fake_stream(prompt):
+            captured.append(prompt)
+            yield "response"
+
+        monkeypatch.setattr(rag_mod, "llm_generate_stream", _fake_stream)
+
+        history = [
+            {"role": "user", "content": "벤치프레스 세트 수 어떻게 해?"},
+            {"role": "assistant", "content": "3~4세트 권장합니다."},
+        ]
+        events = list(rag_mod.chat_rag_stream("그러면 휴식 시간은?", history=history))
+
+        assert any(e["type"] == "chunk" for e in events)
+        assert len(captured) == 1
+        assert "Previous conversation:" in captured[0]
 
 
 # ── GET /chat/messages ────────────────────────────────────────────────────────
