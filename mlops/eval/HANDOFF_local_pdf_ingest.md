@@ -188,7 +188,16 @@ A/B 모델 비교와는 별개로, **프로덕션과 동일한 환경(GPU 서버
 
 ---
 
-## 7. 알려진 제약
+## 7. 전체 upsert 실행 중 (2026-05-27)
+
+- **ALB 타임아웃**: 60초 → **300초**로 변경 완료
+- **batch-size 테스트 결과**: 200(32s) / 500(53s) / 1000(79s) 모두 성공
+- **실행 중**: `upsert_full_v4.log` (batch=1000, retry 5회)
+- **예상 소요**: 2.1M chunks ÷ 1000 × 79초 ≈ ~46시간
+- **로그**: `ssh gpu "tail -f /mnt/data/scifit-sync/upsert_full_v4.log"`
+- **DOI 확인**: `ssh gpu` → 위 §3.2 명령어
+
+## 8. 알려진 제약
 
 - `load_embeddings.py`는 manifest 업데이트를 하지 않음 — ChromaDB에는 들어가지만 `curated_provenance.json` 미반영
 - legacy batch의 `search_categories`가 구버전 (덜 세분화). 나중 파일이 같은 DOI를 덮어쓰면 새 카테고리로 교체됨
