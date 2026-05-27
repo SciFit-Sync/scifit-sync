@@ -382,9 +382,7 @@ async def update_routine_exercise(
     exercise = (await db.execute(select(Exercise).where(Exercise.id == rex.exercise_id))).scalar_one_or_none()
     equipment: Equipment | None = None
     if rex.equipment_id:
-        equipment = (
-            await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))
-        ).scalar_one_or_none()
+        equipment = (await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))).scalar_one_or_none()
 
     return SuccessResponse(
         data=RoutineExerciseItem(
