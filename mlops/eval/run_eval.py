@@ -415,7 +415,8 @@ def _run_shard_evaluation(
     )
     logger.info("쿼리 %d개 인코딩 완료 (dim=%d)", len(queries), q_matrix.shape[1])
 
-    per_query_heap: list[list[tuple[float, dict]]] = [[] for _ in goldset]
+    per_query_heap: list[list[tuple[float, int, dict]]] = [[] for _ in goldset]
+    tie_counter = 0
 
     for shard_idx, (matrix, metas) in enumerate(_iter_embedding_shards(embeddings_path, spec.dim, shard_size)):
         if shard_idx == 0 and spec.normalize:
@@ -431,8 +432,10 @@ def _run_shard_evaluation(
             scores = all_scores[:, qi]
             top_idx = np.argsort(scores)[::-1][:fetch_k]
             for i in top_idx:
+                tie_counter += 1
                 entry = (
                     float(scores[i]),
+                    tie_counter,
                     {
                         "pmid": metas[i].get("paper_pmid", ""),
                         "doi": metas[i].get("paper_doi", ""),
@@ -455,7 +458,7 @@ def _run_shard_evaluation(
     results: list[QueryResult] = []
     for qi, item in enumerate(goldset):
         candidates = sorted(per_query_heap[qi], key=lambda x: x[0], reverse=True)
-        chunks = [c[1] for c in candidates]
+        chunks = [c[2] for c in candidates]
 
         seen: set[str] = set()
         retrieved_pmids: list[str] = []
