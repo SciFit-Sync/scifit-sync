@@ -220,7 +220,7 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
 
     # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
     # 현재는 로그로 대체 (개발 환경)
-    logger.info("OTP for %s: %s", body.email, otp_code)
+    logger.warning("[DEV] OTP for %s: %s", body.email, otp_code)
 
     return SuccessResponse(
         data=RegisterData(

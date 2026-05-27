@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # hf_name → SentenceTransformer. test 모드에서 동일 spec 재호출 시 모델 재로딩 방지.
-_model_cache: dict[str, "SentenceTransformer"] = {}
+_model_cache: dict[tuple[str, str | None], "SentenceTransformer"] = {}
 
 
 def _resolve_device() -> str:
@@ -65,7 +65,8 @@ def log_device_status(logger_: logging.Logger | None = None) -> str:
 
 def _get_model_by_spec(spec: EmbeddingModelSpec) -> "SentenceTransformer":
     """spec.hf_name을 키로 SentenceTransformer 캐싱 (lazy load)."""
-    if spec.hf_name not in _model_cache:
+    cache_key = (spec.hf_name, spec.revision)
+    if cache_key not in _model_cache:
         from sentence_transformers import SentenceTransformer
 
         device = _resolve_device()
@@ -76,10 +77,19 @@ def _get_model_by_spec(spec: EmbeddingModelSpec) -> "SentenceTransformer":
                 "pip install torch --index-url https://download.pytorch.org/whl/cu126",
                 spec.key,
             )
-        logger.info("임베딩 모델 로딩: %s (key=%s, device=%s)", spec.hf_name, spec.key, device)
-        _model_cache[spec.hf_name] = SentenceTransformer(spec.hf_name, device=device)
+        logger.info(
+            "임베딩 모델 로딩: %s (key=%s, device=%s, revision=%s)",
+            spec.hf_name,
+            spec.key,
+            device,
+            spec.revision,
+        )
+        kwargs: dict = {"device": device}
+        if spec.revision:
+            kwargs["revision"] = spec.revision
+        _model_cache[cache_key] = SentenceTransformer(spec.hf_name, **kwargs)
         logger.info("모델 로딩 완료 (key=%s, dim=%d, device=%s)", spec.key, spec.dim, device)
-    return _model_cache[spec.hf_name]
+    return _model_cache[cache_key]
 
 
 def embed_texts_with_spec(

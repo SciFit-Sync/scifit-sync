@@ -251,25 +251,25 @@ def render_report(
 def _load_embeddings_jsonl(path: Path, expected_dim: int) -> tuple["np.ndarray", list[dict]]:
     """JSONL(.gz 허용) 임베딩 파일을 메모리 행렬 + 메타데이터로 로드한다.
 
-    포맷: 각 줄은 chunk 메타 + ``embedding`` 키. ``embed_chunks_with_spec`` 결과를
-    그대로 저장한 export_embeddings 산출물과 호환.
-
-    Args:
-        path: ``.jsonl`` 또는 ``.jsonl.gz`` 경로.
-        expected_dim: 모든 줄의 ``embedding`` 길이가 이 값과 일치해야 한다.
-
-    Returns:
-        (matrix(N, dim) float32, metas[N]) — 정렬 보존.
-
-    Raises:
-        ValueError: malformed JSON 한 줄이라도, 또는 dim 불일치 한 줄이라도 발견 시.
-            부분 적재된 상태로 진행하면 score 행렬과 metas 인덱스가 어긋난다.
+    스트리밍 방식: Python float 리스트를 누적하지 않고 numpy 행에 직접 기록하여
+    대규모 corpus(600K+ 청크)에서 OOM을 방지한다.
     """
     import numpy as np
 
     opener = gzip.open if path.suffix == ".gz" else open
-    vectors: list[list[float]] = []
+
+    n_lines = 0
+    with opener(path, "rt", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                n_lines += 1
+    if n_lines == 0:
+        raise ValueError(f"{path}: 임베딩이 한 줄도 없음")
+
+    logger.info("inmem 로드: %s (%d rows, dim=%d)", path.name, n_lines, expected_dim)
+    matrix = np.empty((n_lines, expected_dim), dtype=np.float32)
     metas: list[dict] = []
+    row = 0
     with opener(path, "rt", encoding="utf-8") as f:
         for line_no, line in enumerate(f, start=1):
             stripped = line.strip()
@@ -286,12 +286,14 @@ def _load_embeddings_jsonl(path: Path, expected_dim: int) -> tuple["np.ndarray",
                 raise ValueError(
                     f"{path}:{line_no}: embedding dim mismatch — expected {expected_dim}, got {len(emb) if isinstance(emb, list) else type(emb).__name__}"
                 )
-            vectors.append(emb)
+            matrix[row] = emb
             metas.append(raw)
-    if not vectors:
-        raise ValueError(f"{path}: 임베딩이 한 줄도 없음")
-    matrix = np.asarray(vectors, dtype=np.float32)
-    return matrix, metas
+            row += 1
+            if row % 100000 == 0:
+                logger.info("inmem 로드: %d/%d rows", row, n_lines)
+    if row != n_lines:
+        logger.warning("inmem 로드: pass-1/pass-2 라인 수 불일치 (expected=%d, actual=%d)", n_lines, row)
+    return matrix[:row], metas
 
 
 DEFAULT_SHARD_SIZE = 50_000

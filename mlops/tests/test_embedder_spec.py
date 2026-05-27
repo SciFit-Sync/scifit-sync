@@ -22,7 +22,7 @@ class _FakeSentenceTransformer:
     instances_created: list[tuple[str, str]] = []  # (hf_name, device)
     encode_calls: list[dict] = []  # 각 호출의 인자 capture
 
-    def __init__(self, hf_name: str, device: str = "cpu"):
+    def __init__(self, hf_name: str, device: str = "cpu", **kwargs):
         self.hf_name = hf_name
         self.device = device
         self.__class__.instances_created.append((hf_name, device))
@@ -224,3 +224,42 @@ def test_isinstance_check_for_spec_type():
     """EmbeddingModelSpec 임포트가 깨지지 않는지 sanity check."""
     spec = get_spec("bge-large")
     assert isinstance(spec, EmbeddingModelSpec)
+
+
+def test_revision_passed_as_top_level_kwarg():
+    """spec.revision이 SentenceTransformer 최상위 파라미터로 전달되는지 검증."""
+    spec = get_spec("pubmedbert-msmarco")
+    assert spec.revision is not None
+
+    captured: dict = {}
+    original_init = _FakeSentenceTransformer.__init__
+
+    def _capture_init(self, hf_name, device="cpu", **kwargs):
+        captured.update(kwargs)
+        original_init(self, hf_name, device=device)
+
+    _FakeSentenceTransformer.__init__ = _capture_init
+    try:
+        embedder._get_model_by_spec(spec)
+    finally:
+        _FakeSentenceTransformer.__init__ = original_init
+
+    assert "revision" in captured, "revision이 최상위 kwarg로 전달되지 않음"
+    assert captured["revision"] == spec.revision
+
+
+def test_cache_key_includes_revision():
+    """동일 hf_name이라도 revision이 다르면 별도 캐시."""
+    spec1 = get_spec("pubmedbert-msmarco")
+    embedder._get_model_by_spec(spec1)
+    cache_before = len(embedder._model_cache)
+
+    spec2 = EmbeddingModelSpec(
+        key="pubmedbert-custom",
+        hf_name=spec1.hf_name,
+        dim=spec1.dim,
+        query_prefix="",
+        revision="different-sha",
+    )
+    embedder._get_model_by_spec(spec2)
+    assert len(embedder._model_cache) == cache_before + 1
