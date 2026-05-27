@@ -368,7 +368,7 @@ async def replace_routine_exercise(
     )
     return SuccessResponse(
         data=ReplaceRoutineExerciseData(
-            message="종목이 교체되었습니다.",
+            message="종목이 업데이트되었습니다.",
             new_exercise=ReplacedExerciseData(
                 exercise_id=str(target_ex.id),
                 name=target_ex.name,

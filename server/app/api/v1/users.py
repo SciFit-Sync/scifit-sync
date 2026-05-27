@@ -323,7 +323,6 @@ async def change_primary_gym(
 ):
     return await add_primary_gym(request, body, current_user, db)
 
-
 # ── 1RM ───────────────────────────────────────────────────────────────────────
 def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> OneRMData:
     return OneRMData(
@@ -337,8 +336,8 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
 
 
 @rate_limit("60/minute")
-@router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
-async def update_1rm(
+@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 등록")
+async def add_1rm(
     request: Request,
     body: Add1RMRequest,
     current_user: User = Depends(get_current_user),
@@ -369,193 +368,58 @@ async def update_1rm(
     db.add(record)
     await db.commit()
     await db.refresh(record)
+
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
-# ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
 @rate_limit("60/minute")
-@router.post(
-    "/me/1rm/bulk",
-    response_model=SuccessResponse[BulkOneRMData],
-    status_code=201,
-    summary="1RM 일괄 등록 (온보딩용)",
-)
-async def bulk_add_1rm(
+@router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
+async def update_1rm(
     request: Request,
-    body: BulkAdd1RMRequest,
+    body: Add1RMRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """온보딩 1RM 설정 화면(W-A04)에서 벤치/스쿼트/데드/OHP 등을 한번에 등록한다.
+    try:
+        exercise_uuid = uuid.UUID(body.exercise_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 exercise_id 형식입니다.") from e
 
-    각 item 은 `exercise_id` 또는 `exercise_code` 중 하나 필수.
-    code 매핑은 services.core_lifts.CORE_LIFTS_NAME_EN_MAP 참고.
-    """
-    from app.services.core_lifts import resolve_exercise_id_by_code
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == exercise_uuid))).scalar_one_or_none()
+    if exercise is None:
+        raise NotFoundError(message="운동을 찾을 수 없습니다.")
 
-    created: list[tuple[UserExercise1RM, str]] = []
+    if body.reps is not None and body.reps > 1:
+        weight = estimate_1rm(body.weight_kg, body.reps)
+        source = OnermSource.EPLEY
+    else:
+        weight = body.weight_kg
+        source = OnermSource.MANUAL
 
-    for item in body.items:
-        # exercise_id 결정
-        if item.exercise_id:
-            try:
-                ex_uuid = uuid.UUID(item.exercise_id)
-            except ValueError as e:
-                raise ValidationError(message=f"잘못된 exercise_id 형식입니다: {item.exercise_id}") from e
-        elif item.exercise_code:
-            ex_uuid = await resolve_exercise_id_by_code(item.exercise_code, db)
-            if ex_uuid is None:
-                raise NotFoundError(
-                    message=f"운동을 찾을 수 없습니다 (code={item.exercise_code}). "
-                    "GET /exercises/core-lifts 로 사용 가능한 code 확인."
-                )
-        else:
-            raise ValidationError(message="exercise_id 또는 exercise_code 중 하나는 필수입니다.")
+    existing = (
+        await db.execute(
+            select(UserExercise1RM).where(
+                UserExercise1RM.user_id == current_user.id,
+                UserExercise1RM.exercise_id == exercise_uuid,
+            )
+        )
+    ).scalar_one_or_none()
 
-        exercise = (await db.execute(select(Exercise).where(Exercise.id == ex_uuid))).scalar_one_or_none()
-        if exercise is None:
-            raise NotFoundError(message=f"운동을 찾을 수 없습니다: {ex_uuid}")
-
-        # reps 있으면 Epley, 없으면 manual
-        if item.reps is not None and item.reps > 1:
-            weight = estimate_1rm(item.weight_kg, item.reps)
-            source = OnermSource.EPLEY
-        else:
-            weight = item.weight_kg
-            source = OnermSource.MANUAL
-
+    if existing is None:
         record = UserExercise1RM(
             user_id=current_user.id,
-            exercise_id=ex_uuid,
+            exercise_id=exercise_uuid,
             weight_kg=weight,
             source=source,
         )
         db.add(record)
-        created.append((record, exercise.name))
+    else:
+        existing.weight_kg = weight
+        existing.source = source
+        existing.estimated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        record = existing
 
     await db.commit()
-    for record, _ in created:
-        await db.refresh(record)
+    await db.refresh(record)
 
-    items = [_onerm_to_dto(rec, name) for rec, name in created]
-    return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
-
-
-@rate_limit("60/minute")
-@router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
-async def list_1rms(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(UserExercise1RM, Exercise.name)
-        .join(Exercise, UserExercise1RM.exercise_id == Exercise.id)
-        .where(UserExercise1RM.user_id == current_user.id)
-        .order_by(UserExercise1RM.estimated_at.desc())
-    )
-    items = [_onerm_to_dto(rec, name) for rec, name in result.all()]
-    return SuccessResponse(data=OneRMListData(items=items))
-
-
-# ── /users/me/equipment ───────────────────────────────────────────────────────
-@rate_limit("60/minute")
-@router.get("/me/equipment", response_model=SuccessResponse[UserEquipmentListData], summary="내 보유 장비")
-async def list_my_equipment(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """주 헬스장 보유 장비를 반환한다.
-    별도 user_equipment 테이블이 없어 user_gyms.is_primary 기반으로 조회.
-    """
-    primary = (
-        await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
-    ).scalar_one_or_none()
-    if primary is None:
-        return SuccessResponse(data=UserEquipmentListData(items=[]))
-
-    # primary gym의 equipments
-    result = await db.execute(select(Gym).where(Gym.id == primary.gym_id).options(selectinload(Gym.gym_equipments)))
-    gym = result.scalar_one_or_none()
-    if gym is None:
-        return SuccessResponse(data=UserEquipmentListData(items=[]))
-
-    equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
-    if not equipment_ids:
-        return SuccessResponse(data=UserEquipmentListData(items=[]))
-
-    equipments = (await db.execute(select(Equipment).where(Equipment.id.in_(equipment_ids)))).scalars().all()
-
-    items = [
-        UserEquipmentItem(
-            equipment_id=str(e.id),
-            name=e.name,
-            category=e.category.value if e.category else None,
-            equipment_type=e.equipment_type.value,
-            pulley_ratio=e.pulley_ratio,
-            bar_weight=e.bar_weight,
-            image_url=e.image_url,
-        )
-        for e in equipments
-    ]
-    return SuccessResponse(data=UserEquipmentListData(items=items))
-
-
-@rate_limit("60/minute")
-@router.post(
-    "/me/equipment",
-    response_model=SuccessResponse[UserEquipmentItem],
-    status_code=201,
-    summary="장비 추가 (스폿)",
-)
-async def add_my_equipment(
-    request: Request,
-    body: AddUserEquipmentRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """주 헬스장에 장비를 추가 등록 — 헬스장에 없는 경우 보고/추가용."""
-    try:
-        eq_uuid = uuid.UUID(body.equipment_id)
-    except ValueError as e:
-        raise ValidationError(message="잘못된 equipment_id 형식입니다.") from e
-
-    equipment = (await db.execute(select(Equipment).where(Equipment.id == eq_uuid))).scalar_one_or_none()
-    if equipment is None:
-        raise NotFoundError(message="장비를 찾을 수 없습니다.")
-
-    primary = (
-        await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
-    ).scalar_one_or_none()
-    if primary is None:
-        raise ValidationError(message="주 헬스장이 등록되어 있지 않습니다.")
-
-    # 중복 체크
-    from app.models import GymEquipment
-
-    exists = (
-        await db.execute(
-            select(GymEquipment).where(
-                GymEquipment.gym_id == primary.gym_id,
-                GymEquipment.equipment_id == eq_uuid,
-            )
-        )
-    ).scalar_one_or_none()
-    if exists is not None:
-        raise ConflictError(message="이미 등록된 장비입니다.")
-
-    db.add(GymEquipment(gym_id=primary.gym_id, equipment_id=eq_uuid))
-    await db.commit()
-
-    return SuccessResponse(
-        data=UserEquipmentItem(
-            equipment_id=str(equipment.id),
-            name=equipment.name,
-            category=equipment.category.value if equipment.category else None,
-            equipment_type=equipment.equipment_type.value,
-            pulley_ratio=equipment.pulley_ratio,
-            bar_weight=equipment.bar_weight,
-            image_url=equipment.image_url,
-        )
-    )
+    return SuccessResponse(data=_onerm_to_dto(record, exercise.name))

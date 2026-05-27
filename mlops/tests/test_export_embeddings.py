@@ -239,7 +239,7 @@ def export_module(tmp_path, monkeypatch):
     fake_module = types.ModuleType("sentence_transformers")
 
     class _FakeST:
-        def __init__(self, hf_name, device="cpu"):
+        def __init__(self, hf_name, device="cpu", **kwargs):
             self.hf_name = hf_name
             self.device = device
             dim_lookup = {

@@ -1,6 +1,6 @@
 import hashlib
 import logging
-import random
+import secrets
 import uuid
 from datetime import date as date_type
 from datetime import datetime, timedelta, timezone
@@ -209,7 +209,7 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
         )
 
     # OTP 생성 및 저장
-    otp_code = f"{random.randint(0, 999999):06d}"
+    otp_code = f"{secrets.randbelow(1_000_000):06d}"
     db.add(
         EmailOtp(
             email=body.email,
@@ -433,7 +433,7 @@ async def resend_otp(request: Request, body: ResendOtpRequest, db: AsyncSession 
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     # 보안상 사용자 존재 여부에 무관하게 동일 응답
     if user and not user.is_email_verified:
-        otp_code = f"{random.randint(0, 999999):06d}"
+        otp_code = f"{secrets.randbelow(1_000_000):06d}"
         db.add(
             EmailOtp(
                 email=body.email,
