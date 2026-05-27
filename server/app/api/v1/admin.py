@@ -4,6 +4,7 @@ GitHub Actions에서 실행된 논문 임베딩 결과를 서버 ChromaDB로 수
 ADMIN_API_TOKEN으로 인증.
 """
 
+import asyncio
 import logging
 
 import chromadb
@@ -47,6 +48,43 @@ def _safe_doc_id(doi: str, chunk_index: int) -> str:
     """DOI에 포함된 슬래시/점을 ChromaDB id-safe 문자로 치환."""
     doi_safe = doi.replace("/", "_").replace(".", "-")
     return f"{doi_safe}_{chunk_index}"
+
+
+def _ingest_chunks_to_chroma(chunks: list, batch_size: int = 100) -> tuple[int, int]:
+    """ChromaDB에 청크를 배치 upsert하고 (적재 수, 전체 컬렉션 수)를 반환한다.
+
+    upsert/count는 모두 동기 블로킹 호출이라 async 핸들러에서 직접 부르면 이벤트 루프가
+    멈춘다(0.5 vCPU 단일 태스크에서 대량 적재 시 /health 타임아웃 → ECS가 태스크 kill).
+    이 함수를 통째로 워커 스레드에서 실행하기 위해 분리한다.
+    """
+    collection = _get_collection()
+    total = 0
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i : i + batch_size]
+        collection.upsert(
+            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
+            documents=[c.content for c in batch],
+            embeddings=[c.embedding for c in batch],
+            metadatas=[
+                {
+                    "paper_doi": c.paper_doi,
+                    "paper_pmid": c.paper_pmid or "",
+                    "paper_title": c.paper_title,
+                    "section_name": c.section_name,
+                    "chunk_index": c.chunk_index,
+                    "token_count": c.token_count or 0,
+                    "search_categories": ",".join(c.search_categories),
+                    "publication_types": ",".join(c.publication_types),
+                    "evidence_weight": float(c.evidence_weight),
+                    "fulltext_source": c.fulltext_source or "",
+                    "published_year": c.published_year or 0,
+                }
+                for c in batch
+            ],
+        )
+        total += len(batch)
+        logger.info("ChromaDB upsert: %d/%d", total, len(chunks))
+    return total, collection.count()
 
 
 @router.post("/rag/ingest")
@@ -99,43 +137,17 @@ async def ingest_papers(
         logger.info("papers UPSERT 완료: %d편", len(papers_by_doi))
 
     # ── 2) ChromaDB chunk upsert (확장 메타) ─────────────────
-    collection = _get_collection()
-    batch_size = 100
-    total = 0
+    # ChromaDB 호출(upsert/count)은 동기 블로킹이라 이벤트 루프를 멈춘다 → 대량 적재 시
+    # /health 타임아웃으로 ECS가 태스크를 kill한다. 워커 스레드로 오프로드해 루프를 비운다.
+    total, total_collection = await asyncio.to_thread(_ingest_chunks_to_chroma, body.chunks)
 
-    for i in range(0, len(body.chunks), batch_size):
-        batch = body.chunks[i : i + batch_size]
-        collection.upsert(
-            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
-            documents=[c.content for c in batch],
-            embeddings=[c.embedding for c in batch],
-            metadatas=[
-                {
-                    "paper_doi": c.paper_doi,
-                    "paper_pmid": c.paper_pmid or "",
-                    "paper_title": c.paper_title,
-                    "section_name": c.section_name,
-                    "chunk_index": c.chunk_index,
-                    "token_count": c.token_count or 0,
-                    "search_categories": ",".join(c.search_categories),
-                    "publication_types": ",".join(c.publication_types),
-                    "evidence_weight": float(c.evidence_weight),
-                    "fulltext_source": c.fulltext_source or "",
-                    "published_year": c.published_year or 0,
-                }
-                for c in batch
-            ],
-        )
-        total += len(batch)
-        logger.info("ChromaDB upsert: %d/%d", total, len(body.chunks))
-
-    logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, collection.count())
+    logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, total_collection)
     return {
         "success": True,
         "data": {
             "upserted": total,
             "papers_upserted": len(papers_by_doi),
-            "total_collection": collection.count(),
+            "total_collection": total_collection,
         },
     }
 
