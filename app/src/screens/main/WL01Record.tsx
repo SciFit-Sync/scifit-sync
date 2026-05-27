@@ -352,7 +352,7 @@ export default function WL01Record() {
           ))}
         </View>
 
-        {/* AI 인사이트 배지 */}
+        {/* 운동 팁 배지 */}
         <View style={styles.badge_wide}>
           <Octicons name="light-bulb" size={16} color={colors.white} />
           <Text style={styles.badge_text}>
