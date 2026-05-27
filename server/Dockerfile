@@ -21,7 +21,7 @@ COPY server/requirements.txt .
 # venv 안에 먼저 설치되면 후속 sentence-transformers는 `Requirement already satisfied`로 재사용.
 RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu \
-    torch==2.5.1+cpu
+    torch==2.5.1
 
 # 나머지 의존성 — --extra-index-url로 PyPI와 CPU wheel 인덱스를 함께 검색 (CPU 우선이 아닌 동시 검색).
 # 이미 설치된 torch는 재설치 안 함.
