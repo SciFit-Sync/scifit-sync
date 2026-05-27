@@ -337,7 +337,7 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
 
 
 @rate_limit("60/minute")
-@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 추가")
+@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 등록")
 async def add_1rm(
     request: Request,
     body: Add1RMRequest,
@@ -353,7 +353,6 @@ async def add_1rm(
     if exercise is None:
         raise NotFoundError(message="운동을 찾을 수 없습니다.")
 
-    # reps가 주어지면 Epley로 추정, 아니면 manual
     if body.reps is not None and body.reps > 1:
         weight = estimate_1rm(body.weight_kg, body.reps)
         source = OnermSource.EPLEY
@@ -381,9 +380,32 @@ async def update_1rm(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """가장 최근 기록을 갱신하는 대신, 새 기록을 추가하는 방식.
-    기록 추적이 가능하도록 단순히 add를 호출한다."""
-    return await add_1rm(request, body, current_user, db)
+    try:
+        exercise_uuid = uuid.UUID(body.exercise_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 exercise_id 형식입니다.") from e
+
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == exercise_uuid))).scalar_one_or_none()
+    if exercise is None:
+        raise NotFoundError(message="운동을 찾을 수 없습니다.")
+
+    if body.reps is not None and body.reps > 1:
+        weight = estimate_1rm(body.weight_kg, body.reps)
+        source = OnermSource.EPLEY
+    else:
+        weight = body.weight_kg
+        source = OnermSource.MANUAL
+
+    record = UserExercise1RM(
+        user_id=current_user.id,
+        exercise_id=exercise_uuid,
+        weight_kg=weight,
+        source=source,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
 # ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
