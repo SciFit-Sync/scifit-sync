@@ -13,6 +13,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../assets/colors/colors";
+import { fetchChatHistory, sendChatMessage } from "../services/chat";
+import { useAuthStore } from "../stores/authStore";
 
 interface Message {
   id: string;
@@ -26,45 +28,15 @@ interface Props {
   onClose: () => void;
 }
 
-const mock_routines = [
-  "상체 근비대 루틴",
-  "뭐시기 루틴",
-  "어쩌구 루틴",
-  "하체 뭐시기 루틴",
-];
-
-const initial_messages: Message[] = [
-  {
-    id: "1",
-    type: "bot",
-    text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
-    chips: mock_routines,
-  },
-  {
-    id: "2",
-    type: "bot",
-    text: "상체 근비대 루틴이 궁금하시군요!\n운동, 부상, 영양 등 물어보세요.",
-  },
-  {
-    id: "3",
-    type: "user",
-    text: "인클라인이 왜 더 효과적인가요?",
-  },
-  {
-    id: "4",
-    type: "bot",
-    text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
-    chips: mock_routines,
-    date_divider: "5월 12일 (화)",
-  },
-];
-
 export default function WC01Chatbot({ onClose }: Props) {
-  const [messages, set_messages] = useState<Message[]>(initial_messages);
+  const [messages, set_messages] = useState<Message[]>([]);
   const [input, set_input] = useState("");
+  const [is_sending, set_is_sending] = useState(false);
+  const [session_id, set_session_id] = useState<string | undefined>(undefined);
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
+  const access_token = useAuthStore((s) => s.accessToken) ?? "";
 
   useEffect(() => {
     Animated.parallel([
@@ -79,6 +51,21 @@ export default function WC01Chatbot({ onClose }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
+  }, []);
+
+  // 세션이 있으면 이전 대화 이력 로드
+  useEffect(() => {
+    if (!session_id || !access_token) return;
+    fetchChatHistory(session_id, access_token)
+      .then((data) => {
+        const loaded: Message[] = data.items.map((m) => ({
+          id: m.message_id,
+          type: m.role === "user" ? "user" : "bot",
+          text: m.content,
+        }));
+        set_messages(loaded);
+      })
+      .catch(() => {});
   }, []);
 
   const handle_close = () => {
@@ -96,31 +83,47 @@ export default function WC01Chatbot({ onClose }: Props) {
     ]).start(() => onClose());
   };
 
-  const handle_send = () => {
-    if (!input.trim()) return;
-    const new_message: Message = {
-      id: String(Date.now()),
-      type: "user",
-      text: input.trim(),
-    };
-    set_messages((prev) => [...prev, new_message]);
+  const handle_send = async (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || is_sending) return;
+
+    const user_msg: Message = { id: String(Date.now()), type: "user", text: content };
+    set_messages((prev) => [...prev, user_msg]);
     set_input("");
-    setTimeout(() => {
-      scroll_ref.current?.scrollToEnd({ animated: true });
-    }, 100);
+    set_is_sending(true);
+
+    // 스트리밍 응답용 빈 봇 메시지 미리 추가
+    const bot_id = String(Date.now()) + "_bot";
+    set_messages((prev) => [...prev, { id: bot_id, type: "bot", text: "" }]);
+
+    try {
+      await sendChatMessage(content, access_token, {
+        on_session_id: (sid) => set_session_id(sid),
+        on_chunk: (chunk) => {
+          set_messages((prev) =>
+            prev.map((m) => (m.id === bot_id ? { ...m, text: m.text + chunk } : m))
+          );
+          setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 50);
+        },
+        on_done: () => set_is_sending(false),
+        on_error: (msg) => {
+          set_messages((prev) =>
+            prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
+          );
+          set_is_sending(false);
+        },
+      }, session_id);
+    } catch (e: any) {
+      set_messages((prev) =>
+        prev.map((m) => (m.id === bot_id ? { ...m, text: e.message ?? "오류가 발생했습니다." } : m))
+      );
+      set_is_sending(false);
+    }
+
+    setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const handle_chip_press = (chip: string) => {
-    const new_message: Message = {
-      id: String(Date.now()),
-      type: "user",
-      text: chip,
-    };
-    set_messages((prev) => [...prev, new_message]);
-    setTimeout(() => {
-      scroll_ref.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
+  const handle_chip_press = (chip: string) => handle_send(chip);
 
   return (
     <Modal
@@ -239,12 +242,13 @@ export default function WC01Chatbot({ onClose }: Props) {
                 placeholderTextColor={colors.border}
                 value={input}
                 onChangeText={set_input}
-                onSubmitEditing={handle_send}
+                onSubmitEditing={() => handle_send()}
                 returnKeyType="send"
               />
               <TouchableOpacity
-                style={styles.send_button}
-                onPress={handle_send}
+                style={[styles.send_button, is_sending && { opacity: 0.5 }]}
+                onPress={() => handle_send()}
+                disabled={is_sending}
                 activeOpacity={0.8}
               >
                 <Octicons
