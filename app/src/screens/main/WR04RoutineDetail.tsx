@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   deleteRoutine,
+  getAIRoutineDetail,
   getRoutineDetail,
   renameRoutine,
   type RoutineDayItem,
@@ -30,7 +31,7 @@ const GOAL_LABEL: Record<string, string> = {
   weight_loss: '체중 감량',
 };
 
-function ExerciseRow({ item }: { item: RoutineExerciseItem }) {
+function ExerciseRow({ item, gif_url }: { item: RoutineExerciseItem; gif_url?: string | null }) {
   const reps =
     item.reps_min != null && item.reps_max != null
       ? item.reps_min === item.reps_max
@@ -45,6 +46,9 @@ function ExerciseRow({ item }: { item: RoutineExerciseItem }) {
         <Text style={styles.exerciseIndexText}>{item.order_index}</Text>
       </View>
       <View style={styles.exerciseBody}>
+        {gif_url ? (
+          <Image source={{ uri: gif_url }} style={styles.exerciseGif} resizeMode="contain" />
+        ) : null}
         <Text style={styles.exerciseName}>{item.exercise_name}</Text>
         {item.equipment_name && (
           <Text style={styles.exerciseMeta}>{item.equipment_name}</Text>
@@ -59,7 +63,7 @@ function ExerciseRow({ item }: { item: RoutineExerciseItem }) {
   );
 }
 
-function DayCard({ day }: { day: RoutineDayItem }) {
+function DayCard({ day, gif_map }: { day: RoutineDayItem; gif_map: Record<string, string | null> }) {
   return (
     <View style={styles.dayCard}>
       <View style={styles.dayHeader}>
@@ -67,7 +71,7 @@ function DayCard({ day }: { day: RoutineDayItem }) {
         <Text style={styles.dayLabel}>{day.label}</Text>
       </View>
       {day.exercises.map((ex) => (
-        <ExerciseRow key={ex.routine_exercise_id} item={ex} />
+        <ExerciseRow key={ex.routine_exercise_id} item={ex} gif_url={gif_map[ex.exercise_id]} />
       ))}
       {day.exercises.length === 0 && (
         <Text style={styles.emptyText}>운동 없음</Text>
@@ -88,6 +92,19 @@ export default function WR04RoutineDetail({ navigation, route }: { navigation: a
     queryFn: () => getRoutineDetail(token, routine_id),
     enabled: !!token,
   });
+
+  const { data: aiData } = useQuery({
+    queryKey: ['routine-ai', routine_id],
+    queryFn: () => getAIRoutineDetail(token, routine_id),
+    enabled: !!token,
+  });
+
+  const gif_map: Record<string, string | null> = {};
+  if (aiData) {
+    for (const ex of aiData.exercises) {
+      gif_map[ex.exercise_id] = ex.gif_url ?? null;
+    }
+  }
 
   const { mutate: doDelete, isPending: isDeleting } = useMutation({
     mutationFn: () => deleteRoutine(token, routine_id),
@@ -224,7 +241,7 @@ export default function WR04RoutineDetail({ navigation, route }: { navigation: a
         {/* 일자별 운동 */}
         <Text style={styles.sectionTitle}>운동 구성 ({data.days.length}일)</Text>
         {data.days.map((day) => (
-          <DayCard key={day.routine_day_id} day={day} />
+          <DayCard key={day.routine_day_id} day={day} gif_map={gif_map} />
         ))}
         {data.days.length === 0 && (
           <Text style={styles.emptyText}>운동 일정이 없습니다.</Text>
@@ -343,6 +360,7 @@ const styles = StyleSheet.create({
   },
   exerciseIndexText: { color: '#888', fontSize: 11, fontWeight: '700' },
   exerciseBody: { flex: 1, gap: 2 },
+  exerciseGif: { width: '100%', height: 120, borderRadius: 8, marginBottom: 4 },
   exerciseName: { color: '#fff', fontSize: 14, fontWeight: '600' },
   exerciseMeta: { color: '#666', fontSize: 12 },
   exerciseSets: { alignItems: 'flex-end', gap: 2 },
