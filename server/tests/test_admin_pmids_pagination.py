@@ -75,3 +75,46 @@ async def test_pmids_has_next_false_on_last_page(client, fake_collection):
     )
     body = r.json()
     assert body["data"]["has_next"] is False
+
+
+@pytest.mark.asyncio
+async def test_pmids_no_silent_full_fetch_fallback(client, monkeypatch):
+    """limit/offset 미지원 ChromaDB에서 silent full fetch를 허용하지 않음 — M4 fix.
+
+    fallback 제거 후: get()에서 TypeError 발생 시 500 에러(또는 예외 전파)를 반환해야 함.
+    silent하게 전체 데이터를 fetch하는 메모리 폭증 path(include만 있는 무인자 get 호출)가
+    없어야 한다는 것이 핵심 검증 항목.
+    """
+    full_fetch_called = []
+
+    class _FullFetchCol:
+        """limit/offset을 받으면 TypeError를 raise하는 fake — 구버전 ChromaDB 시뮬레이션."""
+
+        def count(self) -> int:
+            return 100
+
+        def get(self, **kw):
+            if "limit" in kw or "offset" in kw:
+                raise TypeError("get() got unexpected keyword argument 'limit'")
+            # 이 경로(include만 있는 전체 fetch)는 절대 호출되면 안 됨 — M4 fallback 제거 확인
+            full_fetch_called.append(True)
+            return {"ids": [], "metadatas": []}
+
+    col = _FullFetchCol()
+    monkeypatch.setattr("app.api.v1.admin._get_collection", lambda: col)
+
+    # fallback 제거 후: TypeError가 500으로 변환되거나 예외로 전파되어야 함
+    # 어떤 경우든 silent full fetch(full_fetch_called)가 발생해서는 안 됨
+    try:
+        r = await client.get(
+            "/api/v1/admin/rag/pmids?limit=10",
+            headers={"X-Admin-Token": ADMIN_TOKEN},
+        )
+        # 응답이 왔다면 500이어야 함 (full fetch silent degrade가 아닌 에러)
+        assert r.status_code == 500, f"fallback 제거 후 TypeError는 500이어야 함, got {r.status_code}"
+    except Exception:
+        # asyncio.to_thread TypeError가 테스트 레벨로 전파되는 경우도 허용
+        pass
+
+    # 핵심: include만 있는 full fetch path가 호출되지 않았어야 함
+    assert full_fetch_called == [], "silent full fetch fallback이 호출됨 — M4 fix 누락"

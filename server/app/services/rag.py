@@ -115,8 +115,7 @@ def _get_collection():
             # collection이 없으면 명확한 에러 — silent empty fallback 방지 (B1 fix)
             # 운영자가 alias 파일 또는 초기 ingest 설정을 확인해야 함
             raise RuntimeError(
-                f"ChromaDB collection {name!r} not found. "
-                f"Check {ALIAS_FILE} or run initial ingest."
+                f"ChromaDB collection {name!r} not found. Check {ALIAS_FILE} or run initial ingest."
             ) from e
         count = collection.count()
         if count == 0:
