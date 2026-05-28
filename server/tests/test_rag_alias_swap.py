@@ -48,29 +48,31 @@ def test_get_collection_reads_alias_file(monkeypatch, tmp_path):
 
 
 def test_alias_missing_falls_back_to_default(monkeypatch, tmp_path):
-    """alias 파일 없으면 DEFAULT_COLLECTION(=CHROMA_COLLECTION_NAME env) 사용."""
+    """alias 파일 없고 CHROMA_COLLECTION_NAME env 없으면 'papers' fallback."""
     alias_file = tmp_path / "current_alias.json"  # 미생성
     monkeypatch.setattr(rag, "ALIAS_FILE", alias_file)
     monkeypatch.setattr(rag, "_collection_cache", {})
+    # CI 환경의 CHROMA_COLLECTION_NAME env를 정리해 fallback 'papers' 확정
+    monkeypatch.delenv("CHROMA_COLLECTION_NAME", raising=False)
 
     fake = FakeClientOK()
     monkeypatch.setattr(rag, "_client", fake)
     rag._get_collection()
-    # DEFAULT_COLLECTION은 CHROMA_COLLECTION_NAME 환경변수 값 (B1 fix)
-    assert fake.requested == [rag.DEFAULT_COLLECTION]
+    assert fake.requested == ["papers"]
 
 
 def test_alias_file_corrupt_falls_back(monkeypatch, tmp_path):
-    """alias 파일이 JSON 깨졌으면 DEFAULT_COLLECTION으로 안전 fallback."""
+    """alias 파일이 JSON 깨졌고 env 없으면 'papers' 안전 fallback."""
     alias_file = tmp_path / "current_alias.json"
     alias_file.write_text("not json {{{")
     monkeypatch.setattr(rag, "ALIAS_FILE", alias_file)
     monkeypatch.setattr(rag, "_collection_cache", {})
+    monkeypatch.delenv("CHROMA_COLLECTION_NAME", raising=False)
 
     fake = FakeClientOK()
     monkeypatch.setattr(rag, "_client", fake)
     rag._get_collection()
-    assert fake.requested == [rag.DEFAULT_COLLECTION]
+    assert fake.requested == ["papers"]
 
 
 def test_get_collection_fails_closed_when_target_missing(monkeypatch, tmp_path):
