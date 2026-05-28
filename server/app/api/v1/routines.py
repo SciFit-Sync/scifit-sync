@@ -10,7 +10,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -543,7 +544,23 @@ async def get_ai_routine_detail(
         e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
     }
 
-    # 6. ExerciseDetailItem 빌드
+    # 6. RoutinePaper 수 batch fetch → tips_count / tips_available 계산용
+    rex_ids = [rex.id for rex in all_rex]
+    paper_counts: dict[uuid.UUID, int] = {}
+    if rex_ids:
+        count_rows = (
+            await db.execute(
+                select(RoutinePaper.routine_exercise_id, func.count().label("cnt"))
+                .where(
+                    RoutinePaper.routine_id == routine.id,
+                    RoutinePaper.routine_exercise_id.in_(rex_ids),
+                )
+                .group_by(RoutinePaper.routine_exercise_id)
+            )
+        ).all()
+        paper_counts = {rex_id: cnt for rex_id, cnt in count_rows}
+
+    # 7. ExerciseDetailItem 빌드
     exercise_items: list[ExerciseDetailItem] = []
     for order_idx, rex in enumerate(all_rex, start=1):
         ex = ex_map.get(rex.exercise_id)
@@ -585,8 +602,8 @@ async def get_ai_routine_detail(
                 force=wx.get("force"),
                 muscle_activation=muscle_map.get(rex.exercise_id, []),
                 sets=set_items,
-                tips_count=0,
-                tips_available=False,
+                tips_count=paper_counts.get(rex.id, 0),
+                tips_available=paper_counts.get(rex.id, 0) > 0,
                 calories_per_minute=wx.get("caloriesPerMinute"),
                 met=wx.get("met"),
                 is_replaceable=True,
@@ -898,8 +915,14 @@ async def _run_rag_to_sse(
     profile: RagUserProfile,
     db: AsyncSession,
     initial_event: dict,
+    delete_on_error: bool = False,
 ) -> AsyncIterator[str]:
-    """공통 SSE 스트림: started → chunk*/day_complete*/papers → done → [DONE]."""
+    """공통 SSE 스트림: started → chunk*/day_complete*/papers → done → [DONE].
+
+    delete_on_error=True 면 RAG 에러 시 routine 행을 DB에서 삭제하고 done 이벤트의
+    routine_id를 비운다 (generate 경로 — 빈 좀비 루틴 방지). regenerate 경로는
+    기존 루틴을 보존해야 하므로 기본값(False) 사용.
+    """
     seq = 1
     yield _sse(seq, initial_event)
 
@@ -993,11 +1016,28 @@ async def _run_rag_to_sse(
     except Exception as e:  # noqa: BLE001
         logger.exception("SSE 스트림 중 예외")
         await db.rollback()
+        error_emitted = True
         seq += 1
         yield _sse(seq, {"type": "error", "message": f"내부 오류: {e}"})
 
+    # 에러 발생 + 새로 만든 루틴(generate)인 경우: 빈 좀비 행을 삭제한다.
+    # Core delete를 사용해 ORM 비동기 lazy-load(MissingGreenlet) 위험 회피;
+    # FK들이 ON DELETE CASCADE이므로 자식(day/paper) 정리는 DB가 처리.
+    if error_emitted and delete_on_error:
+        try:
+            await db.execute(sa_delete(WorkoutRoutine).where(WorkoutRoutine.id == routine.id))
+            await db.commit()
+            logger.info("RAG 에러로 빈 루틴 삭제: routine_id=%s", routine.id)
+        except Exception:  # noqa: BLE001
+            logger.exception("빈 루틴 삭제 실패: routine_id=%s", routine.id)
+            await db.rollback()
+
     seq += 1
-    yield _sse(seq, {"type": "done", "routine_id": str(routine.id)})
+    # 에러 시엔 routine_id를 노출하지 않아 앱이 빈/삭제된 루틴을 조회하지 않게 함.
+    done_payload: dict = {"type": "done"}
+    if not error_emitted:
+        done_payload["routine_id"] = str(routine.id)
+    yield _sse(seq, done_payload)
     yield _sse_done()
 
 
@@ -1055,6 +1095,7 @@ async def generate_routine(
                 "routine_id": str(routine.id),
                 "goals": [g.lower() for g in body.goals],
             },
+            delete_on_error=True,  # 새로 만든 routine이므로 RAG 실패 시 빈 행 삭제
         ),
         media_type="text/event-stream",
     )
