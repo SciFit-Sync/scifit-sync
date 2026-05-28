@@ -97,5 +97,5 @@ class TestPaginationHelper:
         ids, metas = _fetch_all_metadatas_paged(coll)
         assert len(ids) == 30000
         assert len(metas) == 30000
-        # 30 페이지로 분할 호출됨
-        assert coll.get.call_count == 30
+        # 30 페이지(1000씩) + 종료 감지용 빈 페이지 1번 = 31 호출
+        assert coll.get.call_count == 31
