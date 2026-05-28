@@ -626,7 +626,6 @@ async def get_ai_routine_detail(
                 tips_available=paper_counts.get(rex.id, 0) > 0,
                 calories_per_minute=wx.get("caloriesPerMinute"),
                 met=wx.get("met"),
-                ai_reasoning=rex.note,
                 is_replaceable=True,
             )
         )
@@ -1080,7 +1079,13 @@ async def generate_routine(
     if not body.goals:
         raise ValidationError(message="goals는 비어 있을 수 없습니다.")
 
-    split = SplitType(body.split_type) if body.split_type else None
+    split = None
+    if body.split_type:
+        try:
+            split = SplitType(body.split_type)
+        except ValueError as e:
+            valid = [e.value for e in SplitType]
+            raise ValidationError(message=f"split_type 값이 올바르지 않습니다. 가능한 값: {valid}") from e
     gym_uuid = None
     if body.gym_id:
         try:
