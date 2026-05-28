@@ -70,3 +70,28 @@ async def test_swap_leaves_no_tmp_file(client, alias_path):
     # alias_path의 부모 디렉토리에 .tmp 잔여물이 없어야 함
     tmp_files = list(alias_path.parent.glob("*.tmp"))
     assert tmp_files == [], f".tmp 파일이 남아있음: {tmp_files}"
+
+
+@pytest.mark.asyncio
+async def test_swap_unique_tmp_even_under_rapid_calls(client, alias_path):
+    """연속 swap 호출 후 .tmp 파일이 남지 않는다 — M3 잔여 픽스: uuid4 suffix로 충돌 방지.
+
+    pid+ms timestamp 방식은 동일 프로세스 동시 요청에서 동일 ms에 충돌 가능.
+    uuid4.hex suffix는 이 가능성을 제거한다.
+    """
+    for target in ["papers_v2", "papers_v3", "papers_v4"]:
+        r = await client.post(
+            "/api/v1/admin/rag/collection-swap",
+            headers={"X-Admin-Token": ADMIN_TOKEN},
+            json={"to": target},
+        )
+        assert r.status_code == 200, r.text
+
+    # 모든 swap 완료 후 .tmp 잔여물 없어야 함
+    leftover_tmps = list(alias_path.parent.glob("*.tmp"))
+    assert leftover_tmps == [], f".tmp 파일 잔여: {leftover_tmps}"
+
+    # 마지막 alias는 papers_v4여야 함
+    import json as _json
+    saved = _json.loads(alias_path.read_text())
+    assert saved["current"] == "papers_v4"
