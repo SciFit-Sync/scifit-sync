@@ -5,9 +5,18 @@
 
 # 필수 키 (스키마) — 12개
 REQUIRED_KEYS: tuple[str, ...] = (
-    "chunk_index", "paper_pmid", "paper_title", "section_name", "token_count",
-    "search_categories", "paper_doi", "publication_types", "evidence_weight",
-    "fulltext_source", "published_year", "embedding",
+    "chunk_index",
+    "paper_pmid",
+    "paper_title",
+    "section_name",
+    "token_count",
+    "search_categories",
+    "paper_doi",
+    "publication_types",
+    "evidence_weight",
+    "fulltext_source",
+    "published_year",
+    "embedding",
 )
 
 # 식별자 fill rate — (paper_doi OR paper_pmid) 채워진 청크 비율
