@@ -106,6 +106,8 @@ jobs:
         run: pip install -r mlops/requirements.txt
 
       - name: Run mlops tests
-        run: pytest mlops/tests/ -v --tb=short
+        # integration marker는 NCBI/외부 API 실호출 — CI에서 제외 (pyproject.toml 정의 일치)
+        # CLAUDE.md §13: "NCBI, Gemini, 카카오 API 호출은 반드시 mock — 실제 API 키 없이도 CI 통과 필수"
+        run: pytest mlops/tests/ -v --tb=short -m "not integration"
         env:
           PYTHONPATH: .
