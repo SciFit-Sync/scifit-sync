@@ -297,13 +297,20 @@ def stage4_upsert(embeddings_path: Path, collection: str) -> int:
     if not API_BASE_URL or not ADMIN_API_TOKEN:
         raise RuntimeError("API_BASE_URL / ADMIN_API_TOKEN 환경변수 미설정")
 
+    import time
+
     url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
     headers = {"X-Admin-Token": ADMIN_API_TOKEN}
     batch_size = 200
     buffer: list = []
     total = 0
 
-    def _post(batch: list) -> int:
+    def _post(batch: list, max_retries: int = 5) -> int:
+        """
+        Why: 2,500만 청크/1,250~2,100 _post 호출 중 단일 transient 5xx 한 번에
+        stage4 전체 abort + 운영자 수동 재실행을 차단. load_embeddings.load_api와
+        동일 패턴(502/503/504 + ConnectionError + exponential backoff) 재사용.
+        """
         payload = {
             "chunks": [
                 {
@@ -325,9 +332,38 @@ def stage4_upsert(embeddings_path: Path, collection: str) -> int:
             ],
             "collection": collection,  # papers_v2 명시 — alias 무시
         }
-        resp = requests.post(url, json=payload, headers=headers, timeout=300)
-        resp.raise_for_status()
-        return resp.json()["data"]["upserted"]
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = requests.post(url, json=payload, headers=headers, timeout=300)
+                resp.raise_for_status()
+                return resp.json()["data"]["upserted"]
+            except requests.exceptions.HTTPError as e:
+                status = e.response.status_code if e.response is not None else 0
+                if status in (502, 503, 504) and attempt < max_retries:
+                    wait = min(2**attempt, 30)
+                    logger.warning(
+                        "API %d 에러 (attempt %d/%d), %ds 후 재시도",
+                        status,
+                        attempt,
+                        max_retries,
+                        wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                raise
+            except requests.exceptions.ConnectionError:
+                if attempt < max_retries:
+                    wait = min(2**attempt, 30)
+                    logger.warning(
+                        "연결 에러 (attempt %d/%d), %ds 후 재시도",
+                        attempt,
+                        max_retries,
+                        wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                raise
+        raise RuntimeError("unreachable: _post retry loop exited without return")
 
     for record in iter_records(embeddings_path, skip_errors=True):
         buffer.append(record)
