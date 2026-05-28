@@ -105,7 +105,105 @@ def stage1_fetch(batch_tag: str, mode: str, max_per_category: int | None) -> Pat
         return MANIFEST_PATH
 
     if mode == "phase2_full":
-        raise NotImplementedError("phase2_full — Task C6")
+        import json as _json
+
+        from mlops.pipeline.chunker import chunk_papers
+        from mlops.pipeline.config import MANIFEST_PATH
+        from mlops.pipeline.crawler import crawl_papers
+        from mlops.pipeline.manifest import Manifest
+        from mlops.pipeline.models import PaperFull
+        from mlops.scripts.export_embeddings import (
+            _chunks_path,
+            _save_chunks_atomic,
+            _write_meta_sidecar,
+        )
+
+        # ── JATS 경로: OpenAlex + PubMed cascading ──
+        jats_papers = crawl_papers(
+            max_total=1_000_000,  # 실질 cap은 max_per_category가 결정
+            max_per_category=max_per_category,
+            existing_dois=set(),  # 첫 실행 가정; resumable 모드는 후속 확장
+        )
+        indexed_jats = [p for p in jats_papers if p.sections]
+        logger.info(
+            "Phase 2 JATS: 시도 %d, 본문 확보 %d",
+            len(jats_papers),
+            len(indexed_jats),
+        )
+
+        # ── local_pdf 경로: Phase 1과 동일 패턴 ──
+        manifest_in = DATA_DIR / "local_pdfs" / "manifest.json"
+        pdf_papers: list[PaperFull] = []
+        if manifest_in.exists():
+            from mlops.scripts.ingest_local_pdfs import build_paperfull
+
+            try:
+                raw = _json.loads(manifest_in.read_text(encoding="utf-8"))
+            except Exception as exc:
+                logger.warning("local_pdfs manifest 파싱 실패 (skip): %s", exc)
+                raw = {}
+            entries = raw.get("papers") or []
+            pdf_dir = DATA_DIR / "local_pdfs" / "pdfs"
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    logger.warning("manifest entry가 dict가 아님 — skip: %r", entry)
+                    continue
+                pf = build_paperfull(entry, pdf_dir)
+                if pf is None:
+                    continue
+                if not (pf.meta.doi or pf.meta.pmid):
+                    logger.warning(
+                        "drop local_pdf: no doi/pmid for %s",
+                        entry.get("title", "?"),
+                    )
+                    continue
+                pdf_papers.append(pf)
+        logger.info("Phase 2 local_pdf: %d papers", len(pdf_papers))
+
+        # ── 통합 + 검증 ──
+        all_papers = indexed_jats + pdf_papers
+        if not all_papers:
+            logger.error("Phase 2 fetch: 0 papers — abort")
+            raise RuntimeError("Phase 2 fetch produced no papers")
+
+        # ── chunks 캐시 저장 (Stage 2+3에서 재사용) ──
+        chunks = chunk_papers(all_papers)
+        cp = _chunks_path(batch_tag)
+        _save_chunks_atomic(cp, chunks)
+        _write_meta_sidecar(cp, chunks)
+        logger.info(
+            "Phase 2 chunks 저장: %s (%d chunks from %d papers)",
+            cp,
+            len(chunks),
+            len(all_papers),
+        )
+
+        # ── manifest 갱신 ──
+        # pdf_papers를 set으로 변환해 O(1) membership 확인
+        pdf_papers_set: set[int] = {id(p) for p in pdf_papers}
+        manifest = Manifest.load(MANIFEST_PATH)
+        recorded = 0
+        for pf in all_papers:
+            if not pf.meta.doi:
+                logger.warning(
+                    "DOI 없음 — pipeline manifest 기록 생략 (pmid=%s)",
+                    pf.meta.pmid,
+                )
+                continue
+            tried: list[str] = ["local_pdf"] if id(pf) in pdf_papers_set else ["jats"]
+            manifest.record_attempt(
+                doi=pf.meta.doi,
+                pmid=pf.meta.pmid or None,
+                pmcid=pf.meta.pmcid,
+                openalex_id=pf.meta.openalex_id or None,
+                fulltext_source=pf.meta.fulltext_source,
+                tried_sources=tried,
+            )
+            recorded += 1
+        manifest.save(MANIFEST_PATH)
+        logger.info("manifest 갱신: %d papers 기록", recorded)
+        return MANIFEST_PATH
+
     raise ValueError(f"unknown mode: {mode}")
 
 
@@ -135,8 +233,47 @@ def stage1_5_manifest_sanity(manifest_path: Path) -> bool:
 
 
 def stage2_3_chunk_embed(batch_tag: str) -> Path:
-    """Stage 2+3: chunk + embed → jsonl.gz path. Task C7에서 구현."""
-    raise NotImplementedError("Task C7")
+    """Stage 2+3: chunks 캐시 → 임베딩 jsonl.gz 산출.
+
+    Stage 1에서 _save_chunks_atomic으로 저장된 chunks 캐시를 읽어
+    bge-large-en-v1.5 모델로 임베딩 후 shard 단위 jsonl.gz 저장 (OOM 방지).
+    임베딩 캐시가 이미 존재하면 skip (resumable).
+    """
+    from mlops.pipeline.embedder import embed_chunks_with_spec
+    from mlops.pipeline.specs import get_spec
+    from mlops.scripts.export_embeddings import (
+        _SHARD_SIZE,
+        _chunks_path,
+        _emb_path,
+        _embed_and_write_streaming,
+        _load_chunks,
+        _write_embeddings,
+    )
+
+    chunks_path = _chunks_path(batch_tag)
+    if not chunks_path.exists():
+        raise RuntimeError(f"chunks 캐시 없음: {chunks_path}. Stage 1 chunks 저장 누락")
+    chunks = _load_chunks(chunks_path)
+    logger.info("chunks 로드: %d chunks from %s", len(chunks), chunks_path)
+
+    spec = get_spec("bge-large")
+    emb_path = _emb_path(batch_tag, spec.key)
+    if emb_path.exists():
+        logger.info("임베딩 캐시 이미 존재: %s — skip (resumable)", emb_path)
+        return emb_path
+
+    batch_size = spec.default_batch_size
+    if len(chunks) > _SHARD_SIZE:
+        # 대용량: shard 단위 streaming으로 OOM 방지
+        written = _embed_and_write_streaming(emb_path, chunks, spec, batch_size)
+    else:
+        # 소용량: 단순 embed + write
+        pairs = embed_chunks_with_spec(chunks, spec, batch_size=batch_size)
+        written = _write_embeddings(emb_path, pairs)
+        del pairs
+
+    logger.info("임베딩 완료: %d chunks → %s", written, emb_path)
+    return emb_path
 
 
 def stage3_5_validate(embeddings_path: Path) -> bool:
