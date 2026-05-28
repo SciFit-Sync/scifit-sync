@@ -735,6 +735,11 @@ def _parse_pubmed_article(article: ET.Element) -> PaperMeta | None:
                 abstract_parts.append(text)
         abstract = " ".join(abstract_parts)
 
+        # 출판 타입 (PublicationTypeList)
+        publication_types = [
+            (pt.text or "").strip() for pt in article.findall(".//PublicationTypeList/PublicationType") if pt.text
+        ]
+
         return PaperMeta(
             pmid=pmid,
             title=title,
@@ -743,6 +748,7 @@ def _parse_pubmed_article(article: ET.Element) -> PaperMeta | None:
             published_year=year,
             doi=doi,
             abstract=abstract,
+            publication_types=publication_types,
         )
     except Exception:
         logger.warning("논문 파싱 실패: %s", ET.tostring(article, encoding="unicode")[:200])

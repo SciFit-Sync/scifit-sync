@@ -50,6 +50,34 @@ def _safe_doc_id(doi: str, chunk_index: int) -> str:
     return f"{doi_safe}_{chunk_index}"
 
 
+# ChromaDB는 collection.get(include=["metadatas"]) 시 내부적으로 SQLite IN 절을 쓰는데
+# 한 번에 ~18~30k row를 넘기면 "too many SQL variables" InternalError로 깨진다.
+# 페이지당 1000 row(SQLite 한계 32766 대비 충분한 여유)로 잘라 가져온다.
+_GET_PAGE_SIZE = 1000
+
+
+def _fetch_all_metadatas_paged(collection: chromadb.Collection) -> tuple[list[str], list[dict]]:
+    """collection.get(include=["metadatas"])를 limit/offset로 페이지네이션해 누적.
+
+    동기 호출 — 호출부에서 asyncio.to_thread로 워커 스레드 오프로드.
+    """
+    all_ids: list[str] = []
+    all_metas: list[dict] = []
+    offset = 0
+    while True:
+        page = collection.get(include=["metadatas"], limit=_GET_PAGE_SIZE, offset=offset)
+        ids = page.get("ids") or []
+        if not ids:
+            break
+        metas = page.get("metadatas") or [{} for _ in ids]
+        all_ids.extend(ids)
+        all_metas.extend(metas)
+        if len(ids) < _GET_PAGE_SIZE:
+            break
+        offset += _GET_PAGE_SIZE
+    return all_ids, all_metas
+
+
 def _ingest_chunks_to_chroma(chunks: list, batch_size: int = 100) -> tuple[int, int]:
     """ChromaDB에 청크를 배치 upsert하고 (적재 수, 전체 컬렉션 수)를 반환한다.
 
@@ -181,9 +209,8 @@ async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
     collection = _get_collection()
-    # ChromaDB get()은 동기 블로킹 → 이벤트 루프 비차단 위해 워커 스레드로 오프로드
-    data = await asyncio.to_thread(collection.get, include=["metadatas"])
-    metas = data.get("metadatas") or []
+    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    _ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
     pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
     return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
 
@@ -203,10 +230,8 @@ async def refresh_categories(
     변경된 후 RAG 검색 가중치를 동기화하는 용도.
     """
     collection = _get_collection()
-    # ChromaDB get()/update()는 동기 블로킹 → 워커 스레드로 오프로드
-    data = await asyncio.to_thread(collection.get, include=["metadatas"])
-    ids = data.get("ids") or []
-    metas = data.get("metadatas") or []
+    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
 
     update_ids: list[str] = []
     update_metas: list[dict] = []

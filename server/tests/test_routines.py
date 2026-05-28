@@ -317,30 +317,30 @@ class TestRenameRoutine:
 class TestUpdateRoutineExercise:
     @pytest.mark.asyncio
     async def test_success(self, client):
+        """sets/reps 부분 업데이트 — exercise_id 없이도 성공."""
         r = _routine()
         rex = _routine_exercise()
-        new_ex = MagicMock()
-        new_ex.id = _EXERCISE_ID
-        new_ex.name = "스쿼트"
+        exercise_mock = MagicMock()
+        exercise_mock.id = _EXERCISE_ID
+        exercise_mock.name = "벤치프레스"
 
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
-            _exec_scalar(new_ex),  # 교체할 Exercise 조회
+            _exec_scalar(exercise_mock),  # 응답용 Exercise 조회
         )
         db.refresh = AsyncMock(side_effect=lambda obj: None)
         app.dependency_overrides[get_db] = _db_override(db)
 
-        new_exercise_id = str(uuid.uuid4())
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": new_exercise_id},
+            json={"sets": 4, "reps_min": 8, "reps_max": 12, "rest_seconds": 90},
         )
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        assert data["message"] == "종목이 업데이트되었습니다."
-        assert data["new_exercise"]["name"] == "스쿼트"
+        assert data["exercise_name"] == "벤치프레스"
+        assert "routine_exercise_id" in data
         db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -350,13 +350,14 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": str(uuid.uuid4())},
+            json={"sets": 3},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
     async def test_exercise_not_found(self, client):
+        """루틴 내 운동(RoutineExercise)이 없을 때 404."""
         r = _routine()
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
@@ -366,19 +367,25 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": str(uuid.uuid4())},
+            json={"sets": 3},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_missing_new_exercise_id_returns_400(self, client):
-        db = _make_db()
+    async def test_invalid_reps_returns_400(self, client):
+        """reps_min > reps_max 이면 400."""
+        r = _routine()
+        rex = _routine_exercise()
+        db = _make_db(
+            _exec_scalar(r),
+            _exec_scalar(rex),
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={},
+            json={"reps_min": 15, "reps_max": 8},
         )
 
         assert resp.status_code == 400
@@ -782,6 +789,34 @@ class TestGenerateRoutine:
         assert '"type": "error"' in body
         assert "관련 논문을 찾을 수 없습니다" in body
         assert "[DONE]" in body  # 에러여도 종료 마커는 흘러야 함
+
+    @pytest.mark.asyncio
+    async def test_rag_error_done_omits_routine_id_and_deletes_zombie(self, client, monkeypatch):
+        """RAG 에러 시 generate가 만든 빈 좀비 루틴은 삭제되고 done에 routine_id 미노출."""
+        from sqlalchemy.sql.dml import Delete
+
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([{"type": "error", "message": "RAG 실패"}]),
+        )
+        db = _generate_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        # error는 흐르고
+        assert '"type": "error"' in body
+        # done 이벤트 라인엔 routine_id가 없어야 함 (started 이벤트엔 있어도 됨)
+        done_lines = [line for line in body.splitlines() if line.startswith("data:") and '"type": "done"' in line]
+        assert len(done_lines) == 1, f"done 이벤트가 정확히 1개 있어야 함: {done_lines}"
+        assert "routine_id" not in done_lines[0], f"에러 시 done에 routine_id 노출됨: {done_lines[0]}"
+        # 좀비 삭제: DELETE statement가 db.execute로 호출됨
+        delete_calls = [c for c in db.execute.call_args_list if c.args and isinstance(c.args[0], Delete)]
+        assert len(delete_calls) >= 1, "RAG 에러 시 DELETE 호출 없음 (좀비 미삭제)"
 
     @pytest.mark.asyncio
     async def test_missing_goals_returns_400(self, client):
