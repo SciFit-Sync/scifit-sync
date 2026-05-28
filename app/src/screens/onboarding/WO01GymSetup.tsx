@@ -151,11 +151,8 @@ export default function WO01GymSetup() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
       >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+        {/* 카드가 나머지 공간을 꽉 채움 — 외부 ScrollView 없음 */}
+        <View style={styles.content}>
           <View style={styles.card}>
             <Text style={styles.card_title}>헬스장 설정</Text>
 
@@ -176,64 +173,66 @@ export default function WO01GymSetup() {
               )}
             </View>
 
-            {/* 위치 권한 없으면 버튼 */}
-            {has_location_permission === false && search.length === 0 && (
-              <View style={styles.location_button_wrapper}>
-                <TouchableOpacity
-                  style={styles.location_button}
-                  onPress={request_location_permission}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.location_button_text}>위치 정보 동의하러 가기</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* 검색 결과 */}
-            {loading ? (
-              <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
-            ) : gyms.length > 0 ? (
-              <View style={styles.gym_list}>
-                {gyms.map((gym) => (
+            {/* 목록 영역 — flex: 1로 남은 공간 차지 + 내부만 스크롤 */}
+            <View style={styles.list_container}>
+              {has_location_permission === false && search.length === 0 && !loading ? (
+                /* 위치 권한 없을 때 버튼 */
+                <View style={styles.location_button_wrapper}>
                   <TouchableOpacity
-                    key={gym.gym_id || gym.kakao_place_id || gym.name}
-                    style={[
-                      styles.gym_item,
-                      selected_gym?.gym_id === gym.gym_id && styles.gym_item_active,
-                      !gym.gym_id && styles.gym_item_unregistered,
-                    ]}
-                    onPress={() => set_selected_gym(gym)}
+                    style={styles.location_button}
+                    onPress={request_location_permission}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.gym_info}>
-                      <Text
-                        style={[
-                          styles.gym_name,
-                          selected_gym?.gym_id === gym.gym_id && styles.gym_name_active,
-                        ]}
-                      >
-                        {gym.name}
-                        {!gym.gym_id && (
-                          <Text style={styles.unregistered_badge}> (미등록)</Text>
-                        )}
-                      </Text>
-                      <Text style={styles.gym_address}>{gym.address}</Text>
-                    </View>
-                    {gym.equipment_count > 0 && (
-                      <Text style={styles.gym_equipment_count}>
-                        기구 {gym.equipment_count}개
-                      </Text>
-                    )}
+                    <Text style={styles.location_button_text}>위치 정보 동의하러 가기</Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            ) : search.length > 0 && !loading ? (
-              <Text style={styles.empty_text}>검색 결과가 없어요</Text>
-            ) : null}
+                </View>
+              ) : loading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+              ) : gyms.length > 0 ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.gym_list}
+                >
+                  {gyms.map((gym) => (
+                    <TouchableOpacity
+                      key={gym.gym_id || gym.kakao_place_id || gym.name}
+                      style={[
+                        styles.gym_item,
+                        selected_gym?.gym_id === gym.gym_id && styles.gym_item_active,
+                        !gym.gym_id && styles.gym_item_unregistered,
+                      ]}
+                      onPress={() => set_selected_gym(gym)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.gym_info}>
+                        <Text
+                          style={[
+                            styles.gym_name,
+                            selected_gym?.gym_id === gym.gym_id && styles.gym_name_active,
+                          ]}
+                        >
+                          {gym.name}
+                          {!gym.gym_id && (
+                            <Text style={styles.unregistered_badge}> (미등록)</Text>
+                          )}
+                        </Text>
+                        <Text style={styles.gym_address}>{gym.address}</Text>
+                      </View>
+                      {gym.equipment_count > 0 && (
+                        <Text style={styles.gym_equipment_count}>
+                          기구 {gym.equipment_count}개
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : search.length > 0 ? (
+                <Text style={styles.empty_text}>검색 결과가 없어요</Text>
+              ) : null}
+            </View>
 
-            <View style={styles.spacer} />
-
-            {/* 다음 / 건너뛰기 */}
+            {/* 다음 / 건너뛰기 — 항상 하단 고정 */}
             <TouchableOpacity
               style={[
                 styles.next_button,
@@ -251,7 +250,7 @@ export default function WO01GymSetup() {
               <Text style={styles.skip_text}>건너뛰기</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -270,13 +269,17 @@ const styles = StyleSheet.create({
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  scroll: { paddingHorizontal: 24, paddingBottom: 32 },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+  },
   card: {
+    flex: 1,
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 20,
     gap: 16,
-    minHeight: 500,
   },
   card_title: {
     fontFamily: "semibold",
@@ -300,9 +303,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
-  location_button_wrapper: { alignItems: "center" },
+  // 목록 영역 — 남은 공간 전부 차지
+  list_container: { flex: 1 },
+  location_button_wrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   location_button: {
-    marginTop: 40,
     backgroundColor: colors.select,
     borderRadius: 8,
     paddingVertical: 13,
@@ -345,7 +353,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 20,
   },
-  spacer: { flex: 1 },
   next_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
