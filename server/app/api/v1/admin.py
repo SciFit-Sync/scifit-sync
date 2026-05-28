@@ -5,10 +5,13 @@ ADMIN_API_TOKEN으로 인증.
 """
 
 import asyncio
+import json
 import logging
+from datetime import UTC, datetime
+from pathlib import Path
 
 import chromadb
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -19,6 +22,7 @@ from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
 from app.models.paper import Paper
 from app.schemas.rag import RagIngestRequest
+from app.services import rag as rag_svc
 
 logger = logging.getLogger(__name__)
 
@@ -272,3 +276,41 @@ async def refresh_categories(
             "total_pmids_in_mapping": len(body.mapping),
         },
     }
+
+
+class CollectionSwapRequest(BaseModel):
+    to: str
+
+
+@router.post("/rag/collection-swap")
+async def swap_collection(
+    body: CollectionSwapRequest,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """`current_alias.json`의 `current`를 새 collection 이름으로 atomic write.
+
+    PR-δ §2.3 alias-swap 패턴 — body `{"to": "papers_v2"}`로 호출하면 EFS의 alias 파일을
+    교체하고 rag 서비스의 keyed cache를 clear 한다. 다음 검색 요청부터 새 collection을
+    사용하므로 zero-downtime swap이 가능하다. 롤백은 동일 endpoint에 이전 이름으로 재호출.
+    """
+    target = body.to.strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="`to` 필드는 비어있을 수 없습니다")
+
+    alias_path: Path = rag_svc.ALIAS_FILE
+    alias_path.parent.mkdir(parents=True, exist_ok=True)
+    swapped_at = datetime.now(UTC).isoformat()
+
+    # POSIX atomic: tmp write → rename. 동일 디렉토리에서 .replace는 atomic이 보장된다.
+    tmp = alias_path.with_suffix(alias_path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps({"current": target, "swapped_at": swapped_at}),
+        encoding="utf-8",
+    )
+    tmp.replace(alias_path)
+
+    # 다음 _get_collection 호출부터 새 alias가 즉시 반영되도록 keyed cache 비움.
+    rag_svc._collection_cache.clear()
+
+    logger.info("collection-swap: alias '%s'로 갱신 (at=%s)", target, swapped_at)
+    return {"success": True, "data": {"current": target, "swapped_at": swapped_at}}
