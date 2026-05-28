@@ -28,7 +28,12 @@ class _AnyCollectionFakeClient:
 
     def list_collections(self):
         # 어떤 target이든 통과시킨다 (기존 테스트 동작 보존)
-        return [_FakeColEntry("papers"), _FakeColEntry("papers_v2"), _FakeColEntry("papers_v3"), _FakeColEntry("papers_v4")]
+        return [
+            _FakeColEntry("papers"),
+            _FakeColEntry("papers_v2"),
+            _FakeColEntry("papers_v3"),
+            _FakeColEntry("papers_v4"),
+        ]
 
 
 @pytest.fixture
