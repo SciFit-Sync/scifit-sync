@@ -63,33 +63,76 @@ SIMILARITY_THRESHOLD = 0.70
 OVER_FETCH_MULTIPLIER = 3
 DEFAULT_EVIDENCE_WEIGHT = 0.50
 
+# ── Alias-swap (PR-δ §2.3) ────────────────────────────────────
+# EFS /chroma-data/current_alias.json을 SOT로 사용해 모든 ECS 태스크가 같은 alias를 본다.
+# admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
+# 다음 _get_collection 호출부터 새 alias가 반영된다.
+ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
+# F4: DEFAULT_COLLECTION 모듈 상수 제거 — 호출 경로에서 미사용 dead variable.
+# fallback은 _current_collection_name() 내부의 os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")로 처리.
+
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
-_chroma_collection = None
+_client = None
+_collection_cache: dict[str, object] = {}
 _embed_model = None
 
 
-def _get_collection():
-    """ChromaDB collection을 싱글턴으로 반환한다."""
-    global _chroma_collection
-    if _chroma_collection is None:
-        import chromadb
+def _current_collection_name() -> str:
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'paper_chunks' fallback.
 
-        logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
-        client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
-        existing = [c.name for c in client.list_collections()]
-        if CHROMA_COLLECTION_NAME not in existing:
+    B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
+    매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    F2 fix: fallback을 config default("paper_chunks")와 일치시켜 일관성 확보.
+    """
+    try:
+        if ALIAS_FILE.exists():
+            data = json.loads(ALIAS_FILE.read_text(encoding="utf-8"))
+            name = data.get("current")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
+    # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
+    # fallback은 config.py CHROMA_COLLECTION_NAME default("paper_chunks")와 일치 (F2 fix)
+    return os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
+
+
+def _get_collection():
+    """현재 alias가 가리키는 ChromaDB collection을 반환.
+
+    매 호출마다 alias 파일(`ALIAS_FILE`)을 확인해 swap을 즉시 반영한다.
+    collection 핸들은 이름별로 캐시되므로 reload 비용은 alias 변경 시점에만 발생한다.
+
+    B1 fix: get_or_create_collection 대신 get_collection 사용 — 존재하지 않는 collection을
+    silent하게 빈 상태로 생성하는 것을 방지한다. collection이 없으면 RuntimeError로 fail-closed.
+    alias 파일 또는 초기 ingest가 올바르게 설정되지 않은 경우 운영자가 즉시 인지할 수 있다.
+    """
+    global _client
+    name = _current_collection_name()
+    if name not in _collection_cache:
+        if _client is None:
+            import chromadb
+
+            logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
+            _client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+        try:
+            collection = _client.get_collection(name=name)
+        except Exception as e:
+            # collection이 없으면 명확한 에러 — silent empty fallback 방지 (B1 fix)
+            # 운영자가 alias 파일 또는 초기 ingest 설정을 확인해야 함
             raise RuntimeError(
-                f"ChromaDB 컬렉션 '{CHROMA_COLLECTION_NAME}'이 없습니다. "
-                f"(경로: {CHROMA_PERSIST_PATH}, 존재하는 컬렉션: {existing}) "
-                "mlops 파이프라인 실행 후 재시도하세요."
-            )
-        _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
-        count = _chroma_collection.count()
+                f"ChromaDB collection {name!r} not found. Check {ALIAS_FILE} or run initial ingest."
+            ) from e
+        count = collection.count()
         if count == 0:
-            logger.warning("ChromaDB 컬렉션이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.")
+            logger.warning(
+                "ChromaDB 컬렉션 '%s'이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.",
+                name,
+            )
         else:
-            logger.info("ChromaDB 준비 완료 (문서 수: %d)", count)
-    return _chroma_collection
+            logger.info("ChromaDB 준비 완료 (collection=%s, 문서 수: %d)", name, count)
+        _collection_cache[name] = collection
+    return _collection_cache[name]
 
 
 def _get_embed_model():
