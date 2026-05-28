@@ -77,20 +77,23 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
 @router.get("", response_model=SuccessResponse[GymSearchData], summary="헬스장 검색")
 async def search_gyms(
     request: Request,
-    keyword: str = Query(..., min_length=1, description="검색 키워드"),
+    keyword: str | None = Query(None, description="검색 키워드 (없으면 주변 헬스장)"),
     latitude: float | None = Query(None),
     longitude: float | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """카카오 로컬 API로 검색 후, kakao_place_id로 DB 조회/매칭하여 반환한다.
+    keyword 없이 좌표만 넘기면 주변 헬스장을 거리순으로 반환한다.
     DB에 없는 헬스장은 응답에는 포함하되 gym_id 미할당 (POST /gyms로 생성 후 사용).
     """
     settings = get_settings()
     if not settings.KAKAO_REST_API_KEY:
         raise ExternalServiceError(message="카카오 로컬 API 키가 설정되지 않았습니다.")
 
-    params: dict[str, str | float] = {"query": keyword}
+    # keyword 없으면 "헬스장"으로 검색 — 좌표와 함께 쓰면 거리순 주변 헬스장
+    kakao_keyword = keyword.strip() if keyword and keyword.strip() else "헬스장"
+    params: dict[str, str | float] = {"query": kakao_keyword}
     if latitude is not None and longitude is not None:
         params.update({"x": longitude, "y": latitude, "radius": 5000, "sort": "distance"})
 

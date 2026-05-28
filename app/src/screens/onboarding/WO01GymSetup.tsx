@@ -36,16 +36,19 @@ export default function WO01GymSetup() {
     check_location_permission();
   }, []);
 
-  // 위치 권한 확인 + 있으면 좌표 취득
+  // 위치 권한 확인 + 있으면 좌표 취득 후 자동 검색
   const check_location_permission = async () => {
     const { status } = await Location.getForegroundPermissionsAsync();
     if (status === "granted") {
       set_has_location_permission(true);
       try {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        set_coords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        const new_coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        set_coords(new_coords);
+        // 좌표 확보 즉시 주변 헬스장 자동 검색
+        await do_nearby_search(new_coords);
       } catch {
-        // 위치 취득 실패해도 검색은 가능
+        // 위치 취득 실패 시 키워드 검색만 가능
       }
     } else {
       set_has_location_permission(false);
@@ -58,20 +61,31 @@ export default function WO01GymSetup() {
       set_has_location_permission(true);
       try {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        set_coords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        const new_coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        set_coords(new_coords);
+        await do_nearby_search(new_coords);
       } catch {}
     } else {
       Linking.openSettings();
     }
   };
 
-  // 검색 실행
+  // 주변 헬스장 검색 (keyword 없음 → 백엔드에서 "헬스장"으로 거리순 검색)
+  const do_nearby_search = async (c: { lat: number; lng: number }) => {
+    set_loading(true);
+    try {
+      const results = await searchGyms("", token, c.lat, c.lng);
+      set_gyms(results);
+    } catch {
+      set_gyms([]);
+    } finally {
+      set_loading(false);
+    }
+  };
+
+  // 키워드 검색 실행
   const do_search = useCallback(
     async (keyword: string) => {
-      if (keyword.trim().length < 1) {
-        set_gyms([]);
-        return;
-      }
       set_loading(true);
       try {
         const results = await searchGyms(keyword, token, coords?.lat, coords?.lng);
@@ -82,13 +96,22 @@ export default function WO01GymSetup() {
         set_loading(false);
       }
     },
-    [coords],
+    [coords, token],
   );
 
   const handle_search_change = (v: string) => {
     set_search(v);
     set_selected_gym(null);
-    do_search(v);
+    if (v.length === 0) {
+      // 검색어 지워지면 주변 헬스장 다시 표시 (좌표 있을 때)
+      if (coords) {
+        do_nearby_search(coords);
+      } else {
+        set_gyms([]);
+      }
+    } else {
+      do_search(v);
+    }
   };
 
   // 다음 버튼 → 헬스장 저장 후 이동
@@ -147,7 +170,7 @@ export default function WO01GymSetup() {
                 onChangeText={handle_search_change}
               />
               {search.length > 0 && (
-                <TouchableOpacity onPress={() => { set_search(""); set_gyms([]); set_selected_gym(null); }}>
+                <TouchableOpacity onPress={() => handle_search_change("")}>
                   <Octicons name="x" size={16} color={colors.border} />
                 </TouchableOpacity>
               )}
