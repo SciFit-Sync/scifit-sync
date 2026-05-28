@@ -12,6 +12,11 @@ export async function apiFetch<T>(
   };
   const res = await fetch(`${API_BASE}${path}`, { ...rest, headers });
   const json = await res.json();
-  if (!json.success) throw new Error(json.error?.message ?? '오류가 발생했습니다.');
+  if (!json.success) {
+    // Pydantic validation 에러는 details.errors 안에 구체적인 내용이 있음
+    const detail = json.error?.details?.errors?.[0];
+    const detail_msg = detail?.ctx?.error ?? detail?.msg;
+    throw new Error(detail_msg ?? json.error?.message ?? '오류가 발생했습니다.');
+  }
   return json.data as T;
 }
