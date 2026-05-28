@@ -31,6 +31,18 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 _chroma_client = None
 
 
+def _close_chroma_writer() -> None:
+    """Lifespan shutdown에서 호출 — admin writer client 참조를 해제한다.
+
+    B2 fix: main.py lifespan shutdown이 rag._client(reader)만 정리하고
+    admin._chroma_client(writer)를 누락하던 문제를 해결한다.
+    ChromaDB PersistentClient는 명시적 close API가 없지만, 참조를 끊으면
+    GC finalizer가 sqlite WAL을 flush하므로 HNSW partial-write 위험이 감소한다.
+    """
+    global _chroma_client
+    _chroma_client = None
+
+
 def _get_collection() -> chromadb.Collection:
     global _chroma_client
     settings = get_settings()

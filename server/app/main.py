@@ -48,7 +48,11 @@ async def lifespan(app: FastAPI):
         rag_svc._collection_cache.clear()
         if rag_svc._client is not None:
             rag_svc._client = None
-            logger.info("ChromaDB client released gracefully")
+        # B2 fix: admin writer client도 정리 — reader만 정리하던 기존 누락 수정
+        from app.api.v1 import admin as admin_mod
+
+        admin_mod._close_chroma_writer()
+        logger.info("ChromaDB read+write client released gracefully")
     except Exception as e:
         logger.error("Graceful shutdown 중 ChromaDB cleanup 실패: %s", e)
 
