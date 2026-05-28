@@ -1,4 +1,6 @@
-# 데이터 모델 (29개 테이블)
+# 데이터 모델 (31개 테이블)
+
+> ⚠️ 아래 ERD는 핵심 테이블 중심. `email_otps`(OTP 인증)·`equipment_suggestions`(기구 제보)도 실제 테이블이며, `exercises.gif_url`·`users.is_email_verified` 컬럼이 추가됨 (ERD 갱신 예정).
 
 > Scifit-Sync 프로젝트 기획 및 시스템 설계서 기반 — 개선 ERD
 > Stack: PostgreSQL (Supabase) + ChromaDB Persistent 모드 + JSONB 컬럼 활용
@@ -51,7 +53,7 @@
 |--------|------|
 | `exercises` | 운동 마스터 (한글명 + 영문명 UK). compound/isolation 분류 |
 | `exercise_equipment_map` | 운동↔기구 N:M 매핑 (복합 PK) |
-| `muscle_groups` | 근육군 마스터 (전신 세부 분류, 31개 시드) |
+| `muscle_groups` | 근육군 마스터 (전신 세부 분류, 21개 시드) |
 | `exercise_muscles` | 운동↔근육 N:M. `involvement` (primary/secondary/stabilizer) + `activation_pct` (EMG 수치) |
 
 ### Routine 도메인 (4개)

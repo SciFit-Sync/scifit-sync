@@ -27,7 +27,7 @@ Accept: text/event-stream
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | goals | Array<String> | ✅ | 운동 목표 (hypertrophy / strength / endurance / rehabilitation / weight_loss), 복수 선택 가능 |
-| target_muscles | Array<String> | ✅ | 운동 부위 (CHEST / BACK / SHOULDER / LEGS / ABS / BICEPS / TRICEPS) |
+| target_muscle_group_ids | Array<UUID> | ✅ | 운동 부위 muscle_group ID 배열 (GET /muscle-groups 참조) |
 | session_minutes | Integer | ✅ | 세션 시간 (30 / 60 / 90 / 120) |
 | split_type | String | ❌ | 분할 방식 (2split / 3split / 4split / 5split), 미지정 시 AI 추천 |
 | injury | String | ❌ | 부상 정보 (예: 허리 통증으로 데드리프트 제외) |
@@ -38,7 +38,7 @@ Accept: text/event-stream
 ```json
 {
   "goals": ["hypertrophy", "strength"],
-  "target_muscles": ["CHEST", "TRICEPS"],
+  "target_muscle_group_ids": ["<muscle_group_uuid>", "<muscle_group_uuid>"],
   "session_minutes": 75,
   "split_type": "3split",
   "injury": null,
