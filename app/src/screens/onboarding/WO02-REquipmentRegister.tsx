@@ -113,51 +113,52 @@ export default function WO02EquipmentRegister() {
         <View style={styles.card}>
           <Text style={styles.card_title}>기구 추가</Text>
 
-          {/* 검색창 */}
-          <View style={styles.search_container}>
-            <Octicons name="search" size={20} color={colors.border} />
-            <TextInput
-              style={styles.search_input}
-              placeholder="기구 검색"
-              placeholderTextColor={colors.border}
-              value={search}
-              onChangeText={set_search}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => set_search("")}>
-                <Octicons name="x" size={16} color={colors.border} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* 브랜드 필터 */}
-          {!brands_loading && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.brand_row}>
-                <TouchableOpacity
-                  style={[styles.brand_chip, selected_brand_id === null && styles.brand_chip_active]}
-                  onPress={() => set_selected_brand_id(null)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.brand_chip_text, selected_brand_id === null && styles.brand_chip_text_active]}>
-                    전체
-                  </Text>
+          {/* 검색창 + 브랜드 필터 */}
+          <View style={styles.search_filter_area}>
+            <View style={styles.search_container}>
+              <Octicons name="search" size={20} color={colors.border} />
+              <TextInput
+                style={styles.search_input}
+                placeholder="기구 검색"
+                placeholderTextColor={colors.border}
+                value={search}
+                onChangeText={set_search}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => set_search("")}>
+                  <Octicons name="x" size={16} color={colors.border} />
                 </TouchableOpacity>
-                {brands.map((brand) => (
+              )}
+            </View>
+
+            {!brands_loading && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.brand_row}>
                   <TouchableOpacity
-                    key={brand.brand_id}
-                    style={[styles.brand_chip, selected_brand_id === brand.brand_id && styles.brand_chip_active]}
-                    onPress={() => set_selected_brand_id(brand.brand_id)}
+                    style={[styles.brand_chip, selected_brand_id === null && styles.brand_chip_active]}
+                    onPress={() => set_selected_brand_id(null)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.brand_chip_text, selected_brand_id === brand.brand_id && styles.brand_chip_text_active]}>
-                      {brand.name}
+                    <Text style={[styles.brand_chip_text, selected_brand_id === null && styles.brand_chip_text_active]}>
+                      전체
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-          )}
+                  {brands.map((brand) => (
+                    <TouchableOpacity
+                      key={brand.brand_id}
+                      style={[styles.brand_chip, selected_brand_id === brand.brand_id && styles.brand_chip_active]}
+                      onPress={() => set_selected_brand_id(brand.brand_id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.brand_chip_text, selected_brand_id === brand.brand_id && styles.brand_chip_text_active]}>
+                        {brand.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
 
           {/* 기구 리스트 */}
           <View style={styles.list_container}>
@@ -247,6 +248,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, paddingHorizontal: 24, paddingBottom: 32 },
   card: { flex: 1, backgroundColor: colors.white, borderRadius: 16, padding: 20, gap: 16 },
   card_title: { fontFamily: "semibold", fontSize: 18, color: colors.primary, textAlign: "center" },
+  search_filter_area: { gap: 8 },
   search_container: {
     flexDirection: "row",
     alignItems: "center",
