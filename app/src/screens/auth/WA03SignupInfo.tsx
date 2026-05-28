@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import * as DocumentPicker from "expo-document-picker";
 import { colors } from "../../assets/colors/colors";
 import { Octicons } from "@expo/vector-icons";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
@@ -51,8 +52,16 @@ export default function WA03SignupInfo() {
   const [weight, set_weight] = useState("");
   const [gender, set_gender] = useState<Gender>("male");
   const [experience, set_experience] = useState<Experience | null>(null);
+  const [inbody_file, set_inbody_file] = useState<string | null>(null);
   const [show_date_picker, set_show_date_picker] = useState(false);
   const [loading, set_loading] = useState(false);
+
+  const handle_pick_file = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
+    if (!result.canceled) {
+      set_inbody_file(result.assets[0].name);
+    }
+  };
 
   const experiences: Experience[] = ["헬린이", "초급", "중급", "고급"];
 
@@ -269,6 +278,20 @@ export default function WA03SignupInfo() {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+
+            {/* 인바디 업로드 */}
+            <View style={styles.field}>
+              <Text style={styles.label}>인바디 업로드 (선택)</Text>
+              <TouchableOpacity
+                style={styles.input}
+                onPress={handle_pick_file}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.inputText, !inbody_file && styles.placeholderText]}>
+                  {inbody_file || "파일 첨부"}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* 회원가입 버튼 */}
