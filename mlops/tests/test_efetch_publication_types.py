@@ -51,14 +51,6 @@ def test_efetch_extracts_publication_types(pmid: str, expected_type: str) -> Non
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    reason=(
-        "A4에서 _parse_pubmed_article에 PublicationTypeList 파싱 추가로 픽스 예정. "
-        "현재 crawler._parse_pubmed_article이 PublicationTypeList XML을 읽지 않아 "
-        "PaperMeta.publication_types가 항상 [] 로 남는다 (Scenario B 확정)."
-    ),
-    strict=True,
-)
 @pytest.mark.integration
 @pytest.mark.parametrize("pmid,expected_type", KNOWN_PMIDS.items())
 def test_crawler_fetch_paper_metadata_extracts_publication_types(pmid: str, expected_type: str) -> None:
