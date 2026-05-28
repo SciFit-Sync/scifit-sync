@@ -31,7 +31,9 @@ def _make_ok_jsonl(n=60) -> Path:
                     "paper_pmid": f"pmid{p}",
                     "paper_title": "T",
                     "section_name": "Methods",
-                    "token_count": 400,
+                    # local_pdf 서브셋은 PDF_AVG_TOKEN 범위(150~250) 안으로,
+                    # 그 외는 AVG_TOKEN 범위(300~450) 만족하도록 분기
+                    "token_count": 200 if p == 0 else 400,
                     "search_categories": [],
                     "paper_doi": f"10.1/{p}",
                     "publication_types": types_list[i % len(types_list)],
