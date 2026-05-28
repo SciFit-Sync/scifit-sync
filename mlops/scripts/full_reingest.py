@@ -322,7 +322,9 @@ def stage4_upsert(
     # batch_size는 batch 경계의 의미를 결정하므로 manifest와 현재 인자가
     # 다르면 manifest를 무효화한다 (codex MAJOR [1]: batch_size 불일치 시
     # batch_idx가 가리키는 record 범위가 어긋나 데이터 누락 발생).
-    progress_tag = batch_tag or embeddings_path.stem.replace(".jsonl", "")
+    # `.jsonl.gz` → `.jsonl` (stem 1회) → `dry_50` (stem 2회).
+    # 다른 위치의 ".jsonl" 문자열에 영향 안 받도록 명시적으로 stem 두 번 적용.
+    progress_tag = batch_tag or Path(embeddings_path.stem).stem
     progress_path = DATA_DIR / f"upsert_progress_{progress_tag}_{collection}.json"
     completed_batches: set[int] = set()
     if progress_path.exists():
@@ -529,7 +531,10 @@ def main(argv: list[str] | None = None) -> int:
             batch_size=args.upsert_batch_size,
             batch_tag=args.batch_tag,
         )
-        logger.info("upsert 완료: %d chunks → %s", n, collection)
+        # n은 *이번 실행에서 새로 _post한 청크 수*만 집계.
+        # resume 시 skip된 batch는 포함하지 않으므로 "신규" 라벨 명시.
+        # stage4_upsert 내부 로그에 `batches=`/`skipped=`로 전체 맥락 동반.
+        logger.info("upsert 완료 (이번 실행 신규): %d chunks → %s", n, collection)
 
     # Stage 5 안내
     if args.eval_gate:
