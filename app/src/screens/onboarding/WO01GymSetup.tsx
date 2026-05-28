@@ -196,10 +196,10 @@ export default function WO01GymSetup() {
                 >
                   {gyms.map((gym) => (
                     <TouchableOpacity
-                      key={gym.gym_id || gym.kakao_place_id || gym.name}
+                      key={gym.kakao_place_id || gym.gym_id || gym.name}
                       style={[
                         styles.gym_item,
-                        selected_gym?.gym_id === gym.gym_id && styles.gym_item_active,
+                        selected_gym?.kakao_place_id === gym.kakao_place_id && styles.gym_item_active,
                         !gym.gym_id && styles.gym_item_unregistered,
                       ]}
                       onPress={() => set_selected_gym(gym)}
@@ -209,7 +209,7 @@ export default function WO01GymSetup() {
                         <Text
                           style={[
                             styles.gym_name,
-                            selected_gym?.gym_id === gym.gym_id && styles.gym_name_active,
+                            selected_gym?.kakao_place_id === gym.kakao_place_id && styles.gym_name_active,
                           ]}
                         >
                           {gym.name}
