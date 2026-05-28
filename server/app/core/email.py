@@ -64,7 +64,7 @@ def _build_otp_html(otp_code: str) -> str:
     """OTP 인증 이메일 HTML 템플릿."""
     digits = "".join(
         f'<span style="display:inline-block;width:44px;height:52px;line-height:52px;'
-        f'text-align:center;font-size:28px;font-weight:700;border:2px solid #000;'
+        f"text-align:center;font-size:28px;font-weight:700;border:2px solid #000;"
         f'border-radius:8px;margin:0 4px;color:#000;">{d}</span>'
         for d in otp_code
     )
