@@ -105,7 +105,8 @@ async def search_gyms(
         raise ExternalServiceError(message="카카오 로컬 API에 연결할 수 없습니다.") from e
 
     if not resp.is_success:
-        raise ExternalServiceError(message="카카오 로컬 API 요청이 실패했습니다.")
+        logger.error("카카오 로컬 API 실패: status=%d body=%s", resp.status_code, resp.text[:200])
+        raise ExternalServiceError(message=f"카카오 로컬 API 요청이 실패했습니다. (status={resp.status_code})")
 
     documents = resp.json().get("documents", [])
     place_ids = [d["id"] for d in documents]
