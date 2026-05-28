@@ -48,26 +48,48 @@ ssh gpu 'cd /mnt/data/scifit-sync/scifit-sync && \
 
 > **destructive 작업 전 필수**
 
+#### 0.4.1 현재 운영 컬렉션명 확인 (alias 파일 SOT)
+
+PR #182(alias-swap) 머지 이후 운영 컬렉션은 `/chroma-data/current_alias.json`이 단일 SOT. fallback default는 `paper_chunks` (PR #184 F2 fix). **백업 전 반드시 현재 alias를 먼저 읽어서 변수화**한다 — 잘못된 컬렉션 백업은 destructive 작업의 안전망을 무력화한다.
+
 ```bash
 TASK_ID=$(aws ecs list-tasks --cluster scifit-sync --service-name scifit-sync-api \
             --query 'taskArns[0]' --output text | awk -F/ '{print $NF}')
-aws ecs execute-command --cluster scifit-sync --task "$TASK_ID" --interactive \
-  --command 'python -c "
-import chromadb, json, gzip
-from datetime import datetime
-c = chromadb.PersistentClient(\"/chroma-data\")
-col = c.get_collection(\"papers\")  # 또는 \"paper_chunks\" — 운영 컬렉션명 확인
-data = col.get(include=[\"embeddings\", \"metadatas\", \"documents\"])
-ts = datetime.utcnow().strftime(\"%Y%m%dT%H%M%SZ\")
-out = f\"/chroma-data/backup_papers_{ts}.jsonl.gz\"
-with gzip.open(out, \"wt\") as f:
-    for i, did in enumerate(data[\"ids\"]):
-        f.write(json.dumps({\"id\": did, \"document\": data[\"documents\"][i], \"metadata\": data[\"metadatas\"][i], \"embedding\": data[\"embeddings\"][i]}, ensure_ascii=False) + \"\n\")
-print(\"backup:\", out, \"chunks:\", len(data[\"ids\"]))
-"'
+
+# 방법 A — ECS 내부에서 alias 파일 직접 확인 (권장)
+CURRENT_COL=$(aws ecs execute-command --cluster scifit-sync --task "$TASK_ID" --interactive \
+  --command 'sh -c "cat /chroma-data/current_alias.json 2>/dev/null || echo {}"' \
+  | grep -oE '"current":"[^"]+"' | sed 's/"current":"//;s/"$//')
+echo "현재 운영 컬렉션: ${CURRENT_COL:-paper_chunks (fallback)}"
+
+# 방법 B — admin endpoint로 간접 검증 (응답 200이면 alias 살아있음)
+curl -s -H "X-Admin-Token: $ADMIN_API_TOKEN" \
+  "https://scifit-sync.com/api/v1/admin/rag/pmids?limit=1" | jq '.data | length'
 ```
 
-기대: `backup: /chroma-data/backup_papers_<ts>.jsonl.gz chunks: <N>` 출력.
+`CURRENT_COL` 미설정 시 fallback `paper_chunks`를 가정한다.
+
+#### 0.4.2 백업 명령 (확인된 컬렉션명 사용)
+
+```bash
+COL="${CURRENT_COL:-paper_chunks}"
+aws ecs execute-command --cluster scifit-sync --task "$TASK_ID" --interactive \
+  --command "python -c \"
+import chromadb, json, gzip
+from datetime import datetime
+c = chromadb.PersistentClient('/chroma-data')
+col = c.get_collection('$COL')
+data = col.get(include=['embeddings', 'metadatas', 'documents'])
+ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+out = f'/chroma-data/backup_${COL}_{ts}.jsonl.gz'
+with gzip.open(out, 'wt') as f:
+    for i, did in enumerate(data['ids']):
+        f.write(json.dumps({'id': did, 'document': data['documents'][i], 'metadata': data['metadatas'][i], 'embedding': data['embeddings'][i]}, ensure_ascii=False) + chr(10))
+print('backup:', out, 'chunks:', len(data['ids']))
+\""
+```
+
+기대: `backup: /chroma-data/backup_<COL>_<ts>.jsonl.gz chunks: <N>` 출력.
 
 ---
 
@@ -233,21 +255,21 @@ print(\"papers_v2:\", c.get_collection(\"papers_v2\").count())
 ### 5.1 baseline (papers) 평가
 
 ```bash
-ssh gpu '.venv-gpu/bin/python3 -m mlops.eval.run_eval \
+ssh gpu 'CHROMA_COLLECTION_NAME=papers .venv-gpu/bin/python3 -m mlops.eval.run_eval \
   --goldset mlops/eval/goldset.jsonl \
   --output mlops/eval/reports/baseline_papers.md \
-  --retriever chroma --collection papers'
+  --retriever chroma'
 ```
 
-(주: `run_eval.py`가 `--collection` 옵션 미지원이면 환경변수 또는 직접 코드 수정 필요)
+> **컬렉션 선택 인터페이스**: `mlops/eval/run_eval.py:503`은 `CHROMA_COLLECTION_NAME` 환경변수만 지원한다 (`--collection` CLI 옵션은 미구현, fallback default `paper_chunks`). 위 명령은 환경변수로 baseline 컬렉션명을 강제 — 운영 alias가 `paper_chunks`인 경우 `CHROMA_COLLECTION_NAME=paper_chunks`로 교체.
 
 ### 5.2 refeed_v2 (papers_v2) 평가
 
 ```bash
-ssh gpu '.venv-gpu/bin/python3 -m mlops.eval.run_eval \
+ssh gpu 'CHROMA_COLLECTION_NAME=papers_v2 .venv-gpu/bin/python3 -m mlops.eval.run_eval \
   --goldset mlops/eval/goldset.jsonl \
   --output mlops/eval/reports/refeed_v2_papers_v2.md \
-  --retriever chroma --collection papers_v2'
+  --retriever chroma'
 ```
 
 ### 5.3 회귀 검증
@@ -299,7 +321,9 @@ curl -H "X-Admin-Token: $ADMIN_API_TOKEN" \
 T1=$(date -u +%FT%TZ)
 echo "T1=$T1" | tee -a /mnt/data/scifit-sync/swap_audit.log
 
-# 다운타임 계산
+# 다운타임 계산 — 변수 확인 필수 ($T0 미설정 시 빈 문자열로 치환되어 파이썬 fromisoformat 에러)
+echo "T0=$T0 / T1=$T1"
+[ -z "$T0" ] && { echo "ERROR: T0 미설정 — §6.1 다시 실행"; exit 1; }
 python3 -c "
 from datetime import datetime
 t0 = datetime.fromisoformat('$T0'.replace('Z','+00:00'))
