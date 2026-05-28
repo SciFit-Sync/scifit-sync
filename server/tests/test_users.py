@@ -114,7 +114,7 @@ async def client():
 class TestGetMe:
     @pytest.mark.asyncio
     async def test_success_with_profile(self, client, monkeypatch):
-        monkeypatch.setattr("app.api.v1.users.resolve_exercise_id_by_code", AsyncMock(return_value=None))
+        monkeypatch.setattr("app.services.core_lifts.resolve_exercise_id_by_code", AsyncMock(return_value=None))
         db = _make_db(
             _exec_scalar(_mock_profile()),
             _exec_scalar(_mock_measurement()),
@@ -138,7 +138,7 @@ class TestGetMe:
 
     @pytest.mark.asyncio
     async def test_success_no_profile(self, client, monkeypatch):
-        monkeypatch.setattr("app.api.v1.users.resolve_exercise_id_by_code", AsyncMock(return_value=None))
+        monkeypatch.setattr("app.services.core_lifts.resolve_exercise_id_by_code", AsyncMock(return_value=None))
         db = _make_db(
             _exec_scalar(None),  # no profile
             _exec_scalar(None),  # no measurement
