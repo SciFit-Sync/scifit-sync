@@ -125,7 +125,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in name_en_list],
             return_exceptions=True,
         )
-        for (eid_str, _), wx in zip(name_en_list, wx_results):
+        for (eid_str, _), wx in zip(name_en_list, wx_results, strict=True):
             if isinstance(wx, dict):
                 gif_url_map[eid_str] = wx.get("gifUrl")
 
