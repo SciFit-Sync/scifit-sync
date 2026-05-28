@@ -6,11 +6,17 @@ ADMIN_TOKEN = "test-admin-token"
 
 
 class _FakeCol:
-    """1000개 청크 fake ChromaDB collection."""
+    """1000개 청크 fake ChromaDB collection.
 
-    def __init__(self, n: int = 1000):
+    청크 20개당 같은 PMID → unique PMID 50개 (chunk 1000 / 20 = 50).
+    """
+
+    def __init__(self, n: int = 1000, chunks_per_pmid: int = 20):
         self._n = n
-        self._metadatas = [{"paper_pmid": f"{i:08d}"} for i in range(n)]
+        self._chunks_per_pmid = chunks_per_pmid
+        self._metadatas = [
+            {"paper_pmid": f"pmid_{i // chunks_per_pmid:04d}"} for i in range(n)
+        ]
         self._ids = [f"chunk_{i}" for i in range(n)]
 
     def count(self) -> int:
@@ -51,6 +57,20 @@ async def test_pmids_paginated(client, fake_collection):
 
 
 @pytest.mark.asyncio
+async def test_pmids_total_is_unique_pmid_count(client, fake_collection):
+    """`total`은 chunk 수가 아니라 unique PMID 수여야 한다 (신규 MAJOR 픽스)."""
+    r = await client.get(
+        "/api/v1/admin/rag/pmids?limit=100&offset=0",
+        headers={"X-Admin-Token": ADMIN_TOKEN},
+    )
+    body = r.json()
+    data = body["data"]
+    # fake_collection: 1000 chunks, 20 chunks/pmid → 50 unique PMIDs
+    assert data["total"] == 50, f"total이 unique PMID 수(50)여야 함, got {data['total']}"
+    assert data["total_chunks"] == 1000, "total_chunks는 하위 호환용 chunk 총수"
+
+
+@pytest.mark.asyncio
 async def test_pmids_offset_advances(client, fake_collection):
     """offset=0과 offset=10은 겹치지 않는 pmid 집합을 반환한다."""
     r1 = await client.get(
@@ -67,10 +87,54 @@ async def test_pmids_offset_advances(client, fake_collection):
 
 
 @pytest.mark.asyncio
+async def test_pmids_no_duplicates_across_pages(client, monkeypatch):
+    """페이지 경계에서 PMID 중복/누락 없음 — 신규 MAJOR 픽스 핵심 검증.
+
+    100 chunks, 5 chunks/pmid → 20 unique PMIDs.
+    페이지 1(limit=10, offset=0) + 페이지 2(limit=10, offset=10)를 합치면
+    중복 없이 정확히 20개여야 한다.
+    """
+
+    class _DupFakeCol:
+        def count(self):
+            return 100
+
+        def get(self, limit=None, offset=None, include=None, **kw):
+            metas = [{"paper_pmid": f"pmid_{i // 5:03d}"} for i in range(100)]
+            ids = [f"chunk_{i}" for i in range(100)]
+            s = offset or 0
+            e = s + (limit or 100)
+            return {"ids": ids[s:e], "metadatas": metas[s:e]}
+
+    monkeypatch.setattr("app.api.v1.admin._get_collection", lambda: _DupFakeCol())
+
+    r1 = await client.get(
+        "/api/v1/admin/rag/pmids?limit=10&offset=0",
+        headers={"X-Admin-Token": ADMIN_TOKEN},
+    )
+    r2 = await client.get(
+        "/api/v1/admin/rag/pmids?limit=10&offset=10",
+        headers={"X-Admin-Token": ADMIN_TOKEN},
+    )
+    p1 = set(r1.json()["data"]["pmids"])
+    p2 = set(r2.json()["data"]["pmids"])
+
+    # 중복 없음
+    assert p1.isdisjoint(p2), f"페이지 경계 PMID 중복: {p1 & p2}"
+    # 합치면 20개 unique
+    assert len(p1 | p2) == 20, f"합산 unique PMID가 20이어야 함, got {len(p1 | p2)}"
+    # total은 unique PMID 수
+    assert r1.json()["data"]["total"] == 20
+
+
+@pytest.mark.asyncio
 async def test_pmids_has_next_false_on_last_page(client, fake_collection):
-    """마지막 페이지(offset+limit >= total)에서 has_next는 False."""
+    """마지막 페이지(offset+limit >= total_pmids)에서 has_next는 False.
+
+    fake_collection: 50 unique PMIDs → offset=45, limit=10 이면 마지막 페이지.
+    """
     r = await client.get(
-        "/api/v1/admin/rag/pmids?limit=10&offset=990",
+        "/api/v1/admin/rag/pmids?limit=10&offset=45",
         headers={"X-Admin-Token": ADMIN_TOKEN},
     )
     body = r.json()

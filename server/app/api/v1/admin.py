@@ -225,15 +225,17 @@ async def list_pmids(
     카테고리 메타 동기화 스크립트(`refresh_search_categories`)가 호출하여
     어떤 PMID에 대해 카테고리 재계산을 적용할지 결정한다.
 
-    대용량 collection에서 collection.get() 전체 fetch를 피하기 위해
-    limit/offset 파라미터를 통해 ChromaDB get() 청크 단위로 호출한다.
+    신규 MAJOR 픽스: 이전 구현은 chunk row 기준 limit/offset이어서 페이지 경계에서
+    같은 PMID의 청크가 분리되면 중복 또는 누락이 발생했다.
+    현재 구현은 collection 전체 metadata를 배치로 수집 → unique PMID 집계 → sort → slice하여
+    PMID 단위 페이지네이션을 보장한다. `limit`/`offset`은 unique PMID 목록 기준.
 
     NOTE: 응답이 `dict`인 것은 기존 `ingest_papers` 엔드포인트와의 일관성 때문이다
     (모든 admin 엔드포인트가 `{success, data}` 평문 dict 패턴). OpenAPI 모델화는
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
-    if limit <= 0 or limit > 10000:
-        raise HTTPException(status_code=400, detail="limit must be in (0, 10000]")
+    if limit <= 0 or limit > 100000:
+        raise HTTPException(status_code=400, detail="limit must be in (0, 100000]")
     if offset < 0:
         raise HTTPException(status_code=400, detail="offset must be >= 0")
 
@@ -251,12 +253,12 @@ async def list_pmids(
         "success": True,
         "data": {
             "pmids": page,
-            "total": total_pmids,           # unique PMID 수 (페이지네이션 기준)
+            "total": total_pmids,  # unique PMID 수 (페이지네이션 기준)
             "limit": limit,
             "offset": offset,
             "has_next": offset + limit < total_pmids,
             # 하위 호환: 기존 MLOps 스크립트가 count/total_chunks를 읽는 경우 대비 보존
-            "count": total_chunks,
+            "count": len(page),
             "total_chunks": total_chunks,
         },
     }
