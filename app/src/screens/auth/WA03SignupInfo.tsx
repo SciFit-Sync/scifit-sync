@@ -11,18 +11,44 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import { colors } from "../../assets/colors/colors";
 import { Octicons } from "@expo/vector-icons";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
+import { onboard } from "../../services/auth";
 import { useAuthStore } from "../../stores/authStore";
 
 type Gender = "female" | "male";
 type Experience = "헬린이" | "초급" | "중급" | "고급";
 
+const CAREER_MAP: Record<Experience, string> = {
+  "헬린이": "beginner",
+  "초급": "novice",
+  "중급": "intermediate",
+  "고급": "advanced",
+};
+
+// "2000년 1월 15일" → "2000-01-15"
+function parse_birth_date(korean_date: string): string {
+  const match = korean_date.match(/(\d+)년\s*(\d+)월\s*(\d+)일/);
+  if (!match) return "";
+  const [, year, month, day] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 export default function WA03SignupInfo() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { access_token, refresh_token } = (route.params ?? {}) as {
+    username: string;
+    password: string;
+    name: string;
+    email: string;
+    access_token: string;
+    refresh_token: string;
+  };
+  const setAuth = useAuthStore((s) => s.setAuth);
 
   const [birth_date, set_birth_date] = useState("");
   const [height, set_height] = useState("");
@@ -31,7 +57,7 @@ export default function WA03SignupInfo() {
   const [experience, set_experience] = useState<Experience | null>(null);
   const [inbody_file, set_inbody_file] = useState<string | null>(null);
   const [show_date_picker, set_show_date_picker] = useState(false);
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const [loading, set_loading] = useState(false);
 
   const experiences: Experience[] = ["헬린이", "초급", "중급", "고급"];
 
@@ -49,12 +75,28 @@ export default function WA03SignupInfo() {
       Alert.alert("알림", "필수 항목을 입력해주세요");
       return;
     }
-    // TODO: 실제 API 연동 후 진짜 토큰으로 교체
-    await setAuth({
-      access_token: "temp_token",
-      refresh_token: "temp_refresh",
-      is_new_user: true,
-    });
+    set_loading(true);
+    try {
+      await onboard(
+        {
+          gender,
+          birth_date: parse_birth_date(birth_date),
+          height_cm: parseFloat(height),
+          weight_kg: parseFloat(weight),
+          career_level: CAREER_MAP[experience],
+        },
+        access_token,
+      );
+      await setAuth({
+        access_token,
+        refresh_token,
+        is_new_user: true,
+      });
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "다시 시도해주세요.");
+    } finally {
+      set_loading(false);
+    }
   };
 
   const handle_date_confirm = (date: string) => {
@@ -253,11 +295,14 @@ export default function WA03SignupInfo() {
 
             {/* 회원가입 버튼 */}
             <TouchableOpacity
-              style={styles.button}
+              style={[styles.button, loading && { opacity: 0.5 }]}
               onPress={handle_signup}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>회원가입</Text>
+              <Text style={styles.buttonText}>
+                {loading ? "처리 중..." : "회원가입"}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signInWithKakao } from "../../services/kakaoAuth";
+import { loginApi } from "../../services/auth";
 import { useAuthStore } from "../../stores/authStore";
 
 export default function WA01Login() {
@@ -23,13 +24,24 @@ export default function WA01Login() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigation = useNavigation();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("알림", "이메일과 비밀번호를 입력해주세요");
       return;
     }
-    // TODO: 이메일/비밀번호 로그인 API 연동
-    if (__DEV__) console.log("이메일 로그인 시도:", email);
+    setLoading(true);
+    try {
+      const result = await loginApi(email, password);
+      await setAuth({
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+        is_new_user: false,
+      });
+    } catch (e: any) {
+      Alert.alert("로그인 실패", e.message ?? "이메일 또는 비밀번호를 확인해주세요.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKakaoLogin = async () => {
@@ -93,11 +105,14 @@ export default function WA01Login() {
 
             {/* 로그인 버튼 */}
             <TouchableOpacity
-              style={styles.loginButton}
+              style={[styles.loginButton, loading && { opacity: 0.5 }]}
               onPress={handleLogin}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.loginButtonText}>로그인</Text>
+              <Text style={styles.loginButtonText}>
+                {loading ? "로그인 중..." : "로그인"}
+              </Text>
             </TouchableOpacity>
 
             {/* 비밀번호 찾기 / 회원가입 */}
