@@ -9,30 +9,30 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import * as DocumentPicker from "expo-document-picker";
 import { colors } from "../../assets/colors/colors";
 import { Octicons } from "@expo/vector-icons";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
-import { onboard } from "../../services/auth";
 import { useAuthStore } from "../../stores/authStore";
+import { onboardUser } from "../../services/users";
 
 type Gender = "female" | "male";
 type Experience = "헬린이" | "초급" | "중급" | "고급";
 
-const CAREER_MAP: Record<Experience, string> = {
-  "헬린이": "beginner",
-  "초급": "novice",
-  "중급": "intermediate",
-  "고급": "advanced",
+const CAREER_MAP: Record<Experience, "beginner" | "novice" | "intermediate" | "advanced"> = {
+  헬린이: "beginner",
+  초급: "novice",
+  중급: "intermediate",
+  고급: "advanced",
 };
 
 // "2000년 1월 15일" → "2000-01-15"
 function parse_birth_date(korean_date: string): string {
   const match = korean_date.match(/(\d+)년\s*(\d+)월\s*(\d+)일/);
-  if (!match) return "";
+  if (!match) return korean_date;
   const [, year, month, day] = match;
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
@@ -41,10 +41,6 @@ export default function WA03SignupInfo() {
   const navigation = useNavigation();
   const route = useRoute();
   const { access_token, refresh_token } = (route.params ?? {}) as {
-    username: string;
-    password: string;
-    name: string;
-    email: string;
     access_token: string;
     refresh_token: string;
   };
@@ -55,34 +51,35 @@ export default function WA03SignupInfo() {
   const [weight, set_weight] = useState("");
   const [gender, set_gender] = useState<Gender>("male");
   const [experience, set_experience] = useState<Experience | null>(null);
-  const [inbody_file, set_inbody_file] = useState<string | null>(null);
   const [show_date_picker, set_show_date_picker] = useState(false);
   const [loading, set_loading] = useState(false);
 
   const experiences: Experience[] = ["헬린이", "초급", "중급", "고급"];
 
-  const handle_pick_file = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: "application/pdf",
-    });
-    if (!result.canceled) {
-      set_inbody_file(result.assets[0].name);
-    }
-  };
-
   const handle_signup = async () => {
     if (!birth_date || !height || !weight || !experience) {
-      Alert.alert("알림", "필수 항목을 입력해주세요");
+      Alert.alert("알림", "필수 항목을 입력해주세요.");
       return;
     }
+    const height_num = parseFloat(height);
+    const weight_num = parseFloat(weight);
+    if (isNaN(height_num) || height_num <= 0) {
+      Alert.alert("알림", "키를 올바르게 입력해주세요.");
+      return;
+    }
+    if (isNaN(weight_num) || weight_num <= 0) {
+      Alert.alert("알림", "몸무게를 올바르게 입력해주세요.");
+      return;
+    }
+
     set_loading(true);
     try {
-      await onboard(
+      await onboardUser(
         {
           gender,
           birth_date: parse_birth_date(birth_date),
-          height_cm: parseFloat(height),
-          weight_kg: parseFloat(weight),
+          height_cm: height_num,
+          weight_kg: weight_num,
           career_level: CAREER_MAP[experience],
         },
         access_token,
@@ -93,7 +90,7 @@ export default function WA03SignupInfo() {
         is_new_user: true,
       });
     } catch (e: any) {
-      Alert.alert("오류", e.message ?? "다시 시도해주세요.");
+      Alert.alert("오류", e.message ?? "신체 정보 등록에 실패했어요. 다시 시도해주세요.");
     } finally {
       set_loading(false);
     }
@@ -274,25 +271,6 @@ export default function WA03SignupInfo() {
               </View>
             </View>
 
-            {/* 인바디 업로드 */}
-            <View style={styles.field}>
-              <Text style={styles.label}>인바디 업로드 (선택)</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={handle_pick_file}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.inputText,
-                    !inbody_file && styles.placeholderText,
-                  ]}
-                >
-                  {inbody_file || "파일 첨부"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             {/* 회원가입 버튼 */}
             <TouchableOpacity
               style={[styles.button, loading && { opacity: 0.5 }]}
@@ -300,15 +278,17 @@ export default function WA03SignupInfo() {
               disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>
-                {loading ? "처리 중..." : "회원가입"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.buttonText}>회원가입</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* 바텀시트 */}
+      {/* 생년월일 바텀시트 */}
       {show_date_picker && (
         <BirthDateBottomSheet
           onConfirm={handle_date_confirm}
@@ -320,10 +300,7 @@ export default function WA03SignupInfo() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   header: {
     flexDirection: "row",
@@ -333,16 +310,9 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
   },
-  logo: {
-    fontFamily: "sacheon",
-    fontSize: 20,
-    color: colors.primary,
-  },
+  logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  scroll: {
-    paddingHorizontal: 24,
-    paddingBottom: 32,
-  },
+  scroll: { paddingHorizontal: 24, paddingBottom: 32 },
   card: {
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -355,28 +325,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textAlign: "center",
   },
-  indicator: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
-  dot: {
-    width: 25,
-    height: 4,
-    borderRadius: 100,
-  },
+  indicator: { flexDirection: "row", justifyContent: "center", gap: 8 },
+  dot: { width: 25, height: 4, borderRadius: 100 },
   dotActive: { backgroundColor: colors.primary },
   dotInactive: { backgroundColor: colors.button },
   field: { gap: 8 },
-  label: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.primary,
-  },
-  row: {
-    flexDirection: "row",
-    gap: 7,
-  },
+  label: { fontFamily: "medium", fontSize: 16, color: colors.primary },
+  row: { flexDirection: "row", gap: 7 },
   input: {
     fontFamily: "regular",
     borderWidth: 1,
@@ -388,14 +343,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
     justifyContent: "center",
   },
-  inputText: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-  },
-  placeholderText: {
-    color: colors.border,
-  },
+  inputText: { fontFamily: "regular", fontSize: 14, color: colors.primary },
+  placeholderText: { color: colors.border },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -410,12 +359,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     paddingVertical: 10,
   },
-  unit: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.primary,
-    paddingLeft: 4,
-  },
+  unit: { fontFamily: "medium", fontSize: 16, color: colors.primary, paddingLeft: 4 },
   selectButton: {
     flex: 1,
     backgroundColor: colors.select,
@@ -423,26 +367,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  selectButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  selectButtonText: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-  },
-  selectButtonTextActive: {
-    color: colors.white,
-  },
+  selectButtonActive: { backgroundColor: colors.primary },
+  selectButtonText: { fontFamily: "regular", fontSize: 14, color: colors.primary },
+  selectButtonTextActive: { color: colors.white },
   button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
+    justifyContent: "center",
+    height: 44,
   },
-  buttonText: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  buttonText: { fontFamily: "medium", fontSize: 16, color: colors.white },
 });

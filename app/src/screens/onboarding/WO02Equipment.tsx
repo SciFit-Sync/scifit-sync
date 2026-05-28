@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,65 +6,72 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
-
-interface Equipment {
-  id: string;
-  name: string;
-  spec: string;
-  brand: string;
-}
-
-const brands = ["전체", "브랜드1", "브랜드2", "브랜드3", "브랜드4"];
-
-const mock_equipment: Equipment[] = [
-  {
-    id: "1",
-    name: "케이블 크로스오버",
-    spec: "도르래 2:1 스택 2.3kg",
-    brand: "브랜드1",
-  },
-  { id: "2", name: "렛풀다운", spec: "도르래 1:1 스택 5kg", brand: "브랜드2" },
-  {
-    id: "3",
-    name: "케이블 로우",
-    spec: "도르래 1.5:1 스택 5kg",
-    brand: "브랜드2",
-  },
-  { id: "4", name: "레그프레스", spec: "스택 100kg", brand: "브랜드3" },
-  { id: "5", name: "스미스머신", spec: "바벨 20kg", brand: "브랜드1" },
-  { id: "6", name: "인클라인 벤치프레스", spec: "스택 80kg", brand: "브랜드3" },
-  {
-    id: "7",
-    name: "펙덱 플라이",
-    spec: "도르래 1:1 스택 10kg",
-    brand: "브랜드4",
-  },
-  {
-    id: "8",
-    name: "시티드 로우",
-    spec: "도르래 2:1 스택 5kg",
-    brand: "브랜드4",
-  },
-  { id: "9", name: "레그 컬", spec: "스택 60kg", brand: "브랜드2" },
-  { id: "10", name: "레그 익스텐션", spec: "스택 60kg", brand: "브랜드1" },
-];
+import { useAuthStore } from "../../stores/authStore";
+import {
+  getEquipmentBrands,
+  getEquipment,
+  selectEquipment,
+  BrandItem,
+  EquipmentItem,
+} from "../../services/gyms";
 
 export default function WO02Equipment() {
   const navigation = useNavigation();
-  const [search, set_search] = useState("");
-  const [selected_brand, set_selected_brand] = useState("전체");
-  const [selected_ids, set_selected_ids] = useState<string[]>([]);
+  const route = useRoute();
+  const { gym_id } = (route.params ?? {}) as { gym_id: string | null };
+  const token = useAuthStore((s) => s.accessToken) ?? "";
 
-  const filtered = mock_equipment.filter((e) => {
-    const match_brand = selected_brand === "전체" || e.brand === selected_brand;
-    const match_search = search === "" || e.name.includes(search);
-    return match_brand && match_search;
-  });
+  const [search, set_search] = useState("");
+  const [brands, set_brands] = useState<BrandItem[]>([]);
+  const [selected_brand_id, set_selected_brand_id] = useState<string | null>(null);
+  const [equipment_list, set_equipment_list] = useState<EquipmentItem[]>([]);
+  const [selected_ids, set_selected_ids] = useState<string[]>([]);
+  const [brands_loading, set_brands_loading] = useState(true);
+  const [equipment_loading, set_equipment_loading] = useState(true);
+  const [next_loading, set_next_loading] = useState(false);
+
+  // 브랜드 목록 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getEquipmentBrands(token);
+        set_brands(data);
+      } catch {
+        // 브랜드 로드 실패해도 계속 진행
+      } finally {
+        set_brands_loading(false);
+      }
+    })();
+  }, [token]);
+
+  // 기구 목록 로드 (검색어 / 브랜드 변경 시 재조회)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      set_equipment_loading(true);
+      try {
+        const data = await getEquipment(
+          {
+            keyword: search || undefined,
+            brand_id: selected_brand_id ?? undefined,
+          },
+          token,
+        );
+        set_equipment_list(data);
+      } catch {
+        set_equipment_list([]);
+      } finally {
+        set_equipment_loading(false);
+      }
+    }, 300); // 300ms 디바운스
+    return () => clearTimeout(timer);
+  }, [search, selected_brand_id, token]);
 
   const toggle_equipment = (id: string) => {
     set_selected_ids((prev) =>
@@ -72,13 +79,28 @@ export default function WO02Equipment() {
     );
   };
 
-  const handle_next = () => {
-    navigation.navigate("WO03OneRM" as never);
+  const handle_next = async () => {
+    if (selected_ids.length === 0) {
+      // 선택 없이 다음 → 건너뛰기와 동일
+      (navigation as any).navigate("WO03OneRM");
+      return;
+    }
+    set_next_loading(true);
+    try {
+      await selectEquipment(selected_ids, token);
+      (navigation as any).navigate("WO03OneRM");
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "기구 저장에 실패했어요. 다시 시도해주세요.");
+    } finally {
+      set_next_loading(false);
+    }
   };
 
   const handle_skip = () => {
-    navigation.navigate("WO03OneRM" as never);
+    (navigation as any).navigate("WO03OneRM");
   };
+
+  const ALL_BRAND_ID = "__all__";
 
   return (
     <SafeAreaView style={styles.container}>
@@ -94,6 +116,7 @@ export default function WO02Equipment() {
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.card}>
           <Text style={styles.card_title}>기구 설정</Text>
@@ -116,86 +139,129 @@ export default function WO02Equipment() {
           </View>
 
           {/* 브랜드 필터 */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.brand_row}>
-              {brands.map((brand) => (
+          {!brands_loading && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.brand_row}>
+                {/* 전체 칩 */}
                 <TouchableOpacity
-                  key={brand}
                   style={[
                     styles.brand_chip,
-                    selected_brand === brand && styles.brand_chip_active,
+                    selected_brand_id === null && styles.brand_chip_active,
                   ]}
-                  onPress={() => set_selected_brand(brand)}
+                  onPress={() => set_selected_brand_id(null)}
                   activeOpacity={0.8}
                 >
                   <Text
                     style={[
                       styles.brand_chip_text,
-                      selected_brand === brand && styles.brand_chip_text_active,
+                      selected_brand_id === null && styles.brand_chip_text_active,
                     ]}
                   >
-                    {brand}
+                    전체
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
 
-          {/* 기구 리스트 - 이 부분만 스크롤 */}
+                {brands.map((brand) => (
+                  <TouchableOpacity
+                    key={brand.brand_id}
+                    style={[
+                      styles.brand_chip,
+                      selected_brand_id === brand.brand_id && styles.brand_chip_active,
+                    ]}
+                    onPress={() => set_selected_brand_id(brand.brand_id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.brand_chip_text,
+                        selected_brand_id === brand.brand_id &&
+                          styles.brand_chip_text_active,
+                      ]}
+                    >
+                      {brand.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          {/* 기구 리스트 */}
           <ScrollView
             style={styles.equipment_scroll}
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled={true}
           >
-            <View style={styles.equipment_list}>
-              {filtered.map((item) => {
-                const is_selected = selected_ids.includes(item.id);
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.equipment_item,
-                      is_selected && styles.equipment_item_active,
-                    ]}
-                    onPress={() => toggle_equipment(item.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.equipment_image_box} />
-                    <View style={styles.equipment_info}>
-                      <Text
-                        style={[
-                          styles.equipment_name,
-                          is_selected && styles.equipment_name_active,
-                        ]}
-                      >
-                        {item.name}
-                      </Text>
-                      <Text style={styles.equipment_spec}>{item.spec}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+            {equipment_loading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+            ) : (
+              <View style={styles.equipment_list}>
+                {equipment_list.map((item) => {
+                  const is_selected = selected_ids.includes(item.equipment_id);
+                  return (
+                    <TouchableOpacity
+                      key={item.equipment_id}
+                      style={[
+                        styles.equipment_item,
+                        is_selected && styles.equipment_item_active,
+                      ]}
+                      onPress={() => toggle_equipment(item.equipment_id)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.equipment_image_box} />
+                      <View style={styles.equipment_info}>
+                        <Text
+                          style={[
+                            styles.equipment_name,
+                            is_selected && styles.equipment_name_active,
+                          ]}
+                        >
+                          {item.name}
+                        </Text>
+                        <Text style={styles.equipment_spec}>
+                          {item.brand ?? ""}
+                          {item.equipment_type ? ` · ${item.equipment_type}` : ""}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
 
-              {/* 기구 추가 버튼 */}
-              <TouchableOpacity
-                style={styles.add_button}
-                activeOpacity={0.8}
-                onPress={() =>
-                  navigation.navigate("WO02EquipmentRegister" as never)
-                }
-              >
-                <Octicons name="plus" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
+                {equipment_list.length === 0 && !equipment_loading && (
+                  <Text style={styles.empty_text}>기구 목록이 없어요</Text>
+                )}
+
+                {/* 기구 추가 버튼 */}
+                <TouchableOpacity
+                  style={styles.add_button}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    (navigation as any).navigate("WO02EquipmentRegister")
+                  }
+                >
+                  <Octicons name="plus" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
+
+          {/* 선택 개수 표시 */}
+          {selected_ids.length > 0 && (
+            <Text style={styles.selected_count}>
+              {selected_ids.length}개 선택됨
+            </Text>
+          )}
 
           {/* 다음 / 건너뛰기 */}
           <TouchableOpacity
-            style={styles.next_button}
+            style={[styles.next_button, next_loading && { opacity: 0.5 }]}
             onPress={handle_next}
+            disabled={next_loading}
             activeOpacity={0.8}
           >
-            <Text style={styles.next_button_text}>다음</Text>
+            <Text style={styles.next_button_text}>
+              {next_loading ? "저장 중..." : "다음"}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handle_skip}>
             <Text style={styles.skip_text}>건너뛰기</Text>
@@ -247,36 +313,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
-  brand_row: {
-    flexDirection: "row",
-    gap: 4,
-  },
+  brand_row: { flexDirection: "row", gap: 4 },
   brand_chip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 100,
     backgroundColor: colors.white,
   },
-  brand_chip_active: {
-    backgroundColor: colors.primary,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  brand_chip_text: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.bluegray,
-  },
-  brand_chip_text_active: {
-    color: colors.white,
-  },
-  equipment_scroll: {
-    maxHeight: 308,
-    marginBottom: 24,
-  },
-  equipment_list: {
-    gap: 8,
-  },
+  brand_chip_active: { backgroundColor: colors.primary },
+  brand_chip_text: { fontFamily: "regular", fontSize: 14, color: colors.bluegray },
+  brand_chip_text_active: { color: colors.white },
+  equipment_scroll: { maxHeight: 308, marginBottom: 8 },
+  equipment_list: { gap: 8 },
   equipment_item: {
     backgroundColor: colors.select,
     borderRadius: 8,
@@ -293,24 +341,29 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.border,
   },
-  equipment_info: { gap: 8 },
-  equipment_name: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-  },
+  equipment_info: { gap: 4 },
+  equipment_name: { fontFamily: "regular", fontSize: 14, color: colors.primary },
   equipment_name_active: { color: colors.white },
-  equipment_spec: {
-    fontFamily: "regular",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
+  equipment_spec: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
   add_button: {
     backgroundColor: colors.select,
     borderRadius: 8,
     height: 35,
     alignItems: "center",
     justifyContent: "center",
+  },
+  selected_count: {
+    fontFamily: "medium",
+    fontSize: 13,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  empty_text: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+    textAlign: "center",
+    paddingVertical: 20,
   },
   next_button: {
     backgroundColor: colors.primary,
@@ -319,11 +372,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  next_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
   skip_text: {
     fontFamily: "regular",
     fontSize: 14,

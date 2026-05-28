@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,95 +9,108 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { colors } from "../../assets/colors/colors";
-
-interface Gym {
-  id: string;
-  name: string;
-  address: string;
-  distance?: string;
-}
-
-const mock_nearby_gyms: Gym[] = [
-  {
-    id: "1",
-    name: "스포애니 강남점",
-    address: "서울 강남구 테헤란로 152",
-    distance: "0.3km",
-  },
-  {
-    id: "2",
-    name: "스포애니 서초점",
-    address: "서울 서초구 서초대로 77",
-    distance: "0.8km",
-  },
-  {
-    id: "3",
-    name: "헬스장 홍대점",
-    address: "서울 마포구 양화로 162",
-    distance: "1.2km",
-  },
-];
-
-const mock_search_gyms: Gym[] = [
-  ...mock_nearby_gyms,
-  {
-    id: "4",
-    name: "피트니스 센터 종로",
-    address: "서울 종로구 종로 1",
-    distance: "3.1km",
-  },
-  {
-    id: "5",
-    name: "짐박스 신촌",
-    address: "서울 서대문구 신촌로 12",
-    distance: "4.5km",
-  },
-];
+import { useAuthStore } from "../../stores/authStore";
+import { searchGyms, setMyGym, GymItem } from "../../services/gyms";
 
 export default function WO01GymSetup() {
   const navigation = useNavigation();
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+
   const [search, set_search] = useState("");
-  const [selected_gym, set_selected_gym] = useState<Gym | null>(null);
-  // 테스트용 - 나중에 원래대로 되돌리기
-  const [has_location_permission, set_has_location_permission] = useState<
-    boolean | null
-  >(false); // ⭐ null → false
+  const [selected_gym, set_selected_gym] = useState<GymItem | null>(null);
+  const [gyms, set_gyms] = useState<GymItem[]>([]);
+  const [loading, set_loading] = useState(false);
+  const [next_loading, set_next_loading] = useState(false);
+  const [has_location_permission, set_has_location_permission] = useState<boolean | null>(null);
+  const [coords, set_coords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     check_location_permission();
   }, []);
 
+  // 위치 권한 확인 + 있으면 좌표 취득
   const check_location_permission = async () => {
     const { status } = await Location.getForegroundPermissionsAsync();
-    set_has_location_permission(status === "granted");
+    if (status === "granted") {
+      set_has_location_permission(true);
+      try {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        set_coords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      } catch {
+        // 위치 취득 실패해도 검색은 가능
+      }
+    } else {
+      set_has_location_permission(false);
+    }
   };
 
   const request_location_permission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === "granted") {
       set_has_location_permission(true);
+      try {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        set_coords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      } catch {}
     } else {
       Linking.openSettings();
     }
   };
 
-  const displayed_gyms =
-    search.length > 0
-      ? mock_search_gyms.filter((gym) => gym.name.includes(search))
-      : mock_nearby_gyms;
+  // 검색 실행
+  const do_search = useCallback(
+    async (keyword: string) => {
+      if (keyword.trim().length < 1) {
+        set_gyms([]);
+        return;
+      }
+      set_loading(true);
+      try {
+        const results = await searchGyms(keyword, coords?.lat, coords?.lng);
+        set_gyms(results);
+      } catch {
+        set_gyms([]);
+      } finally {
+        set_loading(false);
+      }
+    },
+    [coords],
+  );
 
-  const handle_next = () => {
-    navigation.navigate("WO02Equipment" as never);
+  const handle_search_change = (v: string) => {
+    set_search(v);
+    set_selected_gym(null);
+    do_search(v);
+  };
+
+  // 다음 버튼 → 헬스장 저장 후 이동
+  const handle_next = async () => {
+    if (!selected_gym) return;
+    if (!selected_gym.gym_id) {
+      Alert.alert("알림", "아직 등록되지 않은 헬스장이에요. 다른 헬스장을 선택해주세요.");
+      return;
+    }
+    set_next_loading(true);
+    try {
+      await setMyGym(selected_gym.gym_id, token);
+      (navigation as any).navigate("WO02Equipment", { gym_id: selected_gym.gym_id });
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "헬스장 등록에 실패했어요. 다시 시도해주세요.");
+    } finally {
+      set_next_loading(false);
+    }
   };
 
   const handle_skip = () => {
-    navigation.navigate("WO02Equipment" as never);
+    (navigation as any).navigate("WO02Equipment", { gym_id: null });
   };
 
   return (
@@ -118,6 +131,7 @@ export default function WO01GymSetup() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.card}>
             <Text style={styles.card_title}>헬스장 설정</Text>
@@ -130,63 +144,69 @@ export default function WO01GymSetup() {
                 placeholder="이용 중인 헬스장을 검색해 주세요."
                 placeholderTextColor={colors.border}
                 value={search}
-                onChangeText={set_search}
+                onChangeText={handle_search_change}
               />
               {search.length > 0 && (
-                <TouchableOpacity onPress={() => set_search("")}>
+                <TouchableOpacity onPress={() => { set_search(""); set_gyms([]); set_selected_gym(null); }}>
                   <Octicons name="x" size={16} color={colors.border} />
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* 위치 동의 여부에 따라 분기 */}
-            {has_location_permission === false ? (
+            {/* 위치 권한 없으면 버튼 */}
+            {has_location_permission === false && search.length === 0 && (
               <View style={styles.location_button_wrapper}>
                 <TouchableOpacity
                   style={styles.location_button}
                   onPress={request_location_permission}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.location_button_text}>
-                    위치 정보 동의하러 가기
-                  </Text>
+                  <Text style={styles.location_button_text}>위치 정보 동의하러 가기</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <View style={styles.gym_list}>
-                {displayed_gyms.length > 0 ? (
-                  displayed_gyms.map((gym) => (
-                    <TouchableOpacity
-                      key={gym.id}
-                      style={[
-                        styles.gym_item,
-                        selected_gym?.id === gym.id && styles.gym_item_active,
-                      ]}
-                      onPress={() => set_selected_gym(gym)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.gym_info}>
-                        <Text
-                          style={[
-                            styles.gym_name,
-                            selected_gym?.id === gym.id &&
-                              styles.gym_name_active,
-                          ]}
-                        >
-                          {gym.name}
-                        </Text>
-                        <Text style={styles.gym_address}>{gym.address}</Text>
-                      </View>
-                      {gym.distance && (
-                        <Text style={styles.gym_distance}>{gym.distance}</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={styles.empty_text}>검색 결과가 없어요</Text>
-                )}
-              </View>
             )}
+
+            {/* 검색 결과 */}
+            {loading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+            ) : gyms.length > 0 ? (
+              <View style={styles.gym_list}>
+                {gyms.map((gym) => (
+                  <TouchableOpacity
+                    key={gym.gym_id || gym.kakao_place_id || gym.name}
+                    style={[
+                      styles.gym_item,
+                      selected_gym?.gym_id === gym.gym_id && styles.gym_item_active,
+                      !gym.gym_id && styles.gym_item_unregistered,
+                    ]}
+                    onPress={() => set_selected_gym(gym)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.gym_info}>
+                      <Text
+                        style={[
+                          styles.gym_name,
+                          selected_gym?.gym_id === gym.gym_id && styles.gym_name_active,
+                        ]}
+                      >
+                        {gym.name}
+                        {!gym.gym_id && (
+                          <Text style={styles.unregistered_badge}> (미등록)</Text>
+                        )}
+                      </Text>
+                      <Text style={styles.gym_address}>{gym.address}</Text>
+                    </View>
+                    {gym.equipment_count > 0 && (
+                      <Text style={styles.gym_equipment_count}>
+                        기구 {gym.equipment_count}개
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : search.length > 0 && !loading ? (
+              <Text style={styles.empty_text}>검색 결과가 없어요</Text>
+            ) : null}
 
             <View style={styles.spacer} />
 
@@ -194,13 +214,15 @@ export default function WO01GymSetup() {
             <TouchableOpacity
               style={[
                 styles.next_button,
-                !selected_gym && styles.next_button_disabled,
+                (!selected_gym || !selected_gym.gym_id || next_loading) && styles.next_button_disabled,
               ]}
               onPress={handle_next}
-              disabled={!selected_gym}
+              disabled={!selected_gym || !selected_gym.gym_id || next_loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.next_button_text}>다음</Text>
+              <Text style={styles.next_button_text}>
+                {next_loading ? "저장 중..." : "다음"}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handle_skip}>
               <Text style={styles.skip_text}>건너뛰기</Text>
@@ -255,9 +277,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
-  location_button_wrapper: {
-    alignItems: "center",
-  },
+  location_button_wrapper: { alignItems: "center" },
   location_button: {
     marginTop: 40,
     backgroundColor: colors.select,
@@ -277,25 +297,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.select,
     borderRadius: 8,
     paddingHorizontal: 15,
-    height: 70,
+    minHeight: 70,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   gym_item_active: { backgroundColor: colors.primary },
-  gym_info: { gap: 8 },
-  gym_name: {
-    fontFamily: "regular",
-    fontSize: 16,
-    color: colors.primary,
-  },
+  gym_item_unregistered: { opacity: 0.6 },
+  gym_info: { gap: 4, flex: 1 },
+  gym_name: { fontFamily: "regular", fontSize: 16, color: colors.primary },
   gym_name_active: { color: colors.white },
-  gym_address: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: "#C8D5FF",
-  },
-  gym_distance: {
+  unregistered_badge: { fontSize: 12, color: colors.bluegray },
+  gym_address: { fontFamily: "regular", fontSize: 13, color: colors.bluegray },
+  gym_equipment_count: {
     fontFamily: "regular",
     fontSize: 12,
     color: colors.bluegray,
@@ -303,7 +318,7 @@ const styles = StyleSheet.create({
   empty_text: {
     fontFamily: "regular",
     fontSize: 14,
-    color: colors.gray,
+    color: colors.bluegray,
     textAlign: "center",
     paddingVertical: 20,
   },
@@ -316,11 +331,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   next_button_disabled: { opacity: 0.5 },
-  next_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
   skip_text: {
     fontFamily: "regular",
     fontSize: 14,
