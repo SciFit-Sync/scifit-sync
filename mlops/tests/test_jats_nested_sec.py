@@ -4,11 +4,10 @@
       부모 Methods sec + 자식 Subjects/Procedure/Statistics 각각이
       별개 PaperSection으로 추출됨 → 평균 56 토큰 청크의 직접 원인.
 """
-from defusedxml import ElementTree as ET2
 
+from defusedxml import ElementTree as ET2
 from mlops.pipeline.crawler import _parse_pmc_sections
 from mlops.pipeline.europepmc import parse_sections
-
 
 JATS_XML = b"""<?xml version="1.0"?>
 <article>
