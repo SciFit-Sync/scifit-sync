@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class ChatMessageItem(BaseModel):
@@ -20,7 +20,7 @@ class ChatMessageListData(BaseModel):
 
 class SendChatMessageRequest(BaseModel):
     session_id: str | None = Field(default=None, description="없으면 새 세션 생성")
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, validation_alias=AliasChoices("content", "message"))
 
 
 class RecommendedRoutineItem(BaseModel):

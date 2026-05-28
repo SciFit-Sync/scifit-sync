@@ -41,7 +41,6 @@ class ExerciseDetailItem(BaseModel):
     tips_available: bool = False
     calories_per_minute: float | None = None
     met: float | None = None
-    ai_reasoning: str | None = None
     is_replaceable: bool = True
 
 
@@ -139,13 +138,16 @@ class UpdateRoutineNameRequest(BaseModel):
 
 
 class UpdateRoutineExerciseRequest(BaseModel):
-    new_exercise_id: str | None = None
+    """PATCH /routines/{id}/exercises/{exId} — 보낸 필드만 부분 업데이트 (PATCH semantics)."""
+
+    exercise_id: str | None = None
+    equipment_id: str | None = None
     sets: int | None = Field(default=None, ge=1)
     reps_min: int | None = Field(default=None, ge=1)
     reps_max: int | None = Field(default=None, ge=1)
-    weight_kg: float | None = None
+    weight_kg: float | None = Field(default=None, ge=0)
     rest_seconds: int | None = Field(default=None, ge=0)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
 
 # ── 논문 ──────────────────────────────────────────────────────────────────────
@@ -168,26 +170,6 @@ class PaperItem(BaseModel):
 class RoutineExercisePapersData(BaseModel):
     routine_exercise_id: str
     items: list[PaperItem]
-
-
-# ── 종목 교체 ─────────────────────────────────────────────────────────────────
-class ReplaceRoutineExerciseRequest(BaseModel):
-    new_exercise_id: str
-
-
-class ReplacedExerciseData(BaseModel):
-    exercise_id: str
-    name: str
-    equipment: str | None = None
-    brand: str | None = None
-    sets: int
-    reps_min: int | None = None
-    reps_max: int | None = None
-
-
-class ReplaceRoutineExerciseData(BaseModel):
-    message: str
-    new_exercise: ReplacedExerciseData
 
 
 # ── 삭제 ──────────────────────────────────────────────────────────────────────
