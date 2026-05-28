@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 
 
 # ── 응답: GET /users/me ────────────────────────────────────────────────────────
+class CoreLift1RMItem(BaseModel):
+    code: str
+    name: str
+    weight_kg: float | None = None
+
+
 class ProfileData(BaseModel):
     gender: str | None = None
     birth_date: date | None = None
@@ -13,6 +19,7 @@ class ProfileData(BaseModel):
     height_cm: float | None = None
     default_goals: list[str] | None = None
     career_level: str | None = None
+    career_years: int | None = None
 
 
 class BodyMeasurementData(BaseModel):
@@ -37,6 +44,7 @@ class MeData(BaseModel):
     profile: ProfileData | None = None
     latest_measurement: BodyMeasurementData | None = None
     gyms: list[GymData] = Field(default_factory=list)
+    core_lifts_1rm: list[CoreLift1RMItem] = Field(default_factory=list)
 
 
 # ── POST /users/me/onboard ───────────────────────────────────────────────────
@@ -46,6 +54,7 @@ class OnboardRequest(BaseModel):
     height_cm: float = Field(..., gt=0)
     weight_kg: float = Field(..., gt=0)
     career_level: str
+    career_years: int | None = Field(default=None, ge=0)
     default_goals: list[str] = Field(default_factory=list)
 
 
@@ -76,6 +85,7 @@ class UpdateGoalRequest(BaseModel):
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
 class UpdateCareerRequest(BaseModel):
     career_level: str
+    career_years: int | None = Field(default=None, ge=0)
 
 
 # ── /users/me/gym ─────────────────────────────────────────────────────────────

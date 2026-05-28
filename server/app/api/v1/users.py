@@ -36,6 +36,7 @@ from app.schemas.users import (
     BodyMeasurementData,
     BulkAdd1RMRequest,
     BulkOneRMData,
+    CoreLift1RMItem,
     GymData,
     MeData,
     OnboardData,
@@ -75,6 +76,7 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
         height_cm=profile.height_cm,
         default_goals=profile.default_goals,
         career_level=profile.career_level.value if profile.career_level else None,
+        career_years=profile.career_years,
     )
 
 
@@ -126,6 +128,7 @@ async def onboard(
         birth_date=body.birth_date,
         height_cm=body.height_cm,
         career_level=career,
+        career_years=body.career_years,
         default_goals=body.default_goals or None,
     )
     db.add(profile)
@@ -178,6 +181,25 @@ async def get_me(
     )
     gyms = [GymData(gym_id=str(ug.gym_id), name=g.name, is_primary=ug.is_primary) for ug, g in gyms_result.all()]
 
+    # 4대 운동 1RM (마이페이지 카드용)
+    from app.services.core_lifts import CORE_LIFTS_KO_LABEL, resolve_exercise_id_by_code
+
+    core_lifts_1rm: list[CoreLift1RMItem] = []
+    for code, label in CORE_LIFTS_KO_LABEL.items():
+        ex_id = await resolve_exercise_id_by_code(code, db)
+        if ex_id is None:
+            core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=None))
+            continue
+        row = (
+            await db.execute(
+                select(UserExercise1RM.weight_kg)
+                .where(UserExercise1RM.user_id == current_user.id, UserExercise1RM.exercise_id == ex_id)
+                .order_by(UserExercise1RM.estimated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=float(row) if row else None))
+
     return SuccessResponse(
         data=MeData(
             user_id=str(current_user.id),
@@ -188,6 +210,7 @@ async def get_me(
             profile=_profile_to_dto(profile),
             latest_measurement=_measurement_to_dto(latest_m),
             gyms=gyms,
+            core_lifts_1rm=core_lifts_1rm,
         )
     )
 
@@ -267,6 +290,8 @@ async def update_career(
     if profile is None:
         raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
     profile.career_level = career
+    if body.career_years is not None:
+        profile.career_years = body.career_years
     await db.commit()
     return SuccessResponse(data=_profile_to_dto(profile))  # type: ignore[arg-type]
 
