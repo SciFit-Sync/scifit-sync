@@ -13,6 +13,7 @@ import WN01Notifications from "../screens/main/WN01Notifications";
 import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
 import WA03SignupInfo from "../screens/auth/WA03SignupInfo";
+import WAOTPVerify from "../screens/auth/WAOTPVerify";
 import WO03OneRM from "@/screens/onboarding/WO03OneRM";
 import WP01MyPage from "@/screens/main/WP01MyPage";
 import WP02EditBodyInfo from "@/screens/main/WP02EditBodyInfo";
@@ -36,6 +37,7 @@ function AuthNavigator() {
         component={WA03SignupInfo}
         options={{ animation: "none" }}
       />
+      <AuthStack.Screen name="WAOTPVerify" component={WAOTPVerify} />
     </AuthStack.Navigator>
   );
 }

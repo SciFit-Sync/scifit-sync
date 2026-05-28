@@ -34,3 +34,6 @@ asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    "integration: NCBI/외부 API 실호출 테스트 — CI에서는 -m 'not integration'으로 제외",
+]
