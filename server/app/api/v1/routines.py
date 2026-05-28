@@ -550,7 +550,10 @@ async def get_ai_routine_detail(
         count_rows = (
             await db.execute(
                 select(RoutinePaper.routine_exercise_id, func.count().label("cnt"))
-                .where(RoutinePaper.routine_exercise_id.in_(rex_ids))
+                .where(
+                    RoutinePaper.routine_id == routine.id,
+                    RoutinePaper.routine_exercise_id.in_(rex_ids),
+                )
                 .group_by(RoutinePaper.routine_exercise_id)
             )
         ).all()
@@ -599,7 +602,7 @@ async def get_ai_routine_detail(
                 muscle_activation=muscle_map.get(rex.exercise_id, []),
                 sets=set_items,
                 tips_count=paper_counts.get(rex.id, 0),
-                tips_available=bool(paper_counts.get(rex.id, 0)),
+                tips_available=paper_counts.get(rex.id, 0) > 0,
                 calories_per_minute=wx.get("caloriesPerMinute"),
                 met=wx.get("met"),
                 ai_reasoning=rex.note,
