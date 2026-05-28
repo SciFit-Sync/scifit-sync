@@ -551,6 +551,7 @@ class TestGetAIRoutineDetail:
             _exec_scalars_all([_exercise_mock()]),
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(None),  # no active WorkoutLog
+            _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -571,6 +572,31 @@ class TestGetAIRoutineDetail:
         assert ex["sets"][0]["completed"] is False
         assert len(ex["muscle_activation"]) == 1
         assert ex["muscle_activation"][0]["muscle"] == "대흉근"
+        assert ex["tips_count"] == 0
+        assert ex["tips_available"] is False
+
+    @pytest.mark.asyncio
+    async def test_success_with_papers(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.get_exercise_by_name",
+            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+        )
+        db = _make_db(
+            _exec_scalar(_routine()),
+            _exec_scalars_unique_all([_routine_day_mock()]),
+            _exec_scalars_all([_exercise_mock()]),
+            _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
+            _exec_scalar(None),  # no active WorkoutLog
+            _exec_all([(_REX_ID, 3)]),  # paper 3건 연결
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/ai-detail")
+
+        assert resp.status_code == 200
+        ex = resp.json()["data"]["exercises"][0]
+        assert ex["tips_count"] == 3
+        assert ex["tips_available"] is True
 
     @pytest.mark.asyncio
     async def test_success_with_active_session(self, client, monkeypatch):
@@ -593,6 +619,7 @@ class TestGetAIRoutineDetail:
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(active_log),
             _exec_scalars_all([completed_set]),
+            _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
