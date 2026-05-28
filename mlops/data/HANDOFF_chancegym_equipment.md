@@ -1,7 +1,7 @@
 # Handoff — 찬스짐 기구 데이터 seed
 
-> 최종 업데이트: 2026-05-27
-> 브랜치: `feat/namgw/chancegym-equipment-seed`
+> 최종 업데이트: 2026-05-28
+> 브랜치: `feat/namgw/chancegym-equipment-seed` → 후속 PR `feat/sungjoon/chancegym-gym-seed`
 
 ---
 
@@ -53,44 +53,28 @@ Lexco MasterPro는 Lexco와 동일 제조사이므로 단일 브랜드로 통일
 
 ## 2. 다음 단계
 
-### 우선순위 1: 찬스짐 기구 seed 마이그레이션 파일 작성 (**필수**)
+### ✅ 우선순위 1: 찬스짐 기구 seed 마이그레이션 — 완료 (2026-05-27)
 
-`equipments_seed.csv`는 `20260521_seed_equipments` 마이그레이션이 최초 1회만 읽는다. prod DB에 이미 적용된 상태이므로 CSV 추가분(33개)은 자동으로 반영되지 않는다. 별도 마이그레이션이 필요하다.
+`server/alembic/versions/20260527_seed_chancegym_equipments.py` 작성 완료. 33개 기구 prod 적재용 INSERT, `ON CONFLICT DO NOTHING` 멱등 처리, `uuid5(NAMESPACE_DNS, "scifit-chancegym-{name}-{brand}")` 결정론적 UUID. 후속 `20260528_fix_pulley_ratio`에서 pulley_ratio 2→0.5 보정도 적용됨.
 
-작성할 파일:
-```
-server/alembic/versions/20260527_seed_chancegym_equipments.py
-```
+### ✅ 우선순위 2: 찬스짐 gym 등록 및 gym_equipments 매핑 — 완료 (2026-05-28)
 
-작성 기준:
-- `down_revision = "20260524_seed_ai_gym_equipments"`
-- `20260524` 패턴 동일하게 작성 (`_EQUIPMENTS` Python 리스트 + `ON CONFLICT DO NOTHING`)
-- `chancegym_equipments.csv`의 33개 행을 Python 리스트로 변환
-- Barbell / Dumbbell / Smith machine의 `brand_id = None`
-- 찬스짐에서 쓰는 브랜드(GYM80, Newtech, Lexco, Booty Builder, Salus)는 이미 이전 마이그레이션에서 등록됐으므로 `_BRANDS` 삽입 불필요
+`server/alembic/versions/20260528_seed_chancegym_gym.py` 작성 완료.
+- `gyms`: '더찬스짐' 1행 — `id=ecdd073b-f894-5c5a-86cc-a9b42a4e6985` (uuid5(NAMESPACE_DNS, "scifit-gym-kakao-1875030524")), kakao_place_id=`1875030524`, address='경기 용인시 처인구 모현읍 외대로26번길 25-1', lat=37.3336260282492, lng=127.25172831281385
+- `gym_equipments`: 33개 매핑 (quantity=1) — 20260527에서 적재한 equipment_id 33개를 그대로 참조
+- 멱등성: 두 INSERT 모두 `ON CONFLICT DO NOTHING`, downgrade는 gym_equipments → gyms 순 DELETE
+- down_revision: `20260528_fix_pulley_ratio`
 
-각 기구의 UUID는 결정론적으로 생성:
-```python
-import uuid
-uuid.uuid5(uuid.NAMESPACE_DNS, f"scifit-chancegym-{name}-{brand}")
-```
-→ `mlops/data/chancegym_equipments.csv` 행 순서별로 이미 생성된 UUID는 `equipments_seed.csv` 103번 줄 이후에서 확인 가능
+### ✅ 우선순위 3: 범용 기구 중량 계산 동작 확인 — 검증 완료 (2026-05-28)
 
-### 우선순위 2: 찬스짐 gym 등록 및 gym_equipments 매핑
+`server/app/services/load_calc.py`의 `calculate_effective_weight`는 이미 `equipment_type` 단일 매개변수로만 분기하며 `category` / `sub_category`를 절대 참조하지 않는다. 따라서 범용 기구의 NULL category는 무영향.
 
-- `gyms` 테이블에 찬스짐 등록 (앱 온보딩 플로우 또는 별도 seed)
-- `gym_equipments` 테이블에 `gym_id` + 위 33개 `equipment_id` + `quantity` 매핑
+`server/tests/test_load_calc.py`가 5개 equipment_type 분기를 모두 커버 (13개 케이스):
+- `test_barbell` — `bar_weight=20, added=60` → `80kg` ✅
+- `test_dumbbell` — `added=20` → `20kg` ✅
+- Smith machine은 `equipment_type='barbell'`로 등록되어 barbell 분기 사용 ✅
 
-### 우선순위 3: 범용 기구 중량 계산 동작 확인
-
-Barbell / Dumbbell / Smith machine은 brand_id · category · sub_category가 NULL이다. `load_calc.calculate_effective_weight`가 `equipment_type` 분기로만 동작하는지 확인 필요.
-
-```python
-# 확인 포인트: server/app/services/load_calc.py
-# barbell: bar_weight=20kg, pulley_ratio=1.0 → effective = bar_weight + added_weight
-# dumbbell: equipment.bar_weight 없음 → effective = added_weight
-# Smith machine: bar_weight=15kg → effective = bar_weight + added_weight
-```
+추가 테스트 작성 불필요.
 
 ---
 
@@ -102,4 +86,6 @@ Barbell / Dumbbell / Smith machine은 brand_id · category · sub_category가 NU
 | `mlops/data/equipments_seed.csv` | 전체 기구 seed CSV (찬스짐 33개 포함) |
 | `server/alembic/versions/20260521_seed_equipments.py` | CSV → DB 적재 마이그레이션 (최초 1회) |
 | `server/alembic/versions/20260524_seed_ai_gym_equipments.py` | AI팀 기구 seed, Lexco 통일 반영 |
-| `server/alembic/versions/20260527_seed_chancegym_equipments.py` | **작성 필요** — 찬스짐 기구 prod 적재 |
+| `server/alembic/versions/20260527_seed_chancegym_equipments.py` | ✅ 찬스짐 기구 33개 prod 적재 |
+| `server/alembic/versions/20260528_fix_pulley_ratio.py` | ✅ pulley_ratio 2→0.5 보정 |
+| `server/alembic/versions/20260528_seed_chancegym_gym.py` | ✅ 더찬스짐 gym 등록 + gym_equipments 33개 매핑 |

@@ -5,6 +5,8 @@ from httpx import ASGITransport, AsyncClient
 
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 os.environ.setdefault("ADMIN_API_TOKEN", "test-admin-token")
+os.environ.setdefault("ENV", "development")
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-unit-tests-minimum-32chars")
 
 from app.core.config import get_settings  # noqa: E402
 

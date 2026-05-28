@@ -23,6 +23,7 @@ from app.models import (
     RoutineDay,
     RoutineExercise,
     User,
+    UserBodyMeasurement,
     WorkoutLog,
     WorkoutLogSet,
     WorkoutRoutine,
@@ -52,6 +53,20 @@ from app.schemas.sessions import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+_REST_GOAL_DEFAULTS: dict[str, tuple[int, int, int]] = {
+    "hypertrophy": (90, 60, 120),
+    "strength": (180, 120, 300),
+    "endurance": (60, 30, 60),
+    "rehabilitation": (60, 30, 90),
+}
+
+
+def _fmt_seconds(s: int) -> str:
+    if s < 60:
+        return f"{s}초"
+    m, r = divmod(s, 60)
+    return f"{m}분" if r == 0 else f"{m}분 {r}초"
 
 
 def _parse_uuid(v: str, name: str) -> uuid.UUID:
@@ -269,9 +284,20 @@ async def finish_session(
         ).scalar_one()
     )
 
+    latest_measurement = (
+        await db.execute(
+            select(UserBodyMeasurement)
+            .where(UserBodyMeasurement.user_id == current_user.id)
+            .order_by(UserBodyMeasurement.measured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    body_weight = latest_measurement.weight_kg if latest_measurement else 70.0
+
     dto = _session_to_dto(s)
     dto.total_sets = total_sets
     dto.completed_exercises = completed_exercises
+    dto.total_calories = round(5.0 * body_weight * dto.duration_minutes / 60) if dto.duration_minutes else None
     return SuccessResponse(data=dto)
 
 
@@ -693,9 +719,26 @@ async def rest_timer(
         rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
         rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
         if rex is not None:
-            return SuccessResponse(data=RestTimerData(rest_seconds=rex.rest_seconds, based_on="routine"))
+            rec = rex.rest_seconds
+            mn = max(30, rec - 30)
+            mx = rec + 30
+            return SuccessResponse(
+                data=RestTimerData(
+                    rest_seconds=rec,
+                    min_rest_seconds=mn,
+                    max_rest_seconds=mx,
+                    message=f"권장 휴식: {_fmt_seconds(mn)}~{_fmt_seconds(mx)}",
+                    based_on="routine",
+                )
+            )
 
-    defaults = {"hypertrophy": 90, "strength": 180, "endurance": 60, "rehabilitation": 60}
+    rec, mn, mx = _REST_GOAL_DEFAULTS.get(goal or "hypertrophy", _REST_GOAL_DEFAULTS["hypertrophy"])
     return SuccessResponse(
-        data=RestTimerData(rest_seconds=defaults.get(goal or "hypertrophy", 90), based_on="goal_default")
+        data=RestTimerData(
+            rest_seconds=rec,
+            min_rest_seconds=mn,
+            max_rest_seconds=mx,
+            message=f"권장 휴식: {_fmt_seconds(mn)}~{_fmt_seconds(mx)}",
+            based_on="goal_default",
+        )
     )
