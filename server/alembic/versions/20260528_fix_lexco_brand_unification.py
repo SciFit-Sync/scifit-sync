@@ -42,9 +42,7 @@ def upgrade() -> None:
     conn = op.get_bind()
 
     conn.execute(
-        sa.text(
-            "UPDATE equipments SET brand_id = :lexco WHERE brand_id = :masterpro"
-        ),
+        sa.text("UPDATE equipments SET brand_id = :lexco WHERE brand_id = :masterpro"),
         {"lexco": _LEXCO_BRAND_ID, "masterpro": _LEXCO_MASTERPRO_BRAND_ID},
     )
 
@@ -74,9 +72,7 @@ def downgrade() -> None:
     )
 
     conn.execute(
-        sa.text(
-            "UPDATE equipments SET brand_id = :masterpro WHERE id = ANY(:ids)"
-        ),
+        sa.text("UPDATE equipments SET brand_id = :masterpro WHERE id = ANY(:ids)"),
         {
             "masterpro": _LEXCO_MASTERPRO_BRAND_ID,
             "ids": _AFFECTED_EQUIPMENT_IDS,
