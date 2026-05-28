@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -22,6 +23,7 @@ from app.core.exception_handlers import (
 from app.core.exceptions import AppError
 from app.core.limiter import limiter
 from app.core.middleware import RequestIdMiddleware
+from app.services import rag as rag_svc
 
 settings = get_settings()
 
@@ -31,9 +33,33 @@ logging.basicConfig(
     force=True,
 )
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup: 별도 초기화 없음 (ChromaDB는 최초 요청 시 lazy-init)
+    yield
+    # shutdown — ChromaDB graceful close
+    # SIGTERM 수신 시 alias cache + _client 레퍼런스를 정리해
+    # ChromaDB PersistentClient의 pending write가 finalize될 시간을 보장한다.
+    # design spec §3.6 B4 risk: HNSW partial-write 방지의 1차 방어선.
+    try:
+        rag_svc._collection_cache.clear()
+        if rag_svc._client is not None:
+            rag_svc._client = None
+        # B2 fix: admin writer client도 정리 — reader만 정리하던 기존 누락 수정
+        from app.api.v1 import admin as admin_mod
+
+        admin_mod._close_chroma_writer()
+        logger.info("ChromaDB read+write client released gracefully")
+    except Exception as e:
+        logger.error("Graceful shutdown 중 ChromaDB cleanup 실패: %s", e)
+
 
 def create_app() -> FastAPI:
     app = FastAPI(
+        lifespan=lifespan,
         title="SciFit-Sync",
         version="1.0.0",
         docs_url=None if settings.ENV == "production" else "/docs",

@@ -5,10 +5,14 @@ ADMIN_API_TOKEN으로 인증.
 """
 
 import asyncio
+import json
 import logging
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 import chromadb
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -19,12 +23,25 @@ from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
 from app.models.paper import Paper
 from app.schemas.rag import RagIngestRequest
+from app.services import rag as rag_svc
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 _chroma_client = None
+
+
+def _close_chroma_writer() -> None:
+    """Lifespan shutdown에서 호출 — admin writer client 참조를 해제한다.
+
+    B2 fix: main.py lifespan shutdown이 rag._client(reader)만 정리하고
+    admin._chroma_client(writer)를 누락하던 문제를 해결한다.
+    ChromaDB PersistentClient는 명시적 close API가 없지만, 참조를 끊으면
+    GC finalizer가 sqlite WAL을 flush하므로 HNSW partial-write 위험이 감소한다.
+    """
+    global _chroma_client
+    _chroma_client = None
 
 
 def _get_collection() -> chromadb.Collection:
@@ -198,21 +215,53 @@ async def list_dois(
 
 
 @router.get("/rag/pmids")
-async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
-    """ChromaDB에 적재된 모든 unique paper_pmid 목록을 반환한다.
+async def list_pmids(
+    limit: int = 100,
+    offset: int = 0,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """ChromaDB에 적재된 unique paper_pmid 목록을 페이지네이션하여 반환한다.
 
     카테고리 메타 동기화 스크립트(`refresh_search_categories`)가 호출하여
     어떤 PMID에 대해 카테고리 재계산을 적용할지 결정한다.
+
+    신규 MAJOR 픽스: 이전 구현은 chunk row 기준 limit/offset이어서 페이지 경계에서
+    같은 PMID의 청크가 분리되면 중복 또는 누락이 발생했다.
+    현재 구현은 collection 전체 metadata를 배치로 수집 → unique PMID 집계 → sort → slice하여
+    PMID 단위 페이지네이션을 보장한다. `limit`/`offset`은 unique PMID 목록 기준.
 
     NOTE: 응답이 `dict`인 것은 기존 `ingest_papers` 엔드포인트와의 일관성 때문이다
     (모든 admin 엔드포인트가 `{success, data}` 평문 dict 패턴). OpenAPI 모델화는
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
+    if limit <= 0 or limit > 100000:
+        raise HTTPException(status_code=400, detail="limit must be in (0, 100000]")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset must be >= 0")
+
     collection = _get_collection()
-    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    # PR #176 헬퍼로 전체 metadata 안전 수집 (내부 페이지네이션, SQLite 변수 한계 회피)
     _ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
-    pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
-    return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
+    total_chunks = len(metas)
+
+    # unique PMID 집계 → sort → slice (PMID 단위 페이지네이션, 페이지 경계 중복/누락 방지)
+    all_pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
+    total_pmids = len(all_pmids)
+    page = all_pmids[offset : offset + limit]
+
+    return {
+        "success": True,
+        "data": {
+            "pmids": page,
+            "total": total_pmids,  # unique PMID 수 (페이지네이션 기준)
+            "limit": limit,
+            "offset": offset,
+            "has_next": offset + limit < total_pmids,
+            # 하위 호환: 기존 MLOps 스크립트가 count/total_chunks를 읽는 경우 대비 보존
+            "count": len(page),
+            "total_chunks": total_chunks,
+        },
+    }
 
 
 class RefreshCategoriesRequest(BaseModel):
@@ -272,3 +321,42 @@ async def refresh_categories(
             "total_pmids_in_mapping": len(body.mapping),
         },
     }
+
+
+class CollectionSwapRequest(BaseModel):
+    to: str
+
+
+@router.post("/rag/collection-swap")
+async def swap_collection(
+    body: CollectionSwapRequest,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """`current_alias.json`의 `current`를 새 collection 이름으로 atomic write.
+
+    PR-δ §2.3 alias-swap 패턴 — body `{"to": "papers_v2"}`로 호출하면 EFS의 alias 파일을
+    교체하고 rag 서비스의 keyed cache를 clear 한다. 다음 검색 요청부터 새 collection을
+    사용하므로 zero-downtime swap이 가능하다. 롤백은 동일 endpoint에 이전 이름으로 재호출.
+    """
+    target = body.to.strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="`to` 필드는 비어있을 수 없습니다")
+
+    alias_path: Path = rag_svc.ALIAS_FILE
+    alias_path.parent.mkdir(parents=True, exist_ok=True)
+    swapped_at = datetime.now(timezone.utc).isoformat()
+
+    # POSIX atomic: tmp write → rename. 동일 디렉토리에서 .replace는 atomic이 보장된다.
+    # M3 잔여 픽스: uuid4 suffix — pid+ms timestamp는 동일 프로세스 동시 요청에서 같은 ms 충돌 가능
+    tmp = alias_path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+    tmp.write_text(
+        json.dumps({"current": target, "swapped_at": swapped_at}),
+        encoding="utf-8",
+    )
+    tmp.replace(alias_path)
+
+    # 다음 _get_collection 호출부터 새 alias가 즉시 반영되도록 keyed cache 비움.
+    rag_svc._collection_cache.clear()
+
+    logger.info("collection-swap: alias '%s'로 갱신 (at=%s)", target, swapped_at)
+    return {"success": True, "data": {"current": target, "swapped_at": swapped_at}}
