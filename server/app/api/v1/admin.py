@@ -95,14 +95,37 @@ def _fetch_all_metadatas_paged(collection: chromadb.Collection) -> tuple[list[st
     return all_ids, all_metas
 
 
-def _ingest_chunks_to_chroma(chunks: list, batch_size: int = 100) -> tuple[int, int]:
+def _get_or_create_named_collection(name: str) -> chromadb.Collection:
+    """명시적 collection 이름으로 get_or_create. alias 무시."""
+    global _chroma_client
+    settings = get_settings()
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_PATH)
+    return _chroma_client.get_or_create_collection(
+        name=name,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def _ingest_chunks_to_chroma(
+    chunks: list, batch_size: int = 100, collection_name: str | None = None
+) -> tuple[int, int]:
     """ChromaDB에 청크를 배치 upsert하고 (적재 수, 전체 컬렉션 수)를 반환한다.
 
     upsert/count는 모두 동기 블로킹 호출이라 async 핸들러에서 직접 부르면 이벤트 루프가
     멈춘다(0.5 vCPU 단일 태스크에서 대량 적재 시 /health 타임아웃 → ECS가 태스크 kill).
     이 함수를 통째로 워커 스레드에서 실행하기 위해 분리한다.
+
+    Args:
+        chunks: 적재할 ChunkIngestPayload 리스트.
+        batch_size: ChromaDB upsert 배치 크기.
+        collection_name: 명시 시 alias 무시하고 해당 컬렉션에 직접 적재.
+            None이면 _get_collection()(alias-aware 기본값) 사용.
     """
-    collection = _get_collection()
+    if collection_name and collection_name.strip():
+        collection = _get_or_create_named_collection(collection_name.strip())
+    else:
+        collection = _get_collection()
     total = 0
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i : i + batch_size]
@@ -184,7 +207,9 @@ async def ingest_papers(
     # ── 2) ChromaDB chunk upsert (확장 메타) ─────────────────
     # ChromaDB 호출(upsert/count)은 동기 블로킹이라 이벤트 루프를 멈춘다 → 대량 적재 시
     # /health 타임아웃으로 ECS가 태스크를 kill한다. 워커 스레드로 오프로드해 루프를 비운다.
-    total, total_collection = await asyncio.to_thread(_ingest_chunks_to_chroma, body.chunks)
+    # body.collection이 명시되면 alias 무시하고 해당 컬렉션에 직접 적재 (Phase 2 papers_v2용).
+    target_collection = (body.collection or "").strip() or None
+    total, total_collection = await asyncio.to_thread(_ingest_chunks_to_chroma, body.chunks, 100, target_collection)
 
     logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, total_collection)
     return {
