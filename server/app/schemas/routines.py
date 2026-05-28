@@ -41,7 +41,6 @@ class ExerciseDetailItem(BaseModel):
     tips_available: bool = False
     calories_per_minute: float | None = None
     met: float | None = None
-    ai_reasoning: str | None = None
     is_replaceable: bool = True
 
 

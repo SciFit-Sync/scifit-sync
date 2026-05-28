@@ -27,8 +27,8 @@ Accept: text/event-stream
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | goals | Array<String> | ✅ | 운동 목표 (hypertrophy / strength / endurance / rehabilitation / weight_loss), 복수 선택 가능 |
-| target_muscle_group_ids | Array<UUID> | ✅ | 운동 부위 muscle_group ID 배열 (GET /muscle-groups 참조) |
-| session_minutes | Integer | ✅ | 세션 시간 (30 / 60 / 90 / 120) |
+| target_muscle_group_ids | Array<UUID> | ❌ | 운동 부위 근육 그룹 UUID 배열 (`GET /equipment/muscle-groups` 또는 DB muscle_groups.id) |
+| session_minutes | Integer | ❌ | 세션 시간 (분). 미지정 시 AI 추천 |
 | split_type | String | ❌ | 분할 방식 (2split / 3split / 4split / 5split), 미지정 시 AI 추천 |
 | injury | String | ❌ | 부상 정보 (예: 허리 통증으로 데드리프트 제외) |
 | gym_id | String (UUID) | ❌ | 사용할 헬스장 ID, 미지정 시 기본 헬스장 사용 |
