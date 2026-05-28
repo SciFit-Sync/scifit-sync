@@ -18,7 +18,7 @@ import { Octicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
-import { searchGyms, setMyGym, GymItem } from "../../services/gyms";
+import { searchGyms, createGym, setMyGym, GymItem } from "../../services/gyms";
 
 export default function WO01GymSetup() {
   const navigation = useNavigation();
@@ -114,17 +114,19 @@ export default function WO01GymSetup() {
     }
   };
 
-  // 다음 버튼 → 헬스장 저장 후 이동
+  // 다음 버튼 → 미등록이면 먼저 DB 등록 후 내 헬스장으로 저장
   const handle_next = async () => {
     if (!selected_gym) return;
-    if (!selected_gym.gym_id) {
-      Alert.alert("알림", "아직 등록되지 않은 헬스장이에요. 다른 헬스장을 선택해주세요.");
-      return;
-    }
     set_next_loading(true);
     try {
-      await setMyGym(selected_gym.gym_id, token);
-      (navigation as any).navigate("WO02Equipment", { gym_id: selected_gym.gym_id });
+      let gym_id = selected_gym.gym_id;
+      // DB에 없는 헬스장이면 자동 등록
+      if (!gym_id) {
+        const created = await createGym(selected_gym, token);
+        gym_id = created.gym_id;
+      }
+      await setMyGym(gym_id, token);
+      (navigation as any).navigate("WO02Equipment", { gym_id });
     } catch (e: any) {
       Alert.alert("오류", e.message ?? "헬스장 등록에 실패했어요. 다시 시도해주세요.");
     } finally {
@@ -200,7 +202,6 @@ export default function WO01GymSetup() {
                       style={[
                         styles.gym_item,
                         selected_gym?.kakao_place_id === gym.kakao_place_id && styles.gym_item_active,
-                        !gym.gym_id && styles.gym_item_unregistered,
                       ]}
                       onPress={() => set_selected_gym(gym)}
                       activeOpacity={0.8}
@@ -213,9 +214,6 @@ export default function WO01GymSetup() {
                           ]}
                         >
                           {gym.name}
-                          {!gym.gym_id && (
-                            <Text style={styles.unregistered_badge}> (미등록)</Text>
-                          )}
                         </Text>
                         <Text style={styles.gym_address}>{gym.address}</Text>
                       </View>
@@ -236,10 +234,10 @@ export default function WO01GymSetup() {
             <TouchableOpacity
               style={[
                 styles.next_button,
-                (!selected_gym || !selected_gym.gym_id || next_loading) && styles.next_button_disabled,
+                (!selected_gym || next_loading) && styles.next_button_disabled,
               ]}
               onPress={handle_next}
-              disabled={!selected_gym || !selected_gym.gym_id || next_loading}
+              disabled={!selected_gym || next_loading}
               activeOpacity={0.8}
             >
               <Text style={styles.next_button_text}>
@@ -335,11 +333,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   gym_item_active: { backgroundColor: colors.primary },
-  gym_item_unregistered: {},
   gym_info: { gap: 4, flex: 1 },
   gym_name: { fontFamily: "regular", fontSize: 16, color: colors.primary },
   gym_name_active: { color: colors.white },
-  unregistered_badge: { fontSize: 12, color: colors.bluegray },
   gym_address: { fontFamily: "regular", fontSize: 13, color: colors.bluegray },
   gym_equipment_count: {
     fontFamily: "regular",

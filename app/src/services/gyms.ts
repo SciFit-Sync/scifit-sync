@@ -40,6 +40,22 @@ export async function searchGyms(
   return data.gyms;
 }
 
+// 헬스장 생성 (POST /api/v1/gyms) — 카카오 결과가 DB에 없을 때 자동 등록
+export async function createGym(gym: GymItem, token: string): Promise<GymItem> {
+  const data = await apiFetch<GymItem>('/api/v1/gyms', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({
+      name: gym.name,
+      address: gym.address,
+      latitude: gym.latitude,
+      longitude: gym.longitude,
+      kakao_place_id: gym.kakao_place_id,
+    }),
+  });
+  return data;
+}
+
 // 내 헬스장 등록 (POST /api/v1/users/me/gym)
 export async function setMyGym(gym_id: string, token: string): Promise<void> {
   await apiFetch<unknown>('/api/v1/users/me/gym', {
