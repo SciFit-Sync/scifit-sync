@@ -972,28 +972,17 @@ def fetch_pmc_fulltext(pmid: str) -> list[PaperSection]:
 
 
 def _parse_pmc_sections(root: ET.Element) -> list[PaperSection]:
-    """PMC XML에서 본문 섹션을 추출한다."""
-    sections: list[PaperSection] = []
+    """PMC XML에서 본문 섹션 추출 — europepmc 코어 재사용.
 
+    JATS schema는 EuropePMC와 동일하므로 같은 파서 사용.
+    `pmc.py` 모듈 docstring의 '재사용한다' 주석과 일치.
+    """
     body = root.find(".//body")
     if body is None:
-        return sections
+        return []
+    from mlops.pipeline.europepmc import _extract_sections_from_body
 
-    for sec in body.findall(".//sec"):
-        title_el = sec.find("title")
-        section_name = title_el.text.strip() if title_el is not None and title_el.text else "Untitled"
-
-        paragraphs = []
-        for p in sec.findall("p"):
-            text = _get_text(p)
-            if text:
-                paragraphs.append(text)
-
-        content = "\n".join(paragraphs)
-        if content.strip():
-            sections.append(PaperSection(name=section_name, content=content))
-
-    return sections
+    return _extract_sections_from_body(body)
 
 
 def _round_robin_dedup(

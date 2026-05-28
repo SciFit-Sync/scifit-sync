@@ -47,24 +47,51 @@ def _get_text(el: ET.Element | None) -> str:
     return "".join(el.itertext()).strip()
 
 
-def parse_sections(xml_bytes: bytes) -> list[PaperSection]:
-    """Europe PMC fulltext XML에서 <body><sec> 요소를 추출한다."""
-    root = ET.fromstring(xml_bytes)
-    body = root.find(".//body")
-    if body is None:
-        return []
+def _extract_sections_from_body(body) -> list[PaperSection]:
+    """body Element에서 top-level <sec>만 추출, sub-sec text는 통합.
 
+    부모 sec와 그 자식 sec를 별개 PaperSection으로 만들지 않는다
+    (옛 `.//sec` 동작은 작은 섹션 폭증의 원인).
+    crawler._parse_pmc_sections 등 Element 인터페이스가 필요한 곳에서도 재사용.
+    """
     sections: list[PaperSection] = []
-    for sec in body.findall(".//sec"):
-        title_el = sec.find("title")
+    for sec in body.findall("./sec"):  # 직계 자식만
+        title_el = sec.find("./title")
         name = _get_text(title_el) or "Untitled"
 
-        paragraphs = [_get_text(p) for p in sec.findall("p") if _get_text(p)]
-        content = "\n".join(paragraphs).strip()
+        # sub-sec 포함 모든 descendant p를 순서대로 수집.
+        # sub-sec title은 inline heading으로 보존.
+        parts: list[str] = []
+        for el in sec.iter():
+            if el is sec:
+                continue
+            if el.tag == "title" and el is not title_el:
+                t = _get_text(el)
+                if t:
+                    parts.append(f"\n## {t}\n")
+            elif el.tag == "p":
+                t = _get_text(el)
+                if t:
+                    parts.append(t)
+
+        content = "\n".join(parts).strip()
         if content:
             sections.append(PaperSection(name=name, content=content))
 
     return sections
+
+
+def parse_sections(xml_bytes: bytes) -> list[PaperSection]:
+    """JATS fulltext XML에서 top-level <sec>만 추출 (bytes 인터페이스).
+
+    부모 sec와 그 자식 sec를 별개 PaperSection으로 만들지 않는다
+    (옛 `.//sec` 동작은 작은 섹션 폭증의 원인).
+    """
+    root = ET.fromstring(xml_bytes)
+    body = root.find(".//body")
+    if body is None:
+        return []
+    return _extract_sections_from_body(body)
 
 
 @dataclass
