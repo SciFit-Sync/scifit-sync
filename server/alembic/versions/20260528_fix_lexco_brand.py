@@ -1,6 +1,6 @@
 """Lexco MasterPro 브랜드를 Lexco로 통일 (DB 데이터 정정)
 
-Revision ID: 20260528_fix_lexco_brand_unification
+Revision ID: 20260528_fix_lexco_brand
 Revises: 20260528_seed_chancegym_gym
 Create Date: 2026-05-28
 
@@ -21,7 +21,7 @@ Create Date: 2026-05-28
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260528_fix_lexco_brand_unification"
+revision = "20260528_fix_lexco_brand"
 down_revision = "20260528_seed_chancegym_gym"
 branch_labels = None
 depends_on = None
