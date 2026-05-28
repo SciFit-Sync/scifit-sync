@@ -1,3 +1,4 @@
+import gc
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -52,7 +53,12 @@ async def lifespan(app: FastAPI):
         from app.api.v1 import admin as admin_mod
 
         admin_mod._close_chroma_writer()
-        logger.info("ChromaDB read+write client released gracefully")
+        # F3 fix: GC finalizer 강제 실행 — PersistentClient의 sqlite WAL flush 보장.
+        # ChromaDB PersistentClient는 명시적 close() API가 없어 GC finalizer에 의존하는데,
+        # ECS stopTimeout 30초 안에 finalizer가 미실행될 경우 HNSW partial-write 위험 잔존.
+        # gc.collect()로 참조 해제 즉시 finalizer를 트리거해 추가 방어선을 확보한다.
+        gc.collect()
+        logger.info("ChromaDB read+write client released gracefully (gc.collect 완료)")
     except Exception as e:
         logger.error("Graceful shutdown 중 ChromaDB cleanup 실패: %s", e)
 
