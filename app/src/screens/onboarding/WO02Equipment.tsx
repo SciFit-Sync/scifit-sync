@@ -40,7 +40,11 @@ export default function WO02Equipment() {
   }, [gym_id, token]);
 
   // 기구 추가 화면에서 돌아올 때도 목록 새로고침
-  useFocusEffect(fetch_gym_equipment);
+  useFocusEffect(
+    useCallback(() => {
+      fetch_gym_equipment();
+    }, [fetch_gym_equipment]),
+  );
 
   const handle_next = () => {
     (navigation as any).navigate("WO03OneRM");
