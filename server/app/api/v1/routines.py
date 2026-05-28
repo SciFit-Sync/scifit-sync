@@ -10,7 +10,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -543,7 +543,20 @@ async def get_ai_routine_detail(
         e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
     }
 
-    # 6. ExerciseDetailItem 빌드
+    # 6. RoutinePaper 수 batch fetch → tips_count / tips_available 계산용
+    rex_ids = [rex.id for rex in all_rex]
+    paper_counts: dict[uuid.UUID, int] = {}
+    if rex_ids:
+        count_rows = (
+            await db.execute(
+                select(RoutinePaper.routine_exercise_id, func.count().label("cnt"))
+                .where(RoutinePaper.routine_exercise_id.in_(rex_ids))
+                .group_by(RoutinePaper.routine_exercise_id)
+            )
+        ).all()
+        paper_counts = {rex_id: cnt for rex_id, cnt in count_rows}
+
+    # 7. ExerciseDetailItem 빌드
     exercise_items: list[ExerciseDetailItem] = []
     for order_idx, rex in enumerate(all_rex, start=1):
         ex = ex_map.get(rex.exercise_id)
@@ -585,8 +598,8 @@ async def get_ai_routine_detail(
                 force=wx.get("force"),
                 muscle_activation=muscle_map.get(rex.exercise_id, []),
                 sets=set_items,
-                tips_count=0,
-                tips_available=False,
+                tips_count=paper_counts.get(rex.id, 0),
+                tips_available=bool(paper_counts.get(rex.id, 0)),
                 calories_per_minute=wx.get("caloriesPerMinute"),
                 met=wx.get("met"),
                 ai_reasoning=rex.note,
