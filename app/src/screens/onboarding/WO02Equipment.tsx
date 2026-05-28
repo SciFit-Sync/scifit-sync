@@ -109,7 +109,7 @@ export default function WO02Equipment() {
 
           {/* 기구가 있을 때만 검색창 + 브랜드 필터 표시 */}
           {equipment_list.length > 0 && (
-            <>
+            <View style={styles.search_filter_area}>
               {/* 검색창 */}
               <View style={styles.search_container}>
                 <Octicons name="search" size={18} color={colors.border} />
@@ -155,7 +155,7 @@ export default function WO02Equipment() {
                   </View>
                 </ScrollView>
               )}
-            </>
+            </View>
           )}
 
           {/* 기구 목록 */}
@@ -244,6 +244,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  search_filter_area: { gap: 8 },
   search_container: {
     flexDirection: "row",
     alignItems: "center",
