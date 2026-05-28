@@ -67,6 +67,8 @@ class ValidationResult:
             and self.over_512_ratio <= TOKEN_OVER_512_RATIO_MAX
             and CHUNKS_PER_PAPER_MIN <= self.chunks_per_paper_avg <= CHUNKS_PER_PAPER_MAX
             and self.embedding_dim == EMBEDDING_DIM
+            # pdf subset 회귀 검증 — pdf_avg_token==0 이면 local_pdf 청크 없는 케이스(skip)
+            and (self.pdf_avg_token == 0 or PDF_AVG_TOKEN_MIN <= self.pdf_avg_token <= PDF_AVG_TOKEN_MAX)
         )
 
 

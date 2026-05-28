@@ -61,7 +61,8 @@ def test_pass_when_all_thresholds_met():
                     evidence_weight=weights[i % len(weights)],
                     publication_types=types_list[i % len(types_list)],
                     fulltext_source="local_pdf" if p == 0 else "pmc",
-                    token_count=400,
+                    # local_pdf 청크는 pdf_avg_token 범위(150~250) 안으로 조정
+                    token_count=200 if p == 0 else 400,
                 )
             )
     path = _make_jsonl(records)
