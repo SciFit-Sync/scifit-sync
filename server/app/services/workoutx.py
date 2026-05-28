@@ -63,3 +63,31 @@ async def get_exercise_gif(name_en: str) -> str | None:
     if data:
         return data.get("gifUrl")
     return None
+
+
+async def list_all_exercises(limit_per_page: int = 100) -> list[dict]:
+    """WorkoutX 전체 운동 목록 페이징 조회."""
+    if not get_settings().WORKOUTX_API_KEY:
+        logger.warning("WORKOUTX_API_KEY 미설정 — WorkoutX API 호출 건너뜀")
+        return []
+
+    all_items: list[dict] = []
+    offset = 0
+    async with _client() as client:
+        while True:
+            try:
+                resp = await client.get("/exercises", params={"limit": limit_per_page, "offset": offset})
+                resp.raise_for_status()
+                data = resp.json()
+                items: list[dict] = data.get("data") if isinstance(data, dict) else data
+                if not isinstance(items, list) or not items:
+                    break
+                all_items.extend(items)
+                if len(items) < limit_per_page:
+                    break
+                offset += limit_per_page
+            except Exception as e:
+                logger.error("WorkoutX 전체 목록 조회 실패 (offset=%d): %s", offset, e)
+                break
+    logger.info("WorkoutX 전체 운동 목록 조회 완료: %d개", len(all_items))
+    return all_items

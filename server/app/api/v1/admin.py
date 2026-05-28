@@ -21,9 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
+from app.models.exercise import Exercise, ExerciseEquipmentMap
+from app.models.gym import Equipment, EquipmentType
 from app.models.paper import Paper
 from app.schemas.rag import RagIngestRequest
 from app.services import rag as rag_svc
+from app.services.workoutx import list_all_exercises
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +349,96 @@ async def refresh_categories(
             "total_pmids_in_mapping": len(body.mapping),
         },
     }
+
+
+# WorkoutX equipment 문자열 → EquipmentType 매핑
+_WX_EQUIPMENT_TYPE: dict[str, str] = {
+    "barbell": EquipmentType.BARBELL,
+    "dumbbell": EquipmentType.DUMBBELL,
+    "cable": EquipmentType.CABLE,
+    "machine": EquipmentType.MACHINE,
+    "leverage machine": EquipmentType.MACHINE,
+    "smith machine": EquipmentType.MACHINE,
+    "assisted": EquipmentType.MACHINE,
+    "body weight": EquipmentType.BODYWEIGHT,
+    "bodyweight": EquipmentType.BODYWEIGHT,
+    "band": EquipmentType.BODYWEIGHT,
+    "ez barbell": EquipmentType.BARBELL,
+    "olympic barbell": EquipmentType.BARBELL,
+}
+
+
+@router.post("/exercises/seed-workoutx")
+async def seed_exercises_from_workoutx(
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """WorkoutX API에서 전체 운동 목록을 가져와 exercises + exercise_equipment_map 테이블을 채운다.
+
+    멱등 처리 (name_en ON CONFLICT DO NOTHING). 여러 번 실행해도 안전.
+    """
+    wx_exercises = await list_all_exercises()
+    if not wx_exercises:
+        return {
+            "success": True,
+            "data": {"upserted": 0, "mapped": 0, "message": "WorkoutX에서 운동 목록을 가져오지 못했습니다."},
+        }
+
+    # DB 기구 목록 미리 로드: equipment_type → [equipment_id, ...]
+    eq_rows = (await db.execute(select(Equipment.id, Equipment.equipment_type))).all()
+    equipment_by_type: dict[str, list] = {}
+    for eq_id, eq_type in eq_rows:
+        equipment_by_type.setdefault(eq_type, []).append(eq_id)
+
+    upserted = 0
+    mapped = 0
+
+    for item in wx_exercises:
+        name_en: str = (item.get("name") or "").strip()
+        if not name_en:
+            continue
+
+        body_part: str = (item.get("bodyPart") or "").strip().lower()
+        gif_url: str | None = item.get("gifUrl")
+        wx_equipment: str = (item.get("equipment") or "").strip().lower()
+
+        # exercises upsert (name_en unique)
+        stmt = (
+            pg_insert(Exercise)
+            .values(
+                name=name_en,
+                name_en=name_en,
+                category=body_part or "unknown",
+                gif_url=gif_url,
+            )
+            .on_conflict_do_update(
+                index_elements=["name_en"],
+                set_={"gif_url": gif_url, "category": body_part or "unknown"},
+            )
+            .returning(Exercise.id)
+        )
+        result = await db.execute(stmt)
+        exercise_id = result.scalar_one()
+        upserted += 1
+
+        # exercise_equipment_map: 매핑 타입의 모든 기구와 연결
+        eq_type = _WX_EQUIPMENT_TYPE.get(wx_equipment)
+        if eq_type:
+            for eq_id in equipment_by_type.get(eq_type, []):
+                map_stmt = (
+                    pg_insert(ExerciseEquipmentMap)
+                    .values(
+                        exercise_id=exercise_id,
+                        equipment_id=eq_id,
+                    )
+                    .on_conflict_do_nothing()
+                )
+                await db.execute(map_stmt)
+                mapped += 1
+
+    await db.commit()
+    logger.info("seed-workoutx 완료: exercises=%d, equipment_map=%d", upserted, mapped)
+    return {"success": True, "data": {"upserted": upserted, "mapped": mapped}}
 
 
 class CollectionSwapRequest(BaseModel):
