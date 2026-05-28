@@ -92,10 +92,14 @@ async def search_gyms(
         raise ExternalServiceError(message="카카오 로컬 API 키가 설정되지 않았습니다.")
 
     # keyword 없으면 "헬스장"으로 검색 — 좌표와 함께 쓰면 거리순 주변 헬스장
-    kakao_keyword = keyword.strip() if keyword and keyword.strip() else "헬스장"
+    has_keyword = bool(keyword and keyword.strip())
+    kakao_keyword = keyword.strip() if has_keyword else "헬스장"
     params: dict[str, str | float] = {"query": kakao_keyword}
     if latitude is not None and longitude is not None:
-        params.update({"x": longitude, "y": latitude, "radius": 5000, "sort": "distance"})
+        params.update({"x": longitude, "y": latitude, "sort": "distance"})
+        # 주변 헬스장 탐색(키워드 없음)일 때만 반경 5km 제한 — 키워드 검색은 거리 제한 없이 표시
+        if not has_keyword:
+            params["radius"] = 5000
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

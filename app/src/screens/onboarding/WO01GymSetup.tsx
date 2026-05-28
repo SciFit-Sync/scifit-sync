@@ -109,10 +109,18 @@ export default function WO01GymSetup() {
       } else {
         set_gyms([]);
       }
-    } else {
-      do_search(v);
     }
+    // 키워드 검색은 아래 useEffect 디바운스에서 처리
   };
+
+  // 키워드 검색 — 300ms 디바운스
+  useEffect(() => {
+    if (search.length === 0) return;
+    const timer = setTimeout(() => {
+      do_search(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, do_search]);
 
   // 다음 버튼 → 미등록이면 먼저 DB 등록 후 내 헬스장으로 저장
   const handle_next = async () => {
