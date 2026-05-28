@@ -14,9 +14,7 @@ class _FakeCol:
     def __init__(self, n: int = 1000, chunks_per_pmid: int = 20):
         self._n = n
         self._chunks_per_pmid = chunks_per_pmid
-        self._metadatas = [
-            {"paper_pmid": f"pmid_{i // chunks_per_pmid:04d}"} for i in range(n)
-        ]
+        self._metadatas = [{"paper_pmid": f"pmid_{i // chunks_per_pmid:04d}"} for i in range(n)]
         self._ids = [f"chunk_{i}" for i in range(n)]
 
     def count(self) -> int:

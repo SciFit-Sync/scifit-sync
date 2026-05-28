@@ -1,8 +1,6 @@
 """rag.py가 alias 파일을 읽어 매 요청마다 적절한 collection 사용."""
 
-import importlib
 import json
-import os
 
 import pytest
 

@@ -93,5 +93,6 @@ async def test_swap_unique_tmp_even_under_rapid_calls(client, alias_path):
 
     # 마지막 alias는 papers_v4여야 함
     import json as _json
+
     saved = _json.loads(alias_path.read_text())
     assert saved["current"] == "papers_v4"
