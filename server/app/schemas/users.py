@@ -70,6 +70,8 @@ class UpdateBodyRequest(BaseModel):
     skeletal_muscle_kg: float | None = Field(default=None, ge=0, le=200)
     body_fat_pct: float | None = Field(default=None, ge=0, le=100)
     measured_at: date | None = None
+    birth_date: date | None = None
+    gender: str | None = None
 
     @field_validator("measured_at")
     @classmethod
@@ -83,9 +85,33 @@ class UpdateBodyRequest(BaseModel):
             raise ValueError("측정일이 너무 오래되었습니다.")
         return v
 
+    @field_validator("birth_date")
+    @classmethod
+    def validate_birth_date(cls, v: date | None) -> date | None:
+        if v is None:
+            return v
+        today = date.today()
+        if v > today:
+            raise ValueError("생년월일은 오늘보다 이전이어야 합니다.")
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 10 or age > 100:
+            raise ValueError("만 나이가 10~100세 범위여야 합니다.")
+        return v
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if v.lower() not in ("male", "female"):
+            raise ValueError("gender는 'male' 또는 'female'이어야 합니다.")
+        return v.lower()
+
 
 class UpdateBodyData(BaseModel):
     height_cm: float | None = None
+    birth_date: date | None = None
+    gender: str | None = None
     measurement: BodyMeasurementData | None = None
 
 
