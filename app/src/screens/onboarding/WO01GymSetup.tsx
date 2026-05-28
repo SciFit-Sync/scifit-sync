@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -31,6 +31,7 @@ export default function WO01GymSetup() {
   const [next_loading, set_next_loading] = useState(false);
   const [has_location_permission, set_has_location_permission] = useState<boolean | null>(null);
   const [coords, set_coords] = useState<{ lat: number; lng: number } | null>(null);
+  const search_timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     check_location_permission();
@@ -45,10 +46,10 @@ export default function WO01GymSetup() {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         const new_coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
         set_coords(new_coords);
-        // 좌표 확보 즉시 주변 헬스장 자동 검색
         await do_nearby_search(new_coords);
       } catch {
-        // 위치 취득 실패 시 키워드 검색만 가능
+        // GPS 취득 실패 (시뮬레이터 등) → 좌표 없이 "헬스장" 검색으로 fallback
+        await do_fallback_search();
       }
     } else {
       set_has_location_permission(false);
@@ -64,7 +65,9 @@ export default function WO01GymSetup() {
         const new_coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
         set_coords(new_coords);
         await do_nearby_search(new_coords);
-      } catch {}
+      } catch {
+        await do_fallback_search();
+      }
     } else {
       Linking.openSettings();
     }
@@ -82,6 +85,19 @@ export default function WO01GymSetup() {
       set_loading(false);
     }
   };
+
+  // 좌표 없이 "헬스장" 키워드로 fallback 검색 (시뮬레이터/GPS 실패 시)
+  const do_fallback_search = useCallback(async () => {
+    set_loading(true);
+    try {
+      const results = await searchGyms("헬스장", token);
+      set_gyms(results);
+    } catch {
+      set_gyms([]);
+    } finally {
+      set_loading(false);
+    }
+  }, [token]);
 
   // 키워드 검색 실행
   const do_search = useCallback(
@@ -102,25 +118,21 @@ export default function WO01GymSetup() {
   const handle_search_change = (v: string) => {
     set_search(v);
     set_selected_gym(null);
+    if (search_timer.current) clearTimeout(search_timer.current);
     if (v.length === 0) {
-      // 검색어 지워지면 주변 헬스장 다시 표시 (좌표 있을 때)
+      // 검색어 지우면 주변 헬스장으로 복귀
       if (coords) {
         do_nearby_search(coords);
       } else {
-        set_gyms([]);
+        do_fallback_search();
       }
+    } else {
+      // 300ms 디바운스
+      search_timer.current = setTimeout(() => {
+        do_search(v);
+      }, 300);
     }
-    // 키워드 검색은 아래 useEffect 디바운스에서 처리
   };
-
-  // 키워드 검색 — 300ms 디바운스
-  useEffect(() => {
-    if (search.length === 0) return;
-    const timer = setTimeout(() => {
-      do_search(search);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search, do_search]);
 
   // 다음 버튼 → 미등록이면 먼저 DB 등록 후 내 헬스장으로 저장
   const handle_next = async () => {
@@ -235,17 +247,7 @@ export default function WO01GymSetup() {
               ) : search.length > 0 ? (
                 <Text style={styles.empty_text}>검색 결과가 없어요</Text>
               ) : (
-                /* 위치 권한은 있지만 좌표 취득 실패 (시뮬레이터 등) — 검색 안내 */
-                <View style={styles.location_button_wrapper}>
-                  <TouchableOpacity
-                    style={styles.location_button}
-                    onPress={() => check_location_permission()}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.location_button_text}>주변 헬스장 불러오기</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.search_hint_text}>또는 위 검색창에 헬스장 이름을 입력하세요.</Text>
-                </View>
+                <Text style={styles.empty_text}>검색창에 헬스장 이름을 입력해 주세요.</Text>
               )}
             </View>
 
@@ -319,13 +321,6 @@ const styles = StyleSheet.create({
     fontFamily: "regular",
     fontSize: 16,
     color: colors.primary,
-  },
-  search_hint_text: {
-    fontFamily: "regular",
-    fontSize: 13,
-    color: colors.bluegray,
-    textAlign: "center",
-    marginTop: 10,
   },
   // 목록 영역 — 남은 공간 전부 차지
   list_container: { flex: 1 },
