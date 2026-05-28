@@ -11,13 +11,18 @@
 """
 
 import argparse
+import gzip
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +41,7 @@ class GoldSetItem:
     query: str
     category: str
     expected_pmids: tuple[str, ...]
+    expected_dois: tuple[str, ...] = ()
     notes: str = ""
 
     @classmethod
@@ -45,6 +51,7 @@ class GoldSetItem:
             query=str(raw["query"]),
             category=str(raw["category"]),
             expected_pmids=tuple(str(p) for p in raw.get("expected_pmids", [])),
+            expected_dois=tuple(str(d).lower() for d in raw.get("expected_dois", [])),
             notes=str(raw.get("notes", "")),
         )
 
@@ -81,12 +88,31 @@ def load_goldset(path: Path) -> list[GoldSetItem]:
 
 
 def recall_at_k(expected: Iterable[str], retrieved_pmids: list[str], k: int) -> float:
-    """Set-based recall@k — 정답 중 top-k에 포함된 비율."""
+    """Set-based recall@k — 정답 중 top-k에 포함된 비율. (PMID-only 레거시)"""
     expected_set = {p for p in expected if p}
     if not expected_set:
         return 0.0
     top_k = set(retrieved_pmids[:k])
     return len(expected_set & top_k) / len(expected_set)
+
+
+def _recall_at_k_union(expected_ids: set[str], retrieved_id_sets: list[set[str]], k: int) -> float:
+    """PMID∪DOI union recall@k — 정답 PMID 또는 DOI 중 하나라도 매칭이면 hit."""
+    if not expected_ids:
+        return 0.0
+    hits = 0
+    for id_set in retrieved_id_sets[:k]:
+        if expected_ids & id_set:
+            hits += 1
+    return min(hits, len(expected_ids)) / len(expected_ids)
+
+
+def _mrr_union(expected_ids: set[str], retrieved_id_sets: list[set[str]]) -> float:
+    """PMID∪DOI union MRR — 첫 hit의 역순위."""
+    for rank, id_set in enumerate(retrieved_id_sets, start=1):
+        if expected_ids & id_set:
+            return 1.0 / rank
+    return 0.0
 
 
 def reciprocal_rank(expected: Iterable[str], retrieved_pmids: list[str]) -> float:
@@ -116,16 +142,30 @@ def evaluate_query(
 
     seen: set[str] = set()
     retrieved_pmids: list[str] = []
+    retrieved_dois: list[str] = []
     for c in chunks:
-        pmid = c.get("pmid") or ""
-        if not pmid or pmid in seen:
+        pmid = c.get("pmid") or c.get("paper_pmid") or ""
+        doi = (c.get("doi") or c.get("paper_doi") or "").lower()
+        paper_key = doi or pmid
+        if not paper_key or paper_key in seen:
             continue
-        seen.add(pmid)
+        seen.add(paper_key)
+        if pmid:
+            seen.add(pmid)
+        if doi:
+            seen.add(doi)
         retrieved_pmids.append(pmid)
+        retrieved_dois.append(doi)
 
-    recalls = {k: recall_at_k(item.expected_pmids, retrieved_pmids, k) for k in top_k_values}
-    mrr = reciprocal_rank(item.expected_pmids, retrieved_pmids)
-    return QueryResult(item=item, retrieved_pmids=retrieved_pmids, recall=recalls, mrr=mrr)
+    expected_ids = {p for p in item.expected_pmids if p} | {d for d in item.expected_dois if d}
+    retrieved_ids = []
+    for pmid, doi in zip(retrieved_pmids, retrieved_dois, strict=True):
+        ids = {pmid, doi} - {""}
+        retrieved_ids.append(ids)
+
+    recalls = {k: _recall_at_k_union(expected_ids, retrieved_ids, k) for k in top_k_values}
+    mrr_val = _mrr_union(expected_ids, retrieved_ids)
+    return QueryResult(item=item, retrieved_pmids=retrieved_pmids, recall=recalls, mrr=mrr_val)
 
 
 def run_evaluation(
@@ -208,6 +248,250 @@ def render_report(
     return "\n".join(lines)
 
 
+def _load_embeddings_jsonl(path: Path, expected_dim: int) -> tuple["np.ndarray", list[dict]]:
+    """JSONL(.gz 허용) 임베딩 파일을 메모리 행렬 + 메타데이터로 로드한다.
+
+    스트리밍 방식: Python float 리스트를 누적하지 않고 numpy 행에 직접 기록하여
+    대규모 corpus(600K+ 청크)에서 OOM을 방지한다.
+    """
+    import numpy as np
+
+    opener = gzip.open if path.suffix == ".gz" else open
+
+    n_lines = 0
+    with opener(path, "rt", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                n_lines += 1
+    if n_lines == 0:
+        raise ValueError(f"{path}: 임베딩이 한 줄도 없음")
+
+    logger.info("inmem 로드: %s (%d rows, dim=%d)", path.name, n_lines, expected_dim)
+    matrix = np.empty((n_lines, expected_dim), dtype=np.float32)
+    metas: list[dict] = []
+    row = 0
+    with opener(path, "rt", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                raw = json.loads(stripped)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path}:{line_no}: invalid JSON — {e}") from e
+            if "embedding" not in raw:
+                raise ValueError(f"{path}:{line_no}: missing 'embedding' key")
+            emb = raw.pop("embedding")
+            if not isinstance(emb, list) or len(emb) != expected_dim:
+                raise ValueError(
+                    f"{path}:{line_no}: embedding dim mismatch — expected {expected_dim}, got {len(emb) if isinstance(emb, list) else type(emb).__name__}"
+                )
+            matrix[row] = emb
+            metas.append(raw)
+            row += 1
+            if row % 100000 == 0:
+                logger.info("inmem 로드: %d/%d rows", row, n_lines)
+    if row != n_lines:
+        logger.warning("inmem 로드: pass-1/pass-2 라인 수 불일치 (expected=%d, actual=%d)", n_lines, row)
+    return matrix[:row], metas
+
+
+DEFAULT_SHARD_SIZE = 50_000
+
+
+def _iter_embedding_shards(
+    path: Path,
+    expected_dim: int,
+    shard_size: int = DEFAULT_SHARD_SIZE,
+) -> "Iterator[tuple[np.ndarray, list[dict]]]":
+    """JSONL 임베딩 파일을 shard 단위로 스트리밍.
+
+    OOM 방지: 전체 파일을 한 번에 로딩하지 않고 ``shard_size`` 줄씩 numpy 행렬로 변환해
+    yield 한다. 이전 shard의 행렬은 caller가 참조를 놓으면 GC가 회수한다.
+    """
+    import numpy as np
+
+    opener = gzip.open if path.suffix == ".gz" else open
+    vectors: list[list[float]] = []
+    metas: list[dict] = []
+    with opener(path, "rt", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                raw = json.loads(stripped)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path}:{line_no}: invalid JSON — {e}") from e
+            if "embedding" not in raw:
+                raise ValueError(f"{path}:{line_no}: missing 'embedding' key")
+            emb = raw.pop("embedding")
+            if not isinstance(emb, list) or len(emb) != expected_dim:
+                raise ValueError(
+                    f"{path}:{line_no}: embedding dim mismatch — expected {expected_dim}, "
+                    f"got {len(emb) if isinstance(emb, list) else type(emb).__name__}"
+                )
+            vectors.append(emb)
+            metas.append(raw)
+            if len(vectors) >= shard_size:
+                yield np.asarray(vectors, dtype=np.float32), metas
+                vectors, metas = [], []
+    if vectors:
+        yield np.asarray(vectors, dtype=np.float32), metas
+
+
+def _build_inmem_retriever(
+    embeddings_path: Path,
+    model_key: str,
+    shard_size: int = DEFAULT_SHARD_SIZE,
+) -> Retriever:
+    """소형 코퍼스용 — 전체 파일을 메모리에 올려서 빠르게 검색."""
+    import numpy as np
+    from mlops.pipeline.embedder import _get_model_by_spec
+    from mlops.pipeline.specs import get_spec
+
+    spec = get_spec(model_key)
+    matrix, metas = _load_embeddings_jsonl(embeddings_path, expected_dim=spec.dim)
+
+    if spec.normalize:
+        norms = np.linalg.norm(matrix, axis=1)
+        if not np.allclose(norms, 1.0, atol=1e-3):
+            raise ValueError(f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 (mean_norm={float(norms.mean()):.4f})")
+
+    model = _get_model_by_spec(spec)
+    logger.info("inmem retriever: %d chunks loaded (model=%s)", len(metas), model_key)
+
+    def _retrieve(query: str, top_k: int) -> list[dict]:
+        q_text = (spec.query_prefix + query) if spec.query_prefix else query
+        qvec = model.encode(q_text, normalize_embeddings=spec.normalize)
+        qvec_arr = np.asarray(qvec, dtype=np.float32)
+        scores = matrix @ qvec_arr
+        top_idx = np.argsort(scores)[::-1][:top_k]
+        return [
+            {
+                "pmid": metas[i].get("paper_pmid", ""),
+                "doi": metas[i].get("paper_doi", ""),
+                "paper_doi": metas[i].get("paper_doi", ""),
+                "paper_pmid": metas[i].get("paper_pmid", ""),
+                "title": metas[i].get("paper_title", ""),
+                "section": metas[i].get("section_name", ""),
+                "score": float(scores[i]),
+            }
+            for i in top_idx
+        ]
+
+    return _retrieve
+
+
+def _run_shard_evaluation(
+    embeddings_path: Path,
+    model_key: str,
+    goldset: list[GoldSetItem],
+    top_k_values: tuple[int, ...] = DEFAULT_TOP_K_VALUES,
+    chunk_over_fetch: int = DEFAULT_CHUNK_OVER_FETCH,
+    shard_size: int = DEFAULT_SHARD_SIZE,
+) -> list[QueryResult]:
+    """대형 코퍼스용 shard 기반 평가 — 파일 1회 순회, 전체 쿼리 batch 처리.
+
+    shard마다 전체 질의를 한 번에 dot product하고, per-query top-k를 누적 병합한다.
+    파일을 쿼리 수만큼 다시 읽지 않으므로 O(shards)로 끝난다.
+    """
+    import gc
+    import heapq
+
+    import numpy as np
+    from mlops.pipeline.embedder import _get_model_by_spec
+    from mlops.pipeline.specs import get_spec
+
+    spec = get_spec(model_key)
+    model = _get_model_by_spec(spec)
+
+    max_paper_k = max(top_k_values)
+    fetch_k = max_paper_k * chunk_over_fetch
+
+    queries = [item.query for item in goldset]
+    q_texts = [(spec.query_prefix + q) if spec.query_prefix else q for q in queries]
+    q_matrix = np.asarray(
+        model.encode(q_texts, normalize_embeddings=spec.normalize, show_progress_bar=True),
+        dtype=np.float32,
+    )
+    logger.info("쿼리 %d개 인코딩 완료 (dim=%d)", len(queries), q_matrix.shape[1])
+
+    per_query_heap: list[list[tuple[float, int, dict]]] = [[] for _ in goldset]
+    tie_counter = 0
+
+    for shard_idx, (matrix, metas) in enumerate(_iter_embedding_shards(embeddings_path, spec.dim, shard_size)):
+        if shard_idx == 0 and spec.normalize:
+            norms = np.linalg.norm(matrix, axis=1)
+            if not np.allclose(norms, 1.0, atol=1e-3):
+                raise ValueError(
+                    f"{embeddings_path}: corpus 벡터가 단위벡터가 아님 (mean_norm={float(norms.mean()):.4f})"
+                )
+
+        all_scores = matrix @ q_matrix.T
+
+        for qi in range(len(goldset)):
+            scores = all_scores[:, qi]
+            top_idx = np.argsort(scores)[::-1][:fetch_k]
+            for i in top_idx:
+                tie_counter += 1
+                entry = (
+                    float(scores[i]),
+                    tie_counter,
+                    {
+                        "pmid": metas[i].get("paper_pmid", ""),
+                        "doi": metas[i].get("paper_doi", ""),
+                        "paper_doi": metas[i].get("paper_doi", ""),
+                        "paper_pmid": metas[i].get("paper_pmid", ""),
+                        "title": metas[i].get("paper_title", ""),
+                        "section": metas[i].get("section_name", ""),
+                        "score": float(scores[i]),
+                    },
+                )
+                if len(per_query_heap[qi]) < fetch_k:
+                    heapq.heappush(per_query_heap[qi], entry)
+                elif entry[0] > per_query_heap[qi][0][0]:
+                    heapq.heapreplace(per_query_heap[qi], entry)
+
+        logger.info("shard %d 완료 (%d chunks)", shard_idx + 1, matrix.shape[0])
+        del matrix, metas, all_scores
+        gc.collect()
+
+    results: list[QueryResult] = []
+    for qi, item in enumerate(goldset):
+        candidates = sorted(per_query_heap[qi], key=lambda x: x[0], reverse=True)
+        chunks = [c[2] for c in candidates]
+
+        seen: set[str] = set()
+        retrieved_pmids: list[str] = []
+        retrieved_dois: list[str] = []
+        for c in chunks:
+            pmid = c.get("pmid") or c.get("paper_pmid") or ""
+            doi = (c.get("doi") or c.get("paper_doi") or "").lower()
+            paper_key = doi or pmid
+            if not paper_key or paper_key in seen:
+                continue
+            seen.add(paper_key)
+            if pmid:
+                seen.add(pmid)
+            if doi:
+                seen.add(doi)
+            retrieved_pmids.append(pmid)
+            retrieved_dois.append(doi)
+
+        expected_ids = {p for p in item.expected_pmids if p} | {d for d in item.expected_dois if d}
+        retrieved_ids = []
+        for pmid, doi in zip(retrieved_pmids, retrieved_dois, strict=True):
+            ids = {pmid, doi} - {""}
+            retrieved_ids.append(ids)
+
+        recalls = {k: _recall_at_k_union(expected_ids, retrieved_ids, k) for k in top_k_values}
+        mrr_val = _mrr_union(expected_ids, retrieved_ids)
+        results.append(QueryResult(item=item, retrieved_pmids=retrieved_pmids, recall=recalls, mrr=mrr_val))
+
+    return results
+
+
 def _build_chroma_retriever() -> Retriever:
     """실제 ChromaDB 검색 retriever — 호출 시점에만 import (테스트에서는 monkeypatch)."""
     import os
@@ -261,10 +545,40 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--retriever-name",
         type=str,
-        default="chroma+bge-large-en-v1.5",
-        help="리포트에 기록할 retriever 식별자",
+        default=None,
+        help="리포트에 기록할 retriever 식별자 (생략 시 retriever 모드에 따라 자동 결정)",
+    )
+    parser.add_argument(
+        "--retriever",
+        choices=["chroma", "inmem"],
+        default="chroma",
+        help="검색 백엔드. inmem=JSONL 직접 로드 cosine retriever (A/B 평가용)",
+    )
+    parser.add_argument(
+        "--embeddings-file",
+        type=Path,
+        default=None,
+        help="inmem retriever용 임베딩 JSONL(.gz) 경로 — --retriever=inmem 시 필수",
+    )
+    parser.add_argument(
+        "--model-key",
+        type=str,
+        default=None,
+        help="inmem retriever용 모델 key (registry 등록값) — --retriever=inmem 시 필수",
+    )
+    parser.add_argument(
+        "--shard-size",
+        type=int,
+        default=DEFAULT_SHARD_SIZE,
+        help=f"shard 기반 평가 시 shard 크기 (default: {DEFAULT_SHARD_SIZE}). 0이면 전체 로드 (소형 코퍼스용)",
     )
     args = parser.parse_args(argv)
+
+    if args.retriever == "inmem":
+        if args.embeddings_file is None or args.model_key is None:
+            parser.error("--retriever=inmem 은 --embeddings-file 과 --model-key 가 필요합니다")
+        if not args.embeddings_file.exists():
+            parser.error(f"--embeddings-file 경로 없음: {args.embeddings_file}")
 
     top_k_values = tuple(sorted(set(args.top_k)))
 
@@ -274,8 +588,27 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     logger.info("골드셋 로드 완료 n=%d", len(goldset))
 
-    retriever = _build_chroma_retriever()
-    results = run_evaluation(goldset, retriever, top_k_values)
+    if args.retriever == "inmem":
+        use_shard = args.shard_size > 0 and args.embeddings_file.stat().st_size > 500_000_000
+        if use_shard:
+            logger.info("대형 코퍼스 감지 → shard 기반 평가 (shard_size=%d)", args.shard_size)
+            results = _run_shard_evaluation(
+                args.embeddings_file,
+                args.model_key,
+                goldset,
+                top_k_values,
+                shard_size=args.shard_size,
+            )
+            retriever_name = args.retriever_name or f"inmem+shard+{args.model_key}"
+        else:
+            retriever = _build_inmem_retriever(args.embeddings_file, args.model_key)
+            retriever_name = args.retriever_name or f"inmem+{args.model_key}"
+            results = run_evaluation(goldset, retriever, top_k_values)
+    else:
+        retriever = _build_chroma_retriever()
+        retriever_name = args.retriever_name or "chroma+bge-large-en-v1.5"
+        results = run_evaluation(goldset, retriever, top_k_values)
+
     overall = aggregate(results, top_k_values)
     per_cat = aggregate_by_category(results, top_k_values)
 
@@ -283,7 +616,7 @@ def main(argv: list[str] | None = None) -> int:
         overall=overall,
         per_category=per_cat,
         goldset_path=args.goldset,
-        retriever_name=args.retriever_name,
+        retriever_name=retriever_name,
         top_k_values=top_k_values,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -39,11 +39,11 @@ def _equipment(name: str = "바벨") -> Equipment:
     eq.equipment_type = MagicMock()
     eq.equipment_type.value = "barbell"
     eq.pulley_ratio = 1.0
-    eq.bar_weight_kg = 20.0
+    eq.bar_weight = 20.0
     eq.has_weight_assist = False
-    eq.min_stack_kg = None
-    eq.max_stack_kg = None
-    eq.stack_weight_kg = None
+    eq.min_stack = None
+    eq.max_stack = None
+    eq.stack_weight = None
     eq.image_url = None
     return eq
 
@@ -284,10 +284,8 @@ class TestGetEquipment:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["pagination"]["total"] == 1
-        assert body["pagination"]["page"] == 0
-        assert body["pagination"]["has_next"] is False
-        data = body["data"][0]
+        assert body["success"] is True
+        data = body["data"]
         assert data["equipment_id"] == str(eq.id)
         assert data["name"] == "바벨"
         assert data["brand"] == "브랜드A"

@@ -1,13 +1,13 @@
 import hashlib
 import logging
-import random
+import secrets
 import uuid
 from datetime import date as date_type
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
@@ -20,6 +20,7 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.email import send_otp_email
 from app.core.exceptions import (
     ConflictError,
     EmailDuplicateError,
@@ -67,6 +68,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _utcnow() -> datetime:
+    """Timezone-aware UTC `now`를 만든 뒤 naive로 변환해 반환.
+
+    `datetime.utcnow()`는 Python 3.12+에서 deprecated. 또한 본 모듈이 다루는 DB 컬럼
+    (`expires_at`, `revoked_at` 등)이 모두 `Mapped[datetime]` (timezone-naive) 이므로
+    비교 산술 시 aware datetime이 섞이면 `TypeError`. 본 헬퍼는 두 위험을 동시에 해소.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -86,7 +97,7 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
     if not user.is_email_verified:
         raise UnauthorizedError(message="이메일 인증이 완료되지 않았습니다. 이메일을 확인해주세요.")
 
-    now = datetime.utcnow()
+    now = _utcnow()
     settings = get_settings()
     family_id = uuid.uuid4()
     access_token = create_access_token(user.id)
@@ -138,7 +149,7 @@ async def logout(
     token_record = result.scalar_one_or_none()
 
     if token_record:
-        token_record.revoked_at = datetime.utcnow()
+        token_record.revoked_at = _utcnow()
         await db.commit()
 
     logger.info("User %s logged out", current_user.id)
@@ -149,15 +160,27 @@ async def logout(
 @router.post("/register", response_model=SuccessResponse[RegisterData], status_code=201, summary="회원가입")
 @rate_limit("10/minute")
 async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # 이메일 중복 확인
+    # 이메일 중복 확인 — 인증 완료된 사용자만 진짜 중복으로 처리
     result = await db.execute(select(User).where(User.email == body.email))
-    if result.scalar_one_or_none():
-        raise EmailDuplicateError(message="이미 사용 중인 이메일입니다.")
+    existing_by_email = result.scalar_one_or_none()
+    if existing_by_email:
+        if existing_by_email.is_email_verified:
+            raise EmailDuplicateError(message="이미 사용 중인 이메일입니다.")
+        # 미인증 → 기존 OTP + 사용자 삭제 후 재가입 허용
+        await db.execute(delete(EmailOtp).where(EmailOtp.email == body.email))
+        await db.delete(existing_by_email)
+        await db.flush()
 
-    # 아이디 중복 확인
+    # 아이디 중복 확인 — 인증 완료된 사용자만 진짜 중복으로 처리
     result = await db.execute(select(User).where(User.username == body.username))
-    if result.scalar_one_or_none():
-        raise ConflictError(message="이미 사용 중인 아이디입니다.")
+    existing_by_username = result.scalar_one_or_none()
+    if existing_by_username:
+        if existing_by_username.is_email_verified:
+            raise ConflictError(message="이미 사용 중인 아이디입니다.")
+        # 미인증 → 기존 OTP + 사용자 삭제 후 재가입 허용
+        await db.execute(delete(EmailOtp).where(EmailOtp.email == existing_by_username.email))
+        await db.delete(existing_by_username)
+        await db.flush()
 
     user = User(
         email=body.email,
@@ -198,24 +221,29 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
         )
 
     # OTP 생성 및 저장
-    otp_code = f"{random.randint(0, 999999):06d}"
+    otp_code = f"{secrets.randbelow(1_000_000):06d}"
     db.add(
         EmailOtp(
             email=body.email,
             code=otp_code,
-            expires_at=datetime.utcnow() + timedelta(minutes=10),
+            expires_at=_utcnow() + timedelta(minutes=10),
         )
     )
     await db.commit()
 
-    # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
-    # 현재는 로그로 대체 (개발 환경)
-    logger.info("OTP for %s: %s", body.email, otp_code)
+    # 이메일 발송 (개발 환경이거나 SMTP 미설정 시 로그만 출력)
+    await send_otp_email(body.email, otp_code)
+    logger.warning("[DEV] OTP for %s: %s", body.email, otp_code)
+
+    settings = get_settings()
+    # 개발 환경에서는 otp_code를 응답에 포함 (이메일 미발송 대비)
+    expose_otp = settings.ENV == "development" or not settings.SMTP_USER
 
     return SuccessResponse(
         data=RegisterData(
             user_id=str(user.id),
             username=user.username,
+            otp_code=otp_code if expose_otp else None,
         )
     )
 
@@ -269,6 +297,7 @@ async def kakao_login(
             provider=Provider.KAKAO,
             provider_id=kakao_id,
             name=kakao_nickname or "사용자",
+            is_email_verified=True,  # 소셜 로그인은 이메일 인증 불필요
         )
         db.add(user)
         await db.flush()
@@ -280,7 +309,7 @@ async def kakao_login(
         logger.info("Kakao user %s registered (user_id=%s)", kakao_id, user.id)
 
     # JWT 발급
-    now = datetime.utcnow()
+    now = _utcnow()
     settings = get_settings()
     family_id = uuid.uuid4()
     access_token = create_access_token(user.id)
@@ -325,7 +354,9 @@ async def check_username(username: str, db: AsyncSession = Depends(get_db)):
     if len(username) < 2 or len(username) > 20:
         raise ValidationError(message="사용자명은 2~20자여야 합니다.")
     existing = (await db.execute(select(User).where(User.username == username))).scalar_one_or_none()
-    return SuccessResponse(data=CheckUsernameData(username=username, available=existing is None))
+    # 미인증 사용자는 재가입 가능 → 사용 가능으로 표시
+    available = existing is None or not existing.is_email_verified
+    return SuccessResponse(data=CheckUsernameData(username=username, available=available))
 
 
 @router.post(
@@ -383,7 +414,7 @@ async def withdraw(
     refresh_tokens = (
         (await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))).scalars().all()
     )
-    now_utc = datetime.utcnow()
+    now_utc = _utcnow()
     for rt in refresh_tokens:
         rt.revoked_at = now_utc
     await db.commit()
@@ -395,7 +426,7 @@ async def withdraw(
 @router.post("/verify-email", response_model=SuccessResponse[VerifyEmailData], summary="이메일 OTP 인증")
 @rate_limit("10/minute")
 async def verify_email(request: Request, body: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
-    now = datetime.utcnow()
+    now = _utcnow()
     otp = (
         await db.execute(
             select(EmailOtp).where(
@@ -429,16 +460,16 @@ async def resend_otp(request: Request, body: ResendOtpRequest, db: AsyncSession 
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     # 보안상 사용자 존재 여부에 무관하게 동일 응답
     if user and not user.is_email_verified:
-        otp_code = f"{random.randint(0, 999999):06d}"
+        otp_code = f"{secrets.randbelow(1_000_000):06d}"
         db.add(
             EmailOtp(
                 email=body.email,
                 code=otp_code,
-                expires_at=datetime.utcnow() + timedelta(minutes=10),
+                expires_at=_utcnow() + timedelta(minutes=10),
             )
         )
         await db.commit()
-        # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
+        await send_otp_email(body.email, otp_code)
         logger.info("OTP resent for %s: %s", body.email, otp_code)
 
     return SuccessResponse(data=ResendOtpData(sent=True, message="인증 코드가 재발송되었습니다."))
@@ -459,7 +490,7 @@ async def refresh_token_endpoint(request: Request, body: RefreshRequest, db: Asy
     if rec is None:
         raise UnauthorizedError(message="유효하지 않은 토큰입니다.")
 
-    now_utc = datetime.utcnow()
+    now_utc = _utcnow()
 
     # 이미 revoke된 토큰이면서 grace period(10초)도 지났다면 family 전체를 revoke (재사용 공격 방지)
     if rec.revoked_at is not None and (now_utc - rec.revoked_at).total_seconds() > 10:

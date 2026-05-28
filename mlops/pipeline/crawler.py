@@ -30,8 +30,11 @@ from mlops.pipeline.config import (
     NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
     OPENALEX_BASE_URL,
+    OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
     OPENALEX_MAILTO,
     OPENALEX_MAX_PER_CATEGORY,
+    OPENALEX_MAX_RETRIES,
+    OPENALEX_RATE_LIMIT,
     PMC_FULLTEXT_MAX_ATTEMPTS,
     PMC_FULLTEXT_RETRY_BACKOFF_BASE,
     PMC_FULLTEXT_RETRY_BACKOFF_MAX,
@@ -40,8 +43,8 @@ from mlops.pipeline.config import (
 )
 from mlops.pipeline.europepmc import EuropePMCClient
 from mlops.pipeline.evidence import calculate_evidence_weight
-from mlops.pipeline.fulltext import fetch_cascading
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+from mlops.pipeline.oa_fetcher import PaperRef, build_default_chain, fetch_chain
 from mlops.pipeline.openalex import OpenAlexClient
 from mlops.pipeline.pmc import PMCClient
 
@@ -209,14 +212,6 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "exercise_rehabilitation",
-        '("resistance training" OR "exercise therapy") AND '
-        '("rehabilitation" OR "physical therapy" OR "post-injury" OR "return to sport") AND '
-        '("muscle strength" OR "muscle hypertrophy" OR "physical function") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "warm_up_cool_down",
         '("resistance training" OR "strength training" OR "exercise performance") AND '
         '("warm-up" OR "warm up" OR "specific warm-up" OR "general warm-up" '
@@ -235,35 +230,12 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "blood_flow_restriction",
-        '("resistance training") AND '
-        '("blood flow restriction" OR "BFR" OR "occlusion training" OR "KAATSU") AND '
-        '("muscle hypertrophy" OR "muscle strength") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "explosive_power_speed",
-        '("resistance training") AND '
-        '("explosive power" OR "rate of force development" OR "ballistic training" OR "sprint performance") AND '
-        '("muscle strength" OR "athletic performance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "instability_training",
         '("resistance training" OR "strength training") AND '
         '("instability training" OR "unstable surface" OR "unstable training" '
         'OR "balance training" OR "stability ball" OR "Swiss ball" OR "BOSU" '
         'OR "wobble board") AND '
         '("muscle strength" OR "muscle activation" OR "core stability" OR "balance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "plyometric_training",
-        '("plyometric training" OR "plyometrics" OR "jump training") AND '
-        '("muscle strength" OR "athletic performance" OR "power output") AND '
         '("humans" OR "adults")',
         "strict",
     ),
@@ -299,21 +271,6 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "resistance_band",
-        '("resistance band" OR "elastic band" OR "elastic resistance") AND '
-        '("muscle strength" OR "muscle activation" OR "muscle hypertrophy") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "circuit_training",
-        '("circuit training" OR "circuit weight training" OR "circuit resistance training") AND '
-        '("muscle strength" OR "cardiorespiratory fitness" OR "body composition" '
-        'OR "muscle endurance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "functional_training",
         '("functional training" OR "functional resistance training" OR "movement-based training" '
         'OR "multi-planar exercise") AND '
@@ -330,55 +287,9 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         "strict",
     ),
     (
-        "team_sports",
-        '("resistance training" OR "strength training") AND '
-        '("team sports" OR "soccer" OR "basketball" OR "rugby" OR "handball" OR "football") AND '
-        '("muscle strength" OR "sprint performance" OR "jump performance" OR "athletic performance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "testosterone_response",
-        '("resistance training" OR "resistance exercise" OR "strength training") AND '
-        '("testosterone" OR "androgen response" OR "anabolic hormone") AND '
-        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "growth_hormone_igf",
-        '("resistance training" OR "resistance exercise" OR "strength training") AND '
-        '("growth hormone" OR "GH response" OR "IGF-1" OR "insulin-like growth factor") AND '
-        '("muscle hypertrophy" OR "muscle strength" OR "hormonal response") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "foam_rolling",
-        '("foam rolling" OR "self-myofascial release" OR "myofascial release") AND '
-        '("muscle recovery" OR "range of motion" OR "DOMS" OR "muscle performance") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "velocity_based_training",
-        '("velocity-based training" OR "velocity based training" OR "VBT" OR "bar velocity" '
-        'OR "mean propulsive velocity") AND '
-        '("resistance training" OR "muscle strength" OR "power output" OR "1RM") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
         "rpe_perceived_exertion",
         '("rating of perceived exertion" OR "RPE" OR "perceived exertion" OR "session RPE") AND '
         '("resistance training" OR "training load" OR "muscle strength" OR "intensity prescription") AND '
-        '("humans" OR "adults")',
-        "strict",
-    ),
-    (
-        "functional_movement_screen",
-        '("functional movement screen" OR "FMS" OR "Y-balance test" OR "movement screening") AND '
-        '("injury risk" OR "athletic performance" OR "resistance training" OR "movement quality") AND '
         '("humans" OR "adults")',
         "strict",
     ),
@@ -573,30 +484,6 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
         'OR "inter-individual variability" OR "training response variability" '
         'OR "genetic factors") AND '
         '("muscle hypertrophy" OR "muscle strength") AND '
-        '("humans" OR "adults")',
-        "loose",
-    ),
-    (
-        "olympic_lifting",
-        '("olympic weightlifting" OR "olympic lifting" OR "clean and jerk" OR "snatch" '
-        'OR "weightlifting derivative") AND '
-        '("muscle strength" OR "power output" OR "athletic performance" OR "rate of force development") AND '
-        '("humans" OR "adults")',
-        "loose",
-    ),
-    (
-        "cyclist_strength",
-        '("resistance training" OR "strength training") AND '
-        '("cyclists" OR "cycling performance" OR "road cyclists") AND '
-        '("cycling performance" OR "power output" OR "muscle strength") AND '
-        '("humans" OR "adults")',
-        "loose",
-    ),
-    (
-        "swimmer_strength",
-        '("resistance training" OR "strength training" OR "dry-land training") AND '
-        '("swimmers" OR "swimming performance" OR "competitive swimming") AND '
-        '("swimming performance" OR "muscle strength" OR "power output") AND '
         '("humans" OR "adults")',
         "loose",
     ),
@@ -922,14 +809,25 @@ def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) ->
     for attempt in range(max_attempts):
         if attempt > 0:
             wait = _fulltext_retry_backoff(attempt - 1)
-            logger.info(
-                "PMC elink 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
-                attempt + 1,
-                max_attempts,
-                wait,
-                pmid,
-                last_exc,
-            )
+            # ERROR transient 재시도는 1회 한정. HTTP retry는 max_attempts 한도.
+            # 두 경우의 한도가 다르므로 로그 메시지도 구분한다.
+            is_error_retry = isinstance(last_exc, RuntimeError) and str(last_exc).startswith("NCBI ERROR")
+            if is_error_retry:
+                logger.info(
+                    "PMC elink ERROR transient 재시도 (1회 한정, %.1fs 대기): PMID=%s last_err=%s",
+                    wait,
+                    pmid,
+                    last_exc,
+                )
+            else:
+                logger.info(
+                    "PMC elink HTTP 재시도 %d/%d (%.1fs 대기): PMID=%s last_err=%s",
+                    attempt + 1,
+                    max_attempts,
+                    wait,
+                    pmid,
+                    last_exc,
+                )
             time.sleep(wait)
 
         try:
@@ -1206,46 +1104,25 @@ CATEGORY_OPENALEX_MAPPING: dict[str, dict] = {
     },
     "muscular_endurance": {"concept_ids": [], "keywords": ["muscular endurance", "endurance training"]},
     "concurrent_training": {"concept_ids": [], "keywords": ["concurrent training", "endurance and strength"]},
-    "exercise_rehabilitation": {"concept_ids": [], "keywords": ["exercise rehabilitation", "rehabilitation exercise"]},
     "warm_up_cool_down": {"concept_ids": [], "keywords": ["warm-up", "cool-down", "pre-exercise warm up"]},
     "exercise_variation": {"concept_ids": [], "keywords": ["exercise variation", "exercise selection"]},
-    "blood_flow_restriction": {
-        "concept_ids": [],
-        "keywords": ["blood flow restriction", "BFR training", "occlusion training"],
-    },
-    "explosive_power_speed": {"concept_ids": [], "keywords": ["explosive power", "power training", "speed strength"]},
     "instability_training": {
         "concept_ids": [],
         "keywords": ["instability training", "unstable surface", "balance training"],
-    },
-    "plyometric_training": {
-        "concept_ids": [],
-        "keywords": ["plyometric training", "jump training", "stretch-shortening cycle"],
     },
     "detraining": {"concept_ids": [], "keywords": ["detraining", "training cessation", "loss of strength"]},
     "protein_nutrition": {"concept_ids": [], "keywords": ["protein intake", "protein supplementation", "amino acid"]},
     "sleep_recovery": {"concept_ids": [], "keywords": ["sleep recovery", "sleep and exercise"]},
     "unilateral_training": {"concept_ids": [], "keywords": ["unilateral training", "single leg", "single arm"]},
-    "resistance_band": {"concept_ids": [], "keywords": ["resistance band", "elastic resistance"]},
-    "circuit_training": {"concept_ids": [], "keywords": ["circuit training"]},
     "functional_training": {"concept_ids": [], "keywords": ["functional training", "functional fitness"]},
     "obesity_weight_loss": {"concept_ids": [], "keywords": ["obesity", "weight loss", "fat loss"]},
-    "team_sports": {"concept_ids": [], "keywords": ["team sports", "soccer", "basketball", "football"]},
-    "testosterone_response": {"concept_ids": [], "keywords": ["testosterone response", "hormonal response"]},
-    "growth_hormone_igf": {"concept_ids": [], "keywords": ["growth hormone", "IGF-1", "anabolic hormones"]},
-    "foam_rolling": {"concept_ids": [], "keywords": ["foam rolling", "self-myofascial release"]},
-    "velocity_based_training": {"concept_ids": [], "keywords": ["velocity based training", "VBT", "bar velocity"]},
     "rpe_perceived_exertion": {"concept_ids": [], "keywords": ["rate of perceived exertion", "RPE"]},
-    "functional_movement_screen": {"concept_ids": [], "keywords": ["functional movement screen", "FMS"]},
     "exercise_adherence": {"concept_ids": [], "keywords": ["exercise adherence", "exercise compliance"]},
     "training_split": {"concept_ids": [], "keywords": ["training split", "push pull legs", "upper lower split"]},
     "advanced_techniques": {"concept_ids": [], "keywords": ["drop set", "supersets", "advanced training techniques"]},
     "bodyweight_training": {"concept_ids": [], "keywords": ["bodyweight training", "calisthenics"]},
     "mechanical_tension": {"concept_ids": [], "keywords": ["mechanical tension", "muscle tension"]},
     "individual_response": {"concept_ids": [], "keywords": ["individual response", "responders", "non-responders"]},
-    "olympic_lifting": {"concept_ids": [], "keywords": ["olympic lifting", "clean and jerk", "snatch"]},
-    "cyclist_strength": {"concept_ids": [], "keywords": ["cyclist strength", "cycling performance"]},
-    "swimmer_strength": {"concept_ids": [], "keywords": ["swimmer strength", "swimming performance"]},
     "circadian_time_of_day": {"concept_ids": [], "keywords": ["time of day", "circadian", "morning vs evening"]},
     "minimum_effective_dose": {"concept_ids": [], "keywords": ["minimum effective dose", "minimal effective volume"]},
     "stretching_flexibility": {"concept_ids": [], "keywords": ["stretching", "flexibility", "static stretching"]},
@@ -1257,7 +1134,13 @@ CATEGORY_OPENALEX_MAPPING: dict[str, dict] = {
 
 def _get_openalex_client() -> OpenAlexClient:
     """OpenAlexClient 인스턴스 생성. 테스트에서 monkeypatch 가능하도록 함수로 분리."""
-    return OpenAlexClient(base_url=OPENALEX_BASE_URL, mailto=OPENALEX_MAILTO)
+    return OpenAlexClient(
+        base_url=OPENALEX_BASE_URL,
+        mailto=OPENALEX_MAILTO,
+        rate_limit=OPENALEX_RATE_LIMIT,
+        max_retries=OPENALEX_MAX_RETRIES,
+        circuit_breaker_threshold=OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
+    )
 
 
 def search_openalex_by_category(category: str, max_results: int) -> list[PaperMeta]:
@@ -1339,11 +1222,17 @@ def _round_robin_dedup_metas(
     return doi_order, dict(doi_to_categories), doi_to_meta
 
 
+FULLTEXT_PROGRESS_LOG_EVERY = 50
+
+
 def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
-    """각 paper에 cascading fulltext (PMC → Europe PMC) 적용.
+    """각 paper에 OA chain (PMC → EuropePMC → OpenAlex PDF → OpenAlex HTML → Unpaywall) 적용.
 
     fulltext_source가 None으로 남으면 본문 회수 실패 — 호출부가 폐기 결정.
-    Task 8 이후 abstract fallback은 제거됐다.
+
+    진행 표시: 매 ``FULLTEXT_PROGRESS_LOG_EVERY`` 편마다 + 마지막 1편에서
+    누적 통계를 INFO 로그로 출력. ERROR/retry 로그는 산발적이라 정상 진행을
+    체감하기 어렵기 때문에 보조 신호로 사용.
     """
     pmc_client = PMCClient(
         base_url=NCBI_BASE_URL,
@@ -1354,13 +1243,19 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
         base_url=EUROPEPMC_BASE_URL,
         rate_limit=EUROPEPMC_RATE_LIMIT,
     )
+    chain = build_default_chain(pmc_client, europepmc_client)
+
+    total = len(metas)
+    indexed = 0
+    sources: dict[str, int] = defaultdict(int)
+    started = time.time()
 
     papers: list[PaperFull] = []
-    for meta in metas:
+    for i, meta in enumerate(metas, start=1):
         # PMC 시도 전 PMCID 보강. OpenAlex 메타만 `ids.pmcid`를 일부 채우고,
         # PubMed efetch는 pmcid를 추출하지 않는다. pmcid가 비어 있고 PMID가
         # 있으면 elink(PMID→PMCID)로 변환을 시도해 PMC fetch가 가능하도록 한다.
-        # 이 fallback이 없으면 `fetch_cascading`이 PMC 단계를 완전히 스킵하고
+        # 이 fallback이 없으면 PMC 단계를 완전히 스킵하고
         # EuropePMC만 시도해 OA 미보유 paper의 회수율이 0에 가까워진다.
         pmcid = meta.pmcid
         if not pmcid and meta.pmid:
@@ -1377,15 +1272,35 @@ def _attach_fulltext(metas: list[PaperMeta]) -> list[PaperFull]:
                     pmcid = resolved
                     meta.pmcid = resolved  # manifest 기록에도 반영
 
-        result = fetch_cascading(
-            pmcid=pmcid,
-            pmid=meta.pmid or None,
+        ref = PaperRef(
             doi=meta.doi,
-            pmc_client=pmc_client,
-            europepmc_client=europepmc_client,
+            pmid=meta.pmid or None,
+            pmcid=pmcid,
         )
+        result = fetch_chain(ref, chain)
         meta.fulltext_source = result.fulltext_source
         papers.append(PaperFull(meta=meta, sections=result.sections))
+
+        if result.sections:
+            indexed += 1
+            sources[result.fulltext_source or "unknown"] += 1
+
+        if i % FULLTEXT_PROGRESS_LOG_EVERY == 0 or i == total:
+            elapsed = time.time() - started
+            rate = i / elapsed if elapsed > 0 else 0.0
+            eta_sec = (total - i) / rate if rate > 0 else 0.0
+            src_summary = ", ".join(f"{k} {v}" for k, v in sorted(sources.items())) or "-"
+            logger.info(
+                "PMC 본문 수집 진행: %d/%d (%.1f편/s, 경과 %.0fs, ETA %.0fs, 확보 %d [%s], 미확보 %d)",
+                i,
+                total,
+                rate,
+                elapsed,
+                eta_sec,
+                indexed,
+                src_summary,
+                i - indexed,
+            )
     return papers
 
 

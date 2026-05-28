@@ -26,6 +26,8 @@
 - 논문 출처 카드 AI 챗봇
 - Progressive Overload 자동 제안
 
+**프로덕션 endpoint**: `https://scifit-sync.com` (Route 53 + ACM HTTPS, ALB 443 + 80 redirect). 상세는 [`docs/guides/deployment.md`](docs/guides/deployment.md) 참조.
+
 ---
 
 ## 2. 기술 스택
@@ -41,7 +43,8 @@
 | Vector DB | ChromaDB 인프로세스 (PersistentClient, /chroma-data 볼륨 필수) |
 | LLM | Gemini 1.5 Flash → GPT-4o-mini (환경변수로 전환, 자동 fallback) |
 | 임베딩 | BAAI/bge-large-en-v1.5 (1024차원) |
-| 배포 | AWS ECS Fargate, ALB + HTTPS, EFS (/chroma-data) |
+| 배포 | AWS ECS Fargate, ALB + ACM HTTPS (`scifit-sync.com`), EFS (/chroma-data) |
+| 시크릿 관리 | AWS Secrets Manager (DATABASE_URL + ADMIN_API_TOKEN + GEMINI/KAKAO/OPENAI/JWT) — ECS Task Def `secrets` 참조, env 평문 0건 |
 | CI/CD | GitHub Actions (PR 테스트 + 월간 논문 파이프라인) |
 
 ---
@@ -58,7 +61,7 @@ scifit-sync/
 │   └── constants/    # 디자인 토큰, 상수
 ├── server/app/
 │   ├── api/v1/       # 라우터 (auth, users, gyms, routines, sessions, chat, notifications)
-│   ├── models/       # SQLAlchemy 모델 (29개 테이블)
+│   ├── models/       # SQLAlchemy 모델 (31개 테이블)
 │   ├── schemas/      # Pydantic 스키마
 │   ├── services/     # rag.py, load_calc.py, po.py, llm.py
 │   └── core/         # config, database, auth, exceptions, middleware
@@ -198,7 +201,7 @@ cd app && npm test
 
 ### ✅ D-M11 확정 — 멀티 소스 논문 수집 + `evidence_weight` 도입
 - 결정 배경: PubMed 단일 소스로는 운동과학 도메인 회수율과 라이센스 커버리지가 부족하고, 논문 유형(RCT vs review 등)에 따른 근거 강도 차이가 RAG 검색·인용에 반영되지 않았음. 회의 초기에 거론된 비공식 결정 "papers/paper_chunks 테이블 폐기 → ChromaDB 단일 소스화"는 본 결정으로 대체.
-- 데이터 소스 확장: PubMed + OpenAlex + EuropePMC 세 곳에서 수집. PMC 본문 미보유 OA 논문에 대해 EuropePMC fulltext fallback으로 회수율 보완.
+- 데이터 소스 확장: PubMed + OpenAlex + EuropePMC + Unpaywall + Semantic Scholar 5개 소스에서 수집. PMC 본문 미보유 OA 논문에 대해 EuropePMC fulltext fallback으로 회수율 보완.
 - DB 영향 (Alembic 마이그레이션 `007_clean_slate_papers_multi_source.py`):
   - `papers`: `doi`가 primary lookup이며 NOT NULL UNIQUE. `pmid`/`pmcid`/`openalex_id`는 nullable 보조 식별자.
   - `papers` 신규 컬럼: `publication_types text[]`, `evidence_weight numeric(3,2)`, `fulltext_source`, `search_categories text[]`.
@@ -330,12 +333,13 @@ fix/taehyun/alembic-env
 - 모든 테이블: `created_at` + `updated_at` 자동 갱신
 - DB 관리: Alembic 단독, Supabase 대시보드 직접 수정 절대 금지
 
-### 테이블 도메인 구성 (29개)
+### 테이블 도메인 구성 (31개)
 ```
 User:       users, user_profiles, user_body_measurements,
-            user_exercise_1rm, refresh_tokens                       (5)
+            user_exercise_1rm, refresh_tokens, email_otps           (6)
 Gym:        gyms, user_gyms, equipment_brands, equipments,
-            gym_equipments, equipment_reports, equipment_muscles    (7)
+            gym_equipments, equipment_reports, equipment_muscles,
+            equipment_suggestions                                   (8)
 Exercise:   exercises, exercise_equipment_map, muscle_groups,
             exercise_muscles                                        (4)
 Routine:    workout_routines, routine_days, routine_exercises,

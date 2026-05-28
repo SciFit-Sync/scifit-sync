@@ -2,16 +2,72 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+# ── AI 루틴 상세 조회 전용 ─────────────────────────────────────────────────────
+
+
+class SetItem(BaseModel):
+    set_number: int
+    weight_kg: float | None = None
+    reps: int | None = None
+    rest_seconds: int
+    completed: bool = False
+    completed_at: datetime | None = None
+
+
+class MuscleActivationDetailItem(BaseModel):
+    muscle: str
+    muscle_en: str
+    percentage: int | None = None
+    type: str
+
+
+class ExerciseDetailItem(BaseModel):
+    order: int
+    exercise_id: str
+    name: str
+    name_en: str | None = None
+    gif_url: str | None = None
+    thumbnail_url: str | None = None
+    category: str | None = None
+    equipment: str | None = None
+    difficulty: str | None = None
+    mechanic: str | None = None
+    force: str | None = None
+    muscle_activation: list[MuscleActivationDetailItem] = Field(default_factory=list)
+    sets: list[SetItem] = Field(default_factory=list)
+    tips_count: int = 0
+    tips_available: bool = False
+    calories_per_minute: float | None = None
+    met: float | None = None
+    is_replaceable: bool = True
+
+
+class AIRoutineDetail(BaseModel):
+    routine_id: str
+    title: str
+    goal: str | None = None
+    estimated_duration_min: int | None = None
+    default_rest_seconds: int | None = None
+    created_by: str
+    created_at: datetime
+    exercises: list[ExerciseDetailItem] = Field(default_factory=list)
 
 
 # ── 공통 ──────────────────────────────────────────────────────────────────────
+class MuscleActivationItem(BaseModel):
+    muscle: str
+    activation_pct: int | None = None
+
+
 class RoutineExerciseItem(BaseModel):
     routine_exercise_id: str
     exercise_id: str
     exercise_name: str
     equipment_id: str | None = None
     equipment_name: str | None = None
+    brand: str | None = None
     order_index: int
     sets: int
     reps_min: int | None = None
@@ -20,13 +76,21 @@ class RoutineExerciseItem(BaseModel):
     rest_seconds: int
     note: str | None = None
     has_paper: bool = False
+    has_tips: bool = False
+    muscle_activation: list[MuscleActivationItem] = Field(default_factory=list)
 
 
 class RoutineDayItem(BaseModel):
     routine_day_id: str
     day_number: int
     label: str
+    total_minutes: int | None = None
     exercises: list[RoutineExerciseItem] = Field(default_factory=list)
+
+
+class GymSummary(BaseModel):
+    gym_id: str
+    name: str
 
 
 class RoutineSummary(BaseModel):
@@ -36,6 +100,8 @@ class RoutineSummary(BaseModel):
     split_type: str | None = None
     generated_by: str
     status: str
+    gym_id: str | None = None
+    gym_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -44,6 +110,7 @@ class RoutineDetail(RoutineSummary):
     target_muscle_group_ids: list | None = None
     session_minutes: int | None = None
     ai_reasoning: str | None = None
+    gym: GymSummary | None = None
     days: list[RoutineDayItem] = Field(default_factory=list)
 
 
@@ -90,6 +157,11 @@ class PaperItem(BaseModel):
     doi: str | None = None
     pmid: str | None = None
     relevance_summary: str | None = None
+
+    @computed_field
+    @property
+    def doi_url(self) -> str | None:
+        return f"https://doi.org/{self.doi}" if self.doi else None
 
 
 class RoutineExercisePapersData(BaseModel):

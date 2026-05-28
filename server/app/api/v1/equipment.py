@@ -3,13 +3,14 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     EquipmentBrand,
@@ -35,23 +36,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/equipment", tags=["equipment"])
 
 
+def _ratio_str(pulley_ratio: float) -> str:
+    n = int(pulley_ratio) if pulley_ratio == int(pulley_ratio) else pulley_ratio
+    return f"{n}:1"
+
+
 def _to_item(
     e: Equipment,
     brand_name: str | None,
     primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
 ) -> EquipmentItem:
+    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    is_barbell = e.equipment_type.value == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
         brand=brand_name,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
-        pulley_ratio=e.pulley_ratio,
-        min_stack_kg=e.min_stack_kg,
-        max_stack_kg=e.max_stack_kg,
+        pulley_ratio=e.pulley_ratio if is_cable_machine else None,
+        bar_weight=e.bar_weight if is_barbell else None,
+        has_weight_assist=e.has_weight_assist,
+        min_stack=e.min_stack,
+        max_stack=e.max_stack,
+        stack_weight=e.stack_weight if is_cable_machine else None,
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
+        ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
     )
 
 
@@ -73,7 +85,9 @@ async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]
 
 # ── GET /equipment/brands ─────────────────────────────────────────────────────
 @router.get("/brands", response_model=SuccessResponse[BrandListData], summary="기구 브랜드 목록")
+@rate_limit("60/minute")
 async def list_brands(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,7 +100,9 @@ async def list_brands(
 # page 파라미터 없음 → SuccessResponse[EquipmentListData]  {"data": {"items": [...]}}
 # page 파라미터 있음 → PaginatedResponse[EquipmentItem]    {"data": [...], "pagination": {...}}
 @router.get("", summary="장비 카탈로그")
+@rate_limit("60/minute")
 async def list_equipment(
+    request: Request,
     keyword: str | None = Query(None, description="기구 이름 부분 일치 검색"),
     brand: str | None = Query(None, description="브랜드명 필터 (예: Life Fitness, 라이프피트니스)"),
     brand_id: str | None = Query(None, description="브랜드 UUID 필터"),
@@ -138,10 +154,12 @@ async def list_equipment(
 # ── GET /equipment/{equipment_id} ────────────────────────────────────────────
 @router.get(
     "/{equipment_id}",
-    response_model=PaginatedResponse[EquipmentItem],
+    response_model=SuccessResponse[EquipmentItem],
     summary="기구 상세 조회",
 )
+@rate_limit("60/minute")
 async def get_equipment(
+    request: Request,
     equipment_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -166,15 +184,14 @@ async def get_equipment(
     muscles = await _fetch_muscles(db, [e.id])
     image_url = e.image_url or await get_or_generate_image_url(str(e.id), e.name, e.name_en)
     item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
-    return PaginatedResponse(
-        data=[item],
-        pagination=PaginationMeta(total=1, page=0, limit=1, has_next=False),
-    )
+    return SuccessResponse(data=item)
 
 
 # ── POST /equipment/select ────────────────────────────────────────────────────
 @router.post("/select", response_model=SuccessResponse[SelectData], summary="기구 선택 저장")
+@rate_limit("60/minute")
 async def select_equipment(
+    request: Request,
     body: SelectEquipmentRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowGitHubActionsFromThisRepo",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::223767250023:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:SciFit-Sync/scifit-sync:*"
+        }
+      }
+    }
+  ]
+}

@@ -4,12 +4,13 @@ GitHub Actions에서 실행된 논문 임베딩 결과를 서버 ChromaDB로 수
 ADMIN_API_TOKEN으로 인증.
 """
 
+import asyncio
 import logging
 
 import chromadb
 from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,6 +48,71 @@ def _safe_doc_id(doi: str, chunk_index: int) -> str:
     """DOI에 포함된 슬래시/점을 ChromaDB id-safe 문자로 치환."""
     doi_safe = doi.replace("/", "_").replace(".", "-")
     return f"{doi_safe}_{chunk_index}"
+
+
+# ChromaDB는 collection.get(include=["metadatas"]) 시 내부적으로 SQLite IN 절을 쓰는데
+# 한 번에 ~18~30k row를 넘기면 "too many SQL variables" InternalError로 깨진다.
+# 페이지당 1000 row(SQLite 한계 32766 대비 충분한 여유)로 잘라 가져온다.
+_GET_PAGE_SIZE = 1000
+
+
+def _fetch_all_metadatas_paged(collection: chromadb.Collection) -> tuple[list[str], list[dict]]:
+    """collection.get(include=["metadatas"])를 limit/offset로 페이지네이션해 누적.
+
+    동기 호출 — 호출부에서 asyncio.to_thread로 워커 스레드 오프로드.
+    """
+    all_ids: list[str] = []
+    all_metas: list[dict] = []
+    offset = 0
+    while True:
+        page = collection.get(include=["metadatas"], limit=_GET_PAGE_SIZE, offset=offset)
+        ids = page.get("ids") or []
+        if not ids:
+            break
+        metas = page.get("metadatas") or [{} for _ in ids]
+        all_ids.extend(ids)
+        all_metas.extend(metas)
+        if len(ids) < _GET_PAGE_SIZE:
+            break
+        offset += _GET_PAGE_SIZE
+    return all_ids, all_metas
+
+
+def _ingest_chunks_to_chroma(chunks: list, batch_size: int = 100) -> tuple[int, int]:
+    """ChromaDB에 청크를 배치 upsert하고 (적재 수, 전체 컬렉션 수)를 반환한다.
+
+    upsert/count는 모두 동기 블로킹 호출이라 async 핸들러에서 직접 부르면 이벤트 루프가
+    멈춘다(0.5 vCPU 단일 태스크에서 대량 적재 시 /health 타임아웃 → ECS가 태스크 kill).
+    이 함수를 통째로 워커 스레드에서 실행하기 위해 분리한다.
+    """
+    collection = _get_collection()
+    total = 0
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i : i + batch_size]
+        collection.upsert(
+            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
+            documents=[c.content for c in batch],
+            embeddings=[c.embedding for c in batch],
+            metadatas=[
+                {
+                    "paper_doi": c.paper_doi,
+                    "paper_pmid": c.paper_pmid or "",
+                    "paper_title": c.paper_title,
+                    "section_name": c.section_name,
+                    "chunk_index": c.chunk_index,
+                    "token_count": c.token_count or 0,
+                    "search_categories": ",".join(c.search_categories),
+                    "publication_types": ",".join(c.publication_types),
+                    "evidence_weight": float(c.evidence_weight),
+                    "fulltext_source": c.fulltext_source or "",
+                    "published_year": c.published_year or 0,
+                }
+                for c in batch
+            ],
+        )
+        total += len(batch)
+        logger.info("ChromaDB upsert: %d/%d", total, len(chunks))
+    return total, collection.count()
 
 
 @router.post("/rag/ingest")
@@ -99,45 +165,36 @@ async def ingest_papers(
         logger.info("papers UPSERT 완료: %d편", len(papers_by_doi))
 
     # ── 2) ChromaDB chunk upsert (확장 메타) ─────────────────
-    collection = _get_collection()
-    batch_size = 100
-    total = 0
+    # ChromaDB 호출(upsert/count)은 동기 블로킹이라 이벤트 루프를 멈춘다 → 대량 적재 시
+    # /health 타임아웃으로 ECS가 태스크를 kill한다. 워커 스레드로 오프로드해 루프를 비운다.
+    total, total_collection = await asyncio.to_thread(_ingest_chunks_to_chroma, body.chunks)
 
-    for i in range(0, len(body.chunks), batch_size):
-        batch = body.chunks[i : i + batch_size]
-        collection.upsert(
-            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
-            documents=[c.content for c in batch],
-            embeddings=[c.embedding for c in batch],
-            metadatas=[
-                {
-                    "paper_doi": c.paper_doi,
-                    "paper_pmid": c.paper_pmid or "",
-                    "paper_title": c.paper_title,
-                    "section_name": c.section_name,
-                    "chunk_index": c.chunk_index,
-                    "token_count": c.token_count or 0,
-                    "search_categories": ",".join(c.search_categories),
-                    "publication_types": ",".join(c.publication_types),
-                    "evidence_weight": float(c.evidence_weight),
-                    "fulltext_source": c.fulltext_source or "",
-                    "published_year": c.published_year or 0,
-                }
-                for c in batch
-            ],
-        )
-        total += len(batch)
-        logger.info("ChromaDB upsert: %d/%d", total, len(body.chunks))
-
-    logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, collection.count())
+    logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, total_collection)
     return {
         "success": True,
         "data": {
             "upserted": total,
             "papers_upserted": len(papers_by_doi),
-            "total_collection": collection.count(),
+            "total_collection": total_collection,
         },
     }
+
+
+@router.get("/rag/dois")
+async def list_dois(
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """papers 테이블에 적재된 모든 paper의 DOI 목록.
+
+    MLOps 파이프라인이 ingest 시작 시 호출해 `existing_dois`를 초기화한다 —
+    manifest는 GitHub Actions runner의 임시 디스크에 저장되어 매 cron마다 손실되므로
+    서버를 dedup의 primary source로 두고 manifest는 보조 (paper별 tried_sources 같은
+    부가 정보 보존)로 둔다.
+    """
+    result = await db.execute(select(Paper.doi).order_by(Paper.doi))
+    dois = [row[0] for row in result.all()]
+    return {"success": True, "data": {"dois": dois, "count": len(dois)}}
 
 
 @router.get("/rag/pmids")
@@ -152,8 +209,8 @@ async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
     collection = _get_collection()
-    data = collection.get(include=["metadatas"])
-    metas = data.get("metadatas") or []
+    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    _ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
     pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
     return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
 
@@ -173,9 +230,8 @@ async def refresh_categories(
     변경된 후 RAG 검색 가중치를 동기화하는 용도.
     """
     collection = _get_collection()
-    data = collection.get(include=["metadatas"])
-    ids = data.get("ids") or []
-    metas = data.get("metadatas") or []
+    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
 
     update_ids: list[str] = []
     update_metas: list[dict] = []
@@ -196,7 +252,8 @@ async def refresh_categories(
     if update_ids:
         batch_size = 500
         for i in range(0, len(update_ids), batch_size):
-            collection.update(
+            await asyncio.to_thread(
+                collection.update,
                 ids=update_ids[i : i + batch_size],
                 metadatas=update_metas[i : i + batch_size],
             )

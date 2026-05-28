@@ -12,7 +12,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.main import app
 from app.models import Notification, RoutineStatus, User, WorkoutRoutine
@@ -40,6 +40,7 @@ def _routine() -> WorkoutRoutine:
     r.status = RoutineStatus.ACTIVE
     r.deleted_at = None
     r.updated_at = _NOW
+    r.gym_id = None
     return r
 
 
@@ -109,7 +110,7 @@ _MOCK_USER = _user()
 
 @pytest_asyncio.fixture
 async def client():
-    app.dependency_overrides[get_current_user] = lambda: _MOCK_USER
+    app.dependency_overrides[get_required_profile] = lambda: _MOCK_USER
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -126,14 +127,15 @@ class TestHome:
         r = _routine()
         day = _routine_day("가슴")
         notif = _notification()
-        today = datetime.now(timezone.utc).date()  # home.py와 동일한 UTC 기준
+        today = datetime.now(timezone.utc).date()
 
         db = _make_db(
-            _exec_scalar(r),  # 활성 루틴
+            _exec_scalar(None),  # primary_gym_id
+            _exec_all([(r, None)]),  # 활성 루틴 목록 (outerjoin)
             _exec_scalar(day),  # 다음 루틴 day
             _exec_scalar_val(5000.0),  # 최근 7일 볼륨
             _exec_scalars_all([notif]),  # 미확인 알림
-            _exec_all([(today,), (today - timedelta(days=1),)]),  # 운동 날짜 목록 (streak=2)
+            _exec_all([(today,), (today - timedelta(days=1),)]),  # streak dates
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -152,10 +154,11 @@ class TestHome:
     async def test_no_active_routine(self, client):
         """활성 루틴이 없으면 today_routine은 None."""
         db = _make_db(
-            _exec_scalar(None),  # 활성 루틴 없음
+            _exec_scalar(None),  # primary_gym_id
+            _exec_all([]),  # 활성 루틴 없음
             _exec_scalar_val(0.0),  # 볼륨 0
             _exec_scalars_all([]),  # 알림 없음
-            _exec_all([]),  # 운동 기록 없음 (streak=0)
+            _exec_all([]),  # streak dates
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -172,7 +175,8 @@ class TestHome:
         """활성 루틴은 있지만 day가 없는 경우 next_day_label은 None."""
         r = _routine()
         db = _make_db(
-            _exec_scalar(r),
+            _exec_scalar(None),  # primary_gym_id
+            _exec_all([(r, None)]),  # 활성 루틴 목록
             _exec_scalar(None),  # day 없음
             _exec_scalar_val(0.0),
             _exec_scalars_all([]),
@@ -191,7 +195,8 @@ class TestHome:
         yesterday = date.today() - timedelta(days=1)
         two_days_ago = date.today() - timedelta(days=2)
         db = _make_db(
-            _exec_scalar(None),
+            _exec_scalar(None),  # primary_gym_id
+            _exec_all([]),  # 활성 루틴 없음
             _exec_scalar_val(0.0),
             _exec_scalars_all([]),
             _exec_all([(yesterday,), (two_days_ago,)]),
@@ -208,7 +213,8 @@ class TestHome:
         """연속이 끊긴 경우 streak=0."""
         old_date = date.today() - timedelta(days=3)
         db = _make_db(
-            _exec_scalar(None),
+            _exec_scalar(None),  # primary_gym_id
+            _exec_all([]),  # 활성 루틴 없음
             _exec_scalar_val(0.0),
             _exec_scalars_all([]),
             _exec_all([(old_date,)]),
@@ -225,7 +231,8 @@ class TestHome:
         """알림 최대 5개 반환 확인."""
         notifs = [_notification() for _ in range(3)]
         db = _make_db(
-            _exec_scalar(None),
+            _exec_scalar(None),  # primary_gym_id
+            _exec_all([]),  # 활성 루틴 없음
             _exec_scalar_val(0.0),
             _exec_scalars_all(notifs),
             _exec_all([]),

@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:   # 코드 변경 없이 수동 재배포 필요 시 (Actions UI에서 "Run workflow")
 
 # Required GitHub Secrets (Settings → Secrets → Actions):
 #   AWS_ACCESS_KEY_ID      — IAM 사용자 액세스 키
@@ -16,13 +17,25 @@ on:
 #   ECS_SUBNET_IDS         — Fargate 마이그레이션 태스크 서브넷 ID (단일)
 #   ECS_SG_IDS             — 마이그레이션 태스크 보안 그룹 ID
 
+permissions:
+  contents: read
+  id-token: write   # 데모 1주 전 OIDC 전환 대비
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: production
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -42,7 +55,9 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG server/
+          # Build context는 repo root — server/ + mlops/data 둘 다 컨테이너에 포함
+          # (Alembic seed migration이 mlops/data/equipments_seed.csv 읽음)
+          docker build -f server/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG

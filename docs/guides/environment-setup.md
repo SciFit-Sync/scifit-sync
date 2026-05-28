@@ -19,8 +19,8 @@
 
 ```bash
 # 1. 리포 클론
-git clone https://github.com/SciFit-Sync/scifiit-sync.git
-cd scifiit-sync
+git clone https://github.com/SciFit-Sync/scifit-sync.git
+cd scifit-sync
 git checkout develop
 ```
 
@@ -33,7 +33,8 @@ cp server/.env.example server/.env
 ```bash
 # 3. 앱 환경변수 설정
 cp app/.env.example app/.env
-# → API_BASE_URL=http://localhost:8000 (로컬 기본값)
+# → EXPO_PUBLIC_API_URL=http://10.0.2.2:8000 (Android 에뮬레이터 기본값)
+# → 프로덕션 빌드(EAS Build): EXPO_PUBLIC_API_URL=https://scifit-sync.com
 ```
 
 ```bash
@@ -65,7 +66,7 @@ cd app && npm install && npx expo start
 | `KAKAO_REST_API_KEY` | 카카오 로컬 API 키 | Y | Kakao Developers 앱 > 앱 키 |
 | `CHROMA_PERSIST_PATH` | ChromaDB 데이터 경로 | Y | 기본값: `/chroma-data` |
 | `ENV` | 실행 환경 | Y | `development` / `production` |
-| `API_BASE_URL` (앱) | 서버 API URL | Y | 로컬: `http://localhost:8000` |
+| `EXPO_PUBLIC_API_URL` (앱) | 서버 API URL | Y | 프로덕션: `https://scifit-sync.com` / 로컬: `http://localhost:8000` |
 
 ## 시크릿 공유 정책
 - 시크릿은 **팀 공유 1Password** 또는 **암호화된 채널**로만 공유

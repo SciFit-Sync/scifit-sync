@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # External API
     KAKAO_REST_API_KEY: str = ""
+    WORKOUTX_API_KEY: str = ""
 
     # ChromaDB
     CHROMA_PERSIST_PATH: str = "/chroma-data"
@@ -38,6 +39,13 @@ class Settings(BaseSettings):
 
     # Admin
     ADMIN_API_TOKEN: str = ""
+
+    # Email (Gmail SMTP)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""  # 발신 Gmail 주소
+    SMTP_PASSWORD: str = ""  # Gmail 앱 비밀번호 (16자리)
+    EMAIL_FROM_NAME: str = "SciFit-Sync"
 
     # Rate Limiting
     RATE_LIMIT_ENABLED: bool = True

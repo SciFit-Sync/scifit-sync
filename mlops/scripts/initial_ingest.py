@@ -21,10 +21,12 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from mlops.pipeline.oa_fetcher import default_source_names
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-ACTIVE_SOURCES: set[str] = {"pmc", "europepmc"}  # Phase 1
+ACTIVE_SOURCES: set[str] = set(default_source_names())
 CHECKPOINT_INTERVAL = 100
 
 
@@ -80,6 +82,28 @@ def api_ingest(chunk_vectors: list[tuple]) -> int:
     return resp.json()["data"]["upserted"]
 
 
+def _fetch_indexed_dois_from_server() -> set[str]:
+    """서버 papers 테이블의 모든 DOI를 가져온다.
+
+    manifest 임시디스크 손실 보완 (monthly_ingest와 동일 패턴, 자세한 설명은 그쪽).
+    initial_ingest는 일회성이라 보통 빈 DB에서 시작하지만, 부분 실패 후 재실행 시
+    이미 들어간 DOI를 다시 시도하는 비용을 줄일 수 있다.
+    """
+    from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
+
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        logger.warning("API_BASE_URL/ADMIN_API_TOKEN 미설정 — 서버 dedup 생략, manifest 단독 사용")
+        return set()
+    url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/dois"
+    try:
+        resp = requests.get(url, headers={"X-Admin-Token": ADMIN_API_TOKEN}, timeout=30)
+        resp.raise_for_status()
+        return set(resp.json()["data"]["dois"])
+    except (requests.RequestException, KeyError, ValueError) as e:
+        logger.warning("서버 DOI fetch 실패, manifest 단독 fallback: %s", e)
+        return set()
+
+
 def main(
     max_papers: int | None = None,
     max_per_category: int | None = None,
@@ -125,7 +149,17 @@ def main(
     for doi, entry in manifest.papers.items():
         if entry.fulltext_source is not None or set(entry.tried_sources).issuperset(ACTIVE_SOURCES):
             existing_dois.add(doi)
-    logger.info("이미 처리된 DOI: %d개 (indexed + fully-tried failures)", len(existing_dois))
+    manifest_count = len(existing_dois)
+
+    # 서버 papers 테이블의 DOI도 union — manifest 임시디스크 손실 보완.
+    server_dois = _fetch_indexed_dois_from_server()
+    existing_dois |= server_dois
+    logger.info(
+        "Existing DOI: %d (manifest %d + server %d, union)",
+        len(existing_dois),
+        manifest_count,
+        len(server_dois),
+    )
 
     papers = crawl_papers(
         max_total=max_papers,

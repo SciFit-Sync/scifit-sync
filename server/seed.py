@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from sqlalchemy import null as sa_null  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 from app.core.database import async_session_factory  # noqa: E402
@@ -60,7 +61,7 @@ MUSCLE_GROUPS = [
     ("종아리", "Calves", "lower"),
 ]
 
-# (name, name_en, equipment_type, bar_weight_kg, pulley_ratio, has_weight_assist, max_stack_kg, stack_weight_kg)
+# (name, name_en, equipment_type, bar_weight, pulley_ratio, has_weight_assist, max_stack, stack_weight_val)
 EQUIPMENTS = [
     ("올림픽 바벨", "Olympic Barbell", EquipmentType.BARBELL, 20.0, 1.0, False, None, None),
     ("EZ 바", "EZ Bar", EquipmentType.BARBELL, 10.0, 1.0, False, None, None),
@@ -469,23 +470,26 @@ async def seed() -> None:
             name,
             name_en,
             equipment_type,
-            bar_weight_kg,
+            bar_weight,
             pulley_ratio,
             has_weight_assist,
-            max_stack_kg,
-            stack_weight_kg,
+            max_stack,
+            stack_weight_val,
         ) in EQUIPMENTS:
             row = (await session.execute(select(Equipment).where(Equipment.name == name))).scalar_one_or_none()
             if not row:
+                has_stack = max_stack is not None or stack_weight_val is not None
                 row = Equipment(
                     name=name,
                     name_en=name_en,
                     equipment_type=equipment_type,
-                    bar_weight_kg=bar_weight_kg,
+                    bar_weight=bar_weight,
+                    bar_weight_unit="kg" if bar_weight is not None else None,
                     pulley_ratio=pulley_ratio,
                     has_weight_assist=has_weight_assist,
-                    max_stack_kg=max_stack_kg,
-                    stack_weight_kg=stack_weight_kg,
+                    max_stack=max_stack,
+                    stack_weight={"value": stack_weight_val} if stack_weight_val is not None else sa_null(),
+                    stack_unit="kg" if has_stack else None,
                 )
                 session.add(row)
                 await session.flush()

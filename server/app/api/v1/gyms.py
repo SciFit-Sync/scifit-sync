@@ -7,8 +7,8 @@ import logging
 import uuid
 
 import httpx
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +16,7 @@ from app.core.auth import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, ExternalServiceError, NotFoundError, ValidationError
+from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     EquipmentReport,
@@ -57,27 +58,25 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
-        name_en=e.name_en,
         brand=e.brand.name if e.brand else None,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
         pulley_ratio=e.pulley_ratio if is_cable_machine else None,
-        bar_weight_kg=e.bar_weight_kg if is_barbell else None,
+        bar_weight=e.bar_weight if is_barbell else None,
         has_weight_assist=e.has_weight_assist,
-        min_stack_kg=e.min_stack_kg,
-        max_stack_kg=e.max_stack_kg,
-        stack_weight_kg=e.stack_weight_kg if is_cable_machine else None,
+        min_stack=e.min_stack,
+        max_stack=e.max_stack,
+        stack_weight=e.stack_weight if is_cable_machine else None,
         image_url=e.image_url,
-        # 표시용 호환 필드
         ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
-        stack_weight=e.stack_weight_kg if is_cable_machine else None,
-        bar_weight=e.bar_weight_kg if is_barbell else None,
     )
 
 
 # ── GET /gyms?keyword= ────────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.get("", response_model=SuccessResponse[GymSearchData], summary="헬스장 검색")
 async def search_gyms(
+    request: Request,
     keyword: str = Query(..., min_length=1, description="검색 키워드"),
     latitude: float | None = Query(None),
     longitude: float | None = Query(None),
@@ -106,25 +105,33 @@ async def search_gyms(
         raise ExternalServiceError(message="카카오 로컬 API에 연결할 수 없습니다.") from e
 
     if not resp.is_success:
-        raise ExternalServiceError(message="카카오 로컬 API 요청이 실패했습니다.")
+        logger.error("카카오 로컬 API 실패: status=%d body=%s", resp.status_code, resp.text[:200])
+        raise ExternalServiceError(message=f"카카오 로컬 API 요청이 실패했습니다. (status={resp.status_code})")
 
     documents = resp.json().get("documents", [])
     place_ids = [d["id"] for d in documents]
 
-    # 기존 DB 매칭
-    existing: dict[str, Gym] = {}
+    # 기존 DB 매칭 — equipment_count만 필요하므로 COUNT 서브쿼리 사용 (전체 로드 방지)
+    eq_count_subq = (
+        select(func.count(GymEquipment.equipment_id))
+        .where(GymEquipment.gym_id == Gym.id)
+        .correlate(Gym)
+        .scalar_subquery()
+    )
+    existing: dict[str, tuple[Gym, int]] = {}
     if place_ids:
-        result = await db.execute(
-            select(Gym).where(Gym.kakao_place_id.in_(place_ids)).options(selectinload(Gym.gym_equipments))
-        )
-        for g in result.scalars().all():
+        rows = (
+            await db.execute(select(Gym, eq_count_subq.label("eq_count")).where(Gym.kakao_place_id.in_(place_ids)))
+        ).all()
+        for g, cnt in rows:
             if g.kakao_place_id:
-                existing[g.kakao_place_id] = g
+                existing[g.kakao_place_id] = (g, cnt)
 
     items: list[GymItem] = []
     for d in documents:
         place_id = d["id"]
-        gym = existing.get(place_id)
+        entry = existing.get(place_id)
+        gym, eq_count = entry if entry else (None, 0)
         items.append(
             GymItem(
                 gym_id=str(gym.id) if gym else "",
@@ -133,7 +140,7 @@ async def search_gyms(
                 latitude=float(gym.latitude) if gym else float(d.get("y", 0)),
                 longitude=float(gym.longitude) if gym else float(d.get("x", 0)),
                 kakao_place_id=place_id,
-                equipment_count=len(gym.gym_equipments) if gym else 0,
+                equipment_count=eq_count,
             )
         )
 
@@ -141,8 +148,10 @@ async def search_gyms(
 
 
 # ── POST /gyms ────────────────────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.post("", response_model=SuccessResponse[GymItem], status_code=201, summary="헬스장 등록")
 async def create_gym(
+    request: Request,
     body: CreateGymRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -191,12 +200,14 @@ async def create_gym(
 
 
 # ── GET /gyms/{gymId}/equipment ───────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.get(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[GymEquipmentListData],
     summary="헬스장 보유 장비 목록",
 )
 async def list_gym_equipment(
+    request: Request,
     gym_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -206,20 +217,18 @@ async def list_gym_equipment(
     except ValueError as e:
         raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
 
-    gym = (
-        await db.execute(select(Gym).where(Gym.id == gym_uuid).options(selectinload(Gym.gym_equipments)))
-    ).scalar_one_or_none()
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
     if gym is None:
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
 
-    equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
-    if not equipment_ids:
-        return SuccessResponse(data=GymEquipmentListData(gym_id=gym_id, gym_name=gym.name, equipment=[]))
-
+    # GymEquipment JOIN Equipment — 2번 쿼리를 1번으로 단축
     equipments = (
         (
             await db.execute(
-                select(Equipment).where(Equipment.id.in_(equipment_ids)).options(selectinload(Equipment.brand))
+                select(Equipment)
+                .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
+                .where(GymEquipment.gym_id == gym_uuid)
+                .options(selectinload(Equipment.brand))
             )
         )
         .scalars()
@@ -236,6 +245,7 @@ async def list_gym_equipment(
 
 
 # ── POST /gyms/{id}/equipment ─────────────────────────────────────────────────
+@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[EquipmentItem],
@@ -243,6 +253,7 @@ async def list_gym_equipment(
     summary="헬스장에 장비 추가",
 )
 async def add_gym_equipment(
+    request: Request,
     gym_id: str,
     body: AddGymEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -279,6 +290,7 @@ async def add_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/bulk ────────────────────────────────────────
+@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/bulk",
     response_model=SuccessResponse[BulkLinkData],
@@ -286,6 +298,7 @@ async def add_gym_equipment(
     summary="헬스장에 기구 일괄 연결",
 )
 async def bulk_add_gym_equipment(
+    request: Request,
     gym_id: str,
     body: BulkAddEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -345,6 +358,7 @@ async def bulk_add_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
+@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/report",
     response_model=SuccessResponse[ReportData],
@@ -352,6 +366,7 @@ async def bulk_add_gym_equipment(
     summary="장비 정보 신고",
 )
 async def report_gym_equipment(
+    request: Request,
     gym_id: str,
     body: ReportEquipmentRequest,
     current_user: User = Depends(get_current_user),
@@ -383,6 +398,7 @@ async def report_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/suggest ─────────────────────────────────────
+@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/suggest",
     response_model=SuccessResponse[SuggestEquipmentData],
@@ -390,6 +406,7 @@ async def report_gym_equipment(
     summary="미등록 기구 제보",
 )
 async def suggest_gym_equipment(
+    request: Request,
     gym_id: str,
     body: SuggestEquipmentRequest,
     current_user: User = Depends(get_current_user),
