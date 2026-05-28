@@ -18,6 +18,10 @@ export async function fetchChatHistory(session_id: string, token: string): Promi
   const res = await fetch(`${API_BASE}/api/v1/chat/messages?session_id=${session_id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as any).error?.message ?? '대화 이력 조회에 실패했습니다.');
+  }
   const json = await res.json();
   if (!json.success) throw new Error(json.error?.message ?? '대화 이력 조회에 실패했습니다.');
   return json.data as ChatHistoryData;

@@ -66,7 +66,7 @@ export default function WC01Chatbot({ onClose }: Props) {
         set_messages(loaded);
       })
       .catch(() => {});
-  }, []);
+  }, [session_id]);
 
   const handle_close = () => {
     Animated.parallel([
