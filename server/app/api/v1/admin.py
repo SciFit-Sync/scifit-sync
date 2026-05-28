@@ -7,6 +7,8 @@ ADMIN_API_TOKEN으로 인증.
 import asyncio
 import json
 import logging
+import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -344,7 +346,8 @@ async def swap_collection(
     swapped_at = datetime.now(timezone.utc).isoformat()
 
     # POSIX atomic: tmp write → rename. 동일 디렉토리에서 .replace는 atomic이 보장된다.
-    tmp = alias_path.with_suffix(alias_path.suffix + ".tmp")
+    # M3 fix: pid + ms timestamp suffix로 unique temp file 생성 — 동시 swap 시 race condition 방지
+    tmp = alias_path.with_suffix(f".{os.getpid()}.{int(time.time() * 1000)}.tmp")
     tmp.write_text(
         json.dumps({"current": target, "swapped_at": swapped_at}),
         encoding="utf-8",

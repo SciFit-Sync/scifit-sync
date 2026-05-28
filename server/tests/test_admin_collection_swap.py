@@ -56,3 +56,17 @@ async def test_swap_rejects_empty_target(client, alias_path):
         json={"to": "   "},
     )
     assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_swap_leaves_no_tmp_file(client, alias_path):
+    """swap 완료 후 .tmp 파일이 남아있지 않음 — M3 fix: unique tmp → atomic replace."""
+    r = await client.post(
+        "/api/v1/admin/rag/collection-swap",
+        headers={"X-Admin-Token": ADMIN_TOKEN},
+        json={"to": "papers_v3"},
+    )
+    assert r.status_code == 200
+    # alias_path의 부모 디렉토리에 .tmp 잔여물이 없어야 함
+    tmp_files = list(alias_path.parent.glob("*.tmp"))
+    assert tmp_files == [], f".tmp 파일이 남아있음: {tmp_files}"
