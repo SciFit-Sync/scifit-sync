@@ -20,6 +20,7 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.email import send_otp_email
 from app.core.exceptions import (
     ConflictError,
     EmailDuplicateError,
@@ -27,7 +28,6 @@ from app.core.exceptions import (
     UnauthorizedError,
     ValidationError,
 )
-from app.core.email import send_otp_email
 from app.core.limiter import rate_limit
 from app.models.user import (
     CareerLevel,
