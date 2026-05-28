@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   gym_item_active: { backgroundColor: colors.primary },
-  gym_item_unregistered: { opacity: 0.6 },
+  gym_item_unregistered: {},
   gym_info: { gap: 4, flex: 1 },
   gym_name: { fontFamily: "regular", fontSize: 16, color: colors.primary },
   gym_name_active: { color: colors.white },
