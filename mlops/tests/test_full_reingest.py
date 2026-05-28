@@ -120,10 +120,11 @@ def _patch_env(monkeypatch):
     monkeypatch.setattr("time.sleep", lambda *a, **kw: None)
 
 
-def test_stage4_upsert_retries_on_5xx(monkeypatch):
+def test_stage4_upsert_retries_on_5xx(monkeypatch, tmp_path):
     """502 → 200 시퀀스에서 retry 후 성공."""
     path = _make_minimal_jsonl(1)
     _patch_env(monkeypatch)
+    monkeypatch.setattr("mlops.scripts.full_reingest.DATA_DIR", tmp_path)
 
     calls = {"n": 0}
 
@@ -139,10 +140,11 @@ def test_stage4_upsert_retries_on_5xx(monkeypatch):
     assert calls["n"] == 2  # 1차 502 + 2차 성공
 
 
-def test_stage4_upsert_retries_on_connection_error(monkeypatch):
+def test_stage4_upsert_retries_on_connection_error(monkeypatch, tmp_path):
     """ConnectionError → 200 시퀀스에서도 retry."""
     path = _make_minimal_jsonl(1)
     _patch_env(monkeypatch)
+    monkeypatch.setattr("mlops.scripts.full_reingest.DATA_DIR", tmp_path)
 
     calls = {"n": 0}
 
@@ -158,10 +160,11 @@ def test_stage4_upsert_retries_on_connection_error(monkeypatch):
     assert calls["n"] == 2
 
 
-def test_stage4_upsert_raises_after_max_retries(monkeypatch):
+def test_stage4_upsert_raises_after_max_retries(monkeypatch, tmp_path):
     """5번 연속 502 → max_retries(5) 초과로 HTTPError raise."""
     path = _make_minimal_jsonl(1)
     _patch_env(monkeypatch)
+    monkeypatch.setattr("mlops.scripts.full_reingest.DATA_DIR", tmp_path)
 
     calls = {"n": 0}
 
@@ -175,10 +178,11 @@ def test_stage4_upsert_raises_after_max_retries(monkeypatch):
     assert calls["n"] == 5  # 정확히 max_retries 만큼 호출
 
 
-def test_stage4_upsert_does_not_retry_on_4xx(monkeypatch):
+def test_stage4_upsert_does_not_retry_on_4xx(monkeypatch, tmp_path):
     """400/401/404 등 4xx는 retry 없이 즉시 raise — 운영자 개입 신호 보존."""
     path = _make_minimal_jsonl(1)
     _patch_env(monkeypatch)
+    monkeypatch.setattr("mlops.scripts.full_reingest.DATA_DIR", tmp_path)
 
     calls = {"n": 0}
 
@@ -190,3 +194,178 @@ def test_stage4_upsert_does_not_retry_on_4xx(monkeypatch):
     with pytest.raises(requests.exceptions.HTTPError):
         stage4_upsert(path, "papers_v2")
     assert calls["n"] == 1  # 4xx는 1회로 끝
+
+
+# --------------------------------------------------------------------------- #
+# Stage 4 resumable — batch 단위 manifest로 완료된 batch 자동 skip.
+# 실패 후 재실행 시 0~실패batch 중복 처리 비용 차단.
+# --------------------------------------------------------------------------- #
+
+
+def _patch_data_dir(monkeypatch, tmp_path):
+    """upsert progress manifest가 DATA_DIR에 쓰여지므로 tmp_path로 redirect."""
+    monkeypatch.setattr("mlops.scripts.full_reingest.DATA_DIR", tmp_path)
+
+
+def test_stage4_upsert_custom_batch_size(monkeypatch, tmp_path):
+    """batch_size 인자가 _post 호출 횟수에 정확히 반영."""
+    path = _make_minimal_jsonl(7)
+    _patch_env(monkeypatch)
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    calls = {"n": 0, "sizes": []}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls["n"] += 1
+        calls["sizes"].append(len(json["chunks"]))
+        return _fake_resp(200, {"data": {"upserted": len(json["chunks"])}})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    total = stage4_upsert(path, "papers_v2", batch_size=3, batch_tag="t1")
+    # 7청크 / batch_size 3 → 3 + 3 + 1 (마지막 잔여)
+    assert total == 7
+    assert calls["n"] == 3
+    assert calls["sizes"] == [3, 3, 1]
+
+
+def test_stage4_upsert_creates_progress_manifest(monkeypatch, tmp_path):
+    """첫 실행에서 완료된 batch_idx가 progress manifest에 atomic write."""
+    path = _make_minimal_jsonl(6)
+    _patch_env(monkeypatch)
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        return _fake_resp(200, {"data": {"upserted": len(json["chunks"])}})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    stage4_upsert(path, "papers_v2", batch_size=2, batch_tag="run1")
+
+    manifest = tmp_path / "upsert_progress_run1_papers_v2.json"
+    assert manifest.exists()
+    data = json.loads(manifest.read_text())
+    assert data["batch_tag"] == "run1"
+    assert data["collection"] == "papers_v2"
+    assert data["batch_size"] == 2
+    # 6청크 / batch 2 → 0,1,2 batch_idx 모두 완료
+    assert data["completed_batches"] == [0, 1, 2]
+
+
+def test_stage4_upsert_skips_completed_batches_on_resume(monkeypatch, tmp_path):
+    """재실행 시 manifest의 completed_batches는 _post 호출 안 함."""
+    path = _make_minimal_jsonl(6)
+    _patch_env(monkeypatch)
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    # 사전 manifest: batch_idx 0, 1 완료 가정 (batch_size 2 → 4청크 적재됨)
+    manifest = tmp_path / "upsert_progress_run2_papers_v2.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "batch_tag": "run2",
+                "collection": "papers_v2",
+                "batch_size": 2,
+                "completed_batches": [0, 1],
+            }
+        )
+    )
+
+    calls = {"n": 0}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls["n"] += 1
+        return _fake_resp(200, {"data": {"upserted": len(json["chunks"])}})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    total = stage4_upsert(path, "papers_v2", batch_size=2, batch_tag="run2")
+    # batch 0, 1은 skip → batch 2(잔여 2청크)만 _post
+    assert calls["n"] == 1
+    assert total == 2  # skip된 batch는 total 누적 대상 아님 (재시작 시점 기록 X)
+
+    # manifest는 batch 2까지 누적
+    data = json.loads(manifest.read_text())
+    assert data["completed_batches"] == [0, 1, 2]
+
+
+def test_stage4_upsert_recovers_from_corrupted_manifest(monkeypatch, tmp_path):
+    """깨진 JSON manifest는 경고 후 처음부터 시작 (fail-safe)."""
+    path = _make_minimal_jsonl(2)
+    _patch_env(monkeypatch)
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    manifest = tmp_path / "upsert_progress_run3_papers_v2.json"
+    manifest.write_text("{ not valid json")
+
+    calls = {"n": 0}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls["n"] += 1
+        return _fake_resp(200, {"data": {"upserted": len(json["chunks"])}})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    total = stage4_upsert(path, "papers_v2", batch_size=2, batch_tag="run3")
+    # 손상 manifest → 처음부터 시작 → 1 batch 처리
+    assert calls["n"] == 1
+    assert total == 2
+    # manifest는 정상 형태로 재기록됨
+    data = json.loads(manifest.read_text())
+    assert data["completed_batches"] == [0]
+
+
+def test_stage4_upsert_invalidates_manifest_on_batch_size_mismatch(monkeypatch, tmp_path):
+    """이전 실행과 다른 batch_size로 재실행 시 manifest 무시 — codex MAJOR [1] guard.
+
+    batch_size가 다르면 batch_idx가 가리키는 record 범위가 어긋나 데이터 누락
+    위험이 있으므로 manifest를 처음부터 다시 작성해야 한다.
+    """
+    path = _make_minimal_jsonl(4)
+    _patch_env(monkeypatch)
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    # 사전 manifest: 이전 batch_size=2로 batch 0 완료
+    manifest = tmp_path / "upsert_progress_run_mismatch_papers_v2.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "batch_tag": "run_mismatch",
+                "collection": "papers_v2",
+                "batch_size": 2,
+                "completed_batches": [0],
+            }
+        )
+    )
+
+    calls = {"n": 0, "sizes": []}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls["n"] += 1
+        calls["sizes"].append(len(json["chunks"]))
+        return _fake_resp(200, {"data": {"upserted": len(json["chunks"])}})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    # 현재 batch_size=4로 재실행 → 이전 batch_size=2 manifest 무시 + 처음부터
+    total = stage4_upsert(path, "papers_v2", batch_size=4, batch_tag="run_mismatch")
+    # manifest 무시 → 모든 4청크가 1 batch로 처리됨
+    assert calls["n"] == 1
+    assert calls["sizes"] == [4]
+    assert total == 4
+
+    # manifest는 새 batch_size=4 + completed_batches=[0]으로 덮어쓰기
+    data = json.loads(manifest.read_text())
+    assert data["batch_size"] == 4
+    assert data["completed_batches"] == [0]
+
+
+def test_stage4_upsert_progress_atomic_no_tmp_leftover(monkeypatch, tmp_path):
+    """atomic write 후 .tmp.<pid>.<uuid> 파일이 남지 않음 — 부분 write 방지 검증."""
+    path = _make_minimal_jsonl(4)
+    _patch_env(monkeypatch)
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        return _fake_resp(200, {"data": {"upserted": len(json["chunks"])}})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    stage4_upsert(path, "papers_v2", batch_size=2, batch_tag="run4")
+
+    leftover = list(tmp_path.glob("upsert_progress_*.tmp.*"))
+    assert leftover == [], f".tmp 잔여물: {leftover}"
