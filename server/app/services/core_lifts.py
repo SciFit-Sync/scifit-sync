@@ -47,9 +47,7 @@ async def resolve_exercise_id_by_code(code: str, db: AsyncSession) -> uuid.UUID 
 
     # 1) 정확 일치 — candidates 순서대로 첫 번째 매칭 우선
     for cand in candidates:
-        exact = (
-            await db.execute(select(Exercise.id).where(Exercise.name_en == cand).limit(1))
-        ).scalar_one_or_none()
+        exact = (await db.execute(select(Exercise.id).where(Exercise.name_en == cand).limit(1))).scalar_one_or_none()
         if exact:
             return exact
 

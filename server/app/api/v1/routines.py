@@ -113,7 +113,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
     ex_name_map: dict[str, str] = {}
     ex_name_en_map: dict[str, str | None] = {}
     if ex_ids:
-        rows = (await db.execute(select(Exercise.id, Exercise.name, Exercise.name_en).where(Exercise.id.in_(ex_ids)))).all()
+        rows = (
+            await db.execute(select(Exercise.id, Exercise.name, Exercise.name_en).where(Exercise.id.in_(ex_ids)))
+        ).all()
         ex_name_map = {str(eid): name for eid, name, _ in rows}
         ex_name_en_map = {str(eid): name_en for eid, _, name_en in rows}
 
@@ -122,7 +124,10 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
     if ex_ids:
         name_en_list = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids]
         wx_results = await asyncio.gather(
-            *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in name_en_list],
+            *[
+                get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None)
+                for _, name_en in name_en_list
+            ],
             return_exceptions=True,
         )
         for (eid_str, _), wx in zip(name_en_list, wx_results, strict=True):

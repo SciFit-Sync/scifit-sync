@@ -404,7 +404,7 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
         f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
-        f'Do NOT include [Paper N] citations — write the finding naturally. '
+        f"Do NOT include [Paper N] citations — write the finding naturally. "
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
