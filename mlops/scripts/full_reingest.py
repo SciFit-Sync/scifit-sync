@@ -14,8 +14,11 @@ Resumable: manifest 기반 멱등성. 중단 후 재실행 시 완료 stage skip
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import os
 import sys
+import uuid
 from pathlib import Path
 
 from mlops.pipeline.config import DATA_DIR
@@ -283,12 +286,23 @@ def stage3_5_validate(embeddings_path: Path) -> bool:
     return result.passed
 
 
-def stage4_upsert(embeddings_path: Path, collection: str) -> int:
+def stage4_upsert(
+    embeddings_path: Path,
+    collection: str,
+    batch_size: int = 1000,
+    batch_tag: str = "",
+) -> int:
     """Stage 4: ChromaDB collection에 upsert.
 
-    admin endpoint를 통해 적재한다 (ALB 300초 한도 내 batch_size=200).
-    load_embeddings.load_api의 패턴을 재사용하되 body에 collection 필드를 명시해
-    alias 무시하고 papers_v2(또는 지정 컬렉션)에 직접 적재한다.
+    admin endpoint를 통해 적재한다 (ALB 300s 한도 내 batch_size — default 1000).
+    load_embeddings.load_api의 retry 패턴(502/503/504 + ConnectionError +
+    exponential backoff)을 재사용하되 body에 collection 필드를 명시해 alias
+    무시하고 papers_v2(또는 지정 컬렉션)에 직접 적재한다.
+
+    Resumable: `upsert_progress_<batch_tag>_<collection>.json`에 완료된
+    batch_idx 집합을 atomic write로 누적 기록. 중단/abort 후 재실행 시
+    이미 완료된 batch는 skip → 실패 비용 0 (upsert 자체는 idempotent하지만
+    중복 처리 시간 낭비를 차단).
     """
     import requests
     from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
@@ -301,9 +315,60 @@ def stage4_upsert(embeddings_path: Path, collection: str) -> int:
 
     url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
     headers = {"X-Admin-Token": ADMIN_API_TOKEN}
-    batch_size = 200
     buffer: list = []
     total = 0
+
+    # Resumable manifest: 완료된 batch_idx 집합을 디스크에 기록.
+    # batch_size는 batch 경계의 의미를 결정하므로 manifest와 현재 인자가
+    # 다르면 manifest를 무효화한다 (codex MAJOR [1]: batch_size 불일치 시
+    # batch_idx가 가리키는 record 범위가 어긋나 데이터 누락 발생).
+    # `.jsonl.gz` → `.jsonl` (stem 1회) → `dry_50` (stem 2회).
+    # 다른 위치의 ".jsonl" 문자열에 영향 안 받도록 명시적으로 stem 두 번 적용.
+    progress_tag = batch_tag or Path(embeddings_path.stem).stem
+    progress_path = DATA_DIR / f"upsert_progress_{progress_tag}_{collection}.json"
+    completed_batches: set[int] = set()
+    if progress_path.exists():
+        try:
+            progress = json.loads(progress_path.read_text())
+            stored_batch_size = progress.get("batch_size")
+            if stored_batch_size != batch_size:
+                logger.warning(
+                    "upsert progress manifest batch_size 불일치 "
+                    "(stored=%s, current=%d) — manifest 무시하고 처음부터 시작",
+                    stored_batch_size,
+                    batch_size,
+                )
+                completed_batches = set()
+            else:
+                completed_batches = set(progress.get("completed_batches", []))
+                logger.info(
+                    "upsert resume: %d batches 이미 완료 → skip (manifest=%s)",
+                    len(completed_batches),
+                    progress_path.name,
+                )
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("upsert progress manifest 손상 (%s) — 처음부터 시작", e)
+            completed_batches = set()
+
+    def _persist_progress() -> None:
+        """atomic write — tmp + os.replace로 partial-write 방지.
+
+        suffix는 pid + uuid4 — 동일 프로세스 내 동시 호출 가능성에도
+        충돌 회피 (codex MINOR [3]: future-proof).
+        """
+        tmp = progress_path.with_suffix(progress_path.suffix + f".tmp.{os.getpid()}.{uuid.uuid4().hex}")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "batch_tag": progress_tag,
+                    "collection": collection,
+                    "batch_size": batch_size,
+                    "completed_batches": sorted(completed_batches),
+                },
+                indent=2,
+            )
+        )
+        tmp.replace(progress_path)
 
     def _post(batch: list, max_retries: int = 5) -> int:
         """
@@ -365,16 +430,47 @@ def stage4_upsert(embeddings_path: Path, collection: str) -> int:
                 raise
         raise RuntimeError("unreachable: _post retry loop exited without return")
 
+    batch_idx = 0  # 0-based index — 동일 batch_size로만 재실행 시 일관 가정
+    skipped_batches = 0
     for record in iter_records(embeddings_path, skip_errors=True):
         buffer.append(record)
         if len(buffer) >= batch_size:
-            total += _post(buffer)
-            logger.info("upsert: %d chunks 누적 (collection=%s)", total, collection)
+            if batch_idx in completed_batches:
+                skipped_batches += 1
+                logger.info(
+                    "upsert: batch_idx=%d 이미 완료 → skip (누적 skip=%d)",
+                    batch_idx,
+                    skipped_batches,
+                )
+            else:
+                total += _post(buffer)
+                completed_batches.add(batch_idx)
+                _persist_progress()
+                logger.info(
+                    "upsert: batch_idx=%d, %d chunks 누적 (collection=%s)",
+                    batch_idx,
+                    total,
+                    collection,
+                )
             buffer = []
+            batch_idx += 1
     if buffer:
-        total += _post(buffer)
+        if batch_idx in completed_batches:
+            skipped_batches += 1
+            logger.info("upsert: 마지막 batch_idx=%d 이미 완료 → skip", batch_idx)
+        else:
+            total += _post(buffer)
+            completed_batches.add(batch_idx)
+            _persist_progress()
 
-    logger.info("Stage 4 upsert 완료: %d chunks → %s", total, collection)
+    logger.info(
+        "Stage 4 upsert 완료: %d chunks → %s (batches=%d, skipped=%d, batch_size=%d)",
+        total,
+        collection,
+        batch_idx + (0 if not buffer else 1) - skipped_batches,
+        skipped_batches,
+        batch_size,
+    )
     return total
 
 
@@ -391,6 +487,15 @@ def main(argv: list[str] | None = None) -> int:
         choices=["fetch", "manifest_check", "chunk_embed", "validate", "upsert"],
     )
     parser.add_argument("--eval-gate", action="store_true")
+    parser.add_argument(
+        "--upsert-batch-size",
+        type=int,
+        default=1000,
+        help=(
+            "Stage 4 admin endpoint POST 배치 크기 (default: 1000). "
+            "ALB 300s 한도 내. 실패 시 manifest로 완료 batch 자동 skip."
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
@@ -420,8 +525,16 @@ def main(argv: list[str] | None = None) -> int:
 
     # Stage 4
     if "upsert" not in args.skip_stages:
-        n = stage4_upsert(embeddings_path, collection)
-        logger.info("upsert 완료: %d chunks → %s", n, collection)
+        n = stage4_upsert(
+            embeddings_path,
+            collection,
+            batch_size=args.upsert_batch_size,
+            batch_tag=args.batch_tag,
+        )
+        # n은 *이번 실행에서 새로 _post한 청크 수*만 집계.
+        # resume 시 skip된 batch는 포함하지 않으므로 "신규" 라벨 명시.
+        # stage4_upsert 내부 로그에 `batches=`/`skipped=`로 전체 맥락 동반.
+        logger.info("upsert 완료 (이번 실행 신규): %d chunks → %s", n, collection)
 
     # Stage 5 안내
     if args.eval_gate:
