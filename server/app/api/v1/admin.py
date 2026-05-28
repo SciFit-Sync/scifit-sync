@@ -362,10 +362,25 @@ async def swap_collection(
     PR-δ §2.3 alias-swap 패턴 — body `{"to": "papers_v2"}`로 호출하면 EFS의 alias 파일을
     교체하고 rag 서비스의 keyed cache를 clear 한다. 다음 검색 요청부터 새 collection을
     사용하므로 zero-downtime swap이 가능하다. 롤백은 동일 endpoint에 이전 이름으로 재호출.
+
+    F1 fix: alias 파일 쓰기 전에 target collection이 ChromaDB에 실제로 존재하는지 검증.
+    오타(papers_v22 등) 한 번에 검색 500 회귀 가능성 차단 → 존재하지 않으면 404 반환.
     """
     target = body.to.strip()
     if not target:
         raise HTTPException(status_code=400, detail="`to` 필드는 비어있을 수 없습니다")
+
+    # F1 fix: target collection 존재 검증 — alias 파일 쓰기 전에 ChromaDB에서 확인
+    global _chroma_client
+    settings = get_settings()
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_PATH)
+    existing = [c.name for c in _chroma_client.list_collections()]
+    if target not in existing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"collection {target!r} not found. Available: {existing}",
+        )
 
     alias_path: Path = rag_svc.ALIAS_FILE
     alias_path.parent.mkdir(parents=True, exist_ok=True)
