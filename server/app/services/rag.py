@@ -404,11 +404,12 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
         f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
+        f'Do NOT include [Paper N] citations — write the finding naturally. '
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
         f"{name_rule}"
-        f"- notes must be written in Korean and explain the specific finding from the paper.\n"
+        f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
         f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30).\n"
