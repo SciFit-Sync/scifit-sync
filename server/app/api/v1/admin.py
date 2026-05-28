@@ -280,7 +280,10 @@ async def seed_exercises_from_workoutx(
     """
     wx_exercises = await list_all_exercises()
     if not wx_exercises:
-        return {"success": True, "data": {"upserted": 0, "mapped": 0, "message": "WorkoutX에서 운동 목록을 가져오지 못했습니다."}}
+        return {
+            "success": True,
+            "data": {"upserted": 0, "mapped": 0, "message": "WorkoutX에서 운동 목록을 가져오지 못했습니다."},
+        }
 
     # DB 기구 목록 미리 로드: equipment_type → [equipment_id, ...]
     eq_rows = (await db.execute(select(Equipment.id, Equipment.equipment_type))).all()
@@ -301,15 +304,20 @@ async def seed_exercises_from_workoutx(
         wx_equipment: str = (item.get("equipment") or "").strip().lower()
 
         # exercises upsert (name_en unique)
-        stmt = pg_insert(Exercise).values(
-            name=name_en,
-            name_en=name_en,
-            category=body_part or "unknown",
-            gif_url=gif_url,
-        ).on_conflict_do_update(
-            index_elements=["name_en"],
-            set_={"gif_url": gif_url, "category": body_part or "unknown"},
-        ).returning(Exercise.id)
+        stmt = (
+            pg_insert(Exercise)
+            .values(
+                name=name_en,
+                name_en=name_en,
+                category=body_part or "unknown",
+                gif_url=gif_url,
+            )
+            .on_conflict_do_update(
+                index_elements=["name_en"],
+                set_={"gif_url": gif_url, "category": body_part or "unknown"},
+            )
+            .returning(Exercise.id)
+        )
         result = await db.execute(stmt)
         exercise_id = result.scalar_one()
         upserted += 1
@@ -318,10 +326,14 @@ async def seed_exercises_from_workoutx(
         eq_type = _WX_EQUIPMENT_TYPE.get(wx_equipment)
         if eq_type:
             for eq_id in equipment_by_type.get(eq_type, []):
-                map_stmt = pg_insert(ExerciseEquipmentMap).values(
-                    exercise_id=exercise_id,
-                    equipment_id=eq_id,
-                ).on_conflict_do_nothing()
+                map_stmt = (
+                    pg_insert(ExerciseEquipmentMap)
+                    .values(
+                        exercise_id=exercise_id,
+                        equipment_id=eq_id,
+                    )
+                    .on_conflict_do_nothing()
+                )
                 await db.execute(map_stmt)
                 mapped += 1
 
