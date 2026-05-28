@@ -79,10 +79,11 @@ _embed_model = None
 
 
 def _current_collection_name() -> str:
-    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'papers' fallback.
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'paper_chunks' fallback.
 
     B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
     매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    F2 fix: fallback을 config default("paper_chunks")와 일치시켜 일관성 확보.
     """
     try:
         if ALIAS_FILE.exists():
@@ -93,7 +94,8 @@ def _current_collection_name() -> str:
     except (OSError, json.JSONDecodeError) as e:
         logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
     # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
-    return os.getenv("CHROMA_COLLECTION_NAME", "papers")
+    # fallback은 config.py CHROMA_COLLECTION_NAME default("paper_chunks")와 일치 (F2 fix)
+    return os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
 
 
 def _get_collection():
