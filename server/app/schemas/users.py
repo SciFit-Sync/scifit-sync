@@ -116,8 +116,22 @@ class UpdateBodyData(BaseModel):
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
+_VALID_GOALS = {"hypertrophy", "strength", "endurance", "rehabilitation", "weight_loss"}
+
+
 class UpdateGoalRequest(BaseModel):
     goals: list[str]
+
+    @field_validator("goals")
+    @classmethod
+    def validate_goals(cls, v: list[str]) -> list[str]:
+        result = []
+        for goal in v:
+            g = goal.lower()
+            if g not in _VALID_GOALS:
+                raise ValueError(f"goals 허용값: {sorted(_VALID_GOALS)}")
+            result.append(g)
+        return result
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
