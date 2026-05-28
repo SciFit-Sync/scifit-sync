@@ -7,7 +7,7 @@ ADMIN_API_TOKEN으로 인증.
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import chromadb
@@ -202,21 +202,51 @@ async def list_dois(
 
 
 @router.get("/rag/pmids")
-async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
-    """ChromaDB에 적재된 모든 unique paper_pmid 목록을 반환한다.
+async def list_pmids(
+    limit: int = 100,
+    offset: int = 0,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """ChromaDB에 적재된 unique paper_pmid 목록을 페이지네이션하여 반환한다.
 
     카테고리 메타 동기화 스크립트(`refresh_search_categories`)가 호출하여
     어떤 PMID에 대해 카테고리 재계산을 적용할지 결정한다.
+
+    대용량 collection에서 collection.get() 전체 fetch를 피하기 위해
+    limit/offset 파라미터를 통해 ChromaDB get() 청크 단위로 호출한다.
 
     NOTE: 응답이 `dict`인 것은 기존 `ingest_papers` 엔드포인트와의 일관성 때문이다
     (모든 admin 엔드포인트가 `{success, data}` 평문 dict 패턴). OpenAPI 모델화는
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
+    if limit <= 0 or limit > 10000:
+        raise HTTPException(status_code=400, detail="limit must be in (0, 10000]")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset must be >= 0")
+
     collection = _get_collection()
-    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    # PR #176 헬퍼로 전체 metadata 안전 수집 (내부 페이지네이션, SQLite 변수 한계 회피)
     _ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
-    pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
-    return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
+    total_chunks = len(metas)
+
+    # unique PMID 집계 → sort → slice (PMID 단위 페이지네이션, 페이지 경계 중복/누락 방지)
+    all_pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
+    total_pmids = len(all_pmids)
+    page = all_pmids[offset : offset + limit]
+
+    return {
+        "success": True,
+        "data": {
+            "pmids": page,
+            "total": total_pmids,           # unique PMID 수 (페이지네이션 기준)
+            "limit": limit,
+            "offset": offset,
+            "has_next": offset + limit < total_pmids,
+            # 하위 호환: 기존 MLOps 스크립트가 count/total_chunks를 읽는 경우 대비 보존
+            "count": total_chunks,
+            "total_chunks": total_chunks,
+        },
+    }
 
 
 class RefreshCategoriesRequest(BaseModel):
@@ -299,7 +329,7 @@ async def swap_collection(
 
     alias_path: Path = rag_svc.ALIAS_FILE
     alias_path.parent.mkdir(parents=True, exist_ok=True)
-    swapped_at = datetime.now(UTC).isoformat()
+    swapped_at = datetime.now(timezone.utc).isoformat()
 
     # POSIX atomic: tmp write → rename. 동일 디렉토리에서 .replace는 atomic이 보장된다.
     tmp = alias_path.with_suffix(alias_path.suffix + ".tmp")
