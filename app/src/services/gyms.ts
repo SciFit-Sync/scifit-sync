@@ -22,7 +22,6 @@ export interface EquipmentItem {
   brand: string | null;
   category: string | null;
   equipment_type: string | null;
-  primary_muscles: string[];
   image_url: string | null;
 }
 
@@ -84,6 +83,41 @@ export async function getEquipment(
     { token },
   );
   return data.items;
+}
+
+// 헬스장 보유 기구 목록 (GET /api/v1/gyms/{gym_id}/equipment)
+export async function getGymEquipment(gym_id: string, token: string): Promise<EquipmentItem[]> {
+  const data = await apiFetch<{ gym_id: string; gym_name: string; equipment: EquipmentItem[] }>(
+    `/api/v1/gyms/${gym_id}/equipment`,
+    { token },
+  );
+  return data.equipment;
+}
+
+// 헬스장에 기구 일괄 추가 (POST /api/v1/gyms/{gym_id}/equipment/bulk)
+export async function addGymEquipmentBulk(
+  gym_id: string,
+  equipment_ids: string[],
+  token: string,
+): Promise<void> {
+  await apiFetch<unknown>(`/api/v1/gyms/${gym_id}/equipment/bulk`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ equipment_ids }),
+  });
+}
+
+// 기구 제보 (POST /api/v1/gyms/{gym_id}/equipment/suggest)
+export async function suggestGymEquipment(
+  gym_id: string,
+  params: { name: string; brand?: string; description?: string },
+  token: string,
+): Promise<void> {
+  await apiFetch<unknown>(`/api/v1/gyms/${gym_id}/equipment/suggest`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(params),
+  });
 }
 
 // 기구 선택 저장 (POST /api/v1/equipment/select)
