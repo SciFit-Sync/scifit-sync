@@ -13,6 +13,7 @@ import WN01Notifications from "../screens/main/WN01Notifications";
 import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
 import WA03SignupInfo from "../screens/auth/WA03SignupInfo";
+import WAOTPVerify from "../screens/auth/WAOTPVerify";
 import WO03OneRM from "@/screens/onboarding/WO03OneRM";
 import WP01MyPage from "@/screens/main/WP01MyPage";
 import WP02EditBodyInfo from "@/screens/main/WP02EditBodyInfo";
@@ -20,6 +21,7 @@ import WP03EditCareer from "@/screens/main/WP03EditCareer";
 import WP05EditOneRM from "@/screens/main/WP05EditOneRM";
 import WP04EditGym from "@/screens/main/WP04EditGym";
 import WP06Withdraw from "@/screens/main/WP06Withdraw";
+import WH02Analysis from "../screens/main/WH02Analysis";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -35,6 +37,7 @@ function AuthNavigator() {
         component={WA03SignupInfo}
         options={{ animation: "none" }}
       />
+      <AuthStack.Screen name="WAOTPVerify" component={WAOTPVerify} />
     </AuthStack.Navigator>
   );
 }
@@ -74,6 +77,7 @@ function MainNavigator() {
       <MainStack.Screen name="WP04EditGym" component={WP04EditGym} />
       <MainStack.Screen name="WP05EditOneRM" component={WP05EditOneRM} />
       <MainStack.Screen name="WP06Withdraw" component={WP06Withdraw} />
+      <MainStack.Screen name="WH02Analysis" component={WH02Analysis} />
     </MainStack.Navigator>
   );
 }

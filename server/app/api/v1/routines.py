@@ -10,7 +10,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -34,7 +35,10 @@ from app.models import (
     User,
     UserBodyMeasurement,
     UserExercise1RM,
+    WorkoutLog,
+    WorkoutLogSet,
     WorkoutRoutine,
+    WorkoutStatus,
 )
 from app.models import (
     UserProfile as DBUserProfile,
@@ -43,8 +47,11 @@ from app.models.gym import GymEquipment
 from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
+    AIRoutineDetail,
+    ExerciseDetailItem,
     GenerateRoutineRequest,
     GymSummary,
+    MuscleActivationDetailItem,
     MuscleActivationItem,
     PaperItem,
     RegenerateRoutineRequest,
@@ -55,12 +62,14 @@ from app.schemas.routines import (
     RoutineExercisePapersData,
     RoutineListData,
     RoutineSummary,
+    SetItem,
     UpdateRoutineExerciseRequest,
     UpdateRoutineNameRequest,
 )
 from app.services.rag import UserProfile as RagUserProfile
 from app.services.rag import routine_rag_stream
 from app.services.routine_targets import derive_exercise_targets
+from app.services.workoutx import get_exercise_by_name
 
 logger = logging.getLogger(__name__)
 
@@ -459,6 +468,187 @@ async def get_routine_exercise_papers(
     return SuccessResponse(data=RoutineExercisePapersData(routine_exercise_id=routine_exercise_id, items=items))
 
 
+# ── GET /routines/{id}/ai-detail ──────────────────────────────────────────────
+@router.get(
+    "/{routine_id}/ai-detail",
+    response_model=SuccessResponse[AIRoutineDetail],
+    summary="AI 루틴 상세 조회",
+)
+async def get_ai_routine_detail(
+    routine_id: str,
+    current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    routine = await _get_my_routine(routine_id, current_user, db)
+
+    # 1. RoutineDay + RoutineExercise
+    days_result = await db.execute(
+        select(RoutineDay)
+        .where(RoutineDay.routine_id == routine.id)
+        .options(selectinload(RoutineDay.exercises))
+        .order_by(RoutineDay.day_number)
+    )
+    days = days_result.scalars().unique().all()
+
+    all_rex: list[RoutineExercise] = []
+    for d in days:
+        all_rex.extend(sorted(d.exercises, key=lambda e: e.order_index))
+
+    # 2. Exercise batch fetch
+    ex_ids = list({rex.exercise_id for rex in all_rex})
+    ex_map: dict[uuid.UUID, Exercise] = {}
+    if ex_ids:
+        rows = (await db.execute(select(Exercise).where(Exercise.id.in_(ex_ids)))).scalars().all()
+        ex_map = {e.id: e for e in rows}
+
+    # 3. 근육 활성화 batch fetch
+    muscle_map: dict[uuid.UUID, list[MuscleActivationDetailItem]] = {}
+    if ex_ids:
+        ma_rows = (
+            await db.execute(
+                select(ExerciseMuscle, MuscleGroup)
+                .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
+                .where(ExerciseMuscle.exercise_id.in_(ex_ids))
+            )
+        ).all()
+        for em, mg in ma_rows:
+            muscle_map.setdefault(em.exercise_id, []).append(
+                MuscleActivationDetailItem(
+                    muscle=mg.name_ko,
+                    muscle_en=mg.name,
+                    percentage=em.activation_pct,
+                    type=em.involvement.value,
+                )
+            )
+
+    # 4. 활성 워크아웃 세션 조회 → set 완료 상태 오버레이
+    day_ids = [d.id for d in days]
+    completed_sets_map: dict[uuid.UUID, dict[int, WorkoutLogSet]] = {}
+    if day_ids:
+        active_log = (
+            await db.execute(
+                select(WorkoutLog)
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLog.routine_day_id.in_(day_ids),
+                    WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
+                )
+                .order_by(WorkoutLog.started_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+        if active_log:
+            log_sets = (
+                (
+                    await db.execute(
+                        select(WorkoutLogSet)
+                        .where(WorkoutLogSet.workout_log_id == active_log.id)
+                        .order_by(WorkoutLogSet.set_number)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for s in log_sets:
+                if s.routine_exercise_id:
+                    completed_sets_map.setdefault(s.routine_exercise_id, {})[s.set_number] = s
+
+    # 5. WorkoutX API 병렬 호출
+    unique_exs = list(ex_map.values())
+    wx_results = await asyncio.gather(
+        *[get_exercise_by_name(e.name_en) for e in unique_exs],
+        return_exceptions=True,
+    )
+    wx_map: dict[uuid.UUID, dict] = {
+        e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
+    }
+
+    # 6. RoutinePaper 수 batch fetch → tips_count / tips_available 계산용
+    rex_ids = [rex.id for rex in all_rex]
+    paper_counts: dict[uuid.UUID, int] = {}
+    if rex_ids:
+        count_rows = (
+            await db.execute(
+                select(RoutinePaper.routine_exercise_id, func.count().label("cnt"))
+                .where(
+                    RoutinePaper.routine_id == routine.id,
+                    RoutinePaper.routine_exercise_id.in_(rex_ids),
+                )
+                .group_by(RoutinePaper.routine_exercise_id)
+            )
+        ).all()
+        paper_counts = {rex_id: cnt for rex_id, cnt in count_rows}
+
+    # 7. ExerciseDetailItem 빌드
+    exercise_items: list[ExerciseDetailItem] = []
+    for order_idx, rex in enumerate(all_rex, start=1):
+        ex = ex_map.get(rex.exercise_id)
+        if ex is None:
+            continue
+        wx = wx_map.get(rex.exercise_id, {})
+        sets_by_num = completed_sets_map.get(rex.id, {})
+
+        reps = rex.reps_min or 10
+        if rex.reps_min and rex.reps_max:
+            reps = (rex.reps_min + rex.reps_max) // 2
+
+        set_items: list[SetItem] = []
+        for set_num in range(1, rex.sets + 1):
+            log_set = sets_by_num.get(set_num)
+            set_items.append(
+                SetItem(
+                    set_number=set_num,
+                    weight_kg=log_set.weight_kg if log_set else rex.weight_kg,
+                    reps=log_set.reps if log_set else reps,
+                    rest_seconds=0 if set_num == rex.sets else rex.rest_seconds,
+                    completed=log_set.is_completed if log_set else False,
+                    completed_at=log_set.performed_at if (log_set and log_set.is_completed) else None,
+                )
+            )
+
+        exercise_items.append(
+            ExerciseDetailItem(
+                order=order_idx,
+                exercise_id=str(rex.exercise_id),
+                name=ex.name,
+                name_en=ex.name_en,
+                gif_url=wx.get("gifUrl") or ex.gif_url,
+                thumbnail_url=wx.get("thumbnailUrl"),
+                category=ex.category,
+                equipment=wx.get("equipment"),
+                difficulty=wx.get("difficulty"),
+                mechanic=wx.get("mechanic"),
+                force=wx.get("force"),
+                muscle_activation=muscle_map.get(rex.exercise_id, []),
+                sets=set_items,
+                tips_count=paper_counts.get(rex.id, 0),
+                tips_available=paper_counts.get(rex.id, 0) > 0,
+                calories_per_minute=wx.get("caloriesPerMinute"),
+                met=wx.get("met"),
+                ai_reasoning=rex.note,
+                is_replaceable=True,
+            )
+        )
+
+    # default_rest_seconds: 가장 빈도 높은 rest_seconds (0 제외)
+    rest_vals = [rex.rest_seconds for rex in all_rex if rex.rest_seconds > 0]
+    default_rest = max(set(rest_vals), key=rest_vals.count) if rest_vals else 60
+
+    return SuccessResponse(
+        data=AIRoutineDetail(
+            routine_id=str(routine.id),
+            title=routine.name,
+            goal=routine.fitness_goals[0] if routine.fitness_goals else None,
+            estimated_duration_min=routine.session_minutes,
+            default_rest_seconds=default_rest,
+            created_by=routine.generated_by.value,
+            created_at=routine.created_at,
+            exercises=exercise_items,
+        )
+    )
+
+
 # ── RAG/SSE 공통 헬퍼 ─────────────────────────────────────────────────────────
 
 
@@ -746,8 +936,14 @@ async def _run_rag_to_sse(
     profile: RagUserProfile,
     db: AsyncSession,
     initial_event: dict,
+    delete_on_error: bool = False,
 ) -> AsyncIterator[str]:
-    """공통 SSE 스트림: started → chunk*/day_complete*/papers → done → [DONE]."""
+    """공통 SSE 스트림: started → chunk*/day_complete*/papers → done → [DONE].
+
+    delete_on_error=True 면 RAG 에러 시 routine 행을 DB에서 삭제하고 done 이벤트의
+    routine_id를 비운다 (generate 경로 — 빈 좀비 루틴 방지). regenerate 경로는
+    기존 루틴을 보존해야 하므로 기본값(False) 사용.
+    """
     seq = 1
     yield _sse(seq, initial_event)
 
@@ -847,11 +1043,28 @@ async def _run_rag_to_sse(
     except Exception as e:  # noqa: BLE001
         logger.exception("SSE 스트림 중 예외")
         await db.rollback()
+        error_emitted = True
         seq += 1
         yield _sse(seq, {"type": "error", "message": f"내부 오류: {e}"})
 
+    # 에러 발생 + 새로 만든 루틴(generate)인 경우: 빈 좀비 행을 삭제한다.
+    # Core delete를 사용해 ORM 비동기 lazy-load(MissingGreenlet) 위험 회피;
+    # FK들이 ON DELETE CASCADE이므로 자식(day/paper) 정리는 DB가 처리.
+    if error_emitted and delete_on_error:
+        try:
+            await db.execute(sa_delete(WorkoutRoutine).where(WorkoutRoutine.id == routine.id))
+            await db.commit()
+            logger.info("RAG 에러로 빈 루틴 삭제: routine_id=%s", routine.id)
+        except Exception:  # noqa: BLE001
+            logger.exception("빈 루틴 삭제 실패: routine_id=%s", routine.id)
+            await db.rollback()
+
     seq += 1
-    yield _sse(seq, {"type": "done", "routine_id": str(routine.id)})
+    # 에러 시엔 routine_id를 노출하지 않아 앱이 빈/삭제된 루틴을 조회하지 않게 함.
+    done_payload: dict = {"type": "done"}
+    if not error_emitted:
+        done_payload["routine_id"] = str(routine.id)
+    yield _sse(seq, done_payload)
     yield _sse_done()
 
 
@@ -903,6 +1116,7 @@ async def generate_routine(
                 "routine_id": str(routine.id),
                 "goals": [g.lower() for g in body.goals],
             },
+            delete_on_error=True,  # 새로 만든 routine이므로 RAG 실패 시 빈 행 삭제
         ),
         media_type="text/event-stream",
     )

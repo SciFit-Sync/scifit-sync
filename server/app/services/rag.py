@@ -40,7 +40,9 @@ from llm import generate_stream as llm_generate_stream  # noqa: E402, I001
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
     """ChromaDB 데이터 경로 결정 (컨테이너 /chroma-data 마운트 vs 로컬 fallback)."""
-    raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
+    # 기본값은 서버 config.py / mlops config와 동일한 절대경로(EFS 마운트)로 통일.
+    # ECS 태스크에 env가 명시되지 않아도 admin(쓰기)과 동일한 /chroma-data를 읽도록 한다.
+    raw = os.getenv("CHROMA_PERSIST_PATH", "/chroma-data")
     p = Path(raw)
     if p.is_absolute():
         if p.exists() and os.access(p, os.W_OK):
@@ -74,8 +76,19 @@ def _get_collection():
 
         logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
         client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+        existing = [c.name for c in client.list_collections()]
+        if CHROMA_COLLECTION_NAME not in existing:
+            raise RuntimeError(
+                f"ChromaDB 컬렉션 '{CHROMA_COLLECTION_NAME}'이 없습니다. "
+                f"(경로: {CHROMA_PERSIST_PATH}, 존재하는 컬렉션: {existing}) "
+                "mlops 파이프라인 실행 후 재시도하세요."
+            )
         _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
-        logger.info("ChromaDB 준비 완료 (문서 수: %d)", _chroma_collection.count())
+        count = _chroma_collection.count()
+        if count == 0:
+            logger.warning("ChromaDB 컬렉션이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.")
+        else:
+            logger.info("ChromaDB 준비 완료 (문서 수: %d)", count)
     return _chroma_collection
 
 
@@ -184,11 +197,13 @@ def translate_to_english(text: str) -> str:
     if korean_chars < 3:
         return text  # 영어면 번역 불필요
 
+    # 사용자 입력은 <user_query> 태그로 격리 (CLAUDE.md §12 프롬프트 인젝션 방어)
+    safe_text = text.replace("</user_query>", "</ user_query>")
     try:
         translated = llm_generate(
             "Translate the following Korean fitness/exercise query to English. "
             "Return only the translation, no explanation.\n\n"
-            f"<user_query>{text}</user_query>"
+            f"<user_query>{safe_text}</user_query>"
         )
         logger.info("번역: '%s' → '%s'", text[:30], translated[:50])
         return translated
