@@ -92,3 +92,25 @@ def test_default_collection_uses_env(monkeypatch):
     # DEFAULT_COLLECTION은 모듈 로드 시 CHROMA_COLLECTION_NAME으로 설정됨
     # conftest에서 별도로 CHROMA_COLLECTION_NAME을 지정하지 않으면 기본값 "paper_chunks"
     assert rag.DEFAULT_COLLECTION == rag.CHROMA_COLLECTION_NAME
+
+
+def test_default_collection_reads_env_at_call_time(monkeypatch, tmp_path):
+    """alias 파일 없을 때 _current_collection_name이 매 호출마다 env를 재조회한다 (B1 잔여 픽스).
+
+    모듈 상수 DEFAULT_COLLECTION이 아닌 call-time os.getenv를 사용하므로
+    env 런타임 변경이 다음 호출부터 즉시 반영된다.
+    """
+    alias_file = tmp_path / "current_alias.json"  # 미생성 — alias 없음
+    monkeypatch.setattr(rag, "ALIAS_FILE", alias_file)
+    monkeypatch.setattr(rag, "_collection_cache", {})
+
+    monkeypatch.setenv("CHROMA_COLLECTION_NAME", "paper_chunks")
+    assert rag._current_collection_name() == "paper_chunks"
+
+    # env 런타임 변경 — 다음 호출부터 즉시 반영되어야 함
+    monkeypatch.setenv("CHROMA_COLLECTION_NAME", "papers_v2")
+    assert rag._current_collection_name() == "papers_v2"
+
+    # env 완전 제거 → hardcoded fallback "papers"
+    monkeypatch.delenv("CHROMA_COLLECTION_NAME", raising=False)
+    assert rag._current_collection_name() == "papers"

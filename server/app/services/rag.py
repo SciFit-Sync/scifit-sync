@@ -79,16 +79,21 @@ _embed_model = None
 
 
 def _current_collection_name() -> str:
-    """alias 파일을 읽어 현재 collection 이름을 반환. missing/corrupt는 기본값 fallback."""
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'papers' fallback.
+
+    B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
+    매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    """
     try:
         if ALIAS_FILE.exists():
             data = json.loads(ALIAS_FILE.read_text(encoding="utf-8"))
-            name = data.get("current", DEFAULT_COLLECTION)
+            name = data.get("current")
             if isinstance(name, str) and name.strip():
-                return name
+                return name.strip()
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("alias 파일 읽기 실패: %s, 기본 collection 사용", e)
-    return DEFAULT_COLLECTION
+        logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
+    # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
+    return os.getenv("CHROMA_COLLECTION_NAME", "papers")
 
 
 def _get_collection():
