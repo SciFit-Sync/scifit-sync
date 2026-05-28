@@ -29,13 +29,14 @@ export interface EquipmentItem {
 // 헬스장 검색 (GET /api/v1/gyms)
 export async function searchGyms(
   keyword: string,
+  token: string,
   latitude?: number,
   longitude?: number,
 ): Promise<GymItem[]> {
   const params = new URLSearchParams({ keyword });
   if (latitude != null) params.append('latitude', String(latitude));
   if (longitude != null) params.append('longitude', String(longitude));
-  const data = await apiFetch<{ gyms: GymItem[] }>(`/api/v1/gyms?${params}`);
+  const data = await apiFetch<{ gyms: GymItem[] }>(`/api/v1/gyms?${params}`, { token });
   return data.gyms;
 }
 

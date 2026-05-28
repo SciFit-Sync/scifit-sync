@@ -74,7 +74,7 @@ export default function WO01GymSetup() {
       }
       set_loading(true);
       try {
-        const results = await searchGyms(keyword, coords?.lat, coords?.lng);
+        const results = await searchGyms(keyword, token, coords?.lat, coords?.lng);
         set_gyms(results);
       } catch {
         set_gyms([]);
