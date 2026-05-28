@@ -140,11 +140,9 @@ export default function WO01GymSetup() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 헤더 */}
+      {/* 헤더 — 온보딩 첫 단계이므로 뒤로가기 없음 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Octicons name="chevron-left" size={32} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
         <Text style={styles.logo}>SciFit-Sync</Text>
         <View style={styles.placeholder} />
       </View>
