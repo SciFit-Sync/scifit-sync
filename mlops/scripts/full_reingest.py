@@ -284,8 +284,62 @@ def stage3_5_validate(embeddings_path: Path) -> bool:
 
 
 def stage4_upsert(embeddings_path: Path, collection: str) -> int:
-    """Stage 4: ChromaDB papers_v2 upsert. Task C8에서 구현."""
-    raise NotImplementedError("Task C8")
+    """Stage 4: ChromaDB collection에 upsert.
+
+    admin endpoint를 통해 적재한다 (ALB 300초 한도 내 batch_size=200).
+    load_embeddings.load_api의 패턴을 재사용하되 body에 collection 필드를 명시해
+    alias 무시하고 papers_v2(또는 지정 컬렉션)에 직접 적재한다.
+    """
+    import requests
+    from mlops.pipeline.config import ADMIN_API_TOKEN, API_BASE_URL
+    from mlops.scripts.load_embeddings import iter_records
+
+    if not API_BASE_URL or not ADMIN_API_TOKEN:
+        raise RuntimeError("API_BASE_URL / ADMIN_API_TOKEN 환경변수 미설정")
+
+    url = f"{API_BASE_URL.rstrip('/')}/api/v1/admin/rag/ingest"
+    headers = {"X-Admin-Token": ADMIN_API_TOKEN}
+    batch_size = 200
+    buffer: list = []
+    total = 0
+
+    def _post(batch: list) -> int:
+        payload = {
+            "chunks": [
+                {
+                    "paper_doi": chunk.paper_doi,
+                    "paper_pmid": chunk.paper_pmid or "",
+                    "paper_title": chunk.paper_title,
+                    "section_name": chunk.section_name,
+                    "chunk_index": chunk.chunk_index,
+                    "content": chunk.content,
+                    "token_count": chunk.token_count,
+                    "embedding": vec,
+                    "search_categories": chunk.search_categories,
+                    "publication_types": chunk.publication_types,
+                    "evidence_weight": chunk.evidence_weight,
+                    "fulltext_source": chunk.fulltext_source or "",
+                    "published_year": chunk.published_year or 0,
+                }
+                for chunk, vec in batch
+            ],
+            "collection": collection,  # papers_v2 명시 — alias 무시
+        }
+        resp = requests.post(url, json=payload, headers=headers, timeout=300)
+        resp.raise_for_status()
+        return resp.json()["data"]["upserted"]
+
+    for record in iter_records(embeddings_path, skip_errors=True):
+        buffer.append(record)
+        if len(buffer) >= batch_size:
+            total += _post(buffer)
+            logger.info("upsert: %d chunks 누적 (collection=%s)", total, collection)
+            buffer = []
+    if buffer:
+        total += _post(buffer)
+
+    logger.info("Stage 4 upsert 완료: %d chunks → %s", total, collection)
+    return total
 
 
 def main(argv: list[str] | None = None) -> int:
