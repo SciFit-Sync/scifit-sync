@@ -22,6 +22,7 @@ export default function WO02Equipment() {
   const token = useAuthStore((s) => s.accessToken) ?? "";
 
   const [equipment_list, set_equipment_list] = useState<EquipmentItem[]>([]);
+  const [gym_name, set_gym_name] = useState<string | null>(null);
   const [loading, set_loading] = useState(false);
 
   const fetch_gym_equipment = useCallback(async () => {
@@ -29,7 +30,8 @@ export default function WO02Equipment() {
     set_loading(true);
     try {
       const data = await getGymEquipment(gym_id, token);
-      set_equipment_list(data);
+      set_gym_name(data.gym_name);
+      set_equipment_list(data.equipment);
     } catch {
       set_equipment_list([]);
     } finally {
@@ -67,7 +69,12 @@ export default function WO02Equipment() {
         <View style={styles.card}>
           {/* 타이틀 + + 버튼 */}
           <View style={styles.title_row}>
-            <Text style={styles.card_title}>기구 목록</Text>
+            <View style={styles.title_text_col}>
+              <Text style={styles.card_title}>기구 목록</Text>
+              {gym_name ? (
+                <Text style={styles.gym_name_text}>{gym_name}</Text>
+              ) : null}
+            </View>
             <TouchableOpacity style={styles.add_btn} onPress={handle_add} activeOpacity={0.8}>
               <Octicons name="plus" size={18} color={colors.white} />
             </TouchableOpacity>
@@ -154,10 +161,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  title_text_col: {
+    gap: 2,
+    flex: 1,
+  },
   card_title: {
     fontFamily: "semibold",
     fontSize: 18,
     color: colors.primary,
+  },
+  gym_name_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
   },
   add_btn: {
     width: 32,

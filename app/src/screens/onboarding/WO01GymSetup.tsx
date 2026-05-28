@@ -175,7 +175,10 @@ export default function WO01GymSetup() {
 
             {/* 목록 영역 — flex: 1로 남은 공간 차지 + 내부만 스크롤 */}
             <View style={styles.list_container}>
-              {has_location_permission === false && search.length === 0 && !loading ? (
+              {loading || has_location_permission === null ? (
+                /* 권한 확인 중이거나 검색 중 */
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+              ) : has_location_permission === false && search.length === 0 ? (
                 /* 위치 권한 없을 때 버튼 */
                 <View style={styles.location_button_wrapper}>
                   <TouchableOpacity
@@ -186,8 +189,6 @@ export default function WO01GymSetup() {
                     <Text style={styles.location_button_text}>위치 정보 동의하러 가기</Text>
                   </TouchableOpacity>
                 </View>
-              ) : loading ? (
-                <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
               ) : gyms.length > 0 ? (
                 <ScrollView
                   showsVerticalScrollIndicator={false}
@@ -225,7 +226,19 @@ export default function WO01GymSetup() {
                 </ScrollView>
               ) : search.length > 0 ? (
                 <Text style={styles.empty_text}>검색 결과가 없어요</Text>
-              ) : null}
+              ) : (
+                /* 위치 권한은 있지만 좌표 취득 실패 (시뮬레이터 등) — 검색 안내 */
+                <View style={styles.location_button_wrapper}>
+                  <TouchableOpacity
+                    style={styles.location_button}
+                    onPress={() => check_location_permission()}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.location_button_text}>주변 헬스장 불러오기</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.search_hint_text}>또는 위 검색창에 헬스장 이름을 입력하세요.</Text>
+                </View>
+              )}
             </View>
 
             {/* 다음 / 건너뛰기 — 항상 하단 고정 */}
@@ -298,6 +311,13 @@ const styles = StyleSheet.create({
     fontFamily: "regular",
     fontSize: 16,
     color: colors.primary,
+  },
+  search_hint_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+    textAlign: "center",
+    marginTop: 10,
   },
   // 목록 영역 — 남은 공간 전부 차지
   list_container: { flex: 1 },

@@ -86,12 +86,15 @@ export async function getEquipment(
 }
 
 // 헬스장 보유 기구 목록 (GET /api/v1/gyms/{gym_id}/equipment)
-export async function getGymEquipment(gym_id: string, token: string): Promise<EquipmentItem[]> {
+export async function getGymEquipment(
+  gym_id: string,
+  token: string,
+): Promise<{ gym_name: string; equipment: EquipmentItem[] }> {
   const data = await apiFetch<{ gym_id: string; gym_name: string; equipment: EquipmentItem[] }>(
     `/api/v1/gyms/${gym_id}/equipment`,
     { token },
   );
-  return data.equipment;
+  return { gym_name: data.gym_name, equipment: data.equipment };
 }
 
 // 헬스장에 기구 일괄 추가 (POST /api/v1/gyms/{gym_id}/equipment/bulk)
