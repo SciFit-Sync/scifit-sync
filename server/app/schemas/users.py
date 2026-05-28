@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── 응답: GET /users/me ────────────────────────────────────────────────────────
@@ -65,11 +65,23 @@ class OnboardData(BaseModel):
 
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
 class UpdateBodyRequest(BaseModel):
-    height_cm: float | None = None
-    weight_kg: float | None = None
-    skeletal_muscle_kg: float | None = None
-    body_fat_pct: float | None = None
+    height_cm: float | None = Field(default=None, ge=50, le=300)
+    weight_kg: float | None = Field(default=None, ge=20, le=500)
+    skeletal_muscle_kg: float | None = Field(default=None, ge=0, le=200)
+    body_fat_pct: float | None = Field(default=None, ge=0, le=100)
     measured_at: date | None = None
+
+    @field_validator("measured_at")
+    @classmethod
+    def validate_measured_at(cls, v: date | None) -> date | None:
+        if v is None:
+            return v
+        today = date.today()
+        if v > today:
+            raise ValueError("측정일은 오늘보다 이전이어야 합니다.")
+        if today.year - v.year > 10:
+            raise ValueError("측정일이 너무 오래되었습니다.")
+        return v
 
 
 class UpdateBodyData(BaseModel):
