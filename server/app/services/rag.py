@@ -68,10 +68,9 @@ DEFAULT_EVIDENCE_WEIGHT = 0.50
 # admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
 # 다음 _get_collection 호출부터 새 alias가 반영된다.
 ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
-# alias 미설정/손상 시 fallback. PR-δ §2.3은 정규화 후 'papers'를 default로 명시.
-# 현재 운영 collection명(CHROMA_COLLECTION_NAME=paper_chunks)과 다르므로 마이그레이션 시점에
-# admin endpoint로 alias를 명시적으로 'paper_chunks' 등 운영명으로 swap해두는 것이 안전하다.
-DEFAULT_COLLECTION = "papers"
+# alias 미설정/손상 시 fallback — CHROMA_COLLECTION_NAME 환경변수 우선 사용 (B1 fix).
+# 이전 하드코딩 "papers"는 운영 collection명("paper_chunks" 등)과 달라 silent degrade를 유발했음.
+DEFAULT_COLLECTION = CHROMA_COLLECTION_NAME
 
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
 _client = None
@@ -97,6 +96,10 @@ def _get_collection():
 
     매 호출마다 alias 파일(`ALIAS_FILE`)을 확인해 swap을 즉시 반영한다.
     collection 핸들은 이름별로 캐시되므로 reload 비용은 alias 변경 시점에만 발생한다.
+
+    B1 fix: get_or_create_collection 대신 get_collection 사용 — 존재하지 않는 collection을
+    silent하게 빈 상태로 생성하는 것을 방지한다. collection이 없으면 RuntimeError로 fail-closed.
+    alias 파일 또는 초기 ingest가 올바르게 설정되지 않은 경우 운영자가 즉시 인지할 수 있다.
     """
     global _client
     name = _current_collection_name()
@@ -106,10 +109,15 @@ def _get_collection():
 
             logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
             _client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
-        collection = _client.get_or_create_collection(
-            name=name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        try:
+            collection = _client.get_collection(name=name)
+        except Exception as e:
+            # collection이 없으면 명확한 에러 — silent empty fallback 방지 (B1 fix)
+            # 운영자가 alias 파일 또는 초기 ingest 설정을 확인해야 함
+            raise RuntimeError(
+                f"ChromaDB collection {name!r} not found. "
+                f"Check {ALIAS_FILE} or run initial ingest."
+            ) from e
         count = collection.count()
         if count == 0:
             logger.warning(
