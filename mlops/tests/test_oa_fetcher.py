@@ -478,6 +478,103 @@ class TestUnpaywallSource:
         src = UnpaywallSource()
         assert src.email == "research@scifit-sync.org"
 
+    # ---------------------------------------------------------------- #
+    # mirror URL dedup — Unpaywall이 동일 URL을 mirror 여러 곳에서 반복
+    # 반환하는 경우가 잦다. 같은 URL을 또 호출하면 동일 결과이므로 시간만
+    # 낭비. 정확히 동일 URL에만 적용하는 보수적 dedup이라 누락 위험 0.
+    # ---------------------------------------------------------------- #
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    def test_dedup_skips_repeated_pdf_url(self, mock_pdf, mock_locs):
+        """3개 mirror가 동일 pdf_url 반환 시 fetch_pdf_sections는 1번만 호출."""
+        repeated = "https://wiley/p.pdf"
+        mock_locs.return_value = [
+            {"pdf_url": repeated, "landing_url": None},
+            {"pdf_url": repeated, "landing_url": None},
+            {"pdf_url": repeated, "landing_url": None},
+        ]
+        mock_pdf.return_value = []
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+        # dedup 적용으로 정확히 1회만 호출
+        mock_pdf.assert_called_once_with(repeated)
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_dedup_skips_repeated_landing_url(self, mock_html, mock_pdf, mock_locs):
+        """3개 mirror가 동일 landing_url 반환 시 fetch_html_sections 1번만 호출."""
+        repeated_html = "https://bjsm/landing"
+        mock_locs.return_value = [
+            {"pdf_url": None, "landing_url": repeated_html},
+            {"pdf_url": None, "landing_url": repeated_html},
+            {"pdf_url": None, "landing_url": repeated_html},
+        ]
+        mock_html.return_value = []
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+        mock_pdf.assert_not_called()
+        mock_html.assert_called_once_with(repeated_html)
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_dedup_preserves_distinct_urls(self, mock_html, mock_pdf, mock_locs):
+        """완전히 다른 URL은 모두 시도 — 누락 없음 검증."""
+        mock_locs.return_value = [
+            {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m1/landing"},
+            {"pdf_url": "https://m2/p.pdf", "landing_url": "https://m2/landing"},
+            {"pdf_url": "https://m3/p.pdf", "landing_url": "https://m3/landing"},
+        ]
+        mock_pdf.return_value = []
+        mock_html.return_value = []
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.NOT_AVAILABLE
+        # 서로 다른 3개 pdf + 3개 landing 모두 시도
+        assert mock_pdf.call_count == 3
+        assert mock_html.call_count == 3
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_dedup_mixed_repeated_and_distinct(self, mock_html, mock_pdf, mock_locs):
+        """일부 mirror에 동일 URL, 일부에 신규 URL 섞인 경우 — 신규는 시도, 중복은 skip."""
+        mock_locs.return_value = [
+            {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m1/landing"},
+            {"pdf_url": "https://m1/p.pdf", "landing_url": "https://m2/landing"},
+            {"pdf_url": "https://m2/p.pdf", "landing_url": "https://m1/landing"},
+        ]
+        mock_pdf.return_value = []
+        mock_html.return_value = []
+        src = UnpaywallSource(email="x@y.z")
+        src.try_fetch(PaperRef(doi="10.1/a"))
+        # 고유 pdf 2개 (m1, m2) + 고유 landing 2개 (m1, m2)
+        assert mock_pdf.call_count == 2
+        assert mock_html.call_count == 2
+
+    @patch("mlops.pipeline.oa_fetcher.unpaywall_oa_locations")
+    @patch("mlops.pipeline.oa_fetcher.fetch_pdf_sections")
+    @patch("mlops.pipeline.oa_fetcher.fetch_html_sections")
+    def test_dedup_success_short_circuits_remaining(self, mock_html, mock_pdf, mock_locs):
+        """첫 신규 URL이 성공이면 나머지는 호출 안 됨 (dedup이 짧은 회로 동작 보존)."""
+        mock_locs.return_value = [
+            {"pdf_url": "https://m1/p.pdf", "landing_url": None},
+            {"pdf_url": "https://m2/p.pdf", "landing_url": None},
+        ]
+        mock_pdf.side_effect = [
+            [PaperSection(name="M", content="x")],
+            [],  # never reached
+        ]
+        src = UnpaywallSource(email="x@y.z")
+        result = src.try_fetch(PaperRef(doi="10.1/a"))
+        assert result.status == FulltextStatus.SUCCESS
+        mock_pdf.assert_called_once_with("https://m1/p.pdf")
+        mock_html.assert_not_called()
+
 
 class TestDefaultChain:
     def test_build_default_chain_returns_five_sources(self):
