@@ -19,11 +19,13 @@ down_revision = "20260528_fix_pulley_ratio"
 branch_labels = None
 depends_on = None
 
-# 더찬스짐 — uuid5(NAMESPACE_DNS, "scifit-gym-kakao-1875030524")
-_GYM_ID = "ecdd073b-f894-5c5a-86cc-a9b42a4e6985"
+# 더찬스짐 — createGym API로 이미 등록된 실제 UUID 사용
+# (uuid5 결정론적 값 ecdd073b-... 와 불일치 — kakao_place_id 기반 UPSERT로 처리)
+_KAKAO_PLACE_ID = "1875030524"
+_GYM_ID_FALLBACK = "ecdd073b-f894-5c5a-86cc-a9b42a4e6985"  # 새 환경 fallback
 _GYM = {
-    "id": _GYM_ID,
-    "kakao_place_id": "1875030524",
+    "id": _GYM_ID_FALLBACK,
+    "kakao_place_id": _KAKAO_PLACE_ID,
     "name": "더찬스짐",
     "address": "경기 용인시 처인구 모현읍 외대로26번길 25-1",
     "latitude": 37.3336260282492,
@@ -72,6 +74,7 @@ _EQUIPMENT_IDS = [
 def upgrade() -> None:
     conn = op.get_bind()
 
+    # 신규 환경: gym이 없으면 fallback UUID로 INSERT
     conn.execute(
         sa.text("""
             INSERT INTO gyms (id, kakao_place_id, name, address, latitude, longitude)
@@ -81,13 +84,20 @@ def upgrade() -> None:
         _GYM,
     )
 
+    # kakao_place_id로 실제 gym_id 조회 (createGym API로 이미 등록된 경우 UUID가 다를 수 있음)
+    row = conn.execute(
+        sa.text("SELECT id FROM gyms WHERE kakao_place_id = :kpid"),
+        {"kpid": _KAKAO_PLACE_ID},
+    ).fetchone()
+    actual_gym_id = str(row[0]) if row else _GYM_ID_FALLBACK
+
     conn.execute(
         sa.text("""
             INSERT INTO gym_equipments (gym_id, equipment_id, quantity)
             VALUES (:gym_id, :equipment_id, 1)
             ON CONFLICT DO NOTHING
         """),
-        [{"gym_id": _GYM_ID, "equipment_id": eid} for eid in _EQUIPMENT_IDS],
+        [{"gym_id": actual_gym_id, "equipment_id": eid} for eid in _EQUIPMENT_IDS],
     )
 
 
