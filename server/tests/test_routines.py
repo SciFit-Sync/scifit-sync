@@ -784,6 +784,34 @@ class TestGenerateRoutine:
         assert "[DONE]" in body  # 에러여도 종료 마커는 흘러야 함
 
     @pytest.mark.asyncio
+    async def test_rag_error_done_omits_routine_id_and_deletes_zombie(self, client, monkeypatch):
+        """RAG 에러 시 generate가 만든 빈 좀비 루틴은 삭제되고 done에 routine_id 미노출."""
+        from sqlalchemy.sql.dml import Delete
+
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([{"type": "error", "message": "RAG 실패"}]),
+        )
+        db = _generate_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        # error는 흐르고
+        assert '"type": "error"' in body
+        # done 이벤트 라인엔 routine_id가 없어야 함 (started 이벤트엔 있어도 됨)
+        done_lines = [line for line in body.splitlines() if line.startswith("data:") and '"type": "done"' in line]
+        assert len(done_lines) == 1, f"done 이벤트가 정확히 1개 있어야 함: {done_lines}"
+        assert "routine_id" not in done_lines[0], f"에러 시 done에 routine_id 노출됨: {done_lines[0]}"
+        # 좀비 삭제: DELETE statement가 db.execute로 호출됨
+        delete_calls = [c for c in db.execute.call_args_list if c.args and isinstance(c.args[0], Delete)]
+        assert len(delete_calls) >= 1, "RAG 에러 시 DELETE 호출 없음 (좀비 미삭제)"
+
+    @pytest.mark.asyncio
     async def test_missing_goals_returns_400(self, client):
         resp = await client.post(
             "/api/v1/routines/generate",
