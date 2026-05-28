@@ -87,11 +87,15 @@ def test_get_collection_fails_closed_when_target_missing(monkeypatch, tmp_path):
         rag._get_collection()
 
 
-def test_default_collection_uses_env(monkeypatch):
-    """DEFAULT_COLLECTION이 CHROMA_COLLECTION_NAME 환경변수와 일치한다 (B1 fix)."""
-    # DEFAULT_COLLECTION은 모듈 로드 시 CHROMA_COLLECTION_NAME으로 설정됨
-    # conftest에서 별도로 CHROMA_COLLECTION_NAME을 지정하지 않으면 기본값 "paper_chunks"
-    assert rag.DEFAULT_COLLECTION == rag.CHROMA_COLLECTION_NAME
+def test_default_collection_uses_env(monkeypatch, tmp_path):
+    """env 없을 때 _current_collection_name()이 'paper_chunks'를 반환한다 (F4: DEFAULT_COLLECTION 제거 후 대체).
+
+    DEFAULT_COLLECTION 모듈 상수는 dead variable로 제거됨 (F4 fix).
+    fallback은 _current_collection_name()의 os.getenv(..., 'paper_chunks')로 처리.
+    """
+    monkeypatch.setattr(rag, "ALIAS_FILE", tmp_path / "no_alias.json")
+    monkeypatch.delenv("CHROMA_COLLECTION_NAME", raising=False)
+    assert rag._current_collection_name() == "paper_chunks"
 
 
 def test_default_collection_reads_env_at_call_time(monkeypatch, tmp_path):

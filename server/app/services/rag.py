@@ -68,9 +68,8 @@ DEFAULT_EVIDENCE_WEIGHT = 0.50
 # admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
 # 다음 _get_collection 호출부터 새 alias가 반영된다.
 ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
-# alias 미설정/손상 시 fallback — CHROMA_COLLECTION_NAME 환경변수 우선 사용 (B1 fix).
-# 이전 하드코딩 "papers"는 운영 collection명("paper_chunks" 등)과 달라 silent degrade를 유발했음.
-DEFAULT_COLLECTION = CHROMA_COLLECTION_NAME
+# F4: DEFAULT_COLLECTION 모듈 상수 제거 — 호출 경로에서 미사용 dead variable.
+# fallback은 _current_collection_name() 내부의 os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")로 처리.
 
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
 _client = None
