@@ -68,9 +68,8 @@ DEFAULT_EVIDENCE_WEIGHT = 0.50
 # admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
 # 다음 _get_collection 호출부터 새 alias가 반영된다.
 ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
-# alias 미설정/손상 시 fallback — CHROMA_COLLECTION_NAME 환경변수 우선 사용 (B1 fix).
-# 이전 하드코딩 "papers"는 운영 collection명("paper_chunks" 등)과 달라 silent degrade를 유발했음.
-DEFAULT_COLLECTION = CHROMA_COLLECTION_NAME
+# F4: DEFAULT_COLLECTION 모듈 상수 제거 — 호출 경로에서 미사용 dead variable.
+# fallback은 _current_collection_name() 내부의 os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")로 처리.
 
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
 _client = None
@@ -79,10 +78,11 @@ _embed_model = None
 
 
 def _current_collection_name() -> str:
-    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'papers' fallback.
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'paper_chunks' fallback.
 
     B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
     매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    F2 fix: fallback을 config default("paper_chunks")와 일치시켜 일관성 확보.
     """
     try:
         if ALIAS_FILE.exists():
@@ -93,7 +93,8 @@ def _current_collection_name() -> str:
     except (OSError, json.JSONDecodeError) as e:
         logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
     # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
-    return os.getenv("CHROMA_COLLECTION_NAME", "papers")
+    # fallback은 config.py CHROMA_COLLECTION_NAME default("paper_chunks")와 일치 (F2 fix)
+    return os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
 
 
 def _get_collection():

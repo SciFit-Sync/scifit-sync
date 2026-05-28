@@ -7,15 +7,47 @@ import json
 
 import pytest
 
+from app.api.v1 import admin as admin_mod
+
 ADMIN_TOKEN = "test-admin-token"
+
+
+class _FakeColEntry:
+    """list_collections용 가짜 collection 항목."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+class _AnyCollectionFakeClient:
+    """F1 검증: 어떤 collection 이름이든 존재한다고 응답하는 fake client.
+
+    기존 swap 테스트는 collection 이름 검증보다 atomic-write / alias 파일 내용을
+    검증하므로, 존재 여부와 무관하게 swap 로직을 통과시키는 fake가 적절하다.
+    """
+
+    def list_collections(self):
+        # 어떤 target이든 통과시킨다 (기존 테스트 동작 보존)
+        return [
+            _FakeColEntry("papers"),
+            _FakeColEntry("papers_v2"),
+            _FakeColEntry("papers_v3"),
+            _FakeColEntry("papers_v4"),
+        ]
 
 
 @pytest.fixture
 def alias_path(tmp_path, monkeypatch):
-    """ALIAS_FILE을 tmp_path로 가리킨 뒤 keyed cache를 비워 다음 swap이 즉시 반영되게 한다."""
+    """ALIAS_FILE을 tmp_path로 가리킨 뒤 keyed cache를 비워 다음 swap이 즉시 반영되게 한다.
+
+    F1 fix 이후 swap_collection이 _chroma_client.list_collections()를 호출하므로
+    테스트 환경에서 실제 ChromaDB PersistentClient 초기화를 피하기 위해
+    _chroma_client도 fake로 교체한다.
+    """
     p = tmp_path / "current_alias.json"
     monkeypatch.setattr("app.services.rag.ALIAS_FILE", p)
     monkeypatch.setattr("app.services.rag._collection_cache", {})
+    monkeypatch.setattr(admin_mod, "_chroma_client", _AnyCollectionFakeClient())
     return p
 
 
@@ -96,3 +128,41 @@ async def test_swap_unique_tmp_even_under_rapid_calls(client, alias_path):
 
     saved = _json.loads(alias_path.read_text())
     assert saved["current"] == "papers_v4"
+
+
+@pytest.mark.asyncio
+async def test_swap_rejects_nonexistent_collection(client, alias_path, monkeypatch):
+    """target collection이 ChromaDB에 없으면 404 반환 — F1 fix: 오타로 인한 500 회귀 방지.
+
+    alias_path fixture가 주입한 _AnyCollectionFakeClient를 "papers만 있는" fake로 재override.
+    """
+
+    class _LimitedFakeClient:
+        def list_collections(self):
+            return [_FakeColEntry("papers"), _FakeColEntry("paper_chunks")]
+
+    monkeypatch.setattr(admin_mod, "_chroma_client", _LimitedFakeClient())
+
+    r = await client.post(
+        "/api/v1/admin/rag/collection-swap",
+        headers={"X-Admin-Token": ADMIN_TOKEN},
+        json={"to": "papers_typo"},
+    )
+    assert r.status_code == 404, r.text
+    # envelope({"success":false,"error":{...}}) or raw({"detail":...}) 모두 지원
+    assert "papers_typo" in json.dumps(r.json(), ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_swap_succeeds_when_collection_exists(client, alias_path, monkeypatch):
+    """target collection이 ChromaDB에 존재하면 swap이 정상 처리된다 — F1 fix 회귀.
+
+    alias_path fixture가 주입한 fake client에 papers_v2가 있으므로 그대로 통과.
+    """
+    r = await client.post(
+        "/api/v1/admin/rag/collection-swap",
+        headers={"X-Admin-Token": ADMIN_TOKEN},
+        json={"to": "papers_v2"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["current"] == "papers_v2"
