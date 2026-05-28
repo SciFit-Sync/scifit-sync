@@ -551,6 +551,7 @@ class TestGetAIRoutineDetail:
             _exec_scalars_all([_exercise_mock()]),
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(None),  # no active WorkoutLog
+            _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -593,6 +594,7 @@ class TestGetAIRoutineDetail:
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(active_log),
             _exec_scalars_all([completed_set]),
+            _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
