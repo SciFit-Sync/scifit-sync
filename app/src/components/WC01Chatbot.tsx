@@ -36,6 +36,7 @@ export default function WC01Chatbot({ onClose }: Props) {
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
+  const has_loaded = useRef(false);
   const access_token = useAuthStore((s) => s.accessToken) ?? "";
 
   useEffect(() => {
@@ -53,9 +54,10 @@ export default function WC01Chatbot({ onClose }: Props) {
     ]).start();
   }, []);
 
-  // 세션이 있으면 이전 대화 이력 로드
+  // 세션이 있으면 이전 대화 이력 로드 (최초 1회만 — 스트리밍 중 덮어쓰기 방지)
   useEffect(() => {
-    if (!session_id || !access_token) return;
+    if (!session_id || !access_token || has_loaded.current) return;
+    has_loaded.current = true;
     fetchChatHistory(session_id, access_token)
       .then((data) => {
         const loaded: Message[] = data.items.map((m) => ({

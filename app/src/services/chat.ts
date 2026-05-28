@@ -32,6 +32,7 @@ export interface SendMessageCallbacks {
   on_chunk: (chunk: string) => void;
   on_done: () => void;
   on_error: (msg: string) => void;
+  on_sources?: (sources: { doi: string; pmid?: string; title?: string }[]) => void;
 }
 
 /** 챗봇 메시지 전송 (SSE 스트리밍) */
@@ -77,6 +78,7 @@ export async function sendChatMessage(
         const ev = JSON.parse(raw);
         if (ev.type === 'session') callbacks.on_session_id(ev.session_id);
         else if (ev.type === 'chunk') callbacks.on_chunk(ev.content ?? '');
+        else if (ev.type === 'sources') callbacks.on_sources?.(ev.sources ?? []);
         else if (ev.type === 'error') callbacks.on_error(ev.message ?? '오류가 발생했습니다.');
       } catch {
         // 파싱 불가 라인 무시
