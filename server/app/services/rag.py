@@ -40,7 +40,9 @@ from llm import generate_stream as llm_generate_stream  # noqa: E402, I001
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
     """ChromaDB 데이터 경로 결정 (컨테이너 /chroma-data 마운트 vs 로컬 fallback)."""
-    raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
+    # 기본값은 서버 config.py / mlops config와 동일한 절대경로(EFS 마운트)로 통일.
+    # ECS 태스크에 env가 명시되지 않아도 admin(쓰기)과 동일한 /chroma-data를 읽도록 한다.
+    raw = os.getenv("CHROMA_PERSIST_PATH", "/chroma-data")
     p = Path(raw)
     if p.is_absolute():
         if p.exists() and os.access(p, os.W_OK):
