@@ -235,7 +235,8 @@ class TestGetRoutine:
         assert data["session_minutes"] == 60
 
     @pytest.mark.asyncio
-    async def test_success_with_exercises(self, client):
+    async def test_success_with_exercises(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.v1.routines.get_exercise_by_name", AsyncMock(return_value=None))
         r = _routine()
         rex = _routine_exercise()
 
@@ -245,11 +246,11 @@ class TestGetRoutine:
         day.label = "가슴"
         day.exercises = [rex]
 
-        # _get_my_routine, RoutineDay+exercises, Exercise names, muscle_activation, RoutinePaper
+        # _get_my_routine, RoutineDay+exercises, Exercise names(3cols), muscle_activation, RoutinePaper
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([day]),
-            _exec_all([(_EXERCISE_ID, "벤치프레스")]),
+            _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press")]),
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
         )
