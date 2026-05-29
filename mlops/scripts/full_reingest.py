@@ -32,8 +32,14 @@ def stage1_fetch(
     mode: str,
     max_per_category: int | None,
     categories: list[str] | None = None,
+    skip_local_pdf: bool = False,
 ) -> Path:
-    """Stage 1: crawl + efetch 보강 + local_pdf 통합 → manifest path."""
+    """Stage 1: crawl + efetch 보강 + local_pdf 통합 → manifest path.
+
+    skip_local_pdf=True면 phase2_full에서 local PDF 병합을 건너뛴다. 카테고리
+    배치 분할 실행 시 184편 PDF가 매 배치마다 중복 적재되는 것을 막기 위함이며,
+    PDF는 phase1_local_pdf 모드로 1회만 별도 적재한다.
+    """
     if mode == "phase1_local_pdf":
         import json as _json
 
@@ -143,7 +149,9 @@ def stage1_fetch(
         # ── local_pdf 경로: Phase 1과 동일 패턴 ──
         manifest_in = DATA_DIR / "local_pdfs" / "manifest.json"
         pdf_papers: list[PaperFull] = []
-        if manifest_in.exists():
+        if skip_local_pdf:
+            logger.info("local_pdf 병합 skip (--skip-local-pdf) — 배치 분할 중복 방지")
+        if not skip_local_pdf and manifest_in.exists():
             from mlops.scripts.ingest_local_pdfs import build_paperfull
 
             try:
@@ -504,6 +512,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--eval-gate", action="store_true")
     parser.add_argument(
+        "--skip-local-pdf",
+        action="store_true",
+        help=(
+            "phase2_full에서 local PDF 병합 skip. 카테고리 배치 분할 시 PDF 184편이 "
+            "매 배치 중복 적재되는 것을 막는다. PDF는 phase1_local_pdf로 1회만 적재."
+        ),
+    )
+    parser.add_argument(
         "--upsert-batch-size",
         type=int,
         default=1000,
@@ -524,7 +540,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Stage 1
     if "fetch" not in args.skip_stages:
-        manifest_path = stage1_fetch(args.batch_tag, args.mode, args.max_per_category, categories)
+        manifest_path = stage1_fetch(args.batch_tag, args.mode, args.max_per_category, categories, args.skip_local_pdf)
     else:
         manifest_path = DATA_DIR / "manifest.json"
 
