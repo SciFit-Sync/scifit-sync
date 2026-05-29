@@ -119,9 +119,12 @@ async def search_gyms(
     GYM_KEYWORDS = ("헬스", "피트니스", "크로스핏", "스포츠클럽", "pt샵", "pt 샵", "웨이트", "짐", "gym", "스포츠시설")
     raw_docs = resp.json().get("documents", [])
     documents = [
-        d for d in raw_docs
-        if any(kw in (d.get("category_name") or "").lower() or kw in (d.get("place_name") or "").lower()
-               for kw in GYM_KEYWORDS)
+        d
+        for d in raw_docs
+        if any(
+            kw in (d.get("category_name") or "").lower() or kw in (d.get("place_name") or "").lower()
+            for kw in GYM_KEYWORDS
+        )
     ]
     place_ids = [d["id"] for d in documents]
 
