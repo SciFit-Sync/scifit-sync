@@ -74,7 +74,7 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
-        default_goals=profile.default_goals,
+        default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
         career_level=profile.career_level.value if profile.career_level else None,
         career_years=profile.career_years,
     )
@@ -260,11 +260,16 @@ async def update_body(
         measurement_dto = _measurement_to_dto(m)
 
     await db.commit()
+
+    # 수정 후 전체 현재값 반환 (프론트 화면 갱신용)
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
     return SuccessResponse(
         data=UpdateBodyData(
-            height_cm=body.height_cm,
-            birth_date=updated_birth_date,
-            gender=updated_gender,
+            height_cm=profile.height_cm if profile else body.height_cm,
+            birth_date=profile.birth_date if profile else updated_birth_date,
+            age=_calc_age(profile.birth_date) if profile else None,
+            gender=profile.gender.value if profile and profile.gender else updated_gender,
             measurement=measurement_dto,
         )
     )
