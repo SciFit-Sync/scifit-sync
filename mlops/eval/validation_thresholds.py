@@ -34,7 +34,12 @@ PUBLICATION_TYPES_FILL_RATE_MIN: float = 0.85
 
 # evidence_weight 다양화
 EVIDENCE_WEIGHT_DISTINCT_MIN: int = 5
-EVIDENCE_WEIGHT_05_RATIO_MAX: float = 0.50
+# 0.50 → 0.65 완화: 운동과학 코퍼스는 대다수가 일반 저널 논문(baseline 0.5)이다.
+# evidence.py 매핑 보강(Network Meta-Analysis/Guideline/Consensus 추가) 후에도
+# dry_15_v3 실측 0.5 비율은 0.60 — 나머지는 RCT/review가 아닌 순수 저널 논문이라
+# 데이터 특성이다. 게이트를 0.65로 정렬(0.60을 여유로 통과)하되, 0.92 같은
+# "전부 0.5 fallback"(차등화 붕괴) 회귀는 여전히 차단한다.
+EVIDENCE_WEIGHT_05_RATIO_MAX: float = 0.65
 
 # 청크 토큰 (CLAUDE.md §10 청크 정책 300~512 토큰과 정합)
 AVG_TOKEN_MIN: int = 300

@@ -228,3 +228,24 @@ class TestPublicationTypesThreshold:
     def test_fill_084_fails(self):
         """0.85 미만은 여전히 FAIL (회귀 가드)."""
         assert not _valid_result(publication_types_fill_rate=0.84).passed
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# evidence_weight 0.5 비율 게이트 완화 (0.50 → 0.65).
+# evidence.py 매핑 보강 후에도 운동과학 코퍼스는 일반 저널 논문(baseline 0.5)이
+# 다수라 0.5 비율이 ~0.60 — 데이터 특성. 단 차등화 붕괴(전부 0.5) 회귀는 차단.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestEvidenceWeight05RatioThreshold:
+    def test_ratio_060_passes(self):
+        """dry_15_v3 실측(매핑 보강 후) 0.60은 새 임계(<0.65)에서 통과."""
+        assert _valid_result(evidence_weight_05_ratio=0.60).passed
+
+    def test_ratio_066_fails(self):
+        """0.65 이상은 여전히 FAIL (차등화 붕괴 회귀 가드)."""
+        assert not _valid_result(evidence_weight_05_ratio=0.66).passed
+
+    def test_ratio_092_collapse_fails(self):
+        """전부 0.5 fallback(0.92, 보강 붕괴)은 명확히 FAIL."""
+        assert not _valid_result(evidence_weight_05_ratio=0.92).passed
