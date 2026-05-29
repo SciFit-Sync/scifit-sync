@@ -27,7 +27,12 @@ from mlops.scripts.validate_embeddings import print_report, validate_jsonl
 logger = logging.getLogger(__name__)
 
 
-def stage1_fetch(batch_tag: str, mode: str, max_per_category: int | None) -> Path:
+def stage1_fetch(
+    batch_tag: str,
+    mode: str,
+    max_per_category: int | None,
+    categories: list[str] | None = None,
+) -> Path:
     """Stage 1: crawl + efetch 보강 + local_pdf 통합 → manifest path."""
     if mode == "phase1_local_pdf":
         import json as _json
@@ -126,6 +131,7 @@ def stage1_fetch(batch_tag: str, mode: str, max_per_category: int | None) -> Pat
             max_total=1_000_000,  # 실질 cap은 max_per_category가 결정
             max_per_category=max_per_category,
             existing_dois=set(),  # 첫 실행 가정; resumable 모드는 후속 확장
+            categories=categories,  # None이면 전체, 지정하면 subset 배치 실행
         )
         indexed_jats = [p for p in jats_papers if p.sections]
         logger.info(
@@ -481,6 +487,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--collection-suffix", default="_v2")
     parser.add_argument("--max-per-category", type=int, default=None)
     parser.add_argument(
+        "--categories",
+        type=str,
+        default=None,
+        help=(
+            "콤마 구분 카테고리명 subset (예: volume,intensity,frequency). "
+            "미지정 시 전체 카테고리 실행. "
+            "35~50h fetch가 중단된 경우 배치 단위 재개에 사용."
+        ),
+    )
+    parser.add_argument(
         "--skip-stages",
         nargs="*",
         default=[],
@@ -501,9 +517,14 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s [%(name)s] %(message)s")
     collection = f"papers{args.collection_suffix}"
 
+    # --categories 파싱: 콤마 구분 → 리스트. None이면 전체 실행.
+    categories: list[str] | None = None
+    if args.categories is not None:
+        categories = [c.strip() for c in args.categories.split(",") if c.strip()]
+
     # Stage 1
     if "fetch" not in args.skip_stages:
-        manifest_path = stage1_fetch(args.batch_tag, args.mode, args.max_per_category)
+        manifest_path = stage1_fetch(args.batch_tag, args.mode, args.max_per_category, categories)
     else:
         manifest_path = DATA_DIR / "manifest.json"
 
