@@ -14,7 +14,7 @@ import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/nativ
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
-import { getGymEquipment, EquipmentItem } from "../../services/gyms";
+import { getGymEquipment, deleteGymEquipment, EquipmentItem } from "../../services/gyms";
 
 export default function WO02Equipment() {
   const navigation = useNavigation();
@@ -81,6 +81,18 @@ export default function WO02Equipment() {
 
   const handle_add = () => {
     (navigation as any).navigate("WO02EquipmentRegister", { gym_id });
+  };
+
+  const handle_delete = async (equipment_id: string) => {
+    if (!gym_id) return;
+    // 낙관적 업데이트 — 즉시 UI에서 제거
+    set_equipment_list((prev) => prev.filter((i) => i.equipment_id !== equipment_id));
+    try {
+      await deleteGymEquipment(gym_id, equipment_id, token);
+    } catch {
+      // 실패 시 목록 다시 로드
+      fetch_gym_equipment();
+    }
   };
 
   return (
@@ -199,6 +211,14 @@ export default function WO02Equipment() {
                         {[item.brand, item.equipment_type].filter(Boolean).join(" · ")}
                       </Text>
                     </View>
+                    <TouchableOpacity
+                      style={styles.delete_btn}
+                      onPress={() => handle_delete(item.equipment_id)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Octicons name="x" size={16} color={colors.bluegray} />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -289,6 +309,7 @@ const styles = StyleSheet.create({
   equipment_info: { gap: 4, flex: 1 },
   equipment_name: { fontFamily: "regular", fontSize: 14, color: colors.primary },
   equipment_spec: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
+  delete_btn: { padding: 4 },
   next_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,

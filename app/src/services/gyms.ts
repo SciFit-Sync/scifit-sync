@@ -97,6 +97,18 @@ export async function getGymEquipment(
   return { gym_name: data.gym_name, equipment: data.equipment };
 }
 
+// 헬스장 기구 삭제 (DELETE /api/v1/gyms/{gym_id}/equipment/{equipment_id})
+export async function deleteGymEquipment(
+  gym_id: string,
+  equipment_id: string,
+  token: string,
+): Promise<void> {
+  await apiFetch<unknown>(`/api/v1/gyms/${gym_id}/equipment/${equipment_id}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 // 헬스장에 기구 일괄 추가 (POST /api/v1/gyms/{gym_id}/equipment/bulk)
 export async function addGymEquipmentBulk(
   gym_id: string,

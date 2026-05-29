@@ -364,6 +364,48 @@ async def bulk_add_gym_equipment(
     )
 
 
+# ── DELETE /gyms/{gymId}/equipment/{equipmentId} ─────────────────────────────
+@rate_limit("60/minute")
+@router.delete(
+    "/{gym_id}/equipment/{equipment_id}",
+    response_model=SuccessResponse[dict],
+    status_code=200,
+    summary="헬스장 기구 삭제",
+)
+async def delete_gym_equipment(
+    request: Request,
+    gym_id: str,
+    equipment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+        eq_uuid = uuid.UUID(equipment_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 ID 형식입니다.") from e
+
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
+    if gym is None:
+        raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    row = (
+        await db.execute(
+            select(GymEquipment).where(
+                GymEquipment.gym_id == gym_uuid,
+                GymEquipment.equipment_id == eq_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise NotFoundError(message="해당 기구가 헬스장에 등록되어 있지 않습니다.")
+
+    await db.delete(row)
+    await db.commit()
+
+    return SuccessResponse(data={"message": "기구가 삭제되었습니다."})
+
+
 # ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
 @rate_limit("60/minute")
 @router.post(
