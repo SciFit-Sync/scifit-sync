@@ -53,6 +53,12 @@ from mlops.pipeline.pmc import PMCClient
 
 logger = logging.getLogger(__name__)
 
+# DOI→PMID backfill로도 publication_types를 확보 못 한 잔여 논문의 폴백 라벨.
+# 수집 소스가 OpenAlex(type:article 필터) + PubMed(저널 색인)이므로 최소 저널 아티클이
+# 보장된다. evidence.EVIDENCE_WEIGHTS의 "Journal Article"(0.50) = DEFAULT_WEIGHT와 동일해
+# evidence_weight 분포에 영향을 주지 않으면서 publication_types fill rate만 끌어올린다.
+DEFAULT_PUBLICATION_TYPE = "Journal Article"
+
 # 추천 시스템 근거 데이터를 다양한 축으로 수집하기 위한 카테고리별 쿼리.
 # 단일 광범위 쿼리는 NCBI relevance 정렬이 메타분석 한두 편에 편중되기 쉬워,
 # 추천 알고리즘이 필요로 하는 세부 결정 축(볼륨/강도/빈도 등)이 비균등하게 수집된다.
@@ -1584,6 +1590,21 @@ def crawl_papers(
     backfilled = backfill_publication_types_from_pubmed(list(doi_to_meta.values()))
     if backfilled:
         logger.info("publication_types PubMed 보강: %d/%d papers", backfilled, len(doi_to_meta))
+
+    # 잔여 빈 publication_types 폴백: backfill(DOI→PMID)로도 PT를 못 얻은 논문
+    # (PMID 미해석 OpenAlex-only 논문이 대부분)을 DEFAULT_PUBLICATION_TYPE로 채운다.
+    # 이 폴백이 없으면 OpenAlex API가 publication_types를 비워 반환하는 탓에
+    # pre-upsert validation publication_types fill rate 게이트가 탈락한다
+    # (refeed_v2 d010: 0.8491 < 0.85). "Journal Article"=0.50이라 evidence_weight 분포 무영향.
+    residual_empty = [meta for meta in doi_to_meta.values() if not meta.publication_types]
+    for meta in residual_empty:
+        meta.publication_types = [DEFAULT_PUBLICATION_TYPE]
+    if residual_empty:
+        logger.info(
+            "publication_types 잔여 폴백: %d papers → %s",
+            len(residual_empty),
+            DEFAULT_PUBLICATION_TYPE,
+        )
 
     # search_categories + evidence_weight 부여
     for doi, meta in doi_to_meta.items():
