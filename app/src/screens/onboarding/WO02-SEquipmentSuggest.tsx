@@ -36,7 +36,10 @@ export default function WO02EquipmentSuggest() {
       if (gym_id) {
         await suggestGymEquipment(
           gym_id,
-          { name: equipment_name.trim(), brand: brand_name.trim() || undefined },
+          {
+            name: equipment_name.trim(),
+            brand: brand_name.trim() || undefined,
+          },
           token,
         );
       }
@@ -70,14 +73,24 @@ export default function WO02EquipmentSuggest() {
               <>
                 <View style={styles.spacer} />
                 <View style={styles.complete_wrapper}>
-                  <Octicons name="check-circle" size={48} color={colors.primary} />
-                  <Text style={styles.complete_title}>제보가 완료되었습니다</Text>
+                  <Octicons
+                    name="check-circle"
+                    size={48}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.complete_title}>
+                    제보가 완료되었습니다
+                  </Text>
                   <Text style={styles.complete_desc}>
                     검토 후 등록되면 알림으로 알려드릴게요.
                   </Text>
                 </View>
                 <View style={styles.spacer} />
-                <TouchableOpacity style={styles.submit_button} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+                <TouchableOpacity
+                  style={styles.submit_button}
+                  onPress={() => navigation.goBack()}
+                  activeOpacity={0.8}
+                >
                   <Text style={styles.submit_button_text}>확인</Text>
                 </TouchableOpacity>
               </>
@@ -110,13 +123,19 @@ export default function WO02EquipmentSuggest() {
                   />
                 </View>
 
-                {error_msg && <Text style={styles.error_text}>{error_msg}</Text>}
+                {error_msg && (
+                  <Text style={styles.error_text}>{error_msg}</Text>
+                )}
 
                 <View style={styles.spacer} />
 
                 {/* 등록하기 버튼 */}
                 <TouchableOpacity
-                  style={[styles.submit_button, (!equipment_name.trim() || loading) && styles.submit_button_disabled]}
+                  style={[
+                    styles.submit_button,
+                    (!equipment_name.trim() || loading) &&
+                      styles.submit_button_disabled,
+                  ]}
                   onPress={handle_submit}
                   disabled={!equipment_name.trim() || loading}
                   activeOpacity={0.8}
@@ -124,7 +143,7 @@ export default function WO02EquipmentSuggest() {
                   {loading ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
-                    <Text style={styles.submit_button_text}>등록하기</Text>
+                    <Text style={styles.submit_button_text}>제보하기</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -150,8 +169,19 @@ const styles = StyleSheet.create({
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
   content: { flex: 1, paddingHorizontal: 24, paddingBottom: 32 },
-  card: { flex: 1, backgroundColor: colors.white, borderRadius: 16, padding: 20, gap: 16 },
-  card_title: { fontFamily: "semibold", fontSize: 18, color: colors.primary, textAlign: "center" },
+  card: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+  },
+  card_title: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+    textAlign: "center",
+  },
   field: { gap: 8 },
   label: { fontFamily: "semibold", fontSize: 16, color: colors.primary },
   input: {
@@ -174,9 +204,24 @@ const styles = StyleSheet.create({
     height: 44,
   },
   submit_button_disabled: { opacity: 0.5 },
-  submit_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
+  submit_button_text: {
+    fontFamily: "medium",
+    fontSize: 16,
+    color: colors.white,
+  },
   complete_wrapper: { alignItems: "center", gap: 16 },
-  complete_title: { fontFamily: "semibold", fontSize: 18, color: colors.primary, textAlign: "center" },
-  complete_desc: { fontFamily: "regular", fontSize: 14, color: colors.bluegray, textAlign: "center", lineHeight: 22 },
+  complete_title: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  complete_desc: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+    textAlign: "center",
+    lineHeight: 22,
+  },
   error_text: { fontFamily: "regular", fontSize: 13, color: "#E53935" },
 });
