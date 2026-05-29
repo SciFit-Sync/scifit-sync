@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 20,
-    gap: 12,
+    gap: 16,
   },
   title_row: {
     flexDirection: "row",
@@ -408,8 +408,8 @@ const styles = StyleSheet.create({
     height: 70,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    gap: 10,
+    padding: 8,
+    gap: 8,
     position: "relative",
   },
   equipment_image: { width: 56, height: 56, borderRadius: 4 },
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 6,
     right: 10,
-    padding: 2,
+    padding: 4,
   },
   next_button: {
     backgroundColor: colors.primary,

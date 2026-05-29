@@ -31,7 +31,9 @@ export default function WO02EquipmentRegister() {
 
   const [search, set_search] = useState("");
   const [brands, set_brands] = useState<BrandItem[]>([]);
-  const [selected_brand_id, set_selected_brand_id] = useState<string | null>(null);
+  const [selected_brand_id, set_selected_brand_id] = useState<string | null>(
+    null,
+  );
   const [equipment_list, set_equipment_list] = useState<EquipmentItem[]>([]);
   const [selected_ids, set_selected_ids] = useState<string[]>([]);
   const [brands_loading, set_brands_loading] = useState(true);
@@ -58,7 +60,10 @@ export default function WO02EquipmentRegister() {
       set_equipment_loading(true);
       try {
         const data = await getEquipment(
-          { keyword: search || undefined, brand_id: selected_brand_id ?? undefined },
+          {
+            keyword: search || undefined,
+            brand_id: selected_brand_id ?? undefined,
+          },
           token,
         );
         set_equipment_list(data);
@@ -88,7 +93,10 @@ export default function WO02EquipmentRegister() {
       await addGymEquipmentBulk(gym_id, selected_ids, token);
       navigation.goBack();
     } catch (e: any) {
-      Alert.alert("오류", e.message ?? "기구 추가에 실패했어요. 다시 시도해주세요.");
+      Alert.alert(
+        "오류",
+        e.message ?? "기구 추가에 실패했어요. 다시 시도해주세요.",
+      );
     } finally {
       set_adding(false);
     }
@@ -135,22 +143,41 @@ export default function WO02EquipmentRegister() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.brand_row}>
                   <TouchableOpacity
-                    style={[styles.brand_chip, selected_brand_id === null && styles.brand_chip_active]}
+                    style={[
+                      styles.brand_chip,
+                      selected_brand_id === null && styles.brand_chip_active,
+                    ]}
                     onPress={() => set_selected_brand_id(null)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.brand_chip_text, selected_brand_id === null && styles.brand_chip_text_active]}>
+                    <Text
+                      style={[
+                        styles.brand_chip_text,
+                        selected_brand_id === null &&
+                          styles.brand_chip_text_active,
+                      ]}
+                    >
                       전체
                     </Text>
                   </TouchableOpacity>
                   {brands.map((brand) => (
                     <TouchableOpacity
                       key={brand.brand_id}
-                      style={[styles.brand_chip, selected_brand_id === brand.brand_id && styles.brand_chip_active]}
+                      style={[
+                        styles.brand_chip,
+                        selected_brand_id === brand.brand_id &&
+                          styles.brand_chip_active,
+                      ]}
                       onPress={() => set_selected_brand_id(brand.brand_id)}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.brand_chip_text, selected_brand_id === brand.brand_id && styles.brand_chip_text_active]}>
+                      <Text
+                        style={[
+                          styles.brand_chip_text,
+                          selected_brand_id === brand.brand_id &&
+                            styles.brand_chip_text_active,
+                        ]}
+                      >
                         {brand.name}
                       </Text>
                     </TouchableOpacity>
@@ -163,29 +190,49 @@ export default function WO02EquipmentRegister() {
           {/* 기구 리스트 */}
           <View style={styles.list_container}>
             {equipment_loading ? (
-              <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginTop: 24 }}
+              />
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.equipment_list}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.equipment_list}
+              >
                 {equipment_list.map((item) => {
                   const is_selected = selected_ids.includes(item.equipment_id);
                   return (
                     <TouchableOpacity
                       key={item.equipment_id}
-                      style={[styles.equipment_item, is_selected && styles.equipment_item_active]}
+                      style={[
+                        styles.equipment_item,
+                        is_selected && styles.equipment_item_active,
+                      ]}
                       onPress={() => toggle_equipment(item.equipment_id)}
                       activeOpacity={0.8}
                     >
                       {item.image_url ? (
-                        <Image source={{ uri: item.image_url }} style={styles.equipment_image} />
+                        <Image
+                          source={{ uri: item.image_url }}
+                          style={styles.equipment_image}
+                        />
                       ) : (
                         <View style={styles.equipment_image_placeholder} />
                       )}
                       <View style={styles.equipment_info}>
-                        <Text style={[styles.equipment_name, is_selected && styles.equipment_name_active]}>
+                        <Text
+                          style={[
+                            styles.equipment_name,
+                            is_selected && styles.equipment_name_active,
+                          ]}
+                        >
                           {item.name}
                         </Text>
                         <Text style={styles.equipment_spec}>
-                          {[item.brand, item.equipment_type].filter(Boolean).join(" · ")}
+                          {[item.brand, item.equipment_type]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -195,7 +242,10 @@ export default function WO02EquipmentRegister() {
                 {equipment_list.length === 0 && (
                   <View style={styles.empty_wrapper}>
                     <Text style={styles.empty_text}>검색 결과가 없어요.</Text>
-                    <TouchableOpacity onPress={handle_suggest} activeOpacity={0.8}>
+                    <TouchableOpacity
+                      onPress={handle_suggest}
+                      activeOpacity={0.8}
+                    >
                       <Text style={styles.suggest_link}>기구 제보하기</Text>
                     </TouchableOpacity>
                   </View>
@@ -207,7 +257,9 @@ export default function WO02EquipmentRegister() {
           {/* 선택 개수 + 제보 링크 */}
           <View style={styles.bottom_info}>
             {selected_ids.length > 0 ? (
-              <Text style={styles.selected_count}>{selected_ids.length}개 선택됨</Text>
+              <Text style={styles.selected_count}>
+                {selected_ids.length}개 선택됨
+              </Text>
             ) : (
               <Text style={styles.hint_text}>원하는 기구를 선택해 주세요.</Text>
             )}
@@ -218,7 +270,11 @@ export default function WO02EquipmentRegister() {
 
           {/* 추가하기 버튼 */}
           <TouchableOpacity
-            style={[styles.add_button, (selected_ids.length === 0 || adding) && styles.add_button_disabled]}
+            style={[
+              styles.add_button,
+              (selected_ids.length === 0 || adding) &&
+                styles.add_button_disabled,
+            ]}
             onPress={handle_add}
             disabled={selected_ids.length === 0 || adding}
             activeOpacity={0.8}
@@ -246,8 +302,19 @@ const styles = StyleSheet.create({
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
   content: { flex: 1, paddingHorizontal: 24, paddingBottom: 32 },
-  card: { flex: 1, backgroundColor: colors.white, borderRadius: 16, padding: 20, gap: 16 },
-  card_title: { fontFamily: "semibold", fontSize: 18, color: colors.primary, textAlign: "center" },
+  card: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+  },
+  card_title: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+    textAlign: "center",
+  },
   search_filter_area: { gap: 8 },
   search_container: {
     flexDirection: "row",
@@ -259,7 +326,12 @@ const styles = StyleSheet.create({
     height: 44,
     gap: 10,
   },
-  search_input: { flex: 1, fontFamily: "regular", fontSize: 16, color: colors.primary },
+  search_input: {
+    flex: 1,
+    fontFamily: "regular",
+    fontSize: 16,
+    color: colors.primary,
+  },
   brand_row: { flexDirection: "row", gap: 4, alignItems: "center" },
   brand_chip: {
     paddingHorizontal: 10,
@@ -270,7 +342,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brand_chip_active: { backgroundColor: colors.primary },
-  brand_chip_text: { fontFamily: "regular", fontSize: 14, color: colors.bluegray },
+  brand_chip_text: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+  },
   brand_chip_text_active: { color: colors.white },
   list_container: { flex: 1 },
   equipment_list: { gap: 8 },
@@ -280,22 +356,44 @@ const styles = StyleSheet.create({
     height: 70,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
+    padding: 8,
     gap: 10,
   },
   equipment_item_active: { backgroundColor: colors.primary },
   equipment_image: { width: 56, height: 56, borderRadius: 4 },
-  equipment_image_placeholder: { width: 56, height: 56, borderRadius: 4, backgroundColor: colors.border },
+  equipment_image_placeholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+  },
   equipment_info: { gap: 4, flex: 1 },
-  equipment_name: { fontFamily: "regular", fontSize: 14, color: colors.primary },
+  equipment_name: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.primary,
+  },
   equipment_name_active: { color: colors.white },
-  equipment_spec: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
+  equipment_spec: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
+  },
   empty_wrapper: { alignItems: "center", paddingVertical: 32, gap: 8 },
   empty_text: { fontFamily: "regular", fontSize: 14, color: colors.bluegray },
-  bottom_info: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  bottom_info: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   selected_count: { fontFamily: "medium", fontSize: 13, color: colors.primary },
   hint_text: { fontFamily: "regular", fontSize: 13, color: colors.bluegray },
-  suggest_link: { fontFamily: "regular", fontSize: 13, color: colors.bluegray, textDecorationLine: "underline" },
+  suggest_link: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+    textDecorationLine: "underline",
+  },
   add_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
