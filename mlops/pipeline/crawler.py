@@ -25,10 +25,12 @@ from mlops.pipeline.config import (
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
+    NCBI_EMAIL,
     NCBI_HTTP_MAX_BACKOFF,
     NCBI_HTTP_MAX_RETRIES,
     NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
+    NCBI_TOOL,
     OPENALEX_BASE_URL,
     OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
     OPENALEX_MAILTO,
@@ -38,6 +40,7 @@ from mlops.pipeline.config import (
     PMC_FULLTEXT_MAX_ATTEMPTS,
     PMC_FULLTEXT_RETRY_BACKOFF_BASE,
     PMC_FULLTEXT_RETRY_BACKOFF_MAX,
+    PMC_IDCONV_URL,
     PUBMED_MAX_PER_CATEGORY,
     STRICT_PUBLICATION_FILTER,
 )
@@ -785,8 +788,77 @@ def _parse_ncbi_json(raw: str) -> dict | None:
             return None
 
 
-def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
-    """PMID → PMCID 변환.
+def _resolve_pmc_id_via_idconv(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """PMC ID Converter API로 PMID → PMCID 변환.
+
+    elink.fcgi 서버 장애(500/timeout) 시에도 동작하는 대체 경로.
+
+    반환 계약 (dispatcher `_resolve_pmc_id`가 elink fallback 판단에 사용):
+      - PMCID 숫자 문자열: 변환 성공.
+      - None: **권위적 'PMC 없음'** — status=ok 응답에 해당 record는 있으나
+        pmcid가 없는 경우(= PMID은 유효하나 PMC 버전 미존재). 이때만 elink를
+        건너뛴다.
+      - RuntimeError raise: 변환을 **확정하지 못한 모든 경우**(전송 실패, 파싱
+        실패, status!=ok, records 비어있음, pmcid 포맷 이상). transient일 수
+        있으므로 호출부가 elink fallback을 타야 한다.
+
+    Raises:
+        RuntimeError: 위 '확정 실패' 케이스. RequestException 4xx/5xx 구분 없이
+            모두 RuntimeError로 묶는다 — 호출부(`_resolve_pmc_id`/crawl 루프)가
+            RuntimeError만 catch해 fallback/EuropePMC로 graceful degrade 하므로,
+            raw HTTPError를 흘리면 크롤이 크래시한다.
+    """
+    params = {
+        "ids": pmid,
+        "idtype": "pmid",
+        "format": "json",
+        "tool": NCBI_TOOL,
+        "email": NCBI_EMAIL,
+    }
+    try:
+        resp = _request_with_rate_limit(PMC_IDCONV_URL, params)
+    except requests.exceptions.HTTPError as e:
+        # 4xx/5xx 모두 fallback 대상(RuntimeError)이지만, HTTP 상태를 로그에 남겨
+        # idconv primary path 회귀(특히 4xx 클라이언트 오류)를 운영 중 탐지 가능케 한다.
+        status = getattr(e.response, "status_code", "?")
+        logger.warning("PMC idconv HTTP %s → elink fallback: PMID=%s", status, pmid)
+        raise RuntimeError(f"PMC idconv HTTP {status}: PMID={pmid}") from e
+    except requests.exceptions.RequestException as e:
+        # 연결 오류 / timeout / 5xx 재시도 소진 등 transport 실패
+        raise RuntimeError(f"PMC idconv 전송 실패: PMID={pmid}") from e
+
+    data = _parse_ncbi_json(resp.text)
+    if data is None:
+        # 파싱 실패는 PMC 부재 증명이 아님 → transient로 보고 fallback
+        raise RuntimeError(f"PMC idconv 응답 파싱 실패: PMID={pmid}")
+
+    if data.get("status") != "ok":
+        raise RuntimeError(f"PMC idconv 비정상 status={data.get('status')}: PMID={pmid}")
+
+    records = data.get("records", [])
+    if not records:
+        # 유효 PMID이면 record가 와야 정상 → 비어있으면 transient로 간주
+        raise RuntimeError(f"PMC idconv records 비어있음: PMID={pmid}")
+
+    record = records[0]
+    pmcid = record.get("pmcid")
+    if pmcid:
+        # "PMC5447067" → "5447067" (elink links[0]와 동일 포맷)
+        stripped = pmcid[3:] if pmcid.upper().startswith("PMC") else pmcid
+        if not stripped.isdigit():
+            # 비정상 PMCID 포맷 → efetch에 넘기기 전 차단, fallback 유도
+            raise RuntimeError(f"PMC idconv 비정상 PMCID 포맷={pmcid!r}: PMID={pmid}")
+        logger.info("PMC idconv 성공: PMID=%s → PMCID=%s", pmid, stripped)
+        return stripped
+
+    # status=ok + record 존재 + pmcid 없음 = 권위적 'PMC 버전 없음' → elink skip
+    errmsg = record.get("errmsg", "")
+    logger.info("PMC idconv PMC 버전 없음(권위적): PMID=%s errmsg=%s", pmid, errmsg)
+    return None
+
+
+def _resolve_pmc_id_via_elink(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """NCBI elink.fcgi로 PMID → PMCID 변환 (fallback 경로).
 
     NCBI elink는 가끔 ERROR 필드에 raw control character가 포함된 malformed JSON을
     반환한다. 실측 데이터(2026-05-20, 20 PMID × 3회 호출):
@@ -886,6 +958,20 @@ def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) ->
         return None
 
     raise RuntimeError(f"PMC elink 재시도 한도 초과: PMID={pmid}") from last_exc
+
+
+def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """PMID → PMCID. 1차 PMC ID Converter API, 실패 시 elink fallback.
+
+    elink.fcgi가 서버 측 장애(500/timeout)일 때도 동작하도록 idconv를 우선한다.
+    idconv가 권위적으로 'PMC 없음'(None)을 반환하면 elink fallback 없이 None.
+    idconv 자체가 전송 실패(RuntimeError)일 때만 elink로 fallback.
+    """
+    try:
+        return _resolve_pmc_id_via_idconv(pmid, max_attempts)
+    except RuntimeError as e:
+        logger.warning("PMC idconv 전송 실패 → elink fallback: PMID=%s err=%s", pmid, e)
+    return _resolve_pmc_id_via_elink(pmid, max_attempts)
 
 
 def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> list[PaperSection]:

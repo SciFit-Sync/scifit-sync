@@ -16,6 +16,12 @@ NCBI_API_KEY: str = os.getenv("NCBI_API_KEY", "")
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 NCBI_RATE_LIMIT: float = 0.34 if NCBI_API_KEY else 1.0  # 초 단위 대기
 
+# PMC ID Converter API (elink.fcgi 서버 장애 우회용 PMID→PMCID 변환)
+PMC_IDCONV_URL = "https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"
+# NCBI 가이드라인: 자동 요청은 tool+email로 식별
+NCBI_TOOL = "scifit-sync"
+NCBI_EMAIL = "dev@scifit-sync.com"
+
 # PMC 전문 수집 retry 정책 (env로 조정 가능 — fulltext 회수율 ↔ 실행시간 trade-off)
 NCBI_HTTP_MAX_RETRIES: int = int(os.getenv("NCBI_HTTP_MAX_RETRIES", "5"))
 NCBI_HTTP_MAX_BACKOFF: float = float(os.getenv("NCBI_HTTP_MAX_BACKOFF", "10.0"))
