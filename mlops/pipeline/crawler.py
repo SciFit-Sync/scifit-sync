@@ -1179,6 +1179,97 @@ def _merge_by_doi(openalex: list[PaperMeta], pubmed: list[PaperMeta]) -> list[Pa
     return list(by_doi.values())
 
 
+# esearch [AID] OR-쿼리 1회에 묶을 DOI 수. DOI는 30~40자라 URL 길이 한계를
+# 고려해 보수적으로 잡는다 (50개 ≈ term 길이 2~2.5KB).
+DOI_PMID_BATCH_SIZE = 50
+
+
+def _resolve_dois_to_pmids(dois: list[str]) -> list[str]:
+    """DOI 목록을 PubMed esearch [AID] 필드로 조회해 매칭되는 PMID를 반환한다.
+
+    DOI→PMID 정확한 매핑은 후속 efetch 결과의 DOI 필드로 복원하므로, 여기서는
+    매칭된 PMID 목록만 모은다. 호출 수를 줄이기 위해 DOI_PMID_BATCH_SIZE개씩
+    ``"<doi>"[AID] OR ...`` 쿼리로 묶어 보낸다.
+
+    Args:
+        dois: 역조회할 DOI 목록.
+
+    Returns:
+        매칭된 PMID 문자열 리스트 (순서·중복은 NCBI 응답에 따름).
+    """
+    pmids: list[str] = []
+    for i in range(0, len(dois), DOI_PMID_BATCH_SIZE):
+        batch = dois[i : i + DOI_PMID_BATCH_SIZE]
+        term = " OR ".join(f'"{doi}"[AID]' for doi in batch)
+        params = {
+            "db": "pubmed",
+            # 한 DOI가 복수 PubMed 레코드(중복 등재 등)에 매칭될 때 절단으로
+            # 일부 DOI의 PMID가 누락되지 않도록 여유를 둔다.
+            "retmax": len(batch) * 2,
+            "term": term,
+            "retmode": "json",
+        }
+        resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/esearch.fcgi", params)
+        ids = resp.json().get("esearchresult", {}).get("idlist", [])
+        pmids.extend(ids)
+    return pmids
+
+
+def backfill_publication_types_from_pubmed(metas: list[PaperMeta]) -> int:
+    """publication_types가 비어 있고 DOI가 있는 메타를 PubMed efetch로 보강한다 (in-place).
+
+    OpenAlex API는 publication_types를 거의 비워서 반환하고, ``_merge_by_doi``는
+    동일 DOI에 PubMed 메타가 있을 때만 보강한다. PubMed 카테고리 검색에 걸리지
+    않은 OpenAlex-only 논문은 publication_types=[]로 남아 evidence_weight가
+    0.5 fallback에 갇힌다 (dry_15_v2 validate publication_types 18.5%). 이 함수는
+    그 잔여 집합만 DOI→PMID(esearch [AID])→efetch(publication_types)→DOI 매칭으로
+    메꾼다. 보강된 메타는 evidence_weight도 함께 재계산해 일관성을 유지한다.
+
+    title/abstract/journal 등 본문 메타는 OpenAlex를 권위로 두고 건드리지 않는다.
+
+    Args:
+        metas: 보강 후보 메타 리스트 (대상 메타는 in-place 변형).
+
+    Returns:
+        publication_types가 실제로 보강된 메타 수.
+    """
+    targets = [m for m in metas if not m.publication_types and m.doi]
+    if not targets:
+        return 0
+    logger.info("publication_types 보강 대상: %d papers (빈 PT + DOI)", len(targets))
+
+    pmids = _resolve_dois_to_pmids([m.doi for m in targets])
+    if not pmids:
+        logger.warning(
+            "publication_types 보강 무산: DOI→PMID 역조회 0건 (NCBI 무응답/무매칭?) — %d papers 미보강",
+            len(targets),
+        )
+        return 0
+
+    supplements = fetch_paper_metadata(pmids)
+    # DOI는 대소문자 비구분(DOI 규격). OpenAlex는 prefix만 제거(소문자화 안 함),
+    # PubMed efetch는 게재 원문 대소문자 그대로라 표기차로 매칭을 놓칠 수 있으므로
+    # 양쪽을 lower로 정규화해 비교한다.
+    types_by_doi = {s.doi.lower(): s.publication_types for s in supplements if s.doi and s.publication_types}
+
+    backfilled = 0
+    for meta in targets:
+        types = types_by_doi.get(meta.doi.lower())
+        if types:
+            meta.publication_types = types
+            meta.evidence_weight = calculate_evidence_weight(types)
+            backfilled += 1
+
+    if backfilled < len(targets):
+        logger.warning(
+            "publication_types 보강 부분 성공: %d/%d (%d papers 여전히 빈 PT)",
+            backfilled,
+            len(targets),
+            len(targets) - backfilled,
+        )
+    return backfilled
+
+
 def _round_robin_dedup_metas(
     per_category: list[tuple[str, list[PaperMeta]]],
     existing: set[str],
@@ -1387,6 +1478,12 @@ def crawl_papers(
     if not doi_to_meta:
         logger.info("모든 카테고리에서 신규 paper 없음")
         return []
+
+    # OpenAlex-only 논문 publication_types 보강 (dry_15_v2 18.5% → ≥90% 목표).
+    # dedup 이후에 호출해 cap으로 폐기될 논문에 NCBI 호출을 낭비하지 않는다.
+    backfilled = backfill_publication_types_from_pubmed(list(doi_to_meta.values()))
+    if backfilled:
+        logger.info("publication_types PubMed 보강: %d/%d papers", backfilled, len(doi_to_meta))
 
     # search_categories + evidence_weight 부여
     for doi, meta in doi_to_meta.items():
