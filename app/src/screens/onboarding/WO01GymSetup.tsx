@@ -36,6 +36,7 @@ export default function WO01GymSetup() {
     null,
   );
   const search_timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const search_seq = useRef(0);
 
   useEffect(() => {
     check_location_permission();
@@ -125,9 +126,11 @@ export default function WO01GymSetup() {
     }
   }, [token]);
 
-  // 키워드 검색 실행
+  // 키워드 검색 실행 — seq로 stale 응답 무시 (race condition 방지)
   const do_search = useCallback(
     async (keyword: string) => {
+      search_seq.current += 1;
+      const seq = search_seq.current;
       set_loading(true);
       try {
         const results = await searchGyms(
@@ -136,11 +139,13 @@ export default function WO01GymSetup() {
           coords?.lat,
           coords?.lng,
         );
+        if (seq !== search_seq.current) return; // 더 최신 요청이 있으면 무시
         set_gyms(results);
       } catch {
+        if (seq !== search_seq.current) return;
         set_gyms([]);
       } finally {
-        set_loading(false);
+        if (seq === search_seq.current) set_loading(false);
       }
     },
     [coords, token],

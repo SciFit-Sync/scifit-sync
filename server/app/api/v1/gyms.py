@@ -115,7 +115,14 @@ async def search_gyms(
         logger.error("카카오 로컬 API 실패: status=%d body=%s", resp.status_code, resp.text[:200])
         raise ExternalServiceError(message=f"카카오 로컬 API 요청이 실패했습니다. (status={resp.status_code})")
 
-    documents = resp.json().get("documents", [])
+    # 헬스장/피트니스 관련 카테고리만 필터링
+    GYM_KEYWORDS = ("헬스", "피트니스", "크로스핏", "스포츠클럽", "pt샵", "pt 샵", "웨이트", "짐", "gym", "스포츠시설")
+    raw_docs = resp.json().get("documents", [])
+    documents = [
+        d for d in raw_docs
+        if any(kw in (d.get("category_name") or "").lower() or kw in (d.get("place_name") or "").lower()
+               for kw in GYM_KEYWORDS)
+    ]
     place_ids = [d["id"] for d in documents]
 
     # 기존 DB 매칭 — equipment_count만 필요하므로 COUNT 서브쿼리 사용 (전체 로드 방지)
