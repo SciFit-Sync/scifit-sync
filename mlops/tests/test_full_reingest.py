@@ -448,9 +448,17 @@ class TestCategoriesWiring:
         import mlops.scripts.full_reingest as fr
 
         # stage1_fetch를 가짜로 교체해 categories 수신 여부 확인
-        def fake_stage1(batch_tag, mode, max_per_category, categories=None, skip_local_pdf=False):
+        def fake_stage1(
+            batch_tag,
+            mode,
+            max_per_category,
+            categories=None,
+            skip_local_pdf=False,
+            resume_from_manifest=False,
+        ):
             captured["categories"] = categories
             captured["skip_local_pdf"] = skip_local_pdf
+            captured["resume_from_manifest"] = resume_from_manifest
             return tmp_path / "manifest.json"
 
         monkeypatch.setattr(fr, "stage1_fetch", fake_stage1)
@@ -529,6 +537,29 @@ class TestCategoriesWiring:
         )
 
         assert captured["skip_local_pdf"] is True
+
+    def test_resume_from_manifest_passed_to_stage1(self, monkeypatch, tmp_path):
+        """--resume-from-manifest 지정 시 stage1_fetch에 resume_from_manifest=True 전달."""
+        import mlops.scripts.full_reingest as fr
+
+        captured: dict = {}
+        self._common_patches(monkeypatch, tmp_path, captured)
+
+        fr.main(
+            [
+                "--mode",
+                "phase2_full",
+                "--batch-tag",
+                "test-batch",
+                "--resume-from-manifest",
+                "--skip-stages",
+                "chunk_embed",
+                "validate",
+                "upsert",
+            ]
+        )
+
+        assert captured["resume_from_manifest"] is True
 
     def test_categories_strips_whitespace(self, monkeypatch, tmp_path):
         """콤마 구분 값의 앞뒤 공백이 제거되어 전달됨."""

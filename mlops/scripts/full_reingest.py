@@ -33,12 +33,21 @@ def stage1_fetch(
     max_per_category: int | None,
     categories: list[str] | None = None,
     skip_local_pdf: bool = False,
+    resume_from_manifest: bool = False,
 ) -> Path:
     """Stage 1: crawl + efetch 보강 + local_pdf 통합 → manifest path.
 
     skip_local_pdf=True면 phase2_full에서 local PDF 병합을 건너뛴다. 카테고리
     배치 분할 실행 시 184편 PDF가 매 배치마다 중복 적재되는 것을 막기 위함이며,
     PDF는 phase1_local_pdf 모드로 1회만 별도 적재한다.
+
+    resume_from_manifest=True면 기존 manifest에 기록된 DOI를 crawl_papers의
+    existing_dois로 넘겨 **이미 fetch한 논문을 재fetch하지 않는다**. max-per-category를
+    점증시키며 여러 run으로 나눠 적재할 때(점증 배치), 직전 run까지 받은 논문을
+    skip하고 신규분만 fetch하기 위함이다. ⚠️ manifest는 fetch 완료 시점 기록이므로,
+    러너는 각 run을 upsert까지 완전 성공시킨 뒤에만 다음 run을 시작하고, 실패한
+    run은 청크 캐시로 재개(--skip-stages fetch)해야 'fetch했으나 upsert 안 된' 갭을
+    피할 수 있다.
     """
     if mode == "phase1_local_pdf":
         import json as _json
@@ -132,11 +141,17 @@ def stage1_fetch(
             _write_meta_sidecar,
         )
 
+        # ── existing_dois: resume 모드면 manifest의 기존 DOI를 skip 대상으로 ──
+        existing_dois: set[str] = set()
+        if resume_from_manifest:
+            existing_dois = set(Manifest.load(MANIFEST_PATH).papers.keys())
+            logger.info("resume-from-manifest: 기존 %d DOI skip 대상", len(existing_dois))
+
         # ── JATS 경로: OpenAlex + PubMed cascading ──
         jats_papers = crawl_papers(
             max_total=1_000_000,  # 실질 cap은 max_per_category가 결정
             max_per_category=max_per_category,
-            existing_dois=set(),  # 첫 실행 가정; resumable 모드는 후속 확장
+            existing_dois=existing_dois,  # resume 시 manifest DOI skip (점증 배치)
             categories=categories,  # None이면 전체, 지정하면 subset 배치 실행
         )
         indexed_jats = [p for p in jats_papers if p.sections]
@@ -529,6 +544,14 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--resume-from-manifest",
+        action="store_true",
+        help=(
+            "manifest의 기존 DOI를 existing_dois로 넘겨 재fetch를 skip. max-per-category를 "
+            "점증시키는 점증 배치 실행에서 직전 run까지 받은 논문을 건너뛴다."
+        ),
+    )
+    parser.add_argument(
         "--upsert-batch-size",
         type=int,
         default=1000,
@@ -549,7 +572,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # Stage 1
     if "fetch" not in args.skip_stages:
-        manifest_path = stage1_fetch(args.batch_tag, args.mode, args.max_per_category, categories, args.skip_local_pdf)
+        manifest_path = stage1_fetch(
+            args.batch_tag,
+            args.mode,
+            args.max_per_category,
+            categories,
+            args.skip_local_pdf,
+            args.resume_from_manifest,
+        )
     else:
         manifest_path = DATA_DIR / "manifest.json"
 
