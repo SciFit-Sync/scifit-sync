@@ -149,7 +149,7 @@ export default function WO02Equipment() {
             <View style={styles.search_filter_area}>
               {/* 검색창 */}
               <View style={styles.search_container}>
-                <Octicons name="search" size={18} color={colors.border} />
+                <Octicons name="search" size={20} color={colors.border} />
                 <TextInput
                   style={styles.search_input}
                   placeholder="기구 검색"
@@ -350,13 +350,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 10,
-    height: 40,
-    gap: 8,
+    height: 44,
+    gap: 10,
   },
   search_input: {
     flex: 1,
     fontFamily: "regular",
-    fontSize: 14,
+    fontSize: 16,
     color: colors.primary,
   },
   brand_row: { flexDirection: "row", gap: 4, alignItems: "center" },
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     height: 30,
     borderRadius: 100,
-    backgroundColor: colors.select,
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
   },
