@@ -28,7 +28,6 @@ from app.models import (
     User,
 )
 from app.schemas.common import SuccessResponse
-from app.services.image_gen import get_or_generate_image_url
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
     BulkAddEquipmentRequest,
@@ -43,6 +42,7 @@ from app.schemas.gyms import (
     SuggestEquipmentData,
     SuggestEquipmentRequest,
 )
+from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ async def list_gym_equipment(
         data=GymEquipmentListData(
             gym_id=gym_id,
             gym_name=gym.name,
-            equipment=[_equipment_to_dto(e, img) for e, img in zip(equipments, image_urls)],
+            equipment=[_equipment_to_dto(e, img) for e, img in zip(equipments, image_urls, strict=True)],
         )
     )
 
