@@ -104,7 +104,7 @@ def test_fail_when_publication_types_under_threshold():
     records = []
     for i in range(100):
         rec = _ok_record(chunk_index=i, paper_pmid=f"p{i // 5}", paper_doi=f"10.1/{i // 5}")
-        if i < 20:  # 20% 빈 → 80% filled, 90% 임계 미달
+        if i < 20:  # 20% 빈 → 80% filled, 85% 임계 미달
             rec["publication_types"] = []
         records.append(rec)
     path = _make_jsonl(records)
@@ -206,3 +206,25 @@ class TestTokenThresholdAlignment:
     def test_pdf_avg_token_zero_skips_check(self):
         """local_pdf 청크가 없으면(pdf_avg_token==0) PDF 게이트는 skip."""
         assert _valid_result(pdf_avg_token=0.0).passed
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# publication_types fill rate 게이트 완화 (0.90 → 0.85).
+# local_pdf/OpenAlex-only 모집단의 PubMed 미등재 논문(프리프린트·마이너 저널)은
+# efetch 보강으로도 채울 수 없다. 실측: 크롤 ≈92%, local_pdf 162/184(88%) →
+# 합산이 90% 경계에 걸린다. 미등재분은 데이터 특성이므로 게이트를 85%로 정렬.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestPublicationTypesThreshold:
+    def test_fill_087_passes(self):
+        """88% 수준(local_pdf 실측)은 새 임계(≥0.85)에서 통과해야 한다."""
+        assert _valid_result(publication_types_fill_rate=0.87).passed
+
+    def test_fill_085_boundary_inclusive(self):
+        """경계값 0.85는 포함(통과)."""
+        assert _valid_result(publication_types_fill_rate=0.85).passed
+
+    def test_fill_084_fails(self):
+        """0.85 미만은 여전히 FAIL (회귀 가드)."""
+        assert not _valid_result(publication_types_fill_rate=0.84).passed
