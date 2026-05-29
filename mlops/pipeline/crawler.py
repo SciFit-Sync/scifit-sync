@@ -1485,6 +1485,7 @@ def crawl_papers(
     max_date: str | None = None,
     fetch_fulltext: bool = True,
     existing_dois: set[str] | None = None,
+    categories: list[str] | None = None,
 ) -> list[PaperFull]:
     """65개 카테고리에 대해 OpenAlex 메인 + PubMed 보조 통합 검색.
 
@@ -1506,6 +1507,9 @@ def crawl_papers(
         min_date / max_date: PubMed pdat 필터 (YYYY/MM/DD).
         fetch_fulltext: cascading fulltext 수집 여부 (테스트에서 False로 끔).
         existing_dois: 이미 수집된 DOI 집합 (중복 방지).
+        categories: 실행할 카테고리명 리스트 (subset 배치 실행용).
+            None이면 전체 카테고리 순회. 알 수 없는 이름이 포함되면 ValueError.
+            35~50h fetch가 중단된 경우 배치 단위로 재개할 때 사용한다.
 
     Returns:
         PaperFull 리스트. 각 PaperMeta는 search_categories + evidence_weight + fulltext_source 부여됨.
@@ -1515,6 +1519,16 @@ def crawl_papers(
         # 기존 SEARCH_QUERY_CATEGORIES의 filter_level은 strict/semi/loose가 있지만,
         # Task 10에서는 strict 토글로 단일화 — strict 의도가 있는 카테고리만 True.
         queries = [(name, query, level != "loose") for name, query, level in SEARCH_QUERY_CATEGORIES]
+
+    # categories subset 필터 — 오타로 조용히 빈 결과를 내는 것을 방지
+    if categories is not None:
+        valid_names = {name for name, _query, _strict in queries}
+        unknown = [c for c in categories if c not in valid_names]
+        if unknown:
+            raise ValueError(f"알 수 없는 카테고리명: {unknown}. 유효한 이름: {sorted(valid_names)}")
+        category_set = set(categories)
+        queries = [(name, query, strict) for name, query, strict in queries if name in category_set]
+        logger.info("카테고리 subset 지정: %d / %d 카테고리 실행 → %s", len(queries), len(valid_names), categories)
     openalex_max = max_per_category if max_per_category is not None else OPENALEX_MAX_PER_CATEGORY
     pubmed_max = max_per_category if max_per_category is not None else PUBMED_MAX_PER_CATEGORY
     max_total = max_total or MAX_PAPERS_PER_RUN

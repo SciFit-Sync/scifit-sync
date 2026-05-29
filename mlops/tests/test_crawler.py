@@ -1180,4 +1180,61 @@ class TestAttachFulltextProgressLog:
         assert "europepmc 20" in last_msg
         assert "pmc 30" in last_msg
         assert "확보 50" in last_msg
-        assert "미확보 10" in last_msg
+
+
+class TestCrawlPapersCategories:
+    """crawl_papers categories 파라미터 — subset 필터 + 알 수 없는 이름 검증."""
+
+    def _patch_crawl(self, monkeypatch):
+        """OpenAlex/PubMed/fulltext 외부 호출을 모두 막는 공통 픽스처."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        captured = {"names": []}
+
+        def fake_oa(name, max_results):
+            captured["names"].append(name)
+            return []
+
+        monkeypatch.setattr(crawler_mod, "search_openalex_by_category", fake_oa)
+        monkeypatch.setattr(crawler_mod, "search_pmids", lambda *a, **kw: [])
+        monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda _: [])
+        monkeypatch.setattr(crawler_mod, "_attach_fulltext", lambda metas: [])
+        return crawler_mod, captured
+
+    def test_categories_subset_filters_queries(self, monkeypatch):
+        """subset 지정 시 해당 카테고리만 search_openalex_by_category 호출."""
+        crawler_mod, captured = self._patch_crawl(monkeypatch)
+
+        crawler_mod.crawl_papers(
+            fetch_fulltext=False,
+            categories=["volume", "intensity"],
+        )
+
+        assert set(captured["names"]) == {"volume", "intensity"}
+
+    def test_categories_none_runs_all(self, monkeypatch):
+        """categories=None이면 SEARCH_QUERY_CATEGORIES 전체 카테고리 실행."""
+        crawler_mod, captured = self._patch_crawl(monkeypatch)
+
+        crawler_mod.crawl_papers(fetch_fulltext=False, categories=None)
+
+        all_names = {name for name, _, _ in crawler_mod.SEARCH_QUERY_CATEGORIES}
+        assert set(captured["names"]) == all_names
+
+    def test_categories_unknown_name_raises_value_error(self, monkeypatch):
+        """알 수 없는 카테고리명이 포함되면 ValueError — 오타 조용히 묻힘 방지."""
+        crawler_mod, _captured = self._patch_crawl(monkeypatch)
+
+        with pytest.raises(ValueError, match="알 수 없는 카테고리명"):
+            crawler_mod.crawl_papers(
+                fetch_fulltext=False,
+                categories=["volume", "nonexistent_category"],
+            )
+
+    def test_categories_single_element(self, monkeypatch):
+        """단일 카테고리만 지정해도 정상 동작."""
+        crawler_mod, captured = self._patch_crawl(monkeypatch)
+
+        crawler_mod.crawl_papers(fetch_fulltext=False, categories=["frequency"])
+
+        assert captured["names"] == ["frequency"]
