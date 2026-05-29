@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -83,16 +84,23 @@ export default function WO02Equipment() {
     (navigation as any).navigate("WO02EquipmentRegister", { gym_id });
   };
 
-  const handle_delete = async (equipment_id: string) => {
-    if (!gym_id) return;
-    // 낙관적 업데이트 — 즉시 UI에서 제거
-    set_equipment_list((prev) => prev.filter((i) => i.equipment_id !== equipment_id));
-    try {
-      await deleteGymEquipment(gym_id, equipment_id, token);
-    } catch {
-      // 실패 시 목록 다시 로드
-      fetch_gym_equipment();
-    }
+  const handle_menu = (item: EquipmentItem) => {
+    Alert.alert(item.name, undefined, [
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          if (!gym_id) return;
+          set_equipment_list((prev) => prev.filter((i) => i.equipment_id !== item.equipment_id));
+          try {
+            await deleteGymEquipment(gym_id, item.equipment_id, token);
+          } catch {
+            fetch_gym_equipment();
+          }
+        },
+      },
+      { text: "취소", style: "cancel" },
+    ]);
   };
 
   return (
@@ -212,12 +220,12 @@ export default function WO02Equipment() {
                       </Text>
                     </View>
                     <TouchableOpacity
-                      style={styles.delete_btn}
-                      onPress={() => handle_delete(item.equipment_id)}
+                      style={styles.menu_btn}
+                      onPress={() => handle_menu(item)}
                       activeOpacity={0.7}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Octicons name="x" size={16} color={colors.bluegray} />
+                      <Octicons name="kebab-horizontal" size={18} color={colors.bluegray} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -309,7 +317,7 @@ const styles = StyleSheet.create({
   equipment_info: { gap: 4, flex: 1 },
   equipment_name: { fontFamily: "regular", fontSize: 14, color: colors.primary },
   equipment_spec: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
-  delete_btn: { padding: 4 },
+  menu_btn: { padding: 4 },
   next_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
