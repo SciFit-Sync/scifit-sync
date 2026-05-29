@@ -20,6 +20,7 @@ from mlops.pipeline.crawler import (
     _parse_pubmed_article,
     _request_with_rate_limit,
     _resolve_pmc_id,
+    _resolve_pmc_id_via_elink,
     _round_robin_dedup,
     _round_robin_dedup_metas,
     fetch_pmc_fulltext,
@@ -374,8 +375,8 @@ class TestRequestWithRateLimit:
         assert mock_get.call_count == 2
 
 
-class TestResolvePmcId:
-    """`_resolve_pmc_id` 동작 검증.
+class TestResolvePmcIdViaElink:
+    """`_resolve_pmc_id_via_elink` 동작 검증 (elink fallback 경로 직접 테스트).
 
     NCBI elink는 PMC 미존재 시 가끔 ERROR 필드에 raw control character가 포함된
     malformed JSON을 반환한다(결정론적 server-side 버그). sanitize 후 한 번만
@@ -390,7 +391,7 @@ class TestResolvePmcId:
         mock_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [99999]}]}]})
         mock_request.return_value = mock_resp
 
-        result = _resolve_pmc_id("12345")
+        result = _resolve_pmc_id_via_elink("12345")
         assert result == "99999"
         assert mock_request.call_count == 1
 
@@ -402,7 +403,7 @@ class TestResolvePmcId:
         mock_resp.text = json.dumps({"linksets": [{"linksetdbs": []}]})
         mock_request.return_value = mock_resp
 
-        result = _resolve_pmc_id("12345")
+        result = _resolve_pmc_id_via_elink("12345")
         assert result is None
         assert mock_request.call_count == 1  # retry 무의미하므로 1번만 호출
 
@@ -422,7 +423,7 @@ class TestResolvePmcId:
         bad_resp.text = malformed_body
         mock_request.return_value = bad_resp
 
-        result = _resolve_pmc_id("27226389")
+        result = _resolve_pmc_id_via_elink("27226389")
         assert result is None
         assert mock_request.call_count == 2  # ERROR 응답 → 1회만 재시도
 
@@ -436,7 +437,7 @@ class TestResolvePmcId:
         good_resp.text = json.dumps({"linksets": [{"linksetdbs": [{"dbto": "pmc", "links": [55555]}]}]})
         mock_request.side_effect = [error_resp, good_resp]
 
-        result = _resolve_pmc_id("12345")
+        result = _resolve_pmc_id_via_elink("12345")
         assert result == "55555"
         assert mock_request.call_count == 2  # 1번째 ERROR → 1번 retry → 성공
 
@@ -448,7 +449,7 @@ class TestResolvePmcId:
         bad_resp.text = "not a json at all{{{"
         mock_request.return_value = bad_resp
 
-        result = _resolve_pmc_id("12345")
+        result = _resolve_pmc_id_via_elink("12345")
         assert result is None
         assert mock_request.call_count == 1  # JSON parsing 실패는 결정론적 → retry 안 함
 
@@ -463,7 +464,7 @@ class TestResolvePmcId:
             good_resp,
         ]
 
-        result = _resolve_pmc_id("12345")
+        result = _resolve_pmc_id_via_elink("12345")
         assert result == "77777"
         assert mock_request.call_count == 2
 
@@ -474,7 +475,7 @@ class TestResolvePmcId:
         mock_request.side_effect = requests.exceptions.ChunkedEncodingError("body cut")
 
         with pytest.raises(RuntimeError, match="elink 재시도 한도 초과"):
-            _resolve_pmc_id("12345", max_attempts=3)
+            _resolve_pmc_id_via_elink("12345", max_attempts=3)
         assert mock_request.call_count == 3
 
     @patch("mlops.pipeline.crawler.time.sleep")
@@ -490,7 +491,7 @@ class TestResolvePmcId:
         error_resp.text = '{"linksets":[],"ERROR":"NCBI C++ Exception: transient"}'
         mock_request.side_effect = [error_resp, error_resp]
         with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
-            _resolve_pmc_id("12345")
+            _resolve_pmc_id_via_elink("12345")
         error_retry_logs = [r.message for r in caplog.records if "ERROR transient 재시도" in r.message]
         assert error_retry_logs, "ERROR retry 로그가 'ERROR transient 재시도 (1회 한정)' 형식이어야 한다"
         assert "1회 한정" in error_retry_logs[0]
@@ -505,7 +506,7 @@ class TestResolvePmcId:
             good_resp,
         ]
         with caplog.at_level(logging.INFO, logger="mlops.pipeline.crawler"):
-            _resolve_pmc_id("12345")
+            _resolve_pmc_id_via_elink("12345")
         http_retry_logs = [r.message for r in caplog.records if "HTTP 재시도" in r.message]
         assert http_retry_logs, "HTTP retry 로그가 'HTTP 재시도 N/max' 형식이어야 한다"
 
