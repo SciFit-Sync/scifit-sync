@@ -19,7 +19,6 @@ from mlops.pipeline.crawler import (
     _parse_pmc_sections,
     _parse_pubmed_article,
     _request_with_rate_limit,
-    _resolve_pmc_id,
     _resolve_pmc_id_via_elink,
     _round_robin_dedup,
     _round_robin_dedup_metas,
