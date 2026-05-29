@@ -29,8 +29,12 @@ export default function WO01GymSetup() {
   const [gyms, set_gyms] = useState<GymItem[]>([]);
   const [loading, set_loading] = useState(false);
   const [next_loading, set_next_loading] = useState(false);
-  const [has_location_permission, set_has_location_permission] = useState<boolean | null>(null);
-  const [coords, set_coords] = useState<{ lat: number; lng: number } | null>(null);
+  const [has_location_permission, set_has_location_permission] = useState<
+    boolean | null
+  >(null);
+  const [coords, set_coords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
   const search_timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -43,8 +47,13 @@ export default function WO01GymSetup() {
     if (status === "granted") {
       set_has_location_permission(true);
       try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const new_coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const new_coords = {
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+        };
         set_coords(new_coords);
         await do_nearby_search(new_coords);
       } catch {
@@ -61,8 +70,13 @@ export default function WO01GymSetup() {
     if (status === "granted") {
       set_has_location_permission(true);
       try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const new_coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const new_coords = {
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+        };
         set_coords(new_coords);
         await do_nearby_search(new_coords);
       } catch {
@@ -104,7 +118,12 @@ export default function WO01GymSetup() {
     async (keyword: string) => {
       set_loading(true);
       try {
-        const results = await searchGyms(keyword, token, coords?.lat, coords?.lng);
+        const results = await searchGyms(
+          keyword,
+          token,
+          coords?.lat,
+          coords?.lng,
+        );
         set_gyms(results);
       } catch {
         set_gyms([]);
@@ -148,7 +167,10 @@ export default function WO01GymSetup() {
       await setMyGym(gym_id, token);
       (navigation as any).navigate("WO02Equipment", { gym_id });
     } catch (e: any) {
-      Alert.alert("오류", e.message ?? "헬스장 등록에 실패했어요. 다시 시도해주세요.");
+      Alert.alert(
+        "오류",
+        e.message ?? "헬스장 등록에 실패했어요. 다시 시도해주세요.",
+      );
     } finally {
       set_next_loading(false);
     }
@@ -197,7 +219,10 @@ export default function WO01GymSetup() {
             <View style={styles.list_container}>
               {loading || has_location_permission === null ? (
                 /* 권한 확인 중이거나 검색 중 */
-                <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+                <ActivityIndicator
+                  color={colors.primary}
+                  style={{ marginTop: 24 }}
+                />
               ) : has_location_permission === false && search.length === 0 ? (
                 /* 위치 권한 없을 때 버튼 */
                 <View style={styles.location_button_wrapper}>
@@ -206,7 +231,9 @@ export default function WO01GymSetup() {
                     onPress={request_location_permission}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.location_button_text}>위치 정보 동의하러 가기</Text>
+                    <Text style={styles.location_button_text}>
+                      위치 정보 동의하러 가기
+                    </Text>
                   </TouchableOpacity>
                 </View>
               ) : gyms.length > 0 ? (
@@ -220,7 +247,8 @@ export default function WO01GymSetup() {
                       key={gym.kakao_place_id || gym.gym_id || gym.name}
                       style={[
                         styles.gym_item,
-                        selected_gym?.kakao_place_id === gym.kakao_place_id && styles.gym_item_active,
+                        selected_gym?.kakao_place_id === gym.kakao_place_id &&
+                          styles.gym_item_active,
                       ]}
                       onPress={() => set_selected_gym(gym)}
                       activeOpacity={0.8}
@@ -229,7 +257,8 @@ export default function WO01GymSetup() {
                         <Text
                           style={[
                             styles.gym_name,
-                            selected_gym?.kakao_place_id === gym.kakao_place_id && styles.gym_name_active,
+                            selected_gym?.kakao_place_id ===
+                              gym.kakao_place_id && styles.gym_name_active,
                           ]}
                         >
                           {gym.name}
@@ -247,7 +276,9 @@ export default function WO01GymSetup() {
               ) : search.length > 0 ? (
                 <Text style={styles.empty_text}>검색 결과가 없어요</Text>
               ) : (
-                <Text style={styles.empty_text}>검색창에 헬스장 이름을 입력해 주세요.</Text>
+                <Text style={styles.empty_text}>
+                  검색창에 헬스장 이름을 입력해 주세요.
+                </Text>
               )}
             </View>
 
@@ -283,7 +314,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 29,
     paddingBottom: 24,
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
