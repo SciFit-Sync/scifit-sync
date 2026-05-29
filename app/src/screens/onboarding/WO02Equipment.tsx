@@ -223,9 +223,9 @@ export default function WO02Equipment() {
                       style={styles.menu_btn}
                       onPress={() => handle_menu(item)}
                       activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
-                      <Octicons name="kebab-horizontal" size={18} color={colors.bluegray} />
+                      <Octicons name="kebab-horizontal" size={13} color={colors.bluegray} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -311,13 +311,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 10,
     gap: 10,
+    position: "relative",
   },
   equipment_image: { width: 56, height: 56, borderRadius: 4 },
   equipment_image_placeholder: { width: 56, height: 56, borderRadius: 4, backgroundColor: colors.border },
   equipment_info: { gap: 4, flex: 1 },
   equipment_name: { fontFamily: "regular", fontSize: 14, color: colors.primary },
   equipment_spec: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
-  menu_btn: { padding: 4 },
+  menu_btn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    padding: 2,
+  },
   next_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
