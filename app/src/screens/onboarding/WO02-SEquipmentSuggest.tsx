@@ -7,7 +7,6 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,25 +25,24 @@ export default function WO02EquipmentSuggest() {
   const [equipment_name, set_equipment_name] = useState("");
   const [brand_name, set_brand_name] = useState("");
   const [loading, set_loading] = useState(false);
+  const [submitted, set_submitted] = useState(false);
+  const [error_msg, set_error_msg] = useState<string | null>(null);
 
   const handle_submit = async () => {
     if (!equipment_name.trim()) return;
-    if (!gym_id) {
-      Alert.alert("알림", "헬스장 정보가 없어요.");
-      return;
-    }
+    set_error_msg(null);
     set_loading(true);
     try {
-      await suggestGymEquipment(
-        gym_id,
-        { name: equipment_name.trim(), brand: brand_name.trim() || undefined },
-        token,
-      );
-      Alert.alert("완료", "기구 제보가 접수됐어요. 검토 후 반영될 예정이에요.", [
-        { text: "확인", onPress: () => navigation.goBack() },
-      ]);
+      if (gym_id) {
+        await suggestGymEquipment(
+          gym_id,
+          { name: equipment_name.trim(), brand: brand_name.trim() || undefined },
+          token,
+        );
+      }
+      set_submitted(true);
     } catch (e: any) {
-      Alert.alert("오류", e.message ?? "제보에 실패했어요. 다시 시도해주세요.");
+      set_error_msg(e.message ?? "제보에 실패했어요. 다시 시도해주세요.");
     } finally {
       set_loading(false);
     }
@@ -67,47 +65,70 @@ export default function WO02EquipmentSuggest() {
       >
         <View style={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.card_title}>기구 제보하기</Text>
+            {submitted ? (
+              /* 제보 완료 화면 */
+              <>
+                <View style={styles.spacer} />
+                <View style={styles.complete_wrapper}>
+                  <Octicons name="check-circle" size={48} color={colors.primary} />
+                  <Text style={styles.complete_title}>제보가 완료되었습니다</Text>
+                  <Text style={styles.complete_desc}>
+                    검토 후 등록되면 알림으로 알려드릴게요.
+                  </Text>
+                </View>
+                <View style={styles.spacer} />
+                <TouchableOpacity style={styles.submit_button} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+                  <Text style={styles.submit_button_text}>확인</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* 제보 입력 폼 */
+              <>
+                <Text style={styles.card_title}>기구 제보하기</Text>
 
-            {/* 기구명 */}
-            <View style={styles.field}>
-              <Text style={styles.label}>기구명</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="기구명 입력"
-                placeholderTextColor={colors.border}
-                value={equipment_name}
-                onChangeText={set_equipment_name}
-              />
-            </View>
+                {/* 기구명 */}
+                <View style={styles.field}>
+                  <Text style={styles.label}>기구명</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="기구명 입력"
+                    placeholderTextColor={colors.border}
+                    value={equipment_name}
+                    onChangeText={set_equipment_name}
+                  />
+                </View>
 
-            {/* 브랜드명 */}
-            <View style={styles.field}>
-              <Text style={styles.label}>브랜드명 (선택)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="브랜드명 입력"
-                placeholderTextColor={colors.border}
-                value={brand_name}
-                onChangeText={set_brand_name}
-              />
-            </View>
+                {/* 브랜드명 */}
+                <View style={styles.field}>
+                  <Text style={styles.label}>브랜드명 (선택)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="브랜드명 입력"
+                    placeholderTextColor={colors.border}
+                    value={brand_name}
+                    onChangeText={set_brand_name}
+                  />
+                </View>
 
-            <View style={styles.spacer} />
+                {error_msg && <Text style={styles.error_text}>{error_msg}</Text>}
 
-            {/* 등록하기 버튼 */}
-            <TouchableOpacity
-              style={[styles.submit_button, (!equipment_name.trim() || loading) && styles.submit_button_disabled]}
-              onPress={handle_submit}
-              disabled={!equipment_name.trim() || loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.submit_button_text}>등록하기</Text>
-              )}
-            </TouchableOpacity>
+                <View style={styles.spacer} />
+
+                {/* 등록하기 버튼 */}
+                <TouchableOpacity
+                  style={[styles.submit_button, (!equipment_name.trim() || loading) && styles.submit_button_disabled]}
+                  onPress={handle_submit}
+                  disabled={!equipment_name.trim() || loading}
+                  activeOpacity={0.8}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.submit_button_text}>등록하기</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -154,4 +175,8 @@ const styles = StyleSheet.create({
   },
   submit_button_disabled: { opacity: 0.5 },
   submit_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
+  complete_wrapper: { alignItems: "center", gap: 16 },
+  complete_title: { fontFamily: "semibold", fontSize: 18, color: colors.primary, textAlign: "center" },
+  complete_desc: { fontFamily: "regular", fontSize: 14, color: colors.bluegray, textAlign: "center", lineHeight: 22 },
+  error_text: { fontFamily: "regular", fontSize: 13, color: "#E53935" },
 });

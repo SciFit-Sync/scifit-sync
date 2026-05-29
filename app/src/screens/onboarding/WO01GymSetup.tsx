@@ -88,11 +88,23 @@ export default function WO01GymSetup() {
   };
 
   // 주변 헬스장 검색 (keyword 없음 → 백엔드에서 "헬스장"으로 거리순 검색)
+  // 결과가 비면 좌표 없이 "헬스장" 키워드 검색으로 fallback (시뮬레이터 US 좌표 등 대비)
   const do_nearby_search = async (c: { lat: number; lng: number }) => {
     set_loading(true);
     try {
       const results = await searchGyms("", token, c.lat, c.lng);
-      set_gyms(results);
+      if (results.length > 0) {
+        set_gyms(results);
+        set_loading(false);
+        return;
+      }
+    } catch {
+      // 좌표 검색 실패 — fallback으로 계속
+    }
+    // 결과 없거나 오류 → 키워드 fallback
+    try {
+      const fallback = await searchGyms("헬스장", token);
+      set_gyms(fallback);
     } catch {
       set_gyms([]);
     } finally {
