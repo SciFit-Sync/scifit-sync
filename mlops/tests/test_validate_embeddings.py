@@ -5,7 +5,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from mlops.scripts.validate_embeddings import validate_jsonl
+from mlops.scripts.validate_embeddings import ValidationResult, validate_jsonl
 
 
 def _make_jsonl(records: list[dict]) -> Path:
@@ -149,3 +149,60 @@ def test_evidence_weight_05_ratio_caught():
     result = validate_jsonl([path])
     assert result.evidence_weight_05_ratio >= 0.50
     assert not result.passed
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 토큰 임계 정합 (Fix B) — CLAUDE.md §10 청크 정책(300~512 토큰)과 일치.
+# dry_15_v2 관측치(avg 463.8, pdf 471.1)는 chunker가 의도대로 max(512)에 가깝게
+# 채운 정상 분포인데, 좁은 임계(MAX 450 / PDF 250)만으로 FAIL이 나던 문제를 해소.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _valid_result(**overrides) -> ValidationResult:
+    """토큰 외 모든 게이트를 통과하는 ValidationResult. 토큰 필드만 override해 검증."""
+    base = dict(
+        schema_ok=True,
+        identifier_fill_rate=1.0,
+        publication_types_fill_rate=0.95,
+        evidence_weight_distinct=6,
+        evidence_weight_05_ratio=0.2,
+        avg_token=400.0,
+        p99_token=580.0,
+        over_512_ratio=0.01,
+        chunks_per_paper_avg=30.0,
+        pdf_avg_token=0.0,  # 기본은 pdf 체크 skip
+        embedding_dim=1024,
+        total_chunks=100,
+    )
+    base.update(overrides)
+    return ValidationResult(**base)
+
+
+class TestTokenThresholdAlignment:
+    def test_avg_token_464_passes(self):
+        """dry_15_v2 관측 avg 463.8은 새 임계(≤512)에서 통과해야 한다."""
+        assert _valid_result(avg_token=463.8).passed
+
+    def test_avg_token_512_boundary_inclusive(self):
+        """경계값 512는 포함(통과)."""
+        assert _valid_result(avg_token=512.0).passed
+
+    def test_avg_token_over_512_fails(self):
+        """over-budget(>512) 평균은 여전히 FAIL (회귀 가드)."""
+        assert not _valid_result(avg_token=600.0).passed
+
+    def test_avg_token_under_300_fails(self):
+        """하한(300) 미달은 여전히 FAIL (회귀 가드)."""
+        assert not _valid_result(avg_token=250.0).passed
+
+    def test_pdf_avg_token_471_passes(self):
+        """dry_15_v2 관측 pdf 471.1은 새 PDF 임계(200~512)에서 통과해야 한다."""
+        assert _valid_result(pdf_avg_token=471.1).passed
+
+    def test_pdf_avg_token_under_200_fails(self):
+        """200 미만 PDF 평균은 FAIL — 의미 단위 청크엔 너무 짧음."""
+        assert not _valid_result(pdf_avg_token=180.0).passed
+
+    def test_pdf_avg_token_zero_skips_check(self):
+        """local_pdf 청크가 없으면(pdf_avg_token==0) PDF 게이트는 skip."""
+        assert _valid_result(pdf_avg_token=0.0).passed

@@ -32,9 +32,9 @@ PUBLICATION_TYPES_FILL_RATE_MIN: float = 0.90
 EVIDENCE_WEIGHT_DISTINCT_MIN: int = 5
 EVIDENCE_WEIGHT_05_RATIO_MAX: float = 0.50
 
-# 청크 토큰
+# 청크 토큰 (CLAUDE.md §10 청크 정책 300~512 토큰과 정합)
 AVG_TOKEN_MIN: int = 300
-AVG_TOKEN_MAX: int = 450
+AVG_TOKEN_MAX: int = 512
 TOKEN_P99_MAX: int = 660  # PR #174 흡수 trade-off 한계
 TOKEN_OVER_512_RATIO_MAX: float = 0.05
 
@@ -42,9 +42,11 @@ TOKEN_OVER_512_RATIO_MAX: float = 0.05
 CHUNKS_PER_PAPER_MIN: int = 20
 CHUNKS_PER_PAPER_MAX: int = 60
 
-# PDF 경로 회귀 — local_pdf 평균 토큰
-PDF_AVG_TOKEN_MIN: int = 150
-PDF_AVG_TOKEN_MAX: int = 250
+# PDF 경로 회귀 — local_pdf 평균 토큰.
+# PDF도 의미 단위로 청킹되므로 150은 너무 짧다 → 하한 200. 상한은 본문 청크와
+# 동일하게 512로 통일 (CLAUDE.md §10 정합).
+PDF_AVG_TOKEN_MIN: int = 200
+PDF_AVG_TOKEN_MAX: int = 512
 
 # 임베딩 차원
 EMBEDDING_DIM: int = 1024
