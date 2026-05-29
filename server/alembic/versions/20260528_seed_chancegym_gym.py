@@ -105,9 +105,9 @@ def downgrade() -> None:
     conn = op.get_bind()
     conn.execute(
         sa.text("DELETE FROM gym_equipments WHERE gym_id = :gym_id"),
-        {"gym_id": _GYM_ID},
+        {"gym_id": _GYM_ID_FALLBACK},
     )
     conn.execute(
         sa.text("DELETE FROM gyms WHERE id = :gym_id"),
-        {"gym_id": _GYM_ID},
+        {"gym_id": _GYM_ID_FALLBACK},
     )
