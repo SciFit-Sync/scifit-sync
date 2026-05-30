@@ -16,10 +16,13 @@ from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
+    Equipment,
     Exercise,
     ExerciseMuscle,
     Gym,
     MuscleGroup,
+    Notification,
+    NotificationType,
     RoutineDay,
     RoutineExercise,
     User,
@@ -49,6 +52,7 @@ from app.schemas.sessions import (
     VolumeAnalysisItem,
     WorkoutSetItem,
 )
+from app.services import po
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +253,174 @@ async def log_set(
     )
 
 
+async def _check_and_create_po_notifications(
+    session: WorkoutLog,
+    user: User,
+    db: AsyncSession,
+) -> None:
+    if not session.routine_day_id:
+        return
+
+    goal_row = (
+        await db.execute(
+            select(WorkoutRoutine.fitness_goals)
+            .join(RoutineDay, RoutineDay.routine_id == WorkoutRoutine.id)
+            .where(RoutineDay.id == session.routine_day_id)
+        )
+    ).scalar_one_or_none()
+
+    if not goal_row or not isinstance(goal_row, list):
+        return
+    # TODO(D-MX): 복수 목표 시 PO 계산 기준 미결정 → 현재는 첫 번째 목표만 사용
+    goal = goal_row[0]
+
+    # 이 세션의 routine_exercise별 (max_reps, max_weight, set_count) 조회
+    set_rows = (
+        await db.execute(
+            select(
+                WorkoutLogSet.routine_exercise_id,
+                func.max(WorkoutLogSet.reps).label("max_reps"),
+                func.max(WorkoutLogSet.weight_kg).label("max_weight"),
+                func.count(WorkoutLogSet.id).label("set_count"),
+            )
+            .where(
+                WorkoutLogSet.workout_log_id == session.id,
+                WorkoutLogSet.routine_exercise_id.is_not(None),
+                WorkoutLogSet.is_completed.is_(True),
+            )
+            .group_by(WorkoutLogSet.routine_exercise_id)
+        )
+    ).all()
+
+    if not set_rows:
+        return
+
+    rex_ids = [row[0] for row in set_rows]
+
+    # ── 직전 세션의 max_reps — IN 쿼리 일괄 조회 (연속 2세션 조건) ──────────────
+    # 역대 MAX가 아닌 가장 최근 완료 세션 1개의 reps를 가져와야 "연속 2세션" 조건이 됨
+    latest_session_subq = (
+        select(
+            WorkoutLogSet.routine_exercise_id,
+            func.max(WorkoutLog.finished_at).label("latest_finished"),
+        )
+        .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+        .where(
+            WorkoutLogSet.routine_exercise_id.in_(rex_ids),
+            WorkoutLog.user_id == user.id,
+            WorkoutLog.id != session.id,
+            WorkoutLog.status == WorkoutStatus.COMPLETED,
+            WorkoutLogSet.is_completed.is_(True),
+        )
+        .group_by(WorkoutLogSet.routine_exercise_id)
+        .subquery()
+    )
+    prev_reps_rows = (
+        await db.execute(
+            select(
+                WorkoutLogSet.routine_exercise_id,
+                func.max(WorkoutLogSet.reps).label("max_reps"),
+            )
+            .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+            .join(
+                latest_session_subq,
+                (WorkoutLogSet.routine_exercise_id == latest_session_subq.c.routine_exercise_id)
+                & (WorkoutLog.finished_at == latest_session_subq.c.latest_finished),
+            )
+            .where(
+                WorkoutLog.user_id == user.id,
+                WorkoutLog.status == WorkoutStatus.COMPLETED,
+                WorkoutLogSet.is_completed.is_(True),
+            )
+            .group_by(WorkoutLogSet.routine_exercise_id)
+        )
+    ).all()
+    prev_reps_map: dict[str, int] = {str(rex_id): int(max_reps) for rex_id, max_reps in prev_reps_rows}
+
+    # ── RoutineExercise / Exercise / Equipment — 일괄 조회 ───────────────────
+    rex_records = (await db.execute(select(RoutineExercise).where(RoutineExercise.id.in_(rex_ids)))).scalars().all()
+    rex_map = {rex.id: rex for rex in rex_records}
+
+    exercise_ids = list({rex.exercise_id for rex in rex_records})
+    ex_name_map: dict[str, str] = dict(
+        (await db.execute(select(Exercise.id, Exercise.name).where(Exercise.id.in_(exercise_ids)))).all()
+    )
+
+    equip_ids = list({rex.equipment_id for rex in rex_records if rex.equipment_id})
+    equip_map: dict = {}
+    if equip_ids:
+        equip_map = {
+            e.id: e for e in (await db.execute(select(Equipment).where(Equipment.id.in_(equip_ids)))).scalars().all()
+        }
+
+    # ── PO 체크 및 알림 생성 ─────────────────────────────────────────────────
+    new_notifications: list[Notification] = []
+
+    for rex_id, cur_max_reps, cur_max_weight, set_count in set_rows:
+        prev_max_reps = prev_reps_map.get(str(rex_id))
+        if prev_max_reps is None or cur_max_reps is None:
+            continue
+        if not po.check_po_trigger([prev_max_reps, int(cur_max_reps)], goal):
+            continue
+
+        rex = rex_map.get(rex_id)
+        if rex is None:
+            continue
+
+        ex_name = str(ex_name_map.get(rex.exercise_id, "운동"))
+
+        equipment_type = "barbell"
+        max_stack = None
+        if rex.equipment_id:
+            equip = equip_map.get(rex.equipment_id)
+            if equip:
+                equipment_type = equip.equipment_type.value
+                max_stack = equip.max_stack
+
+        result = po.calculate_increase(
+            category=equipment_type,
+            goal=goal,
+            current_weight=float(cur_max_weight or 0),
+            current_sets=int(set_count),
+            max_stack=max_stack,
+        )
+
+        if result["overflow"] and result["message"]:
+            new_notifications.append(
+                Notification(
+                    user_id=user.id,
+                    type=NotificationType.PO_SUGGESTION,
+                    title="더 무거운 기구를 사용해보세요",
+                    body=f"{ex_name}: {result['message']}",
+                    data_json={
+                        "routine_exercise_id": str(rex_id),
+                        "exercise_id": str(rex.exercise_id),
+                    },
+                )
+            )
+        else:
+            new_notifications.append(
+                Notification(
+                    user_id=user.id,
+                    type=NotificationType.PO_SUGGESTION,
+                    title="중량 증가를 권장해요",
+                    body=f"{ex_name} {cur_max_weight}kg → {result['new_weight']}kg으로 올려보세요",
+                    data_json={
+                        "routine_exercise_id": str(rex_id),
+                        "exercise_id": str(rex.exercise_id),
+                        "current_weight": float(cur_max_weight or 0),
+                        "suggested_weight": result["new_weight"],
+                    },
+                )
+            )
+
+    if new_notifications:
+        db.add_all(new_notifications)
+        # 알림 생성은 세션 완료와 별도 트랜잭션으로 분리 — 알림 실패 시에도 세션은 이미 완료 상태
+        await db.commit()
+        logger.info("PO notifications created: %d for user %s", len(new_notifications), user.id)
+
+
 # ── PATCH /sessions/{id}/finish ───────────────────────────────────────────────
 @router.patch("/{session_id}/finish", response_model=SuccessResponse[SessionData], summary="세션 종료")
 @rate_limit("60/minute")
@@ -298,6 +470,9 @@ async def finish_session(
     dto.total_sets = total_sets
     dto.completed_exercises = completed_exercises
     dto.total_calories = round(5.0 * body_weight * dto.duration_minutes / 60) if dto.duration_minutes else None
+
+    await _check_and_create_po_notifications(s, current_user, db)
+
     return SuccessResponse(data=dto)
 
 

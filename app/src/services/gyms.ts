@@ -1,12 +1,12 @@
 import { apiFetch } from './api';
 
 export interface GymItem {
-  gym_id: string;
+  gym_id: string | null;
+  kakao_place_id: string | null;
   name: string;
   address: string;
-  latitude: number;
-  longitude: number;
-  kakao_place_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
   equipment_count: number;
 }
 
@@ -39,16 +39,21 @@ export async function searchGyms(
   latitude?: number,
   longitude?: number,
 ): Promise<GymItem[]> {
-  const params = new URLSearchParams({ keyword });
+  const params = new URLSearchParams();
+  if (keyword) params.append('keyword', keyword);
   if (latitude != null) params.append('latitude', String(latitude));
   if (longitude != null) params.append('longitude', String(longitude));
-  const data = await apiFetch<{ gyms: GymItem[] }>(`/api/v1/gyms?${params}`, { token });
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const data = await apiFetch<{ gyms: GymItem[] }>(`/api/v1/gyms${query}`, { token });
   return data.gyms;
 }
 
 // 헬스장 생성 (POST /api/v1/gyms) — 카카오 결과가 DB에 없을 때 자동 등록
-export async function createGym(gym: GymItem, token: string): Promise<GymItem> {
-  const data = await apiFetch<GymItem>('/api/v1/gyms', {
+export async function createGym(
+  gym: Pick<GymItem, 'name' | 'address' | 'kakao_place_id' | 'latitude' | 'longitude'>,
+  token: string,
+): Promise<{ gym_id: string }> {
+  return apiFetch<{ gym_id: string }>('/api/v1/gyms', {
     method: 'POST',
     token,
     body: JSON.stringify({
@@ -59,7 +64,6 @@ export async function createGym(gym: GymItem, token: string): Promise<GymItem> {
       kakao_place_id: gym.kakao_place_id,
     }),
   });
-  return data;
 }
 
 // 내 헬스장 등록 (POST /api/v1/users/me/gym)
