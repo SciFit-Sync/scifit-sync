@@ -18,7 +18,7 @@ from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.limiter import rate_limit
-from app.models import ChatMessage, ChatRole, ChatSession, User
+from app.models import ChatMessage, ChatRole, ChatSession, User, WorkoutRoutine
 from app.schemas.chat import (
     ChatMessageItem,
     ChatMessageListData,
@@ -205,11 +205,41 @@ async def list_chat_messages(
 )
 async def recommended_routines(
     current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
 ):
-    """⚠️ TODO: 사용자 프로필 + 최근 챗 히스토리 + RAG로 추천 생성.
-    현재는 빈 목록 반환.
-    """
-    return SuccessResponse(data=RecommendedRoutinesData(items=[]))
+    _GOAL_KO: dict[str, str] = {
+        "hypertrophy": "근비대",
+        "strength": "근력",
+        "endurance": "근지구력",
+        "rehabilitation": "재활",
+        "weight_loss": "체중 감량",
+    }
+
+    rows = (
+        (
+            await db.execute(
+                select(WorkoutRoutine)
+                .where(
+                    WorkoutRoutine.user_id == current_user.id,
+                    WorkoutRoutine.deleted_at.is_(None),
+                )
+                .order_by(WorkoutRoutine.created_at.desc())
+                .limit(4)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    items = [
+        RecommendedRoutineItem(
+            title=r.name,
+            summary=" · ".join(_GOAL_KO.get(g, g) for g in (r.fitness_goals or [])) or "루틴 정보 없음",
+            paper_ids=[],
+        )
+        for r in rows
+    ]
+    return SuccessResponse(data=RecommendedRoutinesData(items=items))
 
 
 async def _get_my_session(session_id: str, user: User, db: AsyncSession) -> ChatSession:
