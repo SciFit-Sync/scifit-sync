@@ -159,11 +159,7 @@ export default function WP04AddGym() {
     }
   };
 
-  const is_selected = (gym: GymItem) =>
-    gym.gym_id != null
-      ? selected_gym?.gym_id === gym.gym_id
-      : selected_gym?.kakao_place_id != null &&
-        selected_gym.kakao_place_id === gym.kakao_place_id;
+  const is_selected = (gym: GymItem) => gym === selected_gym;
 
   return (
     <SafeAreaView style={styles.container}>
