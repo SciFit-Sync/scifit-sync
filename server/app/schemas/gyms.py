@@ -93,7 +93,6 @@ class ReportData(BaseModel):
 class SuggestEquipmentRequest(BaseModel):
     name: str
     brand: str | None = None
-    description: str | None = None
 
 
 class SuggestEquipmentData(BaseModel):

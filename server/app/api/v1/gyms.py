@@ -499,7 +499,6 @@ async def suggest_gym_equipment(
             gym_id=gym_uuid,
             name=body.name,
             brand=body.brand,
-            description=body.description,
         )
     )
     await db.commit()
