@@ -258,7 +258,11 @@ async def list_gym_equipment(
     async def _resolve_image(e: Equipment) -> str | None:
         if e.image_url:
             return e.image_url
-        return await get_or_generate_image_url(str(e.id), e.name, e.name_en)
+        try:
+            return await get_or_generate_image_url(str(e.id), e.name, e.name_en)
+        except Exception:
+            logger.warning("이미지 생성 실패: %s", e.id)
+            return None
 
     image_urls = await asyncio.gather(*[_resolve_image(e) for e in equipments])
 

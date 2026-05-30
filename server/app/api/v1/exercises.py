@@ -57,6 +57,13 @@ async def list_exercises(
         base_q = base_q.where(Exercise.name.ilike(f"%{keyword}%") | Exercise.name_en.ilike(f"%{keyword}%"))
     if category:
         base_q = base_q.where(Exercise.category == category)
+    if muscle:
+        muscle_ids = (
+            select(ExerciseMuscle.exercise_id)
+            .join(MuscleGroup, ExerciseMuscle.muscle_group_id == MuscleGroup.id)
+            .where(MuscleGroup.name_ko.ilike(f"%{muscle}%"))
+        )
+        base_q = base_q.where(Exercise.id.in_(muscle_ids))
 
     # 1) total_count
     count_q = select(func.count()).select_from(base_q.subquery())
@@ -78,10 +85,6 @@ async def list_exercises(
         .where(ExerciseMuscle.exercise_id.in_(exercise_ids))
     )
     muscle_rows = (await db.execute(muscle_q)).all()
-
-    # 4) equipment rows (reserved for future enrichment)
-    eq_q = select(Exercise.id).where(Exercise.id.in_(exercise_ids))
-    _eq_rows = (await db.execute(eq_q)).all()
 
     # Build primary_muscle_groups map
     primary_map: dict = defaultdict(list)
