@@ -231,20 +231,26 @@ class TestPublicationTypesThreshold:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# evidence_weight 0.5 비율 게이트 완화 (0.50 → 0.65).
+# evidence_weight 0.5 비율 게이트 완화 (0.50 → 0.65 → 0.85).
 # evidence.py 매핑 보강 후에도 운동과학 코퍼스는 일반 저널 논문(baseline 0.5)이
-# 다수라 0.5 비율이 ~0.60 — 데이터 특성. 단 차등화 붕괴(전부 0.5) 회귀는 차단.
+# 다수이고, 이 비율은 수집 depth가 깊어질수록 단조 상승한다(refeed_v2: d010 0.61
+# → d020 0.63 → d030 0.65). production 점증 적재(~10k) 수용 위해 0.85로 정렬.
+# 단 차등화 붕괴(전부 0.5, ~0.92) 회귀는 distinct≥5 + 이 상한으로 여전히 차단.
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class TestEvidenceWeight05RatioThreshold:
-    def test_ratio_060_passes(self):
-        """dry_15_v3 실측(매핑 보강 후) 0.60은 새 임계(<0.65)에서 통과."""
-        assert _valid_result(evidence_weight_05_ratio=0.60).passed
+    def test_ratio_065_passes(self):
+        """depth 깊은 run의 0.65(d030 실측)는 새 임계(<0.85)에서 통과."""
+        assert _valid_result(evidence_weight_05_ratio=0.65).passed
 
-    def test_ratio_066_fails(self):
-        """0.65 이상은 여전히 FAIL (차등화 붕괴 회귀 가드)."""
-        assert not _valid_result(evidence_weight_05_ratio=0.66).passed
+    def test_ratio_084_passes(self):
+        """경계 직전 0.84도 통과 (production 점증 적재 수용)."""
+        assert _valid_result(evidence_weight_05_ratio=0.84).passed
+
+    def test_ratio_086_fails(self):
+        """0.85 이상은 FAIL (차등화 붕괴 접근 회귀 가드)."""
+        assert not _valid_result(evidence_weight_05_ratio=0.86).passed
 
     def test_ratio_092_collapse_fails(self):
         """전부 0.5 fallback(0.92, 보강 붕괴)은 명확히 FAIL."""
