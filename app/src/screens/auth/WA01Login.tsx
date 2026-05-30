@@ -36,7 +36,15 @@ export default function WA01Login() {
     setLoading(true);
     try {
       const result = await signInWithKakao();
-      await setAuth(result);
+      if (result.is_new_user) {
+        // 신규 카카오 유저 → 신체 정보 입력(WA03SignupInfo) 후 온보딩 진입
+        (navigation as any).navigate("WA03SignupInfo", {
+          access_token: result.access_token,
+          refresh_token: result.refresh_token,
+        });
+      } else {
+        await setAuth(result);
+      }
     } catch (e: any) {
       Alert.alert("로그인 실패", e.message ?? "다시 시도해주세요.");
     } finally {
