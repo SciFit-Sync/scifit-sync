@@ -5,6 +5,7 @@ import WS01Splash from "../screens/splash/WS01Splash";
 import WO01GymSetup from "../screens/onboarding/WO01GymSetup";
 import WO02Equipment from "../screens/onboarding/WO02Equipment";
 import WO02EquipmentRegister from "../screens/onboarding/WO02-REquipmentRegister";
+import WO02EquipmentSuggest from "../screens/onboarding/WO02-SEquipmentSuggest";
 import WA01Login from "../screens/auth/WA01Login";
 import WM01Main from "../screens/main/WM01Main";
 import { useAuthStore } from "../stores/authStore";
@@ -50,6 +51,10 @@ function OnboardingNavigator() {
       <OnboardingStack.Screen
         name="WO02EquipmentRegister"
         component={WO02EquipmentRegister}
+      />
+      <OnboardingStack.Screen
+        name="WO02EquipmentSuggest"
+        component={WO02EquipmentSuggest}
       />
       <OnboardingStack.Screen name="WO03OneRM" component={WO03OneRM} />
     </OnboardingStack.Navigator>
