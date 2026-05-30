@@ -281,13 +281,15 @@ async def kakao_login(
     result = await db.execute(select(User).where(User.provider == Provider.KAKAO, User.provider_id == kakao_id))
     user = result.scalar_one_or_none()
 
-    # 탈퇴(is_active=False) 후 재가입: 계정 재활성화 + 기존 프로필로 로그인
+    # 탈퇴(is_active=False) 후 재가입: 계정 재활성화 + 온보딩 재진행
+    is_reactivated = False
     if user is not None and not user.is_active:
         user.is_active = True
         await db.commit()
+        is_reactivated = True
         logger.info("Kakao user %s reactivated (user_id=%s)", kakao_id, user.id)
 
-    is_new_user = user is None
+    is_new_user = user is None or is_reactivated
 
     if is_new_user:
         email = kakao_email or f"kakao_{kakao_id}@noemail.local"
