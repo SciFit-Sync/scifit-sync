@@ -32,7 +32,6 @@ from app.models import (
     WorkoutRoutine,
     WorkoutStatus,
 )
-from app.services import po
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
     FinishSessionRequest,
@@ -53,6 +52,7 @@ from app.schemas.sessions import (
     VolumeAnalysisItem,
     WorkoutSetItem,
 )
+from app.services import po
 
 logger = logging.getLogger(__name__)
 
