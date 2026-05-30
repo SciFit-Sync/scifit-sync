@@ -455,14 +455,14 @@ async def _build_rag_profile(
     ).scalar_one_or_none()
     body_weight = float(body_row.weight_kg) if body_row else 70.0  # fallback (성인 평균)
 
-    # 3. days_per_week ← split_type
+    # 3. days_per_week ← split_type (미지정 시 1일 기본 — 프론트에서 split_type 없이 호출)
     req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
-    days_per_week = 3
+    days_per_week = 1
     if req and req.split_type:
         try:
-            days_per_week = _SPLIT_TO_DAYS.get(SplitType(req.split_type), 3)
+            days_per_week = _SPLIT_TO_DAYS.get(SplitType(req.split_type), 1)
         except ValueError:
-            days_per_week = 3
+            days_per_week = 1
 
     # 4. gym_equipments → equipment_type 리스트
     available_equipment: list[str] = []
