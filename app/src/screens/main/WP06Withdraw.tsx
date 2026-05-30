@@ -11,7 +11,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
-import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
 import { withdrawUser } from "../../services/users";
 
@@ -53,9 +52,7 @@ export default function WP06Withdraw() {
   };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView edges={["top"]} style={styles.safe_top} />
-
+    <SafeAreaView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -66,7 +63,7 @@ export default function WP06Withdraw() {
       </View>
 
       {/* 카드 */}
-      <View style={styles.card_wrapper}>
+      <View style={styles.content}>
         <View style={styles.card}>
           <View style={styles.field}>
             <Text style={styles.label}>비밀번호를 입력해 주세요</Text>
@@ -92,29 +89,12 @@ export default function WP06Withdraw() {
           </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.flex} />
-
-      {/* 하단 네브바 */}
-      <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
-        <BottomNavBar />
-      </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  safe_top: { backgroundColor: colors.background },
-  safe_bottom: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 10,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -125,7 +105,7 @@ const styles = StyleSheet.create({
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  card_wrapper: { paddingHorizontal: 24, paddingTop: 16 },
+  content: { paddingHorizontal: 24, paddingTop: 16 },
   card: {
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -152,5 +132,4 @@ const styles = StyleSheet.create({
   },
   withdraw_button_disabled: { opacity: 0.5 },
   withdraw_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
-  flex: { flex: 1 },
 });
