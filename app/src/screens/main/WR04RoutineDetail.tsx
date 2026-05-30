@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +20,7 @@ import BottomNavBar from "../../components/NavBar";
 import {
   getRoutineDetail,
   deleteRoutine,
+  renameRoutine,
   GOAL_LABELS,
   type RoutineExerciseItem,
 } from "../../services/routines";
@@ -84,6 +86,9 @@ export default function WR04RoutineDetail() {
   const [timer, set_timer] = useState(180);
   const [is_timer_running, set_is_timer_running] = useState(false);
   const [is_deleting, set_is_deleting] = useState(false);
+  const [show_rename_modal, set_show_rename_modal] = useState(false);
+  const [rename_value, set_rename_value] = useState("");
+  const [is_renaming, set_is_renaming] = useState(false);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: detail, isLoading } = useQuery({
@@ -215,7 +220,7 @@ export default function WR04RoutineDetail() {
     ? detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")
     : null;
 
-  const handle_delete_press = () => {
+  const handle_delete_confirm = () => {
     Alert.alert("루틴 삭제", "이 루틴을 삭제할까요?\n삭제 후 복구가 불가능합니다.", [
       { text: "취소", style: "cancel" },
       {
@@ -235,6 +240,44 @@ export default function WR04RoutineDetail() {
         },
       },
     ]);
+  };
+
+  const handle_more_press = () => {
+    Alert.alert("루틴 설정", undefined, [
+      {
+        text: "이름 수정",
+        onPress: () => {
+          set_rename_value(detail?.name ?? "");
+          set_show_rename_modal(true);
+        },
+      },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: handle_delete_confirm,
+      },
+      { text: "취소", style: "cancel" },
+    ]);
+  };
+
+  const handle_rename_confirm = async () => {
+    const trimmed = rename_value.trim();
+    if (!trimmed) {
+      Alert.alert("이름 오류", "루틴 이름을 입력해주세요.");
+      return;
+    }
+    try {
+      set_is_renaming(true);
+      await renameRoutine(token, routine_id!, trimmed);
+      query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
+      query_client.invalidateQueries({ queryKey: ["routines"] });
+      set_show_rename_modal(false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "이름 수정에 실패했습니다.";
+      Alert.alert("수정 실패", msg);
+    } finally {
+      set_is_renaming(false);
+    }
   };
 
   // 로딩 상태
@@ -285,8 +328,8 @@ export default function WR04RoutineDetail() {
               {detail?.name ?? "루틴 상세"}
             </Text>
             <TouchableOpacity
-              onPress={handle_delete_press}
-              disabled={is_deleting}
+              onPress={handle_more_press}
+              disabled={is_deleting || is_renaming}
               style={styles.title_side}
               activeOpacity={0.7}
             >
@@ -566,6 +609,54 @@ export default function WR04RoutineDetail() {
           })}
         </View>
       </ScrollView>
+
+      {/* 이름 수정 모달 */}
+      <Modal
+        visible={show_rename_modal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => set_show_rename_modal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modal_overlay}
+          activeOpacity={1}
+          onPress={() => set_show_rename_modal(false)}
+        >
+          <TouchableOpacity style={styles.modal_box} activeOpacity={1}>
+            <Text style={styles.modal_title}>루틴 이름 수정</Text>
+            <TextInput
+              style={styles.modal_input}
+              value={rename_value}
+              onChangeText={set_rename_value}
+              placeholder="루틴 이름을 입력하세요"
+              placeholderTextColor={colors.bluegray}
+              maxLength={50}
+              autoFocus
+            />
+            <View style={styles.modal_actions}>
+              <TouchableOpacity
+                style={styles.modal_btn_cancel}
+                onPress={() => set_show_rename_modal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modal_btn_cancel_text}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modal_btn_confirm, is_renaming && { opacity: 0.6 }]}
+                onPress={handle_rename_confirm}
+                disabled={is_renaming}
+                activeOpacity={0.8}
+              >
+                {is_renaming ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.modal_btn_confirm_text}>확인</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* 챗봇 FAB */}
       <TouchableOpacity
@@ -948,6 +1039,68 @@ const styles = StyleSheet.create({
     fontFamily: "semibold",
     fontSize: 24,
     color: colors.primary,
+  },
+
+  // 이름 수정 모달
+  modal_overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal_box: {
+    width: "80%",
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+  },
+  modal_title: {
+    fontFamily: "semibold",
+    fontSize: 16,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  modal_input: {
+    height: 44,
+    backgroundColor: colors.select,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modal_actions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  modal_btn_cancel: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.select,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal_btn_cancel_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.primary,
+  },
+  modal_btn_confirm: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal_btn_confirm_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.white,
   },
 
   // FAB
