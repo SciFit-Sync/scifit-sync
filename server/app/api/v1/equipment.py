@@ -46,6 +46,7 @@ def _to_item(
     brand_name: str | None,
     primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
+    quantity: int | None = None,
 ) -> EquipmentItem:
     is_cable_machine = e.equipment_type.value in ("cable", "machine")
     is_barbell = e.equipment_type.value == "barbell"
@@ -64,6 +65,7 @@ def _to_item(
         primary_muscles=primary_muscles or [],
         image_url=image_url_override if image_url_override is not None else e.image_url,
         ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
+        quantity=quantity,
     )
 
 
@@ -109,11 +111,19 @@ async def list_equipment(
     equipment_type: str | None = Query(None, description="cable / machine / barbell / dumbbell / bodyweight"),
     category: str | None = Query(None, description="chest / back / shoulders / arms / core / legs"),
     muscle: str | None = Query(None, description="부위 필터 — category와 동일 (예: chest / back)"),
+    gym_id: str | None = Query(None, description="헬스장 UUID - 지정 시 해당 헬스장 보유 기구의 quantity 포함"),
     page: int | None = Query(None, ge=0, description="페이지 번호 (지정 시 페이지네이션 응답 반환)"),
     size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    gym_uuid: uuid.UUID | None = None
+    if gym_id:
+        try:
+            gym_uuid = uuid.UUID(gym_id)
+        except ValueError as e:
+            raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
+
     stmt = select(Equipment, EquipmentBrand.name).outerjoin(EquipmentBrand, Equipment.brand_id == EquipmentBrand.id)
 
     if keyword:
@@ -135,7 +145,26 @@ async def list_equipment(
     if page is not None:
         total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
         rows = (await db.execute(stmt.offset(page * size).limit(size))).all()
-        items = [_to_item(e, b) for e, b in rows]
+    else:
+        rows = (await db.execute(stmt)).all()
+
+    qty_map: dict[str, int] = {}
+    if gym_uuid:
+        eq_ids = [e.id for e, _ in rows]
+        if eq_ids:
+            qty_rows = (
+                await db.execute(
+                    select(GymEquipment.equipment_id, GymEquipment.quantity).where(
+                        GymEquipment.gym_id == gym_uuid,
+                        GymEquipment.equipment_id.in_(eq_ids),
+                    )
+                )
+            ).all()
+            qty_map = {str(eid): q for eid, q in qty_rows}
+
+    items = [_to_item(e, b, quantity=qty_map.get(str(e.id))) for e, b in rows]
+
+    if page is not None:
         return PaginatedResponse(
             data=items,
             pagination=PaginationMeta(
@@ -145,9 +174,6 @@ async def list_equipment(
                 has_next=(page + 1) * size < total,
             ),
         )
-
-    rows = (await db.execute(stmt)).all()
-    items = [_to_item(e, b) for e, b in rows]
     return SuccessResponse(data=EquipmentListData(items=items))
 
 

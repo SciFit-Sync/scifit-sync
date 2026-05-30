@@ -42,6 +42,7 @@ class EquipmentItem(BaseModel):
     primary_muscles: list[str] = Field(default_factory=list)
     image_url: str | None = None
     ratio: str | None = None
+    quantity: int | None = None
 
 
 class BrandItem(BaseModel):
