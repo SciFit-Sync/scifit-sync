@@ -312,9 +312,7 @@ async def _check_and_create_po_notifications(
         if not po.check_po_trigger([int(prev_max_reps), int(cur_max_reps)], goal):
             continue
 
-        rex = (
-            await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))
-        ).scalar_one_or_none()
+        rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
         if rex is None:
             continue
 
@@ -325,9 +323,7 @@ async def _check_and_create_po_notifications(
         equipment_type = "barbell"
         max_stack = None
         if rex.equipment_id:
-            equip = (
-                await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))
-            ).scalar_one_or_none()
+            equip = (await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))).scalar_one_or_none()
             if equip:
                 equipment_type = equip.equipment_type.value
                 max_stack = equip.max_stack
