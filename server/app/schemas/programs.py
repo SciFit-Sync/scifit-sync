@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ProgramRoutineItem(BaseModel):
     routine_id: str
     name: str
+    # TODO(D-M9): gym join 추가 필요
     gym_name: str | None = None
     order_index: int
 
@@ -27,11 +28,11 @@ class ProgramListData(BaseModel):
 class CreateProgramRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str | None = None
-    routine_ids: list[str] = Field(..., min_length=1)
+    routine_ids: list[str] = Field(..., min_length=1, max_length=50)
 
 
 class UpdateProgramRequest(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
+    name: str | None = Field(None, min_length=1, max_length=200)
     description: str | None = None
 
 

@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/programs", tags=["programs"])
 
+_PROGRAM_LOAD = selectinload(Program.program_routines).selectinload(ProgramRoutine.routine)
+
 
 def _parse_uuid(v: str, name: str) -> uuid.UUID:
     try:
@@ -35,23 +37,16 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
         raise ValidationError(message=f"잘못된 {name} 형식입니다.") from e
 
 
-async def _program_to_dto(program: Program, db: AsyncSession) -> ProgramItem:
-    routine_ids = [pr.routine_id for pr in sorted(program.program_routines, key=lambda x: x.order_index)]
-    routines = []
-    if routine_ids:
-        rows = (await db.execute(select(WorkoutRoutine).where(WorkoutRoutine.id.in_(routine_ids)))).scalars().all()
-        routine_map = {r.id: r for r in rows}
-        for pr in sorted(program.program_routines, key=lambda x: x.order_index):
-            r = routine_map.get(pr.routine_id)
-            if r:
-                routines.append(
-                    ProgramRoutineItem(
-                        routine_id=str(r.id),
-                        name=r.name,
-                        gym_name=None,
-                        order_index=pr.order_index,
-                    )
-                )
+def _program_to_dto(program: Program) -> ProgramItem:
+    routines = [
+        ProgramRoutineItem(
+            routine_id=str(pr.routine_id),
+            name=pr.routine.name,
+            order_index=pr.order_index,
+        )
+        for pr in sorted(program.program_routines, key=lambda x: x.order_index)
+        if pr.routine is not None
+    ]
     return ProgramItem(
         program_id=str(program.id),
         name=program.name,
@@ -74,16 +69,14 @@ async def list_programs(
             await db.execute(
                 select(Program)
                 .where(Program.user_id == current_user.id)
-                .options(selectinload(Program.program_routines))
+                .options(_PROGRAM_LOAD)
                 .order_by(Program.created_at.desc())
             )
         )
         .scalars()
         .all()
     )
-
-    items = [await _program_to_dto(p, db) for p in programs]
-    return SuccessResponse(data=ProgramListData(items=items))
+    return SuccessResponse(data=ProgramListData(items=[_program_to_dto(p) for p in programs]))
 
 
 # ── POST /programs ────────────────────────────────────────────────────────────
@@ -96,6 +89,9 @@ async def create_program(
     db: AsyncSession = Depends(get_db),
 ):
     routine_uuids = [_parse_uuid(rid, "routine_id") for rid in body.routine_ids]
+
+    if len(routine_uuids) != len(set(routine_uuids)):
+        raise ValidationError(message="routine_ids에 중복된 값이 있습니다.")
 
     valid = (
         (
@@ -114,11 +110,7 @@ async def create_program(
     if len(valid) != len(routine_uuids):
         raise ValidationError(message="존재하지 않거나 접근 권한이 없는 루틴이 포함되어 있습니다.")
 
-    program = Program(
-        user_id=current_user.id,
-        name=body.name,
-        description=body.description,
-    )
+    program = Program(user_id=current_user.id, name=body.name, description=body.description)
     db.add(program)
     await db.flush()
 
@@ -126,16 +118,13 @@ async def create_program(
         db.add(ProgramRoutine(program_id=program.id, routine_id=rid, order_index=idx))
 
     await db.commit()
-    await db.refresh(program)
 
-    program_with_routines = (
-        await db.execute(
-            select(Program).where(Program.id == program.id).options(selectinload(Program.program_routines))
-        )
+    program_loaded = (
+        await db.execute(select(Program).where(Program.id == program.id).options(_PROGRAM_LOAD))
     ).scalar_one()
 
     logger.info("Program %s created by user %s", program.id, current_user.id)
-    return SuccessResponse(data=await _program_to_dto(program_with_routines, db))
+    return SuccessResponse(data=_program_to_dto(program_loaded))
 
 
 # ── GET /programs/{id} ────────────────────────────────────────────────────────
@@ -150,16 +139,14 @@ async def get_program(
     pid = _parse_uuid(program_id, "program_id")
     program = (
         await db.execute(
-            select(Program)
-            .where(Program.id == pid, Program.user_id == current_user.id)
-            .options(selectinload(Program.program_routines))
+            select(Program).where(Program.id == pid, Program.user_id == current_user.id).options(_PROGRAM_LOAD)
         )
     ).scalar_one_or_none()
 
     if program is None:
         raise NotFoundError(message="프로그램을 찾을 수 없습니다.")
 
-    return SuccessResponse(data=await _program_to_dto(program, db))
+    return SuccessResponse(data=_program_to_dto(program))
 
 
 # ── PATCH /programs/{id} ─────────────────────────────────────────────────────
@@ -175,21 +162,26 @@ async def update_program(
     pid = _parse_uuid(program_id, "program_id")
     program = (
         await db.execute(
-            select(Program)
-            .where(Program.id == pid, Program.user_id == current_user.id)
-            .options(selectinload(Program.program_routines))
+            select(Program).where(Program.id == pid, Program.user_id == current_user.id).options(_PROGRAM_LOAD)
         )
     ).scalar_one_or_none()
 
     if program is None:
         raise NotFoundError(message="프로그램을 찾을 수 없습니다.")
 
-    program.name = body.name
-    program.description = body.description
+    if body.name is not None:
+        program.name = body.name
+    if body.description is not None:
+        program.description = body.description
+
     await db.commit()
     await db.refresh(program)
 
-    return SuccessResponse(data=await _program_to_dto(program, db))
+    program_loaded = (
+        await db.execute(select(Program).where(Program.id == program.id).options(_PROGRAM_LOAD))
+    ).scalar_one()
+
+    return SuccessResponse(data=_program_to_dto(program_loaded))
 
 
 # ── DELETE /programs/{id} ─────────────────────────────────────────────────────
