@@ -111,9 +111,9 @@ async def search_gyms(
     documents = resp.json().get("documents", [])
     place_ids = [d["id"] for d in documents]
 
-    # 기존 DB 매칭 — equipment_count만 필요하므로 COUNT 서브쿼리 사용 (전체 로드 방지)
+    # 기존 DB 매칭 — quantity 합산으로 총 보유 기구 수 계산
     eq_count_subq = (
-        select(func.count(GymEquipment.equipment_id))
+        select(func.coalesce(func.sum(GymEquipment.quantity), 0))
         .where(GymEquipment.gym_id == Gym.id)
         .correlate(Gym)
         .scalar_subquery()
@@ -171,7 +171,7 @@ async def create_gym(
                     latitude=existing.latitude,
                     longitude=existing.longitude,
                     kakao_place_id=existing.kakao_place_id,
-                    equipment_count=len(existing.gym_equipments),
+                    equipment_count=sum(ge.quantity for ge in existing.gym_equipments),
                 )
             )
 
