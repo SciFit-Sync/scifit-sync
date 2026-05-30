@@ -125,6 +125,9 @@ export default function WP04GymEquipment() {
               {gym_name ? (
                 <Text style={styles.gym_name_text}>{gym_name}</Text>
               ) : null}
+              {!loading && equipment_list.length > 0 && (
+                <Text style={styles.count_text}>총 {equipment_list.length}개</Text>
+              )}
             </View>
             <TouchableOpacity
               style={styles.add_btn}
@@ -300,6 +303,11 @@ const styles = StyleSheet.create({
   gym_name_text: {
     fontFamily: "regular",
     fontSize: 13,
+    color: colors.bluegray,
+  },
+  count_text: {
+    fontFamily: "regular",
+    fontSize: 12,
     color: colors.bluegray,
   },
   add_btn: {
