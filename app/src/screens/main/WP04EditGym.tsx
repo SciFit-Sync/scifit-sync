@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,94 +9,179 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { colors } from "../../assets/colors/colors";
-
-interface Gym {
-  id: string;
-  name: string;
-  address: string;
-  distance?: string;
-}
-
-const mock_nearby_gyms: Gym[] = [
-  {
-    id: "1",
-    name: "스포애니 강남점",
-    address: "서울 강남구 테헤란로 152",
-    distance: "0.3km",
-  },
-  {
-    id: "2",
-    name: "스포애니 서초점",
-    address: "서울 서초구 서초대로 77",
-    distance: "0.8km",
-  },
-  {
-    id: "3",
-    name: "헬스장 홍대점",
-    address: "서울 마포구 양화로 162",
-    distance: "1.2km",
-  },
-];
-
-const mock_search_gyms: Gym[] = [
-  ...mock_nearby_gyms,
-  {
-    id: "4",
-    name: "피트니스 센터 종로",
-    address: "서울 종로구 종로 1",
-    distance: "3.1km",
-  },
-  {
-    id: "5",
-    name: "짐박스 신촌",
-    address: "서울 서대문구 신촌로 12",
-    distance: "4.5km",
-  },
-];
+import { useAuthStore } from "../../stores/authStore";
+import { searchGyms, createGym, GymItem } from "../../services/gyms";
+import { getMe, updateMyGym } from "../../services/users";
 
 export default function WP04EditGym() {
   const navigation = useNavigation();
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+
   const [search, set_search] = useState("");
-  const [selected_gym, set_selected_gym] = useState<Gym | null>(
-    mock_nearby_gyms[0],
-  ); // 기존 헬스장 선택된 상태로
+  const [selected_gym, set_selected_gym] = useState<GymItem | null>(null);
+  const [gyms, set_gyms] = useState<GymItem[]>([]);
+  const [loading, set_loading] = useState(true);
+  const [saving, set_saving] = useState(false);
   const [has_location_permission, set_has_location_permission] = useState<
     boolean | null
   >(null);
+  const [coords, set_coords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
+  const search_timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const search_seq = useRef(0);
 
   useEffect(() => {
-    check_location_permission();
+    init();
   }, []);
 
-  const check_location_permission = async () => {
+  const init = async () => {
+    // 현재 헬스장 불러오기
+    try {
+      const me = await getMe(token);
+      const primary = me.gyms?.find((g) => g.is_primary) ?? me.gyms?.[0];
+      if (primary) {
+        set_selected_gym({
+          gym_id: primary.gym_id,
+          kakao_place_id: null,
+          name: primary.name,
+          address: "",
+          latitude: null,
+          longitude: null,
+          equipment_count: 0,
+        });
+      }
+    } catch {
+      // 무시
+    }
+
+    // 위치 권한 확인
     const { status } = await Location.getForegroundPermissionsAsync();
-    set_has_location_permission(status === "granted");
+    if (status === "granted") {
+      set_has_location_permission(true);
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const c = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        set_coords(c);
+        await do_nearby_search(c);
+      } catch {
+        await do_fallback_search();
+      }
+    } else {
+      set_has_location_permission(false);
+      set_loading(false);
+    }
+  };
+
+  const do_nearby_search = async (c: { lat: number; lng: number }) => {
+    set_loading(true);
+    try {
+      const results = await searchGyms("", token, c.lat, c.lng);
+      if (results.length > 0) {
+        set_gyms(results);
+        set_loading(false);
+        return;
+      }
+    } catch {
+      // fallback으로 계속
+    }
+    await do_fallback_search();
+  };
+
+  const do_fallback_search = useCallback(async () => {
+    set_loading(true);
+    try {
+      const results = await searchGyms("헬스장", token);
+      set_gyms(results);
+    } catch {
+      set_gyms([]);
+    } finally {
+      set_loading(false);
+    }
+  }, [token]);
+
+  const do_search = useCallback(
+    async (keyword: string) => {
+      search_seq.current += 1;
+      const seq = search_seq.current;
+      set_loading(true);
+      try {
+        const results = await searchGyms(keyword, token, coords?.lat, coords?.lng);
+        if (seq !== search_seq.current) return;
+        set_gyms(results);
+      } catch {
+        if (seq !== search_seq.current) return;
+        set_gyms([]);
+      } finally {
+        if (seq === search_seq.current) set_loading(false);
+      }
+    },
+    [coords, token],
+  );
+
+  const handle_search_change = (v: string) => {
+    set_search(v);
+    if (search_timer.current) clearTimeout(search_timer.current);
+    if (v.length === 0) {
+      if (coords) do_nearby_search(coords);
+      else do_fallback_search();
+    } else {
+      search_timer.current = setTimeout(() => do_search(v), 300);
+    }
   };
 
   const request_location_permission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === "granted") {
       set_has_location_permission(true);
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const c = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+        set_coords(c);
+        await do_nearby_search(c);
+      } catch {
+        await do_fallback_search();
+      }
     } else {
       Linking.openSettings();
     }
   };
 
-  const displayed_gyms =
-    search.length > 0
-      ? mock_search_gyms.filter((gym) => gym.name.includes(search))
-      : mock_nearby_gyms;
-
-  const handle_save = () => {
-    // TODO: API 연동
-    navigation.goBack();
+  const handle_save = async () => {
+    if (!selected_gym) return;
+    set_saving(true);
+    try {
+      let gym_id = selected_gym.gym_id;
+      if (!gym_id) {
+        const created = await createGym(selected_gym, token);
+        gym_id = created.gym_id;
+      }
+      await updateMyGym(token, gym_id);
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "헬스장 변경에 실패했어요.");
+    } finally {
+      set_saving(false);
+    }
   };
+
+  const is_selected = (gym: GymItem) =>
+    gym.gym_id != null
+      ? selected_gym?.gym_id === gym.gym_id
+      : selected_gym?.kakao_place_id != null &&
+        selected_gym.kakao_place_id === gym.kakao_place_id;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -113,12 +198,8 @@ export default function WP04EditGym() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
       >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.content}>
           <View style={styles.card}>
-            {/* ⭐ 타이틀 수정 */}
             <Text style={styles.card_title}>MY 헬스장 수정</Text>
 
             {/* 검색창 */}
@@ -129,37 +210,43 @@ export default function WP04EditGym() {
                 placeholder="이용 중인 헬스장을 검색해 주세요."
                 placeholderTextColor={colors.border}
                 value={search}
-                onChangeText={set_search}
+                onChangeText={handle_search_change}
               />
               {search.length > 0 && (
-                <TouchableOpacity onPress={() => set_search("")}>
+                <TouchableOpacity onPress={() => handle_search_change("")}>
                   <Octicons name="x" size={16} color={colors.border} />
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* 위치 동의 여부에 따라 분기 */}
-            {has_location_permission === false ? (
-              <View style={styles.location_button_wrapper}>
-                <TouchableOpacity
-                  style={styles.location_button}
-                  onPress={request_location_permission}
-                  activeOpacity={0.8}
+            {/* 목록 영역 */}
+            <View style={styles.list_container}>
+              {loading || has_location_permission === null ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+              ) : has_location_permission === false && search.length === 0 ? (
+                <View style={styles.location_button_wrapper}>
+                  <TouchableOpacity
+                    style={styles.location_button}
+                    onPress={request_location_permission}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.location_button_text}>
+                      위치 정보 동의하러 가기
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : gyms.length > 0 ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.gym_list}
                 >
-                  <Text style={styles.location_button_text}>
-                    위치 정보 동의하러 가기
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.gym_list}>
-                {displayed_gyms.length > 0 ? (
-                  displayed_gyms.map((gym) => (
+                  {gyms.map((gym) => (
                     <TouchableOpacity
-                      key={gym.id}
+                      key={gym.kakao_place_id || gym.gym_id || gym.name}
                       style={[
                         styles.gym_item,
-                        selected_gym?.id === gym.id && styles.gym_item_active,
+                        is_selected(gym) && styles.gym_item_active,
                       ]}
                       onPress={() => set_selected_gym(gym)}
                       activeOpacity={0.8}
@@ -168,41 +255,46 @@ export default function WP04EditGym() {
                         <Text
                           style={[
                             styles.gym_name,
-                            selected_gym?.id === gym.id &&
-                              styles.gym_name_active,
+                            is_selected(gym) && styles.gym_name_active,
                           ]}
                         >
                           {gym.name}
                         </Text>
                         <Text style={styles.gym_address}>{gym.address}</Text>
                       </View>
-                      {gym.distance && (
-                        <Text style={styles.gym_distance}>{gym.distance}</Text>
+                      {gym.equipment_count > 0 && (
+                        <Text style={styles.gym_equipment_count}>
+                          기구 {gym.equipment_count}개
+                        </Text>
                       )}
                     </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={styles.empty_text}>검색 결과가 없어요</Text>
-                )}
-              </View>
-            )}
+                  ))}
+                </ScrollView>
+              ) : search.length > 0 ? (
+                <Text style={styles.empty_text}>검색 결과가 없어요</Text>
+              ) : (
+                <Text style={styles.empty_text}>
+                  검색창에 헬스장 이름을 입력해 주세요.
+                </Text>
+              )}
+            </View>
 
-            <View style={styles.spacer} />
-
-            {/* ⭐ 저장하기 버튼 */}
+            {/* 저장 버튼 */}
             <TouchableOpacity
               style={[
                 styles.save_button,
-                !selected_gym && styles.save_button_disabled,
+                (!selected_gym || saving) && styles.save_button_disabled,
               ]}
               onPress={handle_save}
-              disabled={!selected_gym}
+              disabled={!selected_gym || saving}
               activeOpacity={0.8}
             >
-              <Text style={styles.save_button_text}>저장하기</Text>
+              <Text style={styles.save_button_text}>
+                {saving ? "저장 중..." : "저장하기"}
+              </Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -221,13 +313,13 @@ const styles = StyleSheet.create({
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  scroll: { paddingHorizontal: 24, paddingBottom: 32 },
+  content: { flex: 1, paddingHorizontal: 24, paddingBottom: 32 },
   card: {
+    flex: 1,
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 20,
     gap: 16,
-    minHeight: 500,
   },
   card_title: {
     fontFamily: "semibold",
@@ -251,13 +343,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
+  list_container: { flex: 1 },
   location_button_wrapper: {
+    flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   location_button: {
     backgroundColor: colors.select,
     borderRadius: 8,
-    height: 45,
+    paddingVertical: 13,
     width: 209,
     alignItems: "center",
     justifyContent: "center",
@@ -272,25 +367,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.select,
     borderRadius: 8,
     paddingHorizontal: 15,
-    height: 70,
+    minHeight: 70,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   gym_item_active: { backgroundColor: colors.primary },
-  gym_info: { gap: 4 },
-  gym_name: {
-    fontFamily: "regular",
-    fontSize: 16,
-    color: colors.primary,
-  },
+  gym_info: { gap: 4, flex: 1 },
+  gym_name: { fontFamily: "regular", fontSize: 16, color: colors.primary },
   gym_name_active: { color: colors.white },
-  gym_address: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: "#C8D5FF",
-  },
-  gym_distance: {
+  gym_address: { fontFamily: "regular", fontSize: 13, color: colors.bluegray },
+  gym_equipment_count: {
     fontFamily: "regular",
     fontSize: 12,
     color: colors.bluegray,
@@ -302,17 +390,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 20,
   },
-  spacer: { flex: 1 },
   save_button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
+    justifyContent: "center",
   },
   save_button_disabled: { opacity: 0.5 },
-  save_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  save_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
 });

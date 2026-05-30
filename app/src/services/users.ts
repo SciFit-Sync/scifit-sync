@@ -42,6 +42,13 @@ export interface OneRMData {
   estimated_at: string;
 }
 
+export interface CoreLiftItem {
+  code: string;
+  exercise_id: string;
+  name: string;
+  name_en: string | null;
+}
+
 // GET /api/v1/users/me
 export async function getMe(token: string): Promise<MeData> {
   return apiFetch<MeData>('/api/v1/users/me', { token });
@@ -51,4 +58,62 @@ export async function getMe(token: string): Promise<MeData> {
 export async function getMyOneRMs(token: string): Promise<OneRMData[]> {
   const data = await apiFetch<{ items: OneRMData[] }>('/api/v1/users/me/1rm', { token });
   return data.items;
+}
+
+// PATCH /api/v1/users/me/body
+export async function updateBody(
+  token: string,
+  body: { height_cm?: number; weight_kg?: number },
+): Promise<void> {
+  await apiFetch('/api/v1/users/me/body', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  });
+}
+
+// PATCH /api/v1/users/me/career
+export async function updateCareer(token: string, career_level: string): Promise<void> {
+  await apiFetch('/api/v1/users/me/career', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({ career_level }),
+  });
+}
+
+// PATCH /api/v1/users/me/gym (주 헬스장 변경)
+export async function updateMyGym(token: string, gym_id: string): Promise<void> {
+  await apiFetch('/api/v1/users/me/gym', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({ gym_id }),
+  });
+}
+
+// POST /api/v1/users/me/1rm/bulk (1RM 일괄 저장)
+export interface BulkOneRMItem {
+  exercise_code: string;
+  weight_kg: number;
+}
+export async function bulkSaveOneRM(token: string, items: BulkOneRMItem[]): Promise<void> {
+  await apiFetch('/api/v1/users/me/1rm/bulk', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ items }),
+  });
+}
+
+// GET /api/v1/exercises/core-lifts
+export async function getCoreLifts(token: string): Promise<CoreLiftItem[]> {
+  const data = await apiFetch<{ items: CoreLiftItem[] }>('/api/v1/exercises/core-lifts', { token });
+  return data.items;
+}
+
+// DELETE /api/v1/auth/withdraw
+export async function withdrawUser(token: string, password: string): Promise<void> {
+  await apiFetch('/api/v1/auth/withdraw', {
+    method: 'DELETE',
+    token,
+    body: JSON.stringify({ password }),
+  });
 }

@@ -13,11 +13,15 @@ import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
+import { withdrawUser } from "../../services/users";
 
 export default function WP06Withdraw() {
   const navigation = useNavigation();
-  const [password, set_password] = useState("");
+  const token = useAuthStore((s) => s.accessToken) ?? "";
   const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  const [password, set_password] = useState("");
+  const [loading, set_loading] = useState(false);
 
   const handle_withdraw = () => {
     if (!password) {
@@ -33,8 +37,15 @@ export default function WP06Withdraw() {
           text: "탈퇴하기",
           style: "destructive",
           onPress: async () => {
-            // TODO: 탈퇴 API 연동
-            await clearAuth();
+            set_loading(true);
+            try {
+              await withdrawUser(token, password);
+              await clearAuth();
+            } catch (e: any) {
+              Alert.alert("오류", e.message ?? "탈퇴 처리에 실패했어요.");
+            } finally {
+              set_loading(false);
+            }
           },
         },
       ],
@@ -70,11 +81,14 @@ export default function WP06Withdraw() {
             />
           </View>
           <TouchableOpacity
-            style={styles.withdraw_button}
+            style={[styles.withdraw_button, loading && styles.withdraw_button_disabled]}
             onPress={handle_withdraw}
+            disabled={loading}
             activeOpacity={0.8}
           >
-            <Text style={styles.withdraw_button_text}>탈퇴하기</Text>
+            <Text style={styles.withdraw_button_text}>
+              {loading ? "처리 중..." : "탈퇴하기"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -89,13 +103,8 @@ export default function WP06Withdraw() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  safe_top: {
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  safe_top: { backgroundColor: colors.background },
   safe_bottom: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 16,
@@ -114,16 +123,9 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
   },
-  logo: {
-    fontFamily: "sacheon",
-    fontSize: 20,
-    color: colors.primary,
-  },
+  logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  card_wrapper: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
+  card_wrapper: { paddingHorizontal: 24, paddingTop: 16 },
   card: {
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -131,11 +133,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   field: { gap: 8 },
-  label: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.primary,
-  },
+  label: { fontFamily: "medium", fontSize: 16, color: colors.primary },
   input: {
     fontFamily: "regular",
     borderWidth: 1,
@@ -152,12 +150,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  withdraw_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
-  flex: {
-    flex: 1,
-  },
+  withdraw_button_disabled: { opacity: 0.5 },
+  withdraw_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
+  flex: { flex: 1 },
 });
