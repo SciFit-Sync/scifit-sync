@@ -62,7 +62,6 @@ export default function WA01Login() {
 
   const handleSignup = () => {
     navigation.navigate("WA02Signup" as never);
-    if (__DEV__) console.log("회원가입");
   };
 
   return (
@@ -134,10 +133,7 @@ export default function WA01Login() {
 
             {/* 카카오 로그인 버튼 */}
             <TouchableOpacity
-              style={[
-                styles.kakaoButton,
-                loading && styles.kakaoButtonDisabled,
-              ]}
+              style={[styles.kakaoButton, loading && styles.kakaoButtonDisabled]}
               onPress={handleKakaoLogin}
               disabled={loading}
               activeOpacity={0.8}
@@ -154,28 +150,16 @@ export default function WA01Login() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
   logoContainer: {
     alignItems: "center",
     marginTop: 63,
     marginBottom: 56,
     gap: 8,
   },
-  logo: {
-    fontFamily: "sacheon",
-    color: colors.primary,
-    fontSize: 20,
-  },
-  slogan: {
-    fontFamily: "medium",
-    fontSize: 14,
-    color: "#1E3A8A",
-  },
+  logo: { fontFamily: "sacheon", color: colors.primary, fontSize: 20 },
+  slogan: { fontFamily: "medium", fontSize: 14, color: "#1E3A8A" },
   card: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 24,
@@ -207,32 +191,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-  loginButtonText: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  loginButtonText: { fontFamily: "medium", fontSize: 16, color: colors.white },
   linkContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 8,
     marginBottom: 24,
   },
-  linkText: {
-    fontFamily: "regular",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
+  linkText: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
   divider: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: {
     fontFamily: "regular",
     marginHorizontal: 10,
@@ -245,12 +217,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  kakaoButtonDisabled: {
-    opacity: 0.5,
-  },
-  kakaoText: {
-    fontFamily: "medium",
-    color: "#111111",
-    fontSize: 16,
-  },
+  kakaoButtonDisabled: { opacity: 0.5 },
+  kakaoText: { fontFamily: "medium", color: "#111111", fontSize: 16 },
 });
