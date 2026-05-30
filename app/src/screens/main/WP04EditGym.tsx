@@ -52,7 +52,17 @@ export default function WP04EditGym() {
 
       <View style={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.card_title}>MY 헬스장</Text>
+          <View style={styles.title_row}>
+            <View style={styles.title_spacer} />
+            <Text style={styles.card_title}>MY 헬스장</Text>
+            <TouchableOpacity
+              style={styles.add_btn}
+              onPress={() => (navigation as any).navigate("WP04AddGym")}
+              activeOpacity={0.8}
+            >
+              <Octicons name="plus" size={18} color={colors.white} />
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.list_container}>
             {loading ? (
@@ -123,11 +133,26 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
+  title_row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title_spacer: { width: 32 },
   card_title: {
     fontFamily: "semibold",
     fontSize: 18,
     color: colors.primary,
     textAlign: "center",
+    flex: 1,
+  },
+  add_btn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   list_container: { flex: 1 },
   empty_wrapper: {
