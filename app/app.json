@@ -21,7 +21,7 @@
       [
         "@react-native-seoul/kakao-login",
         {
-          "kotlinVersion": "1.9.25",
+          "kotlinVersion": "2.1.0",
           "nativeAppKey": "31250347642127059188b6723d38cca3"
         }
       ],
