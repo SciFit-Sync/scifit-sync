@@ -14,6 +14,14 @@ import WR04RoutineDetail from "../screens/main/WR04RoutineDetail";
 import WL01Record from "../screens/main/WL01Record";
 import WA03SignupInfo from "../screens/auth/WA03SignupInfo";
 import WO03OneRM from "@/screens/onboarding/WO03OneRM";
+import WP01MyPage from "../screens/main/WP01MyPage";
+import WP02EditBodyInfo from "../screens/main/WP02EditBodyInfo";
+import WP03EditCareer from "../screens/main/WP03EditCareer";
+import WP04AddGym from "../screens/main/WP04AddGym";
+import WP04EditGym from "../screens/main/WP04EditGym";
+import WP04GymEquipment from "../screens/main/WP04GymEquipment";
+import WP05EditOneRM from "../screens/main/WP05EditOneRM";
+import WP06Withdraw from "../screens/main/WP06Withdraw";
 
 const AuthStack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator();
@@ -60,6 +68,14 @@ function MainNavigator() {
         component={WR04RoutineDetail}
       />
       <MainStack.Screen name="WL01Record" component={WL01Record} />
+      <MainStack.Screen name="WP01MyPage" component={WP01MyPage} />
+      <MainStack.Screen name="WP02EditBodyInfo" component={WP02EditBodyInfo} />
+      <MainStack.Screen name="WP03EditCareer" component={WP03EditCareer} />
+      <MainStack.Screen name="WP04AddGym" component={WP04AddGym} />
+      <MainStack.Screen name="WP04EditGym" component={WP04EditGym} />
+      <MainStack.Screen name="WP04GymEquipment" component={WP04GymEquipment} />
+      <MainStack.Screen name="WP05EditOneRM" component={WP05EditOneRM} />
+      <MainStack.Screen name="WP06Withdraw" component={WP06Withdraw} />
     </MainStack.Navigator>
   );
 }

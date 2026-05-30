@@ -176,13 +176,18 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
 
     Returns:
         [{"content": str, "pmid": str, "title": str, "section": str, "score": float}]
+        ChromaDB 컬렉션이 없거나 데이터가 없으면 빈 리스트를 반환한다.
     """
     query = _sanitize_query(query)
     if not query:
         return []
 
-    model = _get_embed_model()
-    collection = _get_collection()
+    try:
+        model = _get_embed_model()
+        collection = _get_collection()
+    except Exception as e:
+        logger.warning("ChromaDB 접근 실패 (논문 데이터 없음?): %s", e)
+        return []
 
     query_vec = model.encode(BGE_QUERY_INSTRUCTION + query).tolist()
     fetch_n = top_k * OVER_FETCH_MULTIPLIER
@@ -349,11 +354,10 @@ _GOAL_QUERIES = {
 
 
 def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
-    """루틴 생성 프롬프트를 조합한다. 외부 청크는 별도 섹션으로 분리한다."""
-    context = ""
-    for i, chunk in enumerate(chunks[:5], 1):
-        context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
+    """루틴 생성 프롬프트를 조합한다.
 
+    chunks가 비어 있으면 논문 컨텍스트 없이 스포츠 과학 지식 기반 생성으로 fallback한다.
+    """
     equipment_str = (
         ", ".join(profile.available_equipment) if profile.available_equipment else "barbell, dumbbell, bodyweight"
     )
@@ -372,9 +376,27 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         extras.append(f"- Regenerate feedback (from user): <user_query>{safe}</user_query>")
     extras_str = ("\n" + "\n".join(extras)) if extras else ""
 
+    if chunks:
+        context = ""
+        for i, chunk in enumerate(chunks[:5], 1):
+            context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
+        knowledge_section = (
+            f"Create a {profile.days_per_week}-day workout routine "
+            f"based ONLY on the research papers below.\n\n"
+            f"Research papers:\n{context}\n\n"
+            f'Include "notes" citing the relevant paper number for each exercise.'
+        )
+    else:
+        # ChromaDB 데이터 없음 — 논문 없이 스포츠 과학 지식으로 생성 (개발/테스트 환경 fallback)
+        logger.info("RAG fallback: 논문 없이 LLM 지식 기반 루틴 생성")
+        knowledge_section = (
+            f"Create a {profile.days_per_week}-day evidence-based workout routine "
+            f"using your sports science knowledge.\n\n"
+            f'Set "notes" to a brief exercise rationale for each exercise.'
+        )
+
     return (
-        f"You are a sports science expert. Create a {profile.days_per_week}-day workout routine "
-        f"based ONLY on the research papers below.\n\n"
+        f"You are a sports science expert. {knowledge_section}\n\n"
         f"User Profile:\n"
         f"- Goals (primary first): {goals_str}\n"
         f"- Target muscles to emphasize: {muscles_str}\n"
@@ -382,14 +404,13 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"- Fitness level: {profile.fitness_career}\n"
         f"- Available equipment: {equipment_str}"
         f"{extras_str}\n\n"
-        f"Research papers:\n{context}\n\n"
         f"Output a JSON array of exactly {profile.days_per_week} day objects.\n"
         f"Each object format:\n"
         f'{{"day": <number>, "focus": "<muscle group>", "exercises": ['
         f'{{"name": "<English exercise name>", "sets": <number>, '
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
-        f'"notes": "<paper-based rationale, mention paper number>"}}]}}\n\n'
+        f'"notes": "<brief rationale>"}}]}}\n\n'
         f"Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30).\n"
         f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
@@ -430,13 +451,12 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
     if extras:
         query = f"{query} {' '.join(extras)}"
 
-    # 2. ChromaDB 검색
+    # 2. ChromaDB 검색 (컬렉션 없거나 데이터 없으면 빈 리스트 — fallback으로 계속 진행)
     chunks = search_chunks(query)
     if not chunks:
-        yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다."}
-        return
+        logger.warning("ChromaDB 청크 없음 — 논문 없이 LLM 단독 루틴 생성으로 fallback")
 
-    # 3. 프롬프트 조합
+    # 3. 프롬프트 조합 (chunks 비어 있어도 _build_routine_prompt가 fallback 처리)
     prompt = _build_routine_prompt(profile, chunks)
 
     # 4. LLM 토큰 스트리밍

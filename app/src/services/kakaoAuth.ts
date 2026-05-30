@@ -17,7 +17,7 @@ export async function signInWithKakao(): Promise<KakaoAuthResult> {
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/kakao`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken }),
+    body: JSON.stringify({ access_token: accessToken }),
   });
 
   const data = await response.json();
@@ -26,5 +26,18 @@ export async function signInWithKakao(): Promise<KakaoAuthResult> {
     throw new Error(data.error?.message ?? '카카오 로그인에 실패했습니다.');
   }
 
-  return data.data as KakaoAuthResult;
+  // 서버는 snake_case로 응답 (D-15) → camelCase로 변환
+  const d = data.data as {
+    access_token: string;
+    refresh_token: string;
+    is_new_user: boolean;
+    message?: string;
+  };
+
+  return {
+    accessToken: d.access_token,
+    refreshToken: d.refresh_token,
+    isNewUser: d.is_new_user,
+    message: d.message,
+  };
 }
