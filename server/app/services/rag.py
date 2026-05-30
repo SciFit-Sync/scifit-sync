@@ -335,6 +335,7 @@ class UserProfile:
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
     feedback: str | None = None  # 재생성 시 이전 루틴 대비 변경 요청
+    available_exercises: list[str] = field(default_factory=list)  # DB에 등록된 운동 name_en 목록
 
     @property
     def primary_goal(self) -> str:
@@ -407,13 +408,20 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"Output a JSON array of exactly {profile.days_per_week} day objects.\n"
         f"Each object format:\n"
         f'{{"day": <number>, "focus": "<muscle group>", "exercises": ['
-        f'{{"name": "<English exercise name>", "sets": <number>, '
+        f'{{"name": "<exercise name>", "sets": <number>, '
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
         f'"notes": "<brief rationale>"}}]}}\n\n'
         f"Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30).\n"
-        f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
+        + (
+            f"IMPORTANT: You MUST use ONLY exercise names from this exact list. "
+            f"Do NOT invent new names — pick the closest match:\n"
+            f"{chr(10).join('- ' + ex for ex in profile.available_exercises)}\n\n"
+            if profile.available_exercises
+            else ""
+        )
+        + "Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
 
 
