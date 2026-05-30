@@ -271,9 +271,12 @@ async def kakao_login(
         is_reactivated = True
         logger.info("Kakao user %s reactivated (user_id=%s)", kakao_id, user.id)
 
+    # is_new_user: 응답에 포함되는 플래그 (온보딩 필요 여부)
+    # user is None: 완전 신규 → DB에 새 유저 생성 필요
+    # is_reactivated: 재활성화 → 유저는 이미 존재, 온보딩만 재진행
     is_new_user = user is None or is_reactivated
 
-    if is_new_user:
+    if user is None:  # 완전 신규 유저만 생성 (재활성화 유저는 건너뜀)
         email = kakao_email or f"kakao_{kakao_id}@noemail.local"
 
         # 이메일 중복 확인
