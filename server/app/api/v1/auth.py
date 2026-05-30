@@ -398,7 +398,8 @@ async def withdraw(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.password_hash or not verify_password(body.password, current_user.password_hash):
+    # local 계정은 비밀번호 검증, 소셜(카카오) 계정은 비밀번호 없으므로 스킵
+    if current_user.password_hash and (not body.password or not verify_password(body.password, current_user.password_hash)):
         raise UnauthorizedError(message="비밀번호가 올바르지 않습니다.")
 
     current_user.is_active = False
