@@ -136,10 +136,10 @@ export async function getCoreLifts(token: string): Promise<CoreLiftItem[]> {
 }
 
 // DELETE /api/v1/auth/withdraw
-export async function withdrawUser(token: string, password: string): Promise<void> {
+export async function withdrawUser(token: string, password?: string): Promise<void> {
   await apiFetch('/api/v1/auth/withdraw', {
     method: 'DELETE',
     token,
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password: password ?? null }),
   });
 }
