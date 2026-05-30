@@ -1,5 +1,158 @@
 import { apiFetch } from './api';
 
+// ── 목록 ──────────────────────────────────────────────────────────────────────
+
+export interface RoutineSummary {
+  routine_id: string;
+  name: string;
+  fitness_goals: string[] | null;
+  split_type: string | null;
+  generated_by: string;
+  status: string;
+  gym_id: string | null;
+  gym_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoutineListData {
+  items: RoutineSummary[];
+}
+
+export function listRoutines(token: string): Promise<RoutineListData> {
+  return apiFetch<RoutineListData>('/api/v1/routines', { token });
+}
+
+// ── AI 루틴 생성 (SSE) ────────────────────────────────────────────────────────
+
+/** 한국어 목표 → 영어 API 값 */
+export const GOAL_MAP: Record<string, string> = {
+  근비대: 'hypertrophy',
+  근력: 'strength',
+  체력: 'endurance',
+  다이어트: 'weight_loss',
+};
+
+/** 한국어 목표 → 표시용 한국어 레이블 (역방향) */
+export const GOAL_LABELS: Record<string, string> = {
+  hypertrophy: '근비대',
+  strength: '근력',
+  endurance: '체력',
+  weight_loss: '다이어트',
+  rehabilitation: '재활',
+};
+
+/** 한국어 부위 → 영어 API 값 */
+export const BODY_PART_MAP: Record<string, string> = {
+  어깨: 'shoulder',
+  등: 'back',
+  가슴: 'chest',
+  하체: 'legs',
+  팔: 'arms',
+  복근: 'abs',
+};
+
+function parse_session_minutes(time: string): number {
+  if (time.includes('120')) return 120;
+  const match = time.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 60;
+}
+
+export interface GenerateRoutineParams {
+  goal: string;         // 한국어 (근비대 / 근력 / 체력 / 다이어트)
+  body_parts: string[]; // 한국어 배열 (어깨 / 등 / 가슴 / 하체 / 팔 / 복근)
+  session_time: string; // 한국어 (30분 / 60분 / 90분 / 120분 +)
+  injury: string;       // 자유 텍스트
+}
+
+export interface SSECallbacks {
+  on_started?: (routine_id: string) => void;
+  on_chunk?: (content: string) => void;
+  on_day_complete?: (day: number, data: unknown) => void;
+  on_done?: (routine_id: string, name: string) => void;
+  on_error?: (message: string) => void;
+}
+
+/**
+ * POST /api/v1/routines/generate 를 SSE 스트림으로 호출한다.
+ * returns: cleanup 함수 (abort 용)
+ */
+export function generateRoutineSSE(
+  token: string,
+  params: GenerateRoutineParams,
+  callbacks: SSECallbacks,
+): () => void {
+  const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+  const body = JSON.stringify({
+    goals: [GOAL_MAP[params.goal] ?? params.goal],
+    target_muscle_group_ids: params.body_parts.map((p) => BODY_PART_MAP[p] ?? p),
+    session_minutes: parse_session_minutes(params.session_time),
+    injury: params.injury || null,
+  });
+
+  const xhr = new XMLHttpRequest();
+  let last_index = 0;
+
+  xhr.open('POST', `${API_BASE}/api/v1/routines/generate`);
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('Accept', 'text/event-stream');
+
+  xhr.onprogress = () => {
+    const new_text = xhr.responseText.slice(last_index);
+    last_index = xhr.responseText.length;
+    const lines = new_text.split('\n');
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data_str = line.slice(6).trim();
+      if (data_str === '[DONE]') return;
+      try {
+        const event = JSON.parse(data_str) as Record<string, unknown>;
+        switch (event.type) {
+          case 'started':
+            callbacks.on_started?.(event.routine_id as string);
+            break;
+          case 'chunk':
+            callbacks.on_chunk?.(event.content as string);
+            break;
+          case 'day_complete':
+            callbacks.on_day_complete?.(event.day as number, event.data);
+            break;
+          case 'done':
+            callbacks.on_done?.(event.routine_id as string, event.name as string);
+            break;
+          case 'error':
+            callbacks.on_error?.((event.message as string) ?? 'AI 오류가 발생했습니다.');
+            break;
+        }
+      } catch {
+        // SSE 파싱 오류 무시
+      }
+    }
+  };
+
+  xhr.onerror = () => {
+    callbacks.on_error?.('네트워크 오류가 발생했습니다.');
+  };
+
+  xhr.onload = () => {
+    if (xhr.status !== 200) {
+      try {
+        const json = JSON.parse(xhr.responseText) as { error?: { message?: string } };
+        callbacks.on_error?.(json.error?.message ?? '오류가 발생했습니다.');
+      } catch {
+        callbacks.on_error?.('오류가 발생했습니다.');
+      }
+    }
+  };
+
+  xhr.send(body);
+  return () => xhr.abort();
+}
+
+// ── 상세 ──────────────────────────────────────────────────────────────────────
+
 export interface RoutineExerciseItem {
   routine_exercise_id: string;
   exercise_id: string;
