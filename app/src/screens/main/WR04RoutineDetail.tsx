@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -11,12 +12,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
 import BottomNavBar from "../../components/NavBar";
 import {
   getRoutineDetail,
+  deleteRoutine,
   GOAL_LABELS,
   type RoutineExerciseItem,
 } from "../../services/routines";
@@ -73,6 +75,7 @@ export default function WR04RoutineDetail() {
   const { routine_id } = (route.params ?? {}) as { routine_id?: string };
   const token = useAuthStore((s) => s.accessToken) ?? "";
 
+  const query_client = useQueryClient();
   const [selected_day_idx, set_selected_day_idx] = useState(0);
   const [exercises, set_exercises] = useState<Exercise[]>([]);
   const [editing_exercise_id, set_editing_exercise_id] = useState<
@@ -80,6 +83,7 @@ export default function WR04RoutineDetail() {
   >(null);
   const [timer, set_timer] = useState(180);
   const [is_timer_running, set_is_timer_running] = useState(false);
+  const [is_deleting, set_is_deleting] = useState(false);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: detail, isLoading } = useQuery({
@@ -211,6 +215,28 @@ export default function WR04RoutineDetail() {
     ? detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")
     : null;
 
+  const handle_delete_press = () => {
+    Alert.alert("루틴 삭제", "이 루틴을 삭제할까요?\n삭제 후 복구가 불가능합니다.", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            set_is_deleting(true);
+            await deleteRoutine(token, routine_id!);
+            query_client.invalidateQueries({ queryKey: ["routines"] });
+            navigation.goBack();
+          } catch (e: unknown) {
+            set_is_deleting(false);
+            const msg = e instanceof Error ? e.message : "삭제에 실패했습니다.";
+            Alert.alert("삭제 실패", msg);
+          }
+        },
+      },
+    ]);
+  };
+
   // 로딩 상태
   if (isLoading || (!detail && !!routine_id)) {
     return (
@@ -252,10 +278,21 @@ export default function WR04RoutineDetail() {
         style={styles.flex}
       >
         <View style={styles.card}>
-          {/* 루틴 제목 */}
-          <Text style={styles.routine_title}>
-            {detail?.name ?? "루틴 상세"}
-          </Text>
+          {/* 루틴 제목 + 더보기(삭제) */}
+          <View style={styles.title_row}>
+            <View style={styles.title_side} />
+            <Text style={styles.routine_title}>
+              {detail?.name ?? "루틴 상세"}
+            </Text>
+            <TouchableOpacity
+              onPress={handle_delete_press}
+              disabled={is_deleting}
+              style={styles.title_side}
+              activeOpacity={0.7}
+            >
+              <Octicons name="kebab-horizontal" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
           {goals_label && (
             <Text style={styles.goals_label}>{goals_label}</Text>
           )}
@@ -591,6 +628,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   placeholder: { width: 32 },
+  more_button: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   scroll: {
     paddingHorizontal: 24,
     paddingBottom: 32,
@@ -601,7 +644,17 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
+  title_row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title_side: {
+    width: 24,
+    alignItems: "flex-end",
+  },
   routine_title: {
+    flex: 1,
     fontFamily: "semibold",
     fontSize: 18,
     color: colors.primary,
