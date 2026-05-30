@@ -14,6 +14,7 @@ import { Octicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
+import BottomNavBar from "../../components/NavBar";
 import {
   getRoutineDetail,
   GOAL_LABELS,
@@ -356,6 +357,31 @@ export default function WR04RoutineDetail() {
                       <Octicons name="play" size={32} color={colors.bluegray} />
                     </View>
 
+                    {/* 근육 활성화 */}
+                    <View style={styles.muscle_section}>
+                      <Text style={styles.section_label}>근육 활성화</Text>
+                      {exercise.muscles.length > 0 ? (
+                        <View style={styles.muscle_row}>
+                          {exercise.muscles.map((muscle) => (
+                            <View key={muscle.name} style={styles.muscle_card}>
+                              <Text style={styles.muscle_percent}>
+                                {muscle.percentage}%
+                              </Text>
+                              <Text style={styles.muscle_name}>
+                                {muscle.name}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <View style={styles.muscle_empty}>
+                          <Text style={styles.muscle_empty_text}>
+                            근육 활성화 데이터 준비 중
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
                     {/* 세트 섹션 */}
                     <View style={styles.sets_section}>
                       {/* 세트 헤더 */}
@@ -504,7 +530,19 @@ export default function WR04RoutineDetail() {
         </View>
       </ScrollView>
 
-      <SafeAreaView edges={["bottom"]} style={styles.safe_bottom} />
+      {/* 챗봇 FAB */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate("WC01Chatbot" as never)}
+        activeOpacity={0.8}
+      >
+        <Octicons name="comment" size={24} color={colors.white} />
+      </TouchableOpacity>
+
+      {/* 하단 네브바 */}
+      <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
+        <BottomNavBar />
+      </SafeAreaView>
     </View>
   );
 }
@@ -518,7 +556,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   safe_bottom: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 10,
   },
   flex: { flex: 1 },
   loading_container: {
@@ -659,6 +704,47 @@ const styles = StyleSheet.create({
     backgroundColor: colors.select,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // 근육 활성화
+  muscle_section: {
+    gap: 8,
+  },
+  muscle_row: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  muscle_card: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 4,
+  },
+  muscle_percent: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+  },
+  muscle_name: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
+  },
+  muscle_empty: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderStyle: "dashed",
+  },
+  muscle_empty_text: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
   },
 
   // 세트 섹션
@@ -809,5 +895,23 @@ const styles = StyleSheet.create({
     fontFamily: "semibold",
     fontSize: 24,
     color: colors.primary,
+  },
+
+  // FAB
+  fab: {
+    position: "absolute",
+    right: 24,
+    bottom: 104,
+    width: 55,
+    height: 55,
+    borderRadius: 1000,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
 });
