@@ -6,13 +6,14 @@ import {
   View,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
-import { getMe, GymData } from "../../services/users";
+import { getMe, updateMyGym, GymData } from "../../services/users";
 
 export default function WP04EditGym() {
   const navigation = useNavigation();
@@ -37,6 +38,28 @@ export default function WP04EditGym() {
     } finally {
       set_loading(false);
     }
+  };
+
+  const handle_menu = (gym: GymData) => {
+    const options: any[] = [];
+
+    if (!gym.is_primary) {
+      options.push({
+        text: "주 헬스장으로 설정",
+        onPress: async () => {
+          try {
+            await updateMyGym(token, gym.gym_id);
+            await load_gyms();
+          } catch (e: any) {
+            Alert.alert("오류", e.message ?? "설정에 실패했어요.");
+          }
+        },
+      });
+    }
+
+    options.push({ text: "취소", style: "cancel" as const });
+
+    Alert.alert(gym.name, undefined, options);
   };
 
   return (
@@ -97,11 +120,17 @@ export default function WP04EditGym() {
                         <Text style={styles.primary_badge}>주 헬스장</Text>
                       )}
                     </View>
-                    <Octicons
-                      name="chevron-right"
-                      size={18}
-                      color={colors.bluegray}
-                    />
+                    <TouchableOpacity
+                      onPress={() => handle_menu(gym)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Octicons
+                        name="kebab-horizontal"
+                        size={16}
+                        color={colors.bluegray}
+                      />
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -175,7 +204,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  gym_info: { gap: 4 },
+  gym_info: { gap: 4, flex: 1 },
   gym_name: {
     fontFamily: "medium",
     fontSize: 15,
