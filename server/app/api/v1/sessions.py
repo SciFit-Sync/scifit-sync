@@ -16,10 +16,13 @@ from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
 from app.models import (
+    Equipment,
     Exercise,
     ExerciseMuscle,
     Gym,
     MuscleGroup,
+    Notification,
+    NotificationType,
     RoutineDay,
     RoutineExercise,
     User,
@@ -29,6 +32,7 @@ from app.models import (
     WorkoutRoutine,
     WorkoutStatus,
 )
+from app.services import po
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
     FinishSessionRequest,
@@ -249,6 +253,128 @@ async def log_set(
     )
 
 
+async def _check_and_create_po_notifications(
+    session: WorkoutLog,
+    user: User,
+    db: AsyncSession,
+) -> None:
+    if not session.routine_day_id:
+        return
+
+    goal_row = (
+        await db.execute(
+            select(WorkoutRoutine.fitness_goals)
+            .join(RoutineDay, RoutineDay.routine_id == WorkoutRoutine.id)
+            .where(RoutineDay.id == session.routine_day_id)
+        )
+    ).scalar_one_or_none()
+
+    if not goal_row or not isinstance(goal_row, list):
+        return
+    goal = goal_row[0]
+
+    set_rows = (
+        await db.execute(
+            select(
+                WorkoutLogSet.routine_exercise_id,
+                func.max(WorkoutLogSet.reps).label("max_reps"),
+                func.max(WorkoutLogSet.weight_kg).label("max_weight"),
+                func.count(WorkoutLogSet.id).label("set_count"),
+            )
+            .where(
+                WorkoutLogSet.workout_log_id == session.id,
+                WorkoutLogSet.routine_exercise_id.is_not(None),
+                WorkoutLogSet.is_completed.is_(True),
+            )
+            .group_by(WorkoutLogSet.routine_exercise_id)
+        )
+    ).all()
+
+    new_notifications: list[Notification] = []
+
+    for rex_id, cur_max_reps, cur_max_weight, set_count in set_rows:
+        prev_max_reps = (
+            await db.execute(
+                select(func.max(WorkoutLogSet.reps))
+                .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+                .where(
+                    WorkoutLogSet.routine_exercise_id == rex_id,
+                    WorkoutLog.user_id == user.id,
+                    WorkoutLog.id != session.id,
+                    WorkoutLog.status == WorkoutStatus.COMPLETED,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+
+        if prev_max_reps is None or cur_max_reps is None:
+            continue
+        if not po.check_po_trigger([int(prev_max_reps), int(cur_max_reps)], goal):
+            continue
+
+        rex = (
+            await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))
+        ).scalar_one_or_none()
+        if rex is None:
+            continue
+
+        ex_name = (
+            await db.execute(select(Exercise.name).where(Exercise.id == rex.exercise_id))
+        ).scalar_one_or_none() or "운동"
+
+        equipment_type = "barbell"
+        max_stack = None
+        if rex.equipment_id:
+            equip = (
+                await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))
+            ).scalar_one_or_none()
+            if equip:
+                equipment_type = equip.equipment_type.value
+                max_stack = equip.max_stack
+
+        result = po.calculate_increase(
+            category=equipment_type,
+            goal=goal,
+            current_weight=float(cur_max_weight or 0),
+            current_sets=int(set_count),
+            max_stack=max_stack,
+        )
+
+        if result["overflow"] and result["message"]:
+            new_notifications.append(
+                Notification(
+                    user_id=user.id,
+                    type=NotificationType.PO_SUGGESTION,
+                    title="더 무거운 기구를 사용해보세요",
+                    body=f"{ex_name}: {result['message']}",
+                    data_json={
+                        "routine_exercise_id": str(rex_id),
+                        "exercise_id": str(rex.exercise_id),
+                    },
+                )
+            )
+        else:
+            new_notifications.append(
+                Notification(
+                    user_id=user.id,
+                    type=NotificationType.PO_SUGGESTION,
+                    title="중량 증가를 권장해요",
+                    body=f"{ex_name} {cur_max_weight}kg → {result['new_weight']}kg으로 올려보세요",
+                    data_json={
+                        "routine_exercise_id": str(rex_id),
+                        "exercise_id": str(rex.exercise_id),
+                        "current_weight": float(cur_max_weight or 0),
+                        "suggested_weight": result["new_weight"],
+                    },
+                )
+            )
+
+    if new_notifications:
+        db.add_all(new_notifications)
+        await db.commit()
+        logger.info("PO notifications created: %d for user %s", len(new_notifications), user.id)
+
+
 # ── PATCH /sessions/{id}/finish ───────────────────────────────────────────────
 @router.patch("/{session_id}/finish", response_model=SuccessResponse[SessionData], summary="세션 종료")
 @rate_limit("60/minute")
@@ -298,6 +424,9 @@ async def finish_session(
     dto.total_sets = total_sets
     dto.completed_exercises = completed_exercises
     dto.total_calories = round(5.0 * body_weight * dto.duration_minutes / 60) if dto.duration_minutes else None
+
+    await _check_and_create_po_notifications(s, current_user, db)
+
     return SuccessResponse(data=dto)
 
 
