@@ -57,6 +57,18 @@ class OnboardRequest(BaseModel):
     career_years: int | None = Field(default=None, ge=0)
     default_goals: list[str] = Field(default_factory=list)
 
+    @field_validator("default_goals")
+    @classmethod
+    def validate_goals(cls, v: list[str]) -> list[str]:
+        valid = {"hypertrophy", "strength", "endurance", "rehabilitation", "weight_loss"}
+        result = []
+        for goal in v:
+            g = goal.lower()
+            if g not in valid:
+                raise ValueError(f"goals 허용값: {sorted(valid)}")
+            result.append(g)
+        return result
+
 
 class OnboardData(BaseModel):
     user_id: str
@@ -111,6 +123,7 @@ class UpdateBodyRequest(BaseModel):
 class UpdateBodyData(BaseModel):
     height_cm: float | None = None
     birth_date: date | None = None
+    age: int | None = None
     gender: str | None = None
     measurement: BodyMeasurementData | None = None
 
