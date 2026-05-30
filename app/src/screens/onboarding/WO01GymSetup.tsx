@@ -259,13 +259,18 @@ export default function WO01GymSetup() {
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={styles.gym_list}
                 >
-                  {gyms.map((gym) => (
+                  {gyms.map((gym) => {
+                    const is_selected =
+                      gym.gym_id != null
+                        ? selected_gym?.gym_id === gym.gym_id
+                        : selected_gym?.kakao_place_id != null &&
+                          selected_gym.kakao_place_id === gym.kakao_place_id;
+                    return (
                     <TouchableOpacity
                       key={gym.kakao_place_id || gym.gym_id || gym.name}
                       style={[
                         styles.gym_item,
-                        selected_gym?.kakao_place_id === gym.kakao_place_id &&
-                          styles.gym_item_active,
+                        is_selected && styles.gym_item_active,
                       ]}
                       onPress={() => set_selected_gym(gym)}
                       activeOpacity={0.8}
@@ -274,8 +279,7 @@ export default function WO01GymSetup() {
                         <Text
                           style={[
                             styles.gym_name,
-                            selected_gym?.kakao_place_id ===
-                              gym.kakao_place_id && styles.gym_name_active,
+                            is_selected && styles.gym_name_active,
                           ]}
                         >
                           {gym.name}
@@ -288,7 +292,8 @@ export default function WO01GymSetup() {
                         </Text>
                       )}
                     </TouchableOpacity>
-                  ))}
+                    );
+                  })}
                 </ScrollView>
               ) : search.length > 0 ? (
                 <Text style={styles.empty_text}>검색 결과가 없어요</Text>

@@ -25,6 +25,7 @@ from app.models import (
     Gym,
     GymEquipment,
     User,
+    UserGym,
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
@@ -398,6 +399,18 @@ async def delete_gym_equipment(
     gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
     if gym is None:
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    # 요청자가 해당 헬스장 소속인지 확인
+    user_gym = (
+        await db.execute(
+            select(UserGym).where(
+                UserGym.user_id == current_user.id,
+                UserGym.gym_id == gym_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if user_gym is None:
+        raise NotFoundError(message="본인의 헬스장 기구만 삭제할 수 있습니다.")
 
     row = (
         await db.execute(

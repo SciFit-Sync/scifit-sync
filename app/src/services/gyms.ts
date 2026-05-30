@@ -22,6 +22,13 @@ export interface EquipmentItem {
   brand: string | null;
   category: string | null;
   equipment_type: string | null;
+  pulley_ratio: number | null;
+  bar_weight: number | null;
+  has_weight_assist: boolean;
+  min_stack: number | null;
+  max_stack: number | null;
+  stack_weight: Record<string, unknown> | null;
+  ratio: string | null;
   image_url: string | null;
 }
 
