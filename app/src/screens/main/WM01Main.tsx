@@ -213,7 +213,7 @@ export default function WM01Main() {
                     key={item.routine_id}
                     style={styles.routine_item}
                     onPress={() =>
-                      navigation.navigate("WR04RoutineDetail" as never)
+                      navigation.navigate("WR04RoutineDetail" as never, { routine_id: item.routine_id } as never)
                     }
                     activeOpacity={0.8}
                   >
@@ -341,7 +341,7 @@ export default function WM01Main() {
                 set_is_generating(false);
                 cleanup_ref.current = null;
                 query_client.invalidateQueries({ queryKey: ["routines"] });
-                navigation.navigate("WR04RoutineDetail" as never);
+                navigation.navigate("WR04RoutineDetail" as never, { routine_id: _routine_id } as never);
               },
               on_error: (message) => {
                 set_is_generating(false);

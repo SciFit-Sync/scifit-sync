@@ -1,17 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
   ScrollView,
-  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
+import { useAuthStore } from "../../stores/authStore";
+import {
+  getRoutineDetail,
+  GOAL_LABELS,
+  type RoutineExerciseItem,
+} from "../../services/routines";
 
 interface Set {
   id: string;
@@ -31,66 +38,68 @@ interface Exercise {
   sets: Set[];
   is_expanded: boolean;
   muscles: MuscleActivation[];
-  image_url?: string;
+  rest_seconds: number;
 }
 
-const mock_exercises: Exercise[] = [
-  {
-    id: "1",
-    name: "인클라인 덤벨 프레스",
+function api_to_exercise(item: RoutineExerciseItem): Exercise {
+  const default_weight =
+    item.weight_kg != null ? String(item.weight_kg) : "0";
+  const default_reps =
+    item.reps_max != null
+      ? String(item.reps_max)
+      : item.reps_min != null
+        ? String(item.reps_min)
+        : "10";
+  const sets: Set[] = Array.from({ length: item.sets }, (_, i) => ({
+    id: String(i + 1),
+    weight: default_weight,
+    reps: default_reps,
+    is_done: false,
+  }));
+  return {
+    id: item.routine_exercise_id,
+    name: item.exercise_name,
+    sets,
     is_expanded: false,
-    muscles: [
-      { name: "대흉근", percentage: 65 },
-      { name: "삼두근", percentage: 20 },
-      { name: "전면삼각", percentage: 15 },
-    ],
-    sets: [
-      { id: "1", weight: "30", reps: "12", is_done: false },
-      { id: "2", weight: "30", reps: "12", is_done: false },
-      { id: "3", weight: "30", reps: "12", is_done: false },
-    ],
-  },
-  {
-    id: "2",
-    name: "플랫 바벨 벤치 프레스",
-    is_expanded: true,
-    muscles: [
-      { name: "대흉근", percentage: 72 },
-      { name: "삼두근", percentage: 18 },
-      { name: "전면삼각", percentage: 10 },
-    ],
-    sets: [
-      { id: "1", weight: "60", reps: "8", is_done: true },
-      { id: "2", weight: "60", reps: "8", is_done: false },
-      { id: "3", weight: "60", reps: "8", is_done: false },
-    ],
-  },
-  {
-    id: "3",
-    name: "케이블 크로스오버",
-    is_expanded: false,
-    muscles: [
-      { name: "대흉근", percentage: 80 },
-      { name: "전면삼각", percentage: 12 },
-      { name: "삼두근", percentage: 8 },
-    ],
-    sets: [
-      { id: "1", weight: "20", reps: "15", is_done: false },
-      { id: "2", weight: "20", reps: "15", is_done: false },
-      { id: "3", weight: "20", reps: "15", is_done: false },
-    ],
-  },
-];
+    muscles: [],
+    rest_seconds: item.rest_seconds ?? 180,
+  };
+}
 
 export default function WR04RoutineDetail() {
   const navigation = useNavigation();
-  const [exercises, set_exercises] = useState<Exercise[]>(mock_exercises);
+  const route = useRoute();
+  const { routine_id } = (route.params ?? {}) as { routine_id?: string };
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+
+  const [selected_day_idx, set_selected_day_idx] = useState(0);
+  const [exercises, set_exercises] = useState<Exercise[]>([]);
   const [editing_exercise_id, set_editing_exercise_id] = useState<
     string | null
   >(null);
   const [timer, set_timer] = useState(180);
   const [is_timer_running, set_is_timer_running] = useState(false);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ["routine", routine_id],
+    queryFn: () => getRoutineDetail(token, routine_id!),
+    enabled: !!token && !!routine_id,
+  });
+
+  // API 데이터 → 로컬 exercises 변환 (day 인덱스 변경 시 재초기화)
+  useEffect(() => {
+    if (!detail) return;
+    const day = detail.days[selected_day_idx];
+    if (!day) {
+      set_exercises([]);
+      return;
+    }
+    const sorted = [...day.exercises].sort(
+      (a, b) => a.order_index - b.order_index,
+    );
+    set_exercises(sorted.map(api_to_exercise));
+  }, [detail, selected_day_idx]);
 
   useEffect(() => {
     if (is_timer_running) {
@@ -139,7 +148,9 @@ export default function WR04RoutineDetail() {
           : ex,
       ),
     );
-    set_timer(180);
+    const rest =
+      exercises.find((ex) => ex.id === exercise_id)?.rest_seconds ?? 180;
+    set_timer(rest);
     set_is_timer_running(true);
   };
 
@@ -195,6 +206,32 @@ export default function WR04RoutineDetail() {
     );
   };
 
+  const goals_label = detail?.fitness_goals
+    ? detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")
+    : null;
+
+  // 로딩 상태
+  if (isLoading || (!detail && !!routine_id)) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView edges={["top"]} style={styles.safe_top} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Octicons name="chevron-left" size={32} color={colors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.logo}>SciFit-Sync</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loading_container}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loading_text}>루틴 불러오는 중...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const has_multiple_days = (detail?.days.length ?? 0) > 1;
+
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.safe_top} />
@@ -215,7 +252,42 @@ export default function WR04RoutineDetail() {
       >
         <View style={styles.card}>
           {/* 루틴 제목 */}
-          <Text style={styles.routine_title}>상체 근비대 루틴</Text>
+          <Text style={styles.routine_title}>
+            {detail?.name ?? "루틴 상세"}
+          </Text>
+          {goals_label && (
+            <Text style={styles.goals_label}>{goals_label}</Text>
+          )}
+
+          {/* 데이 선택 탭 (다중 날 루틴) */}
+          {has_multiple_days && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.day_tabs}
+            >
+              {detail!.days.map((day, idx) => (
+                <TouchableOpacity
+                  key={day.routine_day_id}
+                  style={[
+                    styles.day_tab,
+                    selected_day_idx === idx && styles.day_tab_active,
+                  ]}
+                  onPress={() => set_selected_day_idx(idx)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.day_tab_text,
+                      selected_day_idx === idx && styles.day_tab_text_active,
+                    ]}
+                  >
+                    {day.label || `Day ${day.day_number}`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           {/* 운동 목록 */}
           {exercises.map((exercise) => {
@@ -282,23 +354,6 @@ export default function WR04RoutineDetail() {
                     {/* 그래픽 영상 placeholder */}
                     <View style={styles.image_placeholder}>
                       <Octicons name="play" size={32} color={colors.bluegray} />
-                    </View>
-
-                    {/* 근육 활성화 */}
-                    <View style={styles.muscle_section}>
-                      <Text style={styles.section_label}>근육 활성화</Text>
-                      <View style={styles.muscle_row}>
-                        {exercise.muscles.map((muscle) => (
-                          <View key={muscle.name} style={styles.muscle_card}>
-                            <Text style={styles.muscle_percent}>
-                              {muscle.percentage}%
-                            </Text>
-                            <Text style={styles.muscle_name}>
-                              {muscle.name}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
                     </View>
 
                     {/* 세트 섹션 */}
@@ -466,6 +521,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   flex: { flex: 1 },
+  loading_container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  loading_text: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -495,6 +561,37 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.primary,
     textAlign: "center",
+  },
+  goals_label: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+    textAlign: "center",
+    marginTop: -8,
+  },
+
+  // 데이 탭
+  day_tabs: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  day_tab: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: colors.select,
+  },
+  day_tab_active: {
+    backgroundColor: colors.primary,
+  },
+  day_tab_text: {
+    fontFamily: "medium",
+    fontSize: 13,
+    color: colors.bluegray,
+  },
+  day_tab_text_active: {
+    color: colors.white,
   },
 
   // 운동 카드
@@ -564,42 +661,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // 근육 활성화
-  muscle_section: {
+  // 세트 섹션
+  sets_section: {
     gap: 8,
   },
   section_label: {
     fontFamily: "medium",
     fontSize: 14,
     color: colors.primary,
-  },
-  muscle_row: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  muscle_card: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    gap: 4,
-  },
-  muscle_percent: {
-    fontFamily: "semibold",
-    fontSize: 18,
-    color: colors.primary,
-  },
-  muscle_name: {
-    fontFamily: "regular",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
-
-  // 세트 섹션
-  sets_section: {
-    gap: 8,
   },
   sets_header: {
     flexDirection: "row",
@@ -618,10 +687,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.select,
     alignItems: "center",
     justifyContent: "center",
-  },
-  sets_actions: {
-    flexDirection: "row",
-    gap: 8,
   },
   small_button: {
     backgroundColor: colors.select,
