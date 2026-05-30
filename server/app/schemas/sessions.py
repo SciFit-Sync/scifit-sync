@@ -30,6 +30,9 @@ class SessionData(BaseModel):
     status: str
     routine_name: str | None = None
     duration_minutes: int | None = None
+    total_sets: int | None = None
+    completed_exercises: int | None = None
+    total_calories: int | None = None
 
 
 # ── 세트 기록 ─────────────────────────────────────────────────────────────────
@@ -136,4 +139,7 @@ class MuscleVolumeData(BaseModel):
 # ── 휴식 타이머 ──────────────────────────────────────────────────────────────
 class RestTimerData(BaseModel):
     rest_seconds: int
+    min_rest_seconds: int
+    max_rest_seconds: int
+    message: str
     based_on: str  # "routine" | "goal_default"

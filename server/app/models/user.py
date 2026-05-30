@@ -69,6 +69,7 @@ class UserProfile(Base):
     birth_date: Mapped[date] = mapped_column(Date)
     height_cm: Mapped[float]
     default_goals: Mapped[list[str] | None] = mapped_column(ARRAY(String), default=None)
+    career_years: Mapped[int | None] = mapped_column(default=None)
     career_level: Mapped[CareerLevel] = mapped_column(
         Enum(CareerLevel, native_enum=False, create_constraint=False, values_callable=lambda x: [e.value for e in x])
     )

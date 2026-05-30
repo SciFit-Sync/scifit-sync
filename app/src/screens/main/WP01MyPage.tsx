@@ -55,8 +55,11 @@ export default function WP01MyPage() {
     }
   };
 
-  const handle_logout = async () => {
-    await clearAuth();
+  const handle_logout = () => {
+    Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
+      { text: "취소", style: "cancel" },
+      { text: "로그아웃", style: "destructive", onPress: clearAuth },
+    ]);
   };
 
   // ── 표시 값 계산 ──────────────────────────────────────────────────────────────

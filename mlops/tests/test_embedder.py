@@ -80,7 +80,7 @@ def test_log_device_status_warns_on_cpu(monkeypatch, caplog):
     assert device == "cpu"
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert any("CPU 추론" in r.message for r in warnings)
-    assert any("cu121" in r.message for r in warnings)
+    assert any("cu126" in r.message for r in warnings)
 
 
 def test_log_device_status_info_on_cuda(monkeypatch, caplog):

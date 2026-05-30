@@ -49,6 +49,15 @@ export interface CoreLiftItem {
   name_en: string | null;
 }
 
+export interface OnboardParams {
+  gender: 'male' | 'female';
+  birth_date: string; // "YYYY-MM-DD"
+  height_cm: number;
+  weight_kg: number;
+  career_level: 'beginner' | 'novice' | 'intermediate' | 'advanced';
+  default_goals?: string[];
+}
+
 // GET /api/v1/users/me
 export async function getMe(token: string): Promise<MeData> {
   return apiFetch<MeData>('/api/v1/users/me', { token });
@@ -58,6 +67,18 @@ export async function getMe(token: string): Promise<MeData> {
 export async function getMyOneRMs(token: string): Promise<OneRMData[]> {
   const data = await apiFetch<{ items: OneRMData[] }>('/api/v1/users/me/1rm', { token });
   return data.items;
+}
+
+// POST /api/v1/users/me/onboard (온보딩 신체정보 등록)
+export async function onboardUser(
+  params: OnboardParams,
+  token: string,
+): Promise<{ user_id: string }> {
+  return apiFetch<{ user_id: string }>('/api/v1/users/me/onboard', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(params),
+  });
 }
 
 // PATCH /api/v1/users/me/body

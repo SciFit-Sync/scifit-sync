@@ -4,10 +4,15 @@ GitHub Actions에서 실행된 논문 임베딩 결과를 서버 ChromaDB로 수
 ADMIN_API_TOKEN으로 인증.
 """
 
+import asyncio
+import json
 import logging
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 import chromadb
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -16,14 +21,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
+from app.models.exercise import Exercise, ExerciseEquipmentMap
+from app.models.gym import Equipment, EquipmentType
 from app.models.paper import Paper
 from app.schemas.rag import RagIngestRequest
+from app.services import rag as rag_svc
+from app.services.workoutx import list_all_exercises
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 _chroma_client = None
+
+
+def _close_chroma_writer() -> None:
+    """Lifespan shutdown에서 호출 — admin writer client 참조를 해제한다.
+
+    B2 fix: main.py lifespan shutdown이 rag._client(reader)만 정리하고
+    admin._chroma_client(writer)를 누락하던 문제를 해결한다.
+    ChromaDB PersistentClient는 명시적 close API가 없지만, 참조를 끊으면
+    GC finalizer가 sqlite WAL을 flush하므로 HNSW partial-write 위험이 감소한다.
+    """
+    global _chroma_client
+    _chroma_client = None
 
 
 def _get_collection() -> chromadb.Collection:
@@ -47,6 +68,94 @@ def _safe_doc_id(doi: str, chunk_index: int) -> str:
     """DOI에 포함된 슬래시/점을 ChromaDB id-safe 문자로 치환."""
     doi_safe = doi.replace("/", "_").replace(".", "-")
     return f"{doi_safe}_{chunk_index}"
+
+
+# ChromaDB는 collection.get(include=["metadatas"]) 시 내부적으로 SQLite IN 절을 쓰는데
+# 한 번에 ~18~30k row를 넘기면 "too many SQL variables" InternalError로 깨진다.
+# 페이지당 1000 row(SQLite 한계 32766 대비 충분한 여유)로 잘라 가져온다.
+_GET_PAGE_SIZE = 1000
+
+
+def _fetch_all_metadatas_paged(collection: chromadb.Collection) -> tuple[list[str], list[dict]]:
+    """collection.get(include=["metadatas"])를 limit/offset로 페이지네이션해 누적.
+
+    동기 호출 — 호출부에서 asyncio.to_thread로 워커 스레드 오프로드.
+    """
+    all_ids: list[str] = []
+    all_metas: list[dict] = []
+    offset = 0
+    while True:
+        page = collection.get(include=["metadatas"], limit=_GET_PAGE_SIZE, offset=offset)
+        ids = page.get("ids") or []
+        if not ids:
+            break
+        metas = page.get("metadatas") or [{} for _ in ids]
+        all_ids.extend(ids)
+        all_metas.extend(metas)
+        if len(ids) < _GET_PAGE_SIZE:
+            break
+        offset += _GET_PAGE_SIZE
+    return all_ids, all_metas
+
+
+def _get_or_create_named_collection(name: str) -> chromadb.Collection:
+    """명시적 collection 이름으로 get_or_create. alias 무시."""
+    global _chroma_client
+    settings = get_settings()
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_PATH)
+    return _chroma_client.get_or_create_collection(
+        name=name,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def _ingest_chunks_to_chroma(
+    chunks: list, batch_size: int = 100, collection_name: str | None = None
+) -> tuple[int, int]:
+    """ChromaDB에 청크를 배치 upsert하고 (적재 수, 전체 컬렉션 수)를 반환한다.
+
+    upsert/count는 모두 동기 블로킹 호출이라 async 핸들러에서 직접 부르면 이벤트 루프가
+    멈춘다(0.5 vCPU 단일 태스크에서 대량 적재 시 /health 타임아웃 → ECS가 태스크 kill).
+    이 함수를 통째로 워커 스레드에서 실행하기 위해 분리한다.
+
+    Args:
+        chunks: 적재할 ChunkIngestPayload 리스트.
+        batch_size: ChromaDB upsert 배치 크기.
+        collection_name: 명시 시 alias 무시하고 해당 컬렉션에 직접 적재.
+            None이면 _get_collection()(alias-aware 기본값) 사용.
+    """
+    if collection_name and collection_name.strip():
+        collection = _get_or_create_named_collection(collection_name.strip())
+    else:
+        collection = _get_collection()
+    total = 0
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i : i + batch_size]
+        collection.upsert(
+            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
+            documents=[c.content for c in batch],
+            embeddings=[c.embedding for c in batch],
+            metadatas=[
+                {
+                    "paper_doi": c.paper_doi,
+                    "paper_pmid": c.paper_pmid or "",
+                    "paper_title": c.paper_title,
+                    "section_name": c.section_name,
+                    "chunk_index": c.chunk_index,
+                    "token_count": c.token_count or 0,
+                    "search_categories": ",".join(c.search_categories),
+                    "publication_types": ",".join(c.publication_types),
+                    "evidence_weight": float(c.evidence_weight),
+                    "fulltext_source": c.fulltext_source or "",
+                    "published_year": c.published_year or 0,
+                }
+                for c in batch
+            ],
+        )
+        total += len(batch)
+        logger.info("ChromaDB upsert: %d/%d", total, len(chunks))
+    return total, collection.count()
 
 
 @router.post("/rag/ingest")
@@ -99,43 +208,19 @@ async def ingest_papers(
         logger.info("papers UPSERT 완료: %d편", len(papers_by_doi))
 
     # ── 2) ChromaDB chunk upsert (확장 메타) ─────────────────
-    collection = _get_collection()
-    batch_size = 100
-    total = 0
+    # ChromaDB 호출(upsert/count)은 동기 블로킹이라 이벤트 루프를 멈춘다 → 대량 적재 시
+    # /health 타임아웃으로 ECS가 태스크를 kill한다. 워커 스레드로 오프로드해 루프를 비운다.
+    # body.collection이 명시되면 alias 무시하고 해당 컬렉션에 직접 적재 (Phase 2 papers_v2용).
+    target_collection = (body.collection or "").strip() or None
+    total, total_collection = await asyncio.to_thread(_ingest_chunks_to_chroma, body.chunks, 100, target_collection)
 
-    for i in range(0, len(body.chunks), batch_size):
-        batch = body.chunks[i : i + batch_size]
-        collection.upsert(
-            ids=[_safe_doc_id(c.paper_doi, c.chunk_index) for c in batch],
-            documents=[c.content for c in batch],
-            embeddings=[c.embedding for c in batch],
-            metadatas=[
-                {
-                    "paper_doi": c.paper_doi,
-                    "paper_pmid": c.paper_pmid or "",
-                    "paper_title": c.paper_title,
-                    "section_name": c.section_name,
-                    "chunk_index": c.chunk_index,
-                    "token_count": c.token_count or 0,
-                    "search_categories": ",".join(c.search_categories),
-                    "publication_types": ",".join(c.publication_types),
-                    "evidence_weight": float(c.evidence_weight),
-                    "fulltext_source": c.fulltext_source or "",
-                    "published_year": c.published_year or 0,
-                }
-                for c in batch
-            ],
-        )
-        total += len(batch)
-        logger.info("ChromaDB upsert: %d/%d", total, len(body.chunks))
-
-    logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, collection.count())
+    logger.info("ingest 완료: %d청크 (collection 전체: %d)", total, total_collection)
     return {
         "success": True,
         "data": {
             "upserted": total,
             "papers_upserted": len(papers_by_doi),
-            "total_collection": collection.count(),
+            "total_collection": total_collection,
         },
     }
 
@@ -158,21 +243,53 @@ async def list_dois(
 
 
 @router.get("/rag/pmids")
-async def list_pmids(_: None = Depends(_verify_admin_token)) -> dict:
-    """ChromaDB에 적재된 모든 unique paper_pmid 목록을 반환한다.
+async def list_pmids(
+    limit: int = 100,
+    offset: int = 0,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """ChromaDB에 적재된 unique paper_pmid 목록을 페이지네이션하여 반환한다.
 
     카테고리 메타 동기화 스크립트(`refresh_search_categories`)가 호출하여
     어떤 PMID에 대해 카테고리 재계산을 적용할지 결정한다.
+
+    신규 MAJOR 픽스: 이전 구현은 chunk row 기준 limit/offset이어서 페이지 경계에서
+    같은 PMID의 청크가 분리되면 중복 또는 누락이 발생했다.
+    현재 구현은 collection 전체 metadata를 배치로 수집 → unique PMID 집계 → sort → slice하여
+    PMID 단위 페이지네이션을 보장한다. `limit`/`offset`은 unique PMID 목록 기준.
 
     NOTE: 응답이 `dict`인 것은 기존 `ingest_papers` 엔드포인트와의 일관성 때문이다
     (모든 admin 엔드포인트가 `{success, data}` 평문 dict 패턴). OpenAPI 모델화는
     admin 모든 엔드포인트를 한 번에 변환하는 별도 PR에서 다룬다.
     """
+    if limit <= 0 or limit > 100000:
+        raise HTTPException(status_code=400, detail="limit must be in (0, 100000]")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset must be >= 0")
+
     collection = _get_collection()
-    data = collection.get(include=["metadatas"])
-    metas = data.get("metadatas") or []
-    pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
-    return {"success": True, "data": {"pmids": pmids, "count": len(pmids), "total_chunks": len(metas)}}
+    # PR #176 헬퍼로 전체 metadata 안전 수집 (내부 페이지네이션, SQLite 변수 한계 회피)
+    _ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
+    total_chunks = len(metas)
+
+    # unique PMID 집계 → sort → slice (PMID 단위 페이지네이션, 페이지 경계 중복/누락 방지)
+    all_pmids = sorted({m["paper_pmid"] for m in metas if m and m.get("paper_pmid")})
+    total_pmids = len(all_pmids)
+    page = all_pmids[offset : offset + limit]
+
+    return {
+        "success": True,
+        "data": {
+            "pmids": page,
+            "total": total_pmids,  # unique PMID 수 (페이지네이션 기준)
+            "limit": limit,
+            "offset": offset,
+            "has_next": offset + limit < total_pmids,
+            # 하위 호환: 기존 MLOps 스크립트가 count/total_chunks를 읽는 경우 대비 보존
+            "count": len(page),
+            "total_chunks": total_chunks,
+        },
+    }
 
 
 class RefreshCategoriesRequest(BaseModel):
@@ -190,9 +307,8 @@ async def refresh_categories(
     변경된 후 RAG 검색 가중치를 동기화하는 용도.
     """
     collection = _get_collection()
-    data = collection.get(include=["metadatas"])
-    ids = data.get("ids") or []
-    metas = data.get("metadatas") or []
+    # 페이지네이션으로 전체 메타 누적 (대용량 컬렉션에서 SQLite "too many SQL variables" 회피)
+    ids, metas = await asyncio.to_thread(_fetch_all_metadatas_paged, collection)
 
     update_ids: list[str] = []
     update_metas: list[dict] = []
@@ -213,7 +329,8 @@ async def refresh_categories(
     if update_ids:
         batch_size = 500
         for i in range(0, len(update_ids), batch_size):
-            collection.update(
+            await asyncio.to_thread(
+                collection.update,
                 ids=update_ids[i : i + batch_size],
                 metadatas=update_metas[i : i + batch_size],
             )
@@ -232,3 +349,147 @@ async def refresh_categories(
             "total_pmids_in_mapping": len(body.mapping),
         },
     }
+
+
+# WorkoutX equipment 문자열 → EquipmentType 매핑
+_WX_EQUIPMENT_TYPE: dict[str, str] = {
+    "barbell": EquipmentType.BARBELL,
+    "dumbbell": EquipmentType.DUMBBELL,
+    "cable": EquipmentType.CABLE,
+    "machine": EquipmentType.MACHINE,
+    "leverage machine": EquipmentType.MACHINE,
+    "smith machine": EquipmentType.MACHINE,
+    "assisted": EquipmentType.MACHINE,
+    "body weight": EquipmentType.BODYWEIGHT,
+    "bodyweight": EquipmentType.BODYWEIGHT,
+    "band": EquipmentType.BODYWEIGHT,
+    "ez barbell": EquipmentType.BARBELL,
+    "olympic barbell": EquipmentType.BARBELL,
+}
+
+
+@router.post("/exercises/seed-workoutx")
+async def seed_exercises_from_workoutx(
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """WorkoutX API에서 전체 운동 목록을 가져와 exercises + exercise_equipment_map 테이블을 채운다.
+
+    멱등 처리 (name_en ON CONFLICT DO NOTHING). 여러 번 실행해도 안전.
+    """
+    wx_exercises = await list_all_exercises()
+    if not wx_exercises:
+        return {
+            "success": True,
+            "data": {"upserted": 0, "mapped": 0, "message": "WorkoutX에서 운동 목록을 가져오지 못했습니다."},
+        }
+
+    # DB 기구 목록 미리 로드: equipment_type → [equipment_id, ...]
+    eq_rows = (await db.execute(select(Equipment.id, Equipment.equipment_type))).all()
+    equipment_by_type: dict[str, list] = {}
+    for eq_id, eq_type in eq_rows:
+        equipment_by_type.setdefault(eq_type, []).append(eq_id)
+
+    upserted = 0
+    mapped = 0
+
+    for item in wx_exercises:
+        name_en: str = (item.get("name") or "").strip()
+        if not name_en:
+            continue
+
+        body_part: str = (item.get("bodyPart") or "").strip().lower()
+        gif_url: str | None = item.get("gifUrl")
+        wx_equipment: str = (item.get("equipment") or "").strip().lower()
+
+        # exercises upsert (name_en unique)
+        stmt = (
+            pg_insert(Exercise)
+            .values(
+                name=name_en,
+                name_en=name_en,
+                category=body_part or "unknown",
+                gif_url=gif_url,
+            )
+            .on_conflict_do_update(
+                index_elements=["name_en"],
+                set_={"gif_url": gif_url, "category": body_part or "unknown"},
+            )
+            .returning(Exercise.id)
+        )
+        result = await db.execute(stmt)
+        exercise_id = result.scalar_one()
+        upserted += 1
+
+        # exercise_equipment_map: 매핑 타입의 모든 기구와 연결
+        eq_type = _WX_EQUIPMENT_TYPE.get(wx_equipment)
+        if eq_type:
+            for eq_id in equipment_by_type.get(eq_type, []):
+                map_stmt = (
+                    pg_insert(ExerciseEquipmentMap)
+                    .values(
+                        exercise_id=exercise_id,
+                        equipment_id=eq_id,
+                    )
+                    .on_conflict_do_nothing()
+                )
+                await db.execute(map_stmt)
+                mapped += 1
+
+    await db.commit()
+    logger.info("seed-workoutx 완료: exercises=%d, equipment_map=%d", upserted, mapped)
+    return {"success": True, "data": {"upserted": upserted, "mapped": mapped}}
+
+
+class CollectionSwapRequest(BaseModel):
+    to: str
+
+
+@router.post("/rag/collection-swap")
+async def swap_collection(
+    body: CollectionSwapRequest,
+    _: None = Depends(_verify_admin_token),
+) -> dict:
+    """`current_alias.json`의 `current`를 새 collection 이름으로 atomic write.
+
+    PR-δ §2.3 alias-swap 패턴 — body `{"to": "papers_v2"}`로 호출하면 EFS의 alias 파일을
+    교체하고 rag 서비스의 keyed cache를 clear 한다. 다음 검색 요청부터 새 collection을
+    사용하므로 zero-downtime swap이 가능하다. 롤백은 동일 endpoint에 이전 이름으로 재호출.
+
+    F1 fix: alias 파일 쓰기 전에 target collection이 ChromaDB에 실제로 존재하는지 검증.
+    오타(papers_v22 등) 한 번에 검색 500 회귀 가능성 차단 → 존재하지 않으면 404 반환.
+    """
+    target = body.to.strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="`to` 필드는 비어있을 수 없습니다")
+
+    # F1 fix: target collection 존재 검증 — alias 파일 쓰기 전에 ChromaDB에서 확인
+    global _chroma_client
+    settings = get_settings()
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_PATH)
+    existing = [c.name for c in _chroma_client.list_collections()]
+    if target not in existing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"collection {target!r} not found. Available: {existing}",
+        )
+
+    alias_path: Path = rag_svc.ALIAS_FILE
+    alias_path.parent.mkdir(parents=True, exist_ok=True)
+    swapped_at = datetime.now(timezone.utc).isoformat()
+
+    # POSIX atomic: tmp write → rename. 동일 디렉토리에서 .replace는 atomic이 보장된다.
+    # M3 잔여 픽스: uuid4 suffix — pid+ms timestamp는 동일 프로세스 동시 요청에서 같은 ms 충돌 가능
+    tmp = alias_path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+    tmp.write_text(
+        json.dumps({"current": target, "swapped_at": swapped_at}),
+        encoding="utf-8",
+    )
+    tmp.replace(alias_path)
+
+    # 다음 _get_collection 호출부터 새 alias가 즉시 반영되도록 keyed cache 비움.
+    rag_svc._collection_cache.clear()
+
+    logger.info("collection-swap: alias '%s'로 갱신 (at=%s)", target, swapped_at)
+    return {"success": True, "data": {"current": target, "swapped_at": swapped_at}}

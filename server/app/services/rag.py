@@ -1,14 +1,4 @@
-"""RAG 파이프라인 서비스.
-
-두 가지 기능:
-1. chat_rag()    — 챗봇: 질문 → 논문 검색 → LLM 답변 + 논문 출처 카드
-2. routine_rag() — 루틴 생성: 사용자 프로필 → 논문 검색 → LLM day별 JSON
-
-로컬 테스트 (scifit-sync/ 루트에서 실행):
-    python server/app/services/rag.py search          # ChromaDB 검색만 (LLM 불필요)
-    python server/app/services/rag.py chat             # 챗봇 RAG (LLM 필요)
-    python server/app/services/rag.py routine          # 루틴 생성 RAG (LLM 필요)
-"""
+"""RAG 파이프라인 서비스 — chat_rag_stream (챗봇) 및 routine_rag_stream (루틴 생성)."""
 
 import json
 import logging
@@ -49,13 +39,10 @@ from llm import generate_stream as llm_generate_stream  # noqa: E402, I001
 
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
-    """ChromaDB 데이터 경로를 결정한다.
-
-    컨테이너 환경(/chroma-data 마운트)과 로컬 개발 환경(WSL/macOS)을 자동 분기한다:
-    - 절대 경로: 쓰기 가능하면 그대로 사용, 권한 없으면 프로젝트 루트의 chroma-data로 fallback
-    - 상대 경로: 프로젝트 루트 기준으로 변환
-    """
-    raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
+    """ChromaDB 데이터 경로 결정 (컨테이너 /chroma-data 마운트 vs 로컬 fallback)."""
+    # 기본값은 서버 config.py / mlops config와 동일한 절대경로(EFS 마운트)로 통일.
+    # ECS 태스크에 env가 명시되지 않아도 admin(쓰기)과 동일한 /chroma-data를 읽도록 한다.
+    raw = os.getenv("CHROMA_PERSIST_PATH", "/chroma-data")
     p = Path(raw)
     if p.is_absolute():
         if p.exists() and os.access(p, os.W_OK):
@@ -76,22 +63,76 @@ SIMILARITY_THRESHOLD = 0.70
 OVER_FETCH_MULTIPLIER = 3
 DEFAULT_EVIDENCE_WEIGHT = 0.50
 
+# ── Alias-swap (PR-δ §2.3) ────────────────────────────────────
+# EFS /chroma-data/current_alias.json을 SOT로 사용해 모든 ECS 태스크가 같은 alias를 본다.
+# admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
+# 다음 _get_collection 호출부터 새 alias가 반영된다.
+ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
+# F4: DEFAULT_COLLECTION 모듈 상수 제거 — 호출 경로에서 미사용 dead variable.
+# fallback은 _current_collection_name() 내부의 os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")로 처리.
+
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
-_chroma_collection = None
+_client = None
+_collection_cache: dict[str, object] = {}
 _embed_model = None
 
 
-def _get_collection():
-    """ChromaDB collection을 싱글턴으로 반환한다."""
-    global _chroma_collection
-    if _chroma_collection is None:
-        import chromadb
+def _current_collection_name() -> str:
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'paper_chunks' fallback.
 
-        logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
-        client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
-        _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
-        logger.info("ChromaDB 준비 완료 (문서 수: %d)", _chroma_collection.count())
-    return _chroma_collection
+    B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
+    매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    F2 fix: fallback을 config default("paper_chunks")와 일치시켜 일관성 확보.
+    """
+    try:
+        if ALIAS_FILE.exists():
+            data = json.loads(ALIAS_FILE.read_text(encoding="utf-8"))
+            name = data.get("current")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
+    # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
+    # fallback은 config.py CHROMA_COLLECTION_NAME default("paper_chunks")와 일치 (F2 fix)
+    return os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
+
+
+def _get_collection():
+    """현재 alias가 가리키는 ChromaDB collection을 반환.
+
+    매 호출마다 alias 파일(`ALIAS_FILE`)을 확인해 swap을 즉시 반영한다.
+    collection 핸들은 이름별로 캐시되므로 reload 비용은 alias 변경 시점에만 발생한다.
+
+    B1 fix: get_or_create_collection 대신 get_collection 사용 — 존재하지 않는 collection을
+    silent하게 빈 상태로 생성하는 것을 방지한다. collection이 없으면 RuntimeError로 fail-closed.
+    alias 파일 또는 초기 ingest가 올바르게 설정되지 않은 경우 운영자가 즉시 인지할 수 있다.
+    """
+    global _client
+    name = _current_collection_name()
+    if name not in _collection_cache:
+        if _client is None:
+            import chromadb
+
+            logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
+            _client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+        try:
+            collection = _client.get_collection(name=name)
+        except Exception as e:
+            # collection이 없으면 명확한 에러 — silent empty fallback 방지 (B1 fix)
+            # 운영자가 alias 파일 또는 초기 ingest 설정을 확인해야 함
+            raise RuntimeError(
+                f"ChromaDB collection {name!r} not found. Check {ALIAS_FILE} or run initial ingest."
+            ) from e
+        count = collection.count()
+        if count == 0:
+            logger.warning(
+                "ChromaDB 컬렉션 '%s'이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.",
+                name,
+            )
+        else:
+            logger.info("ChromaDB 준비 완료 (collection=%s, 문서 수: %d)", name, count)
+        _collection_cache[name] = collection
+    return _collection_cache[name]
 
 
 def _get_embed_model():
@@ -110,12 +151,7 @@ def _get_embed_model():
 
 
 def _sanitize_query(text: str) -> str:
-    """UTF-8로 인코딩 불가한 surrogate 문자(U+D800–U+DFFF)를 제거한다.
-
-    WSL/Windows 콘솔의 input()이 일부 한글을 lone surrogate로 반환하는 경우
-    sentence-transformers tokenizer가 TypeError("TextEncodeInput must be ...")를 던진다.
-    Gemini API도 surrogate 포함 문자열을 거부하므로 임베딩·번역 진입 전 일괄 정화한다.
-    """
+    """WSL/Gemini API에서 문제를 일으키는 lone surrogate(U+D800–U+DFFF)를 제거."""
     return text.encode("utf-8", errors="ignore").decode("utf-8").strip()
 
 
@@ -124,22 +160,7 @@ def _rank_by_evidence_weight(
     *,
     similarity_threshold: float = SIMILARITY_THRESHOLD,
 ) -> list[dict]:
-    """raw_results를 evidence_weight 가중 점수로 정렬한다 (Task 13).
-
-    Args:
-        raw_results: 각 항목은 ``{"distance": float, "metadata": dict, "document": str}``
-        similarity_threshold: raw similarity 컷오프 (가중 점수가 아닌 원본 유사도 기준).
-            약한 evidence_weight 청크라도 유사도가 충분히 높으면 통과시키기 위함.
-
-    Returns:
-        [{
-            "score": similarity × evidence_weight,
-            "similarity": float,
-            "weight": float,
-            "metadata": dict,
-            "document": str,
-        }] — score 내림차순.
-    """
+    """similarity × evidence_weight 가중 점수로 재정렬 후 threshold 미만 제거."""
     ranked: list[dict] = []
     for r in raw_results:
         similarity = 1.0 - float(r["distance"])
@@ -164,19 +185,7 @@ def _rank_by_evidence_weight(
 
 
 def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
-    """쿼리를 임베딩하여 ChromaDB에서 유사 청크를 검색한다.
-
-    Task 13: ``top_k × OVER_FETCH_MULTIPLIER`` 만큼 over-fetch 한 뒤
-    ``similarity × evidence_weight`` 가중 점수로 재정렬하고 상위 ``top_k`` 만 반환한다.
-    threshold 필터는 raw similarity 기준으로 유지.
-
-    Args:
-        query: 검색 쿼리 (영어 권장)
-        top_k: 최대 반환 수
-
-    Returns:
-        [{"content": str, "pmid": str, "title": str, "section": str, "score": float}]
-    """
+    """쿼리 임베딩 → ChromaDB over-fetch → evidence_weight 가중 재정렬 → 상위 top_k 반환."""
     query = _sanitize_query(query)
     if not query:
         return []
@@ -206,6 +215,7 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     chunks = [
         {
             "content": r["document"],
+            "doi": (r["metadata"] or {}).get("paper_doi", ""),
             "pmid": (r["metadata"] or {}).get("paper_pmid", ""),
             "title": (r["metadata"] or {}).get("paper_title", ""),
             "section": (r["metadata"] or {}).get("section_name", ""),
@@ -230,11 +240,13 @@ def translate_to_english(text: str) -> str:
     if korean_chars < 3:
         return text  # 영어면 번역 불필요
 
+    # 사용자 입력은 <user_query> 태그로 격리 (CLAUDE.md §12 프롬프트 인젝션 방어)
+    safe_text = text.replace("</user_query>", "</ user_query>")
     try:
         translated = llm_generate(
             "Translate the following Korean fitness/exercise query to English. "
             "Return only the translation, no explanation.\n\n"
-            f"<user_query>{text}</user_query>"
+            f"<user_query>{safe_text}</user_query>"
         )
         logger.info("번역: '%s' → '%s'", text[:30], translated[:50])
         return translated
@@ -244,17 +256,7 @@ def translate_to_english(text: str) -> str:
 
 
 def chat_rag(question: str) -> dict:
-    """챗봇 RAG: 질문 → 논문 검색 → LLM 답변 + 논문 출처 카드.
-
-    Args:
-        question: 사용자 질문 (한국어 가능)
-
-    Returns:
-        {
-            "answer": str,
-            "sources": [{"pmid": str, "title": str, "section": str}]
-        }
-    """
+    """챗봇 RAG (비스트리밍): 질문 → ChromaDB 검색 → LLM 답변 + 논문 출처 카드 반환."""
     question = _sanitize_query(question)
     if not question:
         return {"answer": "질문을 인식할 수 없습니다. 다시 입력해 주세요.", "sources": []}
@@ -293,19 +295,24 @@ def chat_rag(question: str) -> dict:
     # 4. LLM 답변 생성
     answer = llm_generate(prompt)
 
-    # 5. 출처 카드 구성 (중복 제거)
+    # 5. 출처 카드 구성 (DOI 우선 dedup — DOI가 primary identifier, D-M11)
     seen: set[str] = set()
     sources = []
     for chunk in chunks[:5]:
-        if chunk["pmid"] not in seen:
-            seen.add(chunk["pmid"])
-            sources.append(
-                {
-                    "pmid": chunk["pmid"],
-                    "title": chunk["title"],
-                    "section": chunk["section"],
-                }
-            )
+        doi = chunk.get("doi") or ""
+        pmid = chunk.get("pmid") or ""
+        dedup_key = doi or pmid
+        if not dedup_key or dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        sources.append(
+            {
+                "doi": doi,
+                "pmid": pmid,
+                "title": chunk["title"],
+                "section": chunk["section"],
+            }
+        )
 
     return {
         "answer": answer,
@@ -315,17 +322,12 @@ def chat_rag(question: str) -> dict:
 
 @dataclass
 class UserProfile:
-    """루틴 생성에 필요한 사용자 프로필.
-
-    `goals`는 복수 선택 (D-M6, CLAUDE.md §6). 첫 번째 목표가 검색 쿼리의 기준이 되고
-    나머지는 LLM 프롬프트에 함께 전달된다.
-    """
+    """루틴 생성용 사용자 프로필 (goals 첫 번째가 검색 기준, 나머지는 프롬프트 보조)."""
 
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
-    days_per_week: int  # 주당 운동 일수 (split_type에서 derive)
-    available_equipment: list[str] = field(default_factory=list)  # 사용 가능한 기구명
+    available_exercises: list[str] = field(default_factory=list)  # gym 기구로 할 수 있는 운동 name_en 목록
     target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
@@ -354,11 +356,17 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
 
-    equipment_str = (
-        ", ".join(profile.available_equipment) if profile.available_equipment else "barbell, dumbbell, bodyweight"
-    )
     goals_str = ", ".join(g.lower() for g in profile.goals) if profile.goals else "hypertrophy"
     muscles_str = ", ".join(profile.target_muscles) if profile.target_muscles else "balanced full-body"
+
+    if profile.available_exercises:
+        exercise_list_str = "\n".join(f"- {name}" for name in profile.available_exercises)
+        exercises_section = (
+            f"\nAvailable exercises at this gym (use ONLY these exact names — do not invent other names):\n"
+            f"{exercise_list_str}\n"
+        )
+    else:
+        exercises_section = "\nAvailable equipment: barbell, dumbbell, bodyweight (standard exercises allowed)\n"
 
     extras = []
     if profile.session_minutes:
@@ -372,25 +380,38 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         extras.append(f"- Regenerate feedback (from user): <user_query>{safe}</user_query>")
     extras_str = ("\n" + "\n".join(extras)) if extras else ""
 
+    name_rule = (
+        '- "name" must be chosen EXACTLY from the Available exercises list above. Do not invent or paraphrase names.\n'
+        if profile.available_exercises
+        else ""
+    )
+
     return (
-        f"You are a sports science expert. Create a {profile.days_per_week}-day workout routine "
+        f"You are a sports science expert. Create a 1-day workout routine "
         f"based ONLY on the research papers below.\n\n"
         f"User Profile:\n"
         f"- Goals (primary first): {goals_str}\n"
         f"- Target muscles to emphasize: {muscles_str}\n"
         f"- Body weight: {profile.body_weight}kg\n"
-        f"- Fitness level: {profile.fitness_career}\n"
-        f"- Available equipment: {equipment_str}"
+        f"- Fitness level: {profile.fitness_career}"
+        f"{exercises_section}"
         f"{extras_str}\n\n"
         f"Research papers:\n{context}\n\n"
-        f"Output a JSON array of exactly {profile.days_per_week} day objects.\n"
+        f"Output a JSON array of exactly 1 day object.\n"
         f"Each object format:\n"
         f'{{"day": <number>, "focus": "<muscle group>", "exercises": ['
-        f'{{"name": "<English exercise name>", "sets": <number>, '
+        f'{{"name": "<exercise name>", "sets": <number>, '
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
-        f'"notes": "<paper-based rationale, mention paper number>"}}]}}\n\n'
-        f"Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
+        f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
+        f"Do NOT include [Paper N] citations — write the finding naturally. "
+        f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
+        f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
+        f"Rules:\n"
+        f"{name_rule}"
+        f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
+        f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30).\n"
         f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
@@ -410,15 +431,11 @@ def _strip_markdown_fence(raw: str) -> str:
     return raw
 
 
-def chat_rag_stream(question: str) -> Generator[dict, None, None]:
-    """챗봇 RAG (스트리밍): 질문 → 논문 검색 → LLM 토큰 스트림 + 논문 출처 카드.
-
-    Yields:
-        {"type": "chunk", "content": str}
-        {"type": "sources", "sources": [{"pmid": str, "title": str, "section": str}]}
-        {"type": "done"}
-        {"type": "error", "message": str}
-    """
+def chat_rag_stream(
+    question: str,
+    history: list[dict] | None = None,
+) -> Generator[dict, None, None]:
+    """챗봇 RAG (스트리밍): 질문 + 대화 히스토리 → 논문 검색 → LLM 토큰 스트림 + 출처 카드."""
     question = _sanitize_query(question)
     if not question:
         yield {"type": "error", "message": "질문을 인식할 수 없습니다. 다시 입력해 주세요."}
@@ -437,10 +454,20 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다. 다른 방식으로 질문해 주세요."}
         return
 
-    # 3. 프롬프트 구성 (상위 5개 청크)
+    # 3. 프롬프트 구성 (상위 5개 청크 + 대화 히스토리)
     context = ""
     for i, chunk in enumerate(chunks[:5], 1):
         context += f"\n[논문 {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:400]}\n"
+
+    history_text = ""
+    if history:
+        for msg in history[-10:]:  # 최근 5턴(10메시지)
+            role_label = "User" if msg["role"] == "user" else "Assistant"
+            content = msg["content"][:300].replace("</user_query>", "</ user_query>")
+            if msg["role"] == "user":
+                history_text += f"{role_label}: <user_query>{content}</user_query>\n"
+            else:
+                history_text += f"{role_label}: {content}\n"
 
     safe_question = question.replace("</user_query>", "</ user_query>")
     prompt = (
@@ -448,9 +475,10 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         "Always cite which paper supports each claim.\n"
         "If the papers don't contain relevant information, say so clearly.\n\n"
         f"Research papers:\n{context}\n"
-        f"<user_query>{safe_question}</user_query>\n\n"
-        "Answer in Korean. Be specific and cite paper titles."
     )
+    if history_text:
+        prompt += f"\nPrevious conversation:\n{history_text}\n"
+    prompt += f"<user_query>{safe_question}</user_query>\n\nAnswer in Korean. Be specific and cite paper titles."
 
     # 4. LLM 토큰 스트리밍
     try:
@@ -461,14 +489,17 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
         yield {"type": "error", "message": "AI 응답 생성 중 오류가 발생했습니다."}
         return
 
-    # 5. 출처 카드 (중복 pmid 제거)
+    # 5. 출처 카드 (DOI 우선 dedup — DOI가 primary identifier, D-M11)
     seen: set[str] = set()
     sources: list[dict] = []
     for chunk in chunks[:5]:
+        doi = chunk.get("doi") or ""
         pmid = chunk.get("pmid") or ""
-        if pmid and pmid not in seen:
-            seen.add(pmid)
-            sources.append({"pmid": pmid, "title": chunk.get("title", ""), "section": chunk.get("section", "")})
+        dedup_key = doi or pmid
+        if not dedup_key or dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        sources.append({"doi": doi, "pmid": pmid, "title": chunk.get("title", ""), "section": chunk.get("section", "")})
     if sources:
         yield {"type": "sources", "sources": sources}
 
@@ -476,17 +507,7 @@ def chat_rag_stream(question: str) -> Generator[dict, None, None]:
 
 
 def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
-    """루틴 생성 RAG (스트리밍): 프로필 → 논문 검색 → LLM 토큰 스트림 → day별 JSON.
-
-    CLAUDE.md §11 RAG 파이프라인 6단계 + §7 SSE 포맷 (chunk/day_complete/done)을 따른다.
-
-    Yields:
-        {"type": "chunk", "content": str}              # LLM delta 토큰 (실시간)
-        {"type": "day_complete", "day": int, "focus": str, "exercises": [...]}
-        {"type": "papers", "sources": [{"pmid", "title", "section", "score"}]}
-        {"type": "done"}
-        {"type": "error", "message": str}
-    """
+    """루틴 생성 RAG (스트리밍): chunk / day_complete / papers / done / error 이벤트를 yield."""
     # 1. 목표별 검색 쿼리 (1차 목표 기준)
     primary = profile.primary_goal
     query = _GOAL_QUERIES.get(primary, primary)
@@ -534,21 +555,25 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
         if isinstance(day_data, dict):
             yield {"type": "day_complete", **day_data}
 
-    # 6. 사용된 논문 출처 (중복 pmid 제거)
+    # 6. 사용된 논문 출처 (DOI 기준 dedup — DOI가 primary identifier, D-M11)
     seen: set[str] = set()
     sources: list[dict] = []
     for chunk in chunks[:5]:
+        doi = chunk.get("doi") or ""
         pmid = chunk.get("pmid") or ""
-        if pmid and pmid not in seen:
-            seen.add(pmid)
-            sources.append(
-                {
-                    "pmid": pmid,
-                    "title": chunk.get("title", ""),
-                    "section": chunk.get("section", ""),
-                    "score": chunk.get("score"),
-                }
-            )
+        dedup_key = doi or pmid  # DOI 우선, 없으면 PMID로 dedup
+        if not dedup_key or dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+        sources.append(
+            {
+                "doi": doi,
+                "pmid": pmid,
+                "title": chunk.get("title", ""),
+                "section": chunk.get("section", ""),
+                "score": chunk.get("score"),
+            }
+        )
     if sources:
         yield {"type": "papers", "sources": sources}
 
@@ -556,10 +581,7 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
 
 
 def routine_rag(profile: UserProfile) -> Generator[dict, None, None]:
-    """루틴 생성 RAG (비스트리밍 호환): routine_rag_stream에서 chunk 이벤트만 제외.
-
-    기존 CLI 테스트 (`python rag.py routine`)와 하위 호환을 위해 유지한다.
-    """
+    """routine_rag_stream의 chunk 이벤트를 제외한 비스트리밍 호환 래퍼."""
     for event in routine_rag_stream(profile):
         if event.get("type") != "chunk":
             yield event
@@ -610,15 +632,11 @@ if __name__ == "__main__":
             goals=["hypertrophy", "strength"],
             body_weight=75.0,
             fitness_career="intermediate",
-            days_per_week=3,
-            available_equipment=["barbell", "dumbbell", "cable"],
+            available_exercises=["Bench Press", "Incline Bench Press", "Cable Fly", "Tricep Pushdown", "Dumbbell Fly"],
             target_muscles=["chest", "triceps"],
             session_minutes=75,
         )
-        print(
-            f"프로필: 목표={profile.goals}, 체중={profile.body_weight}kg, "
-            f"레벨={profile.fitness_career}, 주{profile.days_per_week}일\n"
-        )
+        print(f"프로필: 목표={profile.goals}, 체중={profile.body_weight}kg, 레벨={profile.fitness_career}\n")
 
         for event in routine_rag(profile):
             etype = event["type"]

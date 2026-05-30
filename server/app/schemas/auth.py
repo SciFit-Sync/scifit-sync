@@ -84,6 +84,7 @@ class RegisterRequest(BaseModel):
 class RegisterData(BaseModel):
     user_id: str
     username: str
+    otp_code: str | None = None  # SES 미설정 개발 환경에서만 반환
 
 
 class LoginRequest(BaseModel):
@@ -159,6 +160,8 @@ class WithdrawData(BaseModel):
 class RefreshData(BaseModel):
     access_token: str
     refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int = 3600
 
 
 class VerifyEmailRequest(BaseModel):

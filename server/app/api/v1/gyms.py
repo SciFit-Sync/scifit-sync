@@ -25,6 +25,7 @@ from app.models import (
     Gym,
     GymEquipment,
     User,
+    UserGym,
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
@@ -58,7 +59,6 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
-        name_en=e.name_en,
         brand=e.brand.name if e.brand else None,
         category=e.category.value if e.category else None,
         equipment_type=e.equipment_type.value,
@@ -78,22 +78,29 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
 @router.get("", response_model=SuccessResponse[GymSearchData], summary="헬스장 검색")
 async def search_gyms(
     request: Request,
-    keyword: str = Query(..., min_length=1, description="검색 키워드"),
+    keyword: str | None = Query(None, description="검색 키워드 (없으면 주변 헬스장)"),
     latitude: float | None = Query(None),
     longitude: float | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """카카오 로컬 API로 검색 후, kakao_place_id로 DB 조회/매칭하여 반환한다.
+    keyword 없이 좌표만 넘기면 주변 헬스장을 거리순으로 반환한다.
     DB에 없는 헬스장은 응답에는 포함하되 gym_id 미할당 (POST /gyms로 생성 후 사용).
     """
     settings = get_settings()
     if not settings.KAKAO_REST_API_KEY:
         raise ExternalServiceError(message="카카오 로컬 API 키가 설정되지 않았습니다.")
 
-    params: dict[str, str | float] = {"query": keyword}
+    # keyword 없으면 "헬스장"으로 검색 — 좌표와 함께 쓰면 거리순 주변 헬스장
+    has_keyword = bool(keyword and keyword.strip())
+    kakao_keyword = keyword.strip() if has_keyword else "헬스장"
+    params: dict[str, str | float] = {"query": kakao_keyword}
     if latitude is not None and longitude is not None:
-        params.update({"x": longitude, "y": latitude, "radius": 5000, "sort": "distance"})
+        params.update({"x": longitude, "y": latitude, "sort": "distance"})
+        # 주변 헬스장 탐색(키워드 없음)일 때만 반경 5km 제한 — 키워드 검색은 거리 제한 없이 표시
+        if not has_keyword:
+            params["radius"] = 5000
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -106,9 +113,20 @@ async def search_gyms(
         raise ExternalServiceError(message="카카오 로컬 API에 연결할 수 없습니다.") from e
 
     if not resp.is_success:
-        raise ExternalServiceError(message="카카오 로컬 API 요청이 실패했습니다.")
+        logger.error("카카오 로컬 API 실패: status=%d body=%s", resp.status_code, resp.text[:200])
+        raise ExternalServiceError(message=f"카카오 로컬 API 요청이 실패했습니다. (status={resp.status_code})")
 
-    documents = resp.json().get("documents", [])
+    # 헬스장/피트니스 관련 카테고리만 필터링
+    GYM_KEYWORDS = ("헬스", "피트니스", "크로스핏", "스포츠클럽", "pt샵", "pt 샵", "웨이트", "짐", "gym", "스포츠시설")
+    raw_docs = resp.json().get("documents", [])
+    documents = [
+        d
+        for d in raw_docs
+        if any(
+            kw in (d.get("category_name") or "").lower() or kw in (d.get("place_name") or "").lower()
+            for kw in GYM_KEYWORDS
+        )
+    ]
     place_ids = [d["id"] for d in documents]
 
     # 기존 DB 매칭 — equipment_count만 필요하므로 COUNT 서브쿼리 사용 (전체 로드 방지)
@@ -355,6 +373,60 @@ async def bulk_add_gym_equipment(
             message="기구가 헬스장에 연결되었습니다.",
         )
     )
+
+
+# ── DELETE /gyms/{gymId}/equipment/{equipmentId} ─────────────────────────────
+@rate_limit("60/minute")
+@router.delete(
+    "/{gym_id}/equipment/{equipment_id}",
+    response_model=SuccessResponse[dict],
+    status_code=200,
+    summary="헬스장 기구 삭제",
+)
+async def delete_gym_equipment(
+    request: Request,
+    gym_id: str,
+    equipment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+        eq_uuid = uuid.UUID(equipment_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 ID 형식입니다.") from e
+
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
+    if gym is None:
+        raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    # 요청자가 해당 헬스장 소속인지 확인
+    user_gym = (
+        await db.execute(
+            select(UserGym).where(
+                UserGym.user_id == current_user.id,
+                UserGym.gym_id == gym_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if user_gym is None:
+        raise NotFoundError(message="본인의 헬스장 기구만 삭제할 수 있습니다.")
+
+    row = (
+        await db.execute(
+            select(GymEquipment).where(
+                GymEquipment.gym_id == gym_uuid,
+                GymEquipment.equipment_id == eq_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise NotFoundError(message="해당 기구가 헬스장에 등록되어 있지 않습니다.")
+
+    await db.delete(row)
+    await db.commit()
+
+    return SuccessResponse(data={"message": "기구가 삭제되었습니다."})
 
 
 # ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────

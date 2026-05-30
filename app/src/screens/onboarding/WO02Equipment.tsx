@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,78 +6,112 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  ActivityIndicator,
+  Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
-
-interface Equipment {
-  id: string;
-  name: string;
-  spec: string;
-  brand: string;
-}
-
-const brands = ["전체", "브랜드1", "브랜드2", "브랜드3", "브랜드4"];
-
-const mock_equipment: Equipment[] = [
-  {
-    id: "1",
-    name: "케이블 크로스오버",
-    spec: "도르래 2:1 스택 2.3kg",
-    brand: "브랜드1",
-  },
-  { id: "2", name: "렛풀다운", spec: "도르래 1:1 스택 5kg", brand: "브랜드2" },
-  {
-    id: "3",
-    name: "케이블 로우",
-    spec: "도르래 1.5:1 스택 5kg",
-    brand: "브랜드2",
-  },
-  { id: "4", name: "레그프레스", spec: "스택 100kg", brand: "브랜드3" },
-  { id: "5", name: "스미스머신", spec: "바벨 20kg", brand: "브랜드1" },
-  { id: "6", name: "인클라인 벤치프레스", spec: "스택 80kg", brand: "브랜드3" },
-  {
-    id: "7",
-    name: "펙덱 플라이",
-    spec: "도르래 1:1 스택 10kg",
-    brand: "브랜드4",
-  },
-  {
-    id: "8",
-    name: "시티드 로우",
-    spec: "도르래 2:1 스택 5kg",
-    brand: "브랜드4",
-  },
-  { id: "9", name: "레그 컬", spec: "스택 60kg", brand: "브랜드2" },
-  { id: "10", name: "레그 익스텐션", spec: "스택 60kg", brand: "브랜드1" },
-];
+import { useAuthStore } from "../../stores/authStore";
+import {
+  getGymEquipment,
+  deleteGymEquipment,
+  EquipmentItem,
+} from "../../services/gyms";
 
 export default function WO02Equipment() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { gym_id } = (route.params ?? {}) as { gym_id: string | null };
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+
+  const [equipment_list, set_equipment_list] = useState<EquipmentItem[]>([]);
+  const [gym_name, set_gym_name] = useState<string | null>(null);
+  const [loading, set_loading] = useState(false);
   const [search, set_search] = useState("");
-  const [selected_brand, set_selected_brand] = useState("전체");
-  const [selected_ids, set_selected_ids] = useState<string[]>([]);
+  const [selected_brand, set_selected_brand] = useState<string | null>(null);
 
-  const filtered = mock_equipment.filter((e) => {
-    const match_brand = selected_brand === "전체" || e.brand === selected_brand;
-    const match_search = search === "" || e.name.includes(search);
-    return match_brand && match_search;
-  });
+  const fetch_gym_equipment = useCallback(async () => {
+    if (!gym_id) return;
+    set_loading(true);
+    try {
+      const data = await getGymEquipment(gym_id, token);
+      set_gym_name(data.gym_name);
+      set_equipment_list(data.equipment);
+    } catch {
+      set_equipment_list([]);
+    } finally {
+      set_loading(false);
+    }
+  }, [gym_id, token]);
 
-  const toggle_equipment = (id: string) => {
-    set_selected_ids((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    );
-  };
+  useFocusEffect(
+    useCallback(() => {
+      fetch_gym_equipment();
+    }, [fetch_gym_equipment]),
+  );
+
+  // 브랜드 목록 — 로드된 기구에서 추출
+  const brands = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const item of equipment_list) {
+      if (item.brand && !seen.has(item.brand)) {
+        seen.add(item.brand);
+        result.push(item.brand);
+      }
+    }
+    return result;
+  }, [equipment_list]);
+
+  // 검색 + 브랜드 필터 적용
+  const filtered_list = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    return equipment_list.filter((item) => {
+      const matches_search =
+        !keyword || item.name.toLowerCase().includes(keyword);
+      const matches_brand = !selected_brand || item.brand === selected_brand;
+      return matches_search && matches_brand;
+    });
+  }, [equipment_list, search, selected_brand]);
 
   const handle_next = () => {
-    navigation.navigate("WO03OneRM" as never);
+    (navigation as any).navigate("WO03OneRM");
   };
 
   const handle_skip = () => {
-    navigation.navigate("WO03OneRM" as never);
+    (navigation as any).navigate("WO03OneRM");
+  };
+
+  const handle_add = () => {
+    (navigation as any).navigate("WO02EquipmentRegister", { gym_id });
+  };
+
+  const handle_menu = (item: EquipmentItem) => {
+    Alert.alert(item.name, undefined, [
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          if (!gym_id) return;
+          set_equipment_list((prev) =>
+            prev.filter((i) => i.equipment_id !== item.equipment_id),
+          );
+          try {
+            await deleteGymEquipment(gym_id, item.equipment_id, token);
+          } catch {
+            fetch_gym_equipment();
+          }
+        },
+      },
+      { text: "취소", style: "cancel" },
+    ]);
   };
 
   return (
@@ -91,103 +125,165 @@ export default function WO02Equipment() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.card_title}>기구 설정</Text>
-
-          {/* 검색창 */}
-          <View style={styles.search_container}>
-            <Octicons name="search" size={20} color={colors.border} />
-            <TextInput
-              style={styles.search_input}
-              placeholder="기구 검색"
-              placeholderTextColor={colors.border}
-              value={search}
-              onChangeText={set_search}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => set_search("")}>
-                <Octicons name="x" size={16} color={colors.border} />
-              </TouchableOpacity>
-            )}
+          {/* 타이틀 + + 버튼 */}
+          <View style={styles.title_row}>
+            <View style={styles.title_text_col}>
+              <Text style={styles.card_title}>기구 목록</Text>
+              {gym_name ? (
+                <Text style={styles.gym_name_text}>{gym_name}</Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              style={styles.add_btn}
+              onPress={handle_add}
+              activeOpacity={0.8}
+            >
+              <Octicons name="plus" size={18} color={colors.white} />
+            </TouchableOpacity>
           </View>
 
-          {/* 브랜드 필터 */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.brand_row}>
-              {brands.map((brand) => (
-                <TouchableOpacity
-                  key={brand}
-                  style={[
-                    styles.brand_chip,
-                    selected_brand === brand && styles.brand_chip_active,
-                  ]}
-                  onPress={() => set_selected_brand(brand)}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.brand_chip_text,
-                      selected_brand === brand && styles.brand_chip_text_active,
-                    ]}
-                  >
-                    {brand}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+          {/* 기구가 있을 때만 검색창 + 브랜드 필터 표시 */}
+          {equipment_list.length > 0 && (
+            <View style={styles.search_filter_area}>
+              {/* 검색창 */}
+              <View style={styles.search_container}>
+                <Octicons name="search" size={20} color={colors.border} />
+                <TextInput
+                  style={styles.search_input}
+                  placeholder="기구 검색"
+                  placeholderTextColor={colors.border}
+                  value={search}
+                  onChangeText={set_search}
+                />
+                {search.length > 0 && (
+                  <TouchableOpacity onPress={() => set_search("")}>
+                    <Octicons name="x" size={14} color={colors.border} />
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          {/* 기구 리스트 - 이 부분만 스크롤 */}
-          <ScrollView
-            style={styles.equipment_scroll}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled={true}
-          >
-            <View style={styles.equipment_list}>
-              {filtered.map((item) => {
-                const is_selected = selected_ids.includes(item.id);
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.equipment_item,
-                      is_selected && styles.equipment_item_active,
-                    ]}
-                    onPress={() => toggle_equipment(item.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.equipment_image_box} />
-                    <View style={styles.equipment_info}>
+              {/* 브랜드 필터 */}
+              {brands.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.brand_row}>
+                    <TouchableOpacity
+                      style={[
+                        styles.brand_chip,
+                        selected_brand === null && styles.brand_chip_active,
+                      ]}
+                      onPress={() => set_selected_brand(null)}
+                      activeOpacity={0.8}
+                    >
                       <Text
                         style={[
-                          styles.equipment_name,
-                          is_selected && styles.equipment_name_active,
+                          styles.brand_chip_text,
+                          selected_brand === null &&
+                            styles.brand_chip_text_active,
                         ]}
                       >
-                        {item.name}
+                        전체
                       </Text>
-                      <Text style={styles.equipment_spec}>{item.spec}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* 기구 추가 버튼 */}
-              <TouchableOpacity
-                style={styles.add_button}
-                activeOpacity={0.8}
-                onPress={() =>
-                  navigation.navigate("WO02EquipmentRegister" as never)
-                }
-              >
-                <Octicons name="plus" size={16} color={colors.primary} />
-              </TouchableOpacity>
+                    </TouchableOpacity>
+                    {brands.map((brand) => (
+                      <TouchableOpacity
+                        key={brand}
+                        style={[
+                          styles.brand_chip,
+                          selected_brand === brand && styles.brand_chip_active,
+                        ]}
+                        onPress={() => set_selected_brand(brand)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.brand_chip_text,
+                            selected_brand === brand &&
+                              styles.brand_chip_text_active,
+                          ]}
+                        >
+                          {brand}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              )}
             </View>
-          </ScrollView>
+          )}
+
+          {/* 기구 목록 */}
+          <View style={styles.list_container}>
+            {loading ? (
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginTop: 24 }}
+              />
+            ) : !gym_id ? (
+              <View style={styles.empty_wrapper}>
+                <Text style={styles.empty_text}>
+                  헬스장을 선택하지 않았어요.
+                </Text>
+                <Text style={styles.empty_sub}>
+                  기구 목록을 이용하려면 헬스장을 설정해 주세요.
+                </Text>
+              </View>
+            ) : equipment_list.length === 0 ? (
+              <View style={styles.empty_wrapper}>
+                <Text style={styles.empty_text}>등록된 기구가 없어요.</Text>
+                <TouchableOpacity onPress={handle_add} activeOpacity={0.8}>
+                  <Text style={styles.empty_add_hint}>
+                    <Text style={styles.plus_text}>+</Text> 버튼을 눌러 기구를
+                    추가해 보세요.
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : filtered_list.length === 0 ? (
+              <View style={styles.empty_wrapper}>
+                <Text style={styles.empty_text}>검색 결과가 없어요.</Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.equipment_list}
+              >
+                {filtered_list.map((item) => (
+                  <View key={item.equipment_id} style={styles.equipment_item}>
+                    {item.image_url ? (
+                      <Image
+                        source={{ uri: item.image_url }}
+                        style={styles.equipment_image}
+                      />
+                    ) : (
+                      <View style={styles.equipment_image_placeholder} />
+                    )}
+                    <View style={styles.equipment_info}>
+                      <Text style={styles.equipment_name}>{item.name}</Text>
+                      <Text style={styles.equipment_spec}>
+                        {[item.brand, item.equipment_type]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.menu_btn}
+                      onPress={() => handle_menu(item)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Octicons
+                        name="kebab-horizontal"
+                        size={14}
+                        color={colors.bluegray}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
 
           {/* 다음 / 건너뛰기 */}
           <TouchableOpacity
@@ -201,7 +297,7 @@ export default function WO02Equipment() {
             <Text style={styles.skip_text}>건너뛰기</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -218,19 +314,35 @@ const styles = StyleSheet.create({
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  scroll: { paddingHorizontal: 24, paddingBottom: 32 },
+  content: { flex: 1, paddingHorizontal: 24, paddingBottom: 32 },
   card: {
+    flex: 1,
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 20,
     gap: 16,
   },
-  card_title: {
-    fontFamily: "semibold",
-    fontSize: 18,
-    color: colors.primary,
-    textAlign: "center",
+  title_row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
+  title_text_col: { gap: 2, flex: 1 },
+  card_title: { fontFamily: "semibold", fontSize: 18, color: colors.primary },
+  gym_name_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+  },
+  add_btn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  search_filter_area: { gap: 8 },
   search_container: {
     flexDirection: "row",
     alignItems: "center",
@@ -247,70 +359,82 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.primary,
   },
-  brand_row: {
-    flexDirection: "row",
-    gap: 4,
-  },
+  brand_row: { flexDirection: "row", gap: 4, alignItems: "center" },
   brand_chip: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    height: 30,
     borderRadius: 100,
     backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  brand_chip_active: {
-    backgroundColor: colors.primary,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
+  brand_chip_active: { backgroundColor: colors.primary },
   brand_chip_text: {
     fontFamily: "regular",
-    fontSize: 14,
+    fontSize: 13,
     color: colors.bluegray,
   },
-  brand_chip_text_active: {
-    color: colors.white,
-  },
-  equipment_scroll: {
-    maxHeight: 308,
-    marginBottom: 24,
-  },
-  equipment_list: {
+  brand_chip_text_active: { color: colors.white },
+  list_container: { flex: 1 },
+  empty_wrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
+  empty_text: {
+    fontFamily: "medium",
+    fontSize: 15,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  empty_sub: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+    textAlign: "center",
+  },
+  empty_add_hint: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+    textAlign: "center",
+  },
+  plus_text: { fontFamily: "semibold", color: colors.primary },
+  equipment_list: { gap: 8 },
   equipment_item: {
     backgroundColor: colors.select,
     borderRadius: 8,
     height: 70,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 7,
-    gap: 10,
+    padding: 8,
+    gap: 8,
+    position: "relative",
   },
-  equipment_item_active: { backgroundColor: colors.primary },
-  equipment_image_box: {
+  equipment_image: { width: 56, height: 56, borderRadius: 4 },
+  equipment_image_placeholder: {
     width: 56,
     height: 56,
     borderRadius: 4,
     backgroundColor: colors.border,
   },
-  equipment_info: { gap: 8 },
+  equipment_info: { gap: 4, flex: 1 },
   equipment_name: {
     fontFamily: "regular",
     fontSize: 14,
     color: colors.primary,
   },
-  equipment_name_active: { color: colors.white },
   equipment_spec: {
     fontFamily: "regular",
     fontSize: 12,
     color: colors.bluegray,
   },
-  add_button: {
-    backgroundColor: colors.select,
-    borderRadius: 8,
-    height: 35,
-    alignItems: "center",
-    justifyContent: "center",
+  menu_btn: {
+    position: "absolute",
+    top: 6,
+    right: 10,
+    padding: 4,
   },
   next_button: {
     backgroundColor: colors.primary,
@@ -319,11 +443,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  next_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
   skip_text: {
     fontFamily: "regular",
     fontSize: 14,
