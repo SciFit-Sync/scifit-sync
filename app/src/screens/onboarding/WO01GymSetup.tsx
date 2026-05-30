@@ -260,11 +260,7 @@ export default function WO01GymSetup() {
                   contentContainerStyle={styles.gym_list}
                 >
                   {gyms.map((gym) => {
-                    const is_selected =
-                      gym.gym_id != null
-                        ? selected_gym?.gym_id === gym.gym_id
-                        : selected_gym?.kakao_place_id != null &&
-                          selected_gym.kakao_place_id === gym.kakao_place_id;
+                    const is_selected = gym === selected_gym;
                     return (
                     <TouchableOpacity
                       key={gym.kakao_place_id || gym.gym_id || gym.name}
