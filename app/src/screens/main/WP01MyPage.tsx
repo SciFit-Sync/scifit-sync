@@ -36,12 +36,6 @@ export default function WP01MyPage() {
   const [one_rms, set_one_rms] = useState<OneRMData[]>([]);
   const [loading, set_loading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetch_data();
-    }, [token]),
-  );
-
   const fetch_data = useCallback(async () => {
     set_loading(true);
     try {
@@ -57,6 +51,12 @@ export default function WP01MyPage() {
       set_loading(false);
     }
   }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetch_data();
+    }, [fetch_data]),
+  );
 
   const handle_logout = () => {
     Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [

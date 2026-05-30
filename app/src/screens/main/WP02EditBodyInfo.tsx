@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -47,11 +47,7 @@ export default function WP02EditBodyInfo() {
   const [loading, set_loading] = useState(true);
   const [saving, set_saving] = useState(false);
 
-  useEffect(() => {
-    load_data();
-  }, []);
-
-  const load_data = async () => {
+  const load_data = useCallback(async () => {
     try {
       const me = await getMe(token);
       const p = me.profile;
@@ -61,12 +57,16 @@ export default function WP02EditBodyInfo() {
         set_weight(String(me.latest_measurement.weight_kg));
       if (p?.gender === "female" || p?.gender === "male")
         set_gender(p.gender);
-    } catch {
-      // 기존 값 없으면 빈 입력으로 시작
+    } catch (e) {
+      console.warn("신체 정보 프리필 실패:", e);
     } finally {
       set_loading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    load_data();
+  }, [load_data]);
 
   const handle_date_confirm = (date: string) => {
     set_birth_date(date);
@@ -74,8 +74,8 @@ export default function WP02EditBodyInfo() {
   };
 
   const handle_save = async () => {
-    const h = height ? parseFloat(height) : undefined;
-    const w = weight ? parseFloat(weight) : undefined;
+    const h = height.trim() !== "" ? parseFloat(height) : undefined;
+    const w = weight.trim() !== "" ? parseFloat(weight) : undefined;
     if (h !== undefined && isNaN(h)) {
       Alert.alert("알림", "키를 올바르게 입력해주세요.");
       return;
