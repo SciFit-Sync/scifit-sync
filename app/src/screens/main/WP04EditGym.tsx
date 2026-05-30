@@ -1,101 +1,65 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Linking,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { colors } from "../../assets/colors/colors";
-
-interface Gym {
-  id: string;
-  name: string;
-  address: string;
-  distance?: string;
-}
-
-const mock_nearby_gyms: Gym[] = [
-  {
-    id: "1",
-    name: "스포애니 강남점",
-    address: "서울 강남구 테헤란로 152",
-    distance: "0.3km",
-  },
-  {
-    id: "2",
-    name: "스포애니 서초점",
-    address: "서울 서초구 서초대로 77",
-    distance: "0.8km",
-  },
-  {
-    id: "3",
-    name: "헬스장 홍대점",
-    address: "서울 마포구 양화로 162",
-    distance: "1.2km",
-  },
-];
-
-const mock_search_gyms: Gym[] = [
-  ...mock_nearby_gyms,
-  {
-    id: "4",
-    name: "피트니스 센터 종로",
-    address: "서울 종로구 종로 1",
-    distance: "3.1km",
-  },
-  {
-    id: "5",
-    name: "짐박스 신촌",
-    address: "서울 서대문구 신촌로 12",
-    distance: "4.5km",
-  },
-];
+import { useAuthStore } from "../../stores/authStore";
+import { getMe, updateMyGym, GymData } from "../../services/users";
 
 export default function WP04EditGym() {
   const navigation = useNavigation();
-  const [search, set_search] = useState("");
-  const [selected_gym, set_selected_gym] = useState<Gym | null>(
-    mock_nearby_gyms[0],
-  ); // 기존 헬스장 선택된 상태로
-  const [has_location_permission, set_has_location_permission] = useState<
-    boolean | null
-  >(null);
+  const token = useAuthStore((s) => s.accessToken) ?? "";
 
-  useEffect(() => {
-    check_location_permission();
-  }, []);
+  const [gyms, set_gyms] = useState<GymData[]>([]);
+  const [loading, set_loading] = useState(true);
 
-  const check_location_permission = async () => {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    set_has_location_permission(status === "granted");
-  };
+  useFocusEffect(
+    useCallback(() => {
+      load_gyms();
+    }, [token]),
+  );
 
-  const request_location_permission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status === "granted") {
-      set_has_location_permission(true);
-    } else {
-      Linking.openSettings();
+  const load_gyms = async () => {
+    set_loading(true);
+    try {
+      const me = await getMe(token);
+      set_gyms(me.gyms ?? []);
+    } catch {
+      set_gyms([]);
+    } finally {
+      set_loading(false);
     }
   };
 
-  const displayed_gyms =
-    search.length > 0
-      ? mock_search_gyms.filter((gym) => gym.name.includes(search))
-      : mock_nearby_gyms;
+  const handle_menu = (gym: GymData) => {
+    const options: any[] = [];
 
-  const handle_save = () => {
-    // TODO: API 연동
-    navigation.goBack();
+    if (!gym.is_primary) {
+      options.push({
+        text: "주 헬스장으로 설정",
+        onPress: async () => {
+          try {
+            await updateMyGym(token, gym.gym_id);
+            await load_gyms();
+          } catch (e: any) {
+            Alert.alert("오류", e.message ?? "설정에 실패했어요.");
+          }
+        },
+      });
+    }
+
+    options.push({ text: "취소", style: "cancel" as const });
+
+    Alert.alert(gym.name, undefined, options);
   };
 
   return (
@@ -109,108 +73,77 @@ export default function WP04EditGym() {
         <View style={styles.placeholder} />
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.flex}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.card}>
-            {/* ⭐ 타이틀 수정 */}
-            <Text style={styles.card_title}>MY 헬스장 수정</Text>
-
-            {/* 검색창 */}
-            <View style={styles.search_container}>
-              <Octicons name="search" size={20} color={colors.border} />
-              <TextInput
-                style={styles.search_input}
-                placeholder="이용 중인 헬스장을 검색해 주세요."
-                placeholderTextColor={colors.border}
-                value={search}
-                onChangeText={set_search}
-              />
-              {search.length > 0 && (
-                <TouchableOpacity onPress={() => set_search("")}>
-                  <Octicons name="x" size={16} color={colors.border} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* 위치 동의 여부에 따라 분기 */}
-            {has_location_permission === false ? (
-              <View style={styles.location_button_wrapper}>
-                <TouchableOpacity
-                  style={styles.location_button}
-                  onPress={request_location_permission}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.location_button_text}>
-                    위치 정보 동의하러 가기
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.gym_list}>
-                {displayed_gyms.length > 0 ? (
-                  displayed_gyms.map((gym) => (
-                    <TouchableOpacity
-                      key={gym.id}
-                      style={[
-                        styles.gym_item,
-                        selected_gym?.id === gym.id && styles.gym_item_active,
-                      ]}
-                      onPress={() => set_selected_gym(gym)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.gym_info}>
-                        <Text
-                          style={[
-                            styles.gym_name,
-                            selected_gym?.id === gym.id &&
-                              styles.gym_name_active,
-                          ]}
-                        >
-                          {gym.name}
-                        </Text>
-                        <Text style={styles.gym_address}>{gym.address}</Text>
-                      </View>
-                      {gym.distance && (
-                        <Text style={styles.gym_distance}>{gym.distance}</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={styles.empty_text}>검색 결과가 없어요</Text>
-                )}
-              </View>
-            )}
-
-            <View style={styles.spacer} />
-
-            {/* ⭐ 저장하기 버튼 */}
+      <View style={styles.content}>
+        <View style={styles.card}>
+          <View style={styles.title_row}>
+            <View style={styles.title_spacer} />
+            <Text style={styles.card_title}>MY 헬스장</Text>
             <TouchableOpacity
-              style={[
-                styles.save_button,
-                !selected_gym && styles.save_button_disabled,
-              ]}
-              onPress={handle_save}
-              disabled={!selected_gym}
+              style={styles.add_btn}
+              onPress={() => (navigation as any).navigate("WP04AddGym")}
               activeOpacity={0.8}
             >
-              <Text style={styles.save_button_text}>저장하기</Text>
+              <Octicons name="plus" size={18} color={colors.white} />
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+          <View style={styles.list_container}>
+            {loading ? (
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginTop: 24 }}
+              />
+            ) : gyms.length === 0 ? (
+              <View style={styles.empty_wrapper}>
+                <Text style={styles.empty_text}>등록된 헬스장이 없어요.</Text>
+              </View>
+            ) : (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.gym_list}
+              >
+                {gyms.map((gym) => (
+                  <TouchableOpacity
+                    key={gym.gym_id}
+                    style={styles.gym_item}
+                    onPress={() =>
+                      (navigation as any).navigate("WP04GymEquipment", {
+                        gym_id: gym.gym_id,
+                        gym_name: gym.name,
+                      })
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.gym_info}>
+                      <Text style={styles.gym_name}>{gym.name}</Text>
+                      {gym.is_primary && (
+                        <Text style={styles.primary_badge}>주 헬스장</Text>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handle_menu(gym)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Octicons
+                        name="kebab-horizontal"
+                        size={16}
+                        color={colors.bluegray}
+                      />
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -221,98 +154,65 @@ const styles = StyleSheet.create({
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  scroll: { paddingHorizontal: 24, paddingBottom: 32 },
+  content: { flex: 1, paddingHorizontal: 24, paddingBottom: 32 },
   card: {
+    flex: 1,
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 20,
     gap: 16,
-    minHeight: 500,
   },
+  title_row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title_spacer: { width: 32 },
   card_title: {
     fontFamily: "semibold",
     fontSize: 18,
     color: colors.primary,
     textAlign: "center",
-  },
-  search_container: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 44,
-    gap: 10,
-  },
-  search_input: {
     flex: 1,
-    fontFamily: "regular",
-    fontSize: 16,
-    color: colors.primary,
   },
-  location_button_wrapper: {
-    alignItems: "center",
-  },
-  location_button: {
-    backgroundColor: colors.select,
+  add_btn: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
-    height: 45,
-    width: 209,
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  location_button_text: {
+  list_container: { flex: 1 },
+  empty_wrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  empty_text: {
     fontFamily: "regular",
-    fontSize: 16,
-    color: colors.primary,
+    fontSize: 15,
+    color: colors.bluegray,
   },
   gym_list: { gap: 8 },
   gym_item: {
     backgroundColor: colors.select,
     borderRadius: 8,
-    paddingHorizontal: 15,
-    height: 70,
+    paddingHorizontal: 16,
+    height: 64,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  gym_item_active: { backgroundColor: colors.primary },
-  gym_info: { gap: 4 },
+  gym_info: { gap: 4, flex: 1 },
   gym_name: {
-    fontFamily: "regular",
-    fontSize: 16,
+    fontFamily: "medium",
+    fontSize: 15,
     color: colors.primary,
   },
-  gym_name_active: { color: colors.white },
-  gym_address: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: "#C8D5FF",
-  },
-  gym_distance: {
+  primary_badge: {
     fontFamily: "regular",
     fontSize: 12,
     color: colors.bluegray,
-  },
-  empty_text: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.bluegray,
-    textAlign: "center",
-    paddingVertical: 20,
-  },
-  spacer: { flex: 1 },
-  save_button: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  save_button_disabled: { opacity: 0.5 },
-  save_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
   },
 });

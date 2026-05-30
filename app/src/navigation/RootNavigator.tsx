@@ -21,6 +21,8 @@ import WP02EditBodyInfo from "@/screens/main/WP02EditBodyInfo";
 import WP03EditCareer from "@/screens/main/WP03EditCareer";
 import WP05EditOneRM from "@/screens/main/WP05EditOneRM";
 import WP04EditGym from "@/screens/main/WP04EditGym";
+import WP04GymEquipment from "@/screens/main/WP04GymEquipment";
+import WP04AddGym from "@/screens/main/WP04AddGym";
 import WP06Withdraw from "@/screens/main/WP06Withdraw";
 import WH02Analysis from "../screens/main/WH02Analysis";
 
@@ -80,6 +82,10 @@ function MainNavigator() {
       <MainStack.Screen name="WP02EditBodyInfo" component={WP02EditBodyInfo} />
       <MainStack.Screen name="WP03EditCareer" component={WP03EditCareer} />
       <MainStack.Screen name="WP04EditGym" component={WP04EditGym} />
+      <MainStack.Screen name="WP04AddGym" component={WP04AddGym} />
+      <MainStack.Screen name="WP04GymEquipment" component={WP04GymEquipment} />
+      <MainStack.Screen name="WP04GymEquipmentRegister" component={WO02EquipmentRegister} />
+      <MainStack.Screen name="WO02EquipmentSuggest" component={WO02EquipmentSuggest} />
       <MainStack.Screen name="WP05EditOneRM" component={WP05EditOneRM} />
       <MainStack.Screen name="WP06Withdraw" component={WP06Withdraw} />
       <MainStack.Screen name="WH02Analysis" component={WH02Analysis} />

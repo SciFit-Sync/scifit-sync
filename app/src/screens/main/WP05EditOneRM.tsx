@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,39 +8,100 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
+import { useAuthStore } from "../../stores/authStore";
+import {
+  getMyOneRMs,
+  getCoreLifts,
+  bulkSaveOneRM,
+  CoreLiftItem,
+} from "../../services/users";
 
-type WeightUnit = "kg" | "lb";
+const CORE_LABELS: Record<string, string> = {
+  bench_press: "벤치프레스",
+  squat: "스쿼트",
+  deadlift: "데드리프트",
+  overhead_press: "오버헤드프레스",
+};
 
-const exercises = [
-  { key: "bench_press", label: "벤치프레스" },
-  { key: "squat", label: "스쿼트" },
-  { key: "deadlift", label: "데드리프트" },
-  { key: "overhead_press", label: "오버헤드프레스" },
-];
+const DISPLAY_ORDER = ["bench_press", "squat", "deadlift", "overhead_press"];
 
 export default function WP05EditOneRM() {
   const navigation = useNavigation();
-  const [unit, set_unit] = useState<WeightUnit>("kg");
-  const [values, set_values] = useState<Record<string, string>>({
-    bench_press: "80",
-    squat: "100",
-    deadlift: "",
-    overhead_press: "",
-  });
+  const token = useAuthStore((s) => s.accessToken) ?? "";
 
-  const handle_change = (key: string, value: string) => {
-    set_values((prev) => ({ ...prev, [key]: value }));
+  const [core_lifts, set_core_lifts] = useState<CoreLiftItem[]>([]);
+  const [values, set_values] = useState<Record<string, string>>({});
+  const [loading, set_loading] = useState(true);
+  const [saving, set_saving] = useState(false);
+
+  useEffect(() => {
+    load_data();
+  }, []);
+
+  const load_data = async () => {
+    try {
+      const [lifts, one_rms] = await Promise.all([
+        getCoreLifts(token),
+        getMyOneRMs(token),
+      ]);
+      set_core_lifts(lifts);
+
+      // 기존 1RM 값 pre-fill — exercise_id 기준 매칭
+      const pre: Record<string, string> = {};
+      for (const lift of lifts) {
+        const match = one_rms.find((r) => r.exercise_id === lift.exercise_id);
+        if (match) pre[lift.code] = String(match.weight_kg);
+      }
+      set_values(pre);
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "데이터를 불러오지 못했어요.");
+    } finally {
+      set_loading(false);
+    }
   };
 
-  const handle_save = () => {
-    // TODO: API 연동
-    navigation.goBack();
+  const handle_change = (code: string, value: string) => {
+    set_values((prev) => ({ ...prev, [code]: value }));
   };
+
+  const handle_save = async () => {
+    const items = core_lifts
+      .filter((l) => {
+        const v = values[l.code];
+        return v && v.trim().length > 0 && !isNaN(parseFloat(v));
+      })
+      .map((l) => ({
+        exercise_code: l.code,
+        weight_kg: parseFloat(values[l.code]),
+      }));
+
+    if (items.length === 0) {
+      navigation.goBack();
+      return;
+    }
+
+    set_saving(true);
+    try {
+      await bulkSaveOneRM(token, items);
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "저장에 실패했어요.");
+    } finally {
+      set_saving(false);
+    }
+  };
+
+  // core_lifts를 DISPLAY_ORDER 순서대로 정렬
+  const ordered_lifts = DISPLAY_ORDER.map((code) =>
+    core_lifts.find((l) => l.code === code),
+  ).filter(Boolean) as CoreLiftItem[];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,79 +122,45 @@ export default function WP05EditOneRM() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.card}>
-            {/* ⭐ 타이틀만 수정으로 변경 */}
-            <Text style={styles.card_title}>1RM 수정</Text>
+          {loading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.card_title}>1RM 수정</Text>
 
-            {/* 무게 단위 */}
-            <View style={styles.unit_row}>
-              <Text style={styles.unit_label}>무게 단위</Text>
-              <View style={styles.unit_toggle}>
-                <TouchableOpacity
-                  style={[
-                    styles.unit_button,
-                    unit === "kg" && styles.unit_button_active,
-                  ]}
-                  onPress={() => set_unit("kg")}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.unit_button_text,
-                      unit === "kg" && styles.unit_button_text_active,
-                    ]}
-                  >
-                    kg
+              {/* 1RM 입력 */}
+              {ordered_lifts.map((lift) => (
+                <View key={lift.code} style={styles.exercise_row}>
+                  <Text style={styles.exercise_label}>
+                    {CORE_LABELS[lift.code] ?? lift.name}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.unit_button,
-                    unit === "lb" && styles.unit_button_active,
-                  ]}
-                  onPress={() => set_unit("lb")}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.unit_button_text,
-                      unit === "lb" && styles.unit_button_text_active,
-                    ]}
-                  >
-                    lb
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* 1RM 입력 */}
-            {exercises.map((ex) => (
-              <View key={ex.key} style={styles.exercise_row}>
-                <Text style={styles.exercise_label}>{ex.label}</Text>
-                <View style={styles.input_container}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={`${unit} 입력`}
-                    placeholderTextColor={colors.border}
-                    value={values[ex.key]}
-                    onChangeText={(v) => handle_change(ex.key, v)}
-                    keyboardType="numeric"
-                  />
+                  <View style={styles.input_container}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="kg 입력"
+                      placeholderTextColor={colors.border}
+                      value={values[lift.code] ?? ""}
+                      onChangeText={(v) => handle_change(lift.code, v)}
+                      keyboardType="numeric"
+                    />
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
 
-            <View style={styles.spacer} />
+              <View style={styles.spacer} />
 
-            {/* ⭐ 버튼 텍스트만 저장하기로 변경 */}
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handle_save}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.button_text}>저장하기</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                style={[styles.button, saving && styles.button_disabled]}
+                onPress={handle_save}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.button_text}>
+                  {saving ? "저장 중..." : "저장하기"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -165,46 +192,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.primary,
     textAlign: "center",
-  },
-  unit_row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  unit_label: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.bluegray,
-  },
-  unit_toggle: {
-    flexDirection: "row",
-    backgroundColor: colors.select,
-    borderRadius: 8,
-    padding: 4,
-    width: 158,
-    height: 35,
-  },
-  unit_button: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 4,
-  },
-  unit_button_active: {
-    backgroundColor: colors.white,
-    shadowColor: "#26272E",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  unit_button_text: {
-    fontFamily: "medium",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
-  unit_button_text_active: {
-    color: colors.primary,
   },
   exercise_row: {
     flexDirection: "row",
@@ -239,9 +226,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  button_disabled: { opacity: 0.5 },
+  button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
 });

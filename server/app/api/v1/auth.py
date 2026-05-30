@@ -280,9 +280,21 @@ async def kakao_login(
     # kakao_id(provider_id)로 기존 사용자 조회
     result = await db.execute(select(User).where(User.provider == Provider.KAKAO, User.provider_id == kakao_id))
     user = result.scalar_one_or_none()
-    is_new_user = user is None
 
-    if is_new_user:
+    # 탈퇴(is_active=False) 후 재가입: 계정 재활성화 + 온보딩 재진행
+    is_reactivated = False
+    if user is not None and not user.is_active:
+        user.is_active = True
+        await db.commit()
+        is_reactivated = True
+        logger.info("Kakao user %s reactivated (user_id=%s)", kakao_id, user.id)
+
+    # is_new_user: 응답에 포함되는 플래그 (온보딩 필요 여부)
+    # user is None: 완전 신규 → DB에 새 유저 생성 필요
+    # is_reactivated: 재활성화 → 유저는 이미 존재, 온보딩만 재진행
+    is_new_user = user is None or is_reactivated
+
+    if user is None:  # 완전 신규 유저만 생성 (재활성화 유저는 건너뜀)
         email = kakao_email or f"kakao_{kakao_id}@noemail.local"
 
         # 이메일 중복 확인
@@ -406,7 +418,10 @@ async def withdraw(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not current_user.password_hash or not verify_password(body.password, current_user.password_hash):
+    # local 계정은 비밀번호 검증, 소셜(카카오) 계정은 비밀번호 없으므로 스킵
+    if current_user.password_hash and (
+        not body.password or not verify_password(body.password, current_user.password_hash)
+    ):
         raise UnauthorizedError(message="비밀번호가 올바르지 않습니다.")
 
     current_user.is_active = False
