@@ -84,7 +84,12 @@ export async function onboardUser(
 // PATCH /api/v1/users/me/body
 export async function updateBody(
   token: string,
-  body: { height_cm?: number; weight_kg?: number },
+  body: {
+    height_cm?: number;
+    weight_kg?: number;
+    birth_date?: string; // "YYYY-MM-DD"
+    gender?: string;     // "male" | "female"
+  },
 ): Promise<void> {
   await apiFetch('/api/v1/users/me/body', {
     method: 'PATCH',

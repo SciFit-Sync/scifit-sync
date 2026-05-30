@@ -17,13 +17,33 @@ import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
 import { getMe, updateBody } from "../../services/users";
+import BirthDateBottomSheet from "../../components/WA03SignupBs";
+
+type Gender = "female" | "male";
+
+/** "YYYY-MM-DD" → "YYYY년 M월 D일" */
+function api_to_display(date_str: string): string {
+  const [y, m, d] = date_str.split("-").map(Number);
+  return `${y}년 ${m}월 ${d}일`;
+}
+
+/** "YYYY년 M월 D일" → "YYYY-MM-DD" */
+function display_to_api(display: string): string {
+  const match = display.match(/(\d+)년\s*(\d+)월\s*(\d+)일/);
+  if (!match) return "";
+  const [, y, m, d] = match;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
 
 export default function WP02EditBodyInfo() {
   const navigation = useNavigation();
   const token = useAuthStore((s) => s.accessToken) ?? "";
 
+  const [birth_date, set_birth_date] = useState(""); // "YYYY년 M월 D일"
   const [height, set_height] = useState("");
   const [weight, set_weight] = useState("");
+  const [gender, set_gender] = useState<Gender>("male");
+  const [show_date_picker, set_show_date_picker] = useState(false);
   const [loading, set_loading] = useState(true);
   const [saving, set_saving] = useState(false);
 
@@ -34,9 +54,13 @@ export default function WP02EditBodyInfo() {
   const load_data = async () => {
     try {
       const me = await getMe(token);
-      if (me.profile?.height_cm) set_height(String(me.profile.height_cm));
+      const p = me.profile;
+      if (p?.birth_date) set_birth_date(api_to_display(p.birth_date));
+      if (p?.height_cm) set_height(String(p.height_cm));
       if (me.latest_measurement?.weight_kg)
         set_weight(String(me.latest_measurement.weight_kg));
+      if (p?.gender === "female" || p?.gender === "male")
+        set_gender(p.gender);
     } catch {
       // 기존 값 없으면 빈 입력으로 시작
     } finally {
@@ -44,22 +68,29 @@ export default function WP02EditBodyInfo() {
     }
   };
 
+  const handle_date_confirm = (date: string) => {
+    set_birth_date(date);
+    set_show_date_picker(false);
+  };
+
   const handle_save = async () => {
-    const h = parseFloat(height);
-    const w = parseFloat(weight);
-    if (height && isNaN(h)) {
+    const h = height ? parseFloat(height) : undefined;
+    const w = weight ? parseFloat(weight) : undefined;
+    if (h !== undefined && isNaN(h)) {
       Alert.alert("알림", "키를 올바르게 입력해주세요.");
       return;
     }
-    if (weight && isNaN(w)) {
+    if (w !== undefined && isNaN(w)) {
       Alert.alert("알림", "몸무게를 올바르게 입력해주세요.");
       return;
     }
     set_saving(true);
     try {
       await updateBody(token, {
-        ...(height ? { height_cm: h } : {}),
-        ...(weight ? { weight_kg: w } : {}),
+        ...(h !== undefined ? { height_cm: h } : {}),
+        ...(w !== undefined ? { weight_kg: w } : {}),
+        ...(birth_date ? { birth_date: display_to_api(birth_date) } : {}),
+        gender,
       });
       navigation.goBack();
     } catch (e: any) {
@@ -89,10 +120,32 @@ export default function WP02EditBodyInfo() {
           showsVerticalScrollIndicator={false}
         >
           {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ marginTop: 40 }}
+            />
           ) : (
             <View style={styles.card}>
               <Text style={styles.card_title}>신체 정보 수정</Text>
+
+              {/* 생년월일 */}
+              <View style={styles.field}>
+                <Text style={styles.label}>생년월일</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => set_show_date_picker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.input_text,
+                      !birth_date && styles.input_placeholder,
+                    ]}
+                  >
+                    {birth_date || "생년월일 선택"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               {/* 키 / 몸무게 */}
               <View style={styles.row}>
@@ -126,6 +179,47 @@ export default function WP02EditBodyInfo() {
                 </View>
               </View>
 
+              {/* 성별 */}
+              <View style={styles.field}>
+                <Text style={styles.label}>성별</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity
+                    style={[
+                      styles.select_button,
+                      gender === "female" && styles.select_button_active,
+                    ]}
+                    onPress={() => set_gender("female")}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.select_button_text,
+                        gender === "female" && styles.select_button_text_active,
+                      ]}
+                    >
+                      여성
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.select_button,
+                      gender === "male" && styles.select_button_active,
+                    ]}
+                    onPress={() => set_gender("male")}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.select_button_text,
+                        gender === "male" && styles.select_button_text_active,
+                      ]}
+                    >
+                      남성
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {/* 저장 버튼 */}
               <TouchableOpacity
                 style={[styles.button, saving && styles.button_disabled]}
@@ -141,6 +235,14 @@ export default function WP02EditBodyInfo() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* 생년월일 바텀시트 */}
+      {show_date_picker && (
+        <BirthDateBottomSheet
+          onConfirm={handle_date_confirm}
+          onClose={() => set_show_date_picker(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -174,6 +276,16 @@ const styles = StyleSheet.create({
   field: { gap: 8 },
   label: { fontFamily: "medium", fontSize: 16, color: colors.primary },
   row: { flexDirection: "row", gap: 7 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    justifyContent: "center",
+  },
+  input_text: { fontFamily: "regular", fontSize: 14, color: colors.primary },
+  input_placeholder: { color: colors.border },
   input_row: {
     flexDirection: "row",
     alignItems: "center",
@@ -194,6 +306,20 @@ const styles = StyleSheet.create({
     color: colors.primary,
     paddingLeft: 4,
   },
+  select_button: {
+    flex: 1,
+    backgroundColor: colors.select,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  select_button_active: { backgroundColor: colors.primary },
+  select_button_text: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.primary,
+  },
+  select_button_text_active: { color: colors.white },
   button: {
     backgroundColor: colors.primary,
     borderRadius: 8,
