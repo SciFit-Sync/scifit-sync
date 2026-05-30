@@ -31,3 +31,4 @@ class ChunkIngestPayload(BaseModel):
 
 class RagIngestRequest(BaseModel):
     chunks: list[ChunkIngestPayload]
+    collection: str | None = None  # None이면 default(alias) 사용; 명시 시 해당 컬렉션으로 직접 upsert

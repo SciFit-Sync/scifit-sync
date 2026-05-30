@@ -23,6 +23,8 @@ import {
   GOAL_LABELS,
   type RoutineSummary,
 } from "../../services/routines";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import WC01Chatbot from "../../components/WC01Chatbot";
 
 type RoutineTab = "single" | "program";
 
@@ -100,6 +102,7 @@ export default function WM01Main() {
   const [generate_message, set_generate_message] = useState(
     "AI가 루틴을 생성하는 중...",
   );
+  const [show_chatbot, set_show_chatbot] = useState(false);
 
   // cleanup ref (SSE abort)
   const cleanup_ref = useRef<(() => void) | null>(null);
@@ -308,15 +311,6 @@ export default function WM01Main() {
         </View>
       </ScrollView>
 
-      {/* 챗봇 FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate("WC01Chatbot" as never)}
-        activeOpacity={0.8}
-      >
-        <Octicons name="comment" size={24} color={colors.white} />
-      </TouchableOpacity>
-
       {/* 하단 네브바 */}
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
@@ -394,6 +388,9 @@ export default function WM01Main() {
           </View>
         </View>
       )}
+
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
     </View>
   );
 }
@@ -414,7 +411,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 29,
     paddingBottom: 24,
   },
   logo: {
@@ -587,22 +584,7 @@ const styles = StyleSheet.create({
   },
 
   // FAB
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 104,
-    width: 55,
-    height: 55,
-    borderRadius: 1000,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-  },
+
   safe_bottom: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 16,

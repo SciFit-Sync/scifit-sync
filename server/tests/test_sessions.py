@@ -8,7 +8,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.core.auth import get_current_user
+from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.main import app
 from app.models import User, WorkoutLog, WorkoutStatus
@@ -49,6 +49,12 @@ def _exec_scalar_raw(value):
     return r
 
 
+def _exec_scalar_one(value):
+    r = MagicMock()
+    r.scalar_one.return_value = value
+    return r
+
+
 def _exec_scalars_all(values):
     r = MagicMock()
     r.scalars.return_value.all.return_value = values
@@ -83,7 +89,7 @@ _MOCK_USER = _mock_user()
 
 @pytest_asyncio.fixture
 async def client():
-    app.dependency_overrides[get_current_user] = lambda: _MOCK_USER
+    app.dependency_overrides[get_required_profile] = lambda: _MOCK_USER
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -203,7 +209,12 @@ class TestFinishSession:
     @pytest.mark.asyncio
     async def test_success(self, client):
         session = _mock_session()
-        db = _make_db(_exec_scalar(session))
+        db = _make_db(
+            _exec_scalar(session),  # _get_my_session
+            _exec_scalar_one(0),  # total_sets
+            _exec_scalar_one(0),  # completed_exercises
+            _exec_scalar(None),  # UserBodyMeasurement (없으면 70kg 기본값)
+        )
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)
 

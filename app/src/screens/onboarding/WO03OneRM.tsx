@@ -8,12 +8,14 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../stores/authStore";
 import { colors } from "../../assets/colors/colors";
+import { bulkAdd1RM } from "../../services/gyms";
 
 type WeightUnit = "kg" | "lb";
 
@@ -24,8 +26,13 @@ const exercises = [
   { key: "overhead_press", label: "오버헤드프레스" },
 ];
 
+// lb → kg 변환
+const to_kg = (value: number, unit: WeightUnit) =>
+  unit === "lb" ? Math.round(value * 0.453592 * 10) / 10 : value;
+
 export default function WO03OneRM() {
   const navigation = useNavigation();
+  const token = useAuthStore((s) => s.accessToken) ?? "";
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
 
   const [unit, set_unit] = useState<WeightUnit>("kg");
@@ -35,15 +42,42 @@ export default function WO03OneRM() {
     deadlift: "",
     overhead_press: "",
   });
+  const [loading, set_loading] = useState(false);
 
   const handle_change = (key: string, value: string) => {
     set_values((prev) => ({ ...prev, [key]: value }));
   };
 
   const handle_register = async () => {
-    // TODO: 1RM API 연동
-    console.log("1RM 등록:", { unit, ...values });
-    await completeOnboarding();
+    const items = exercises
+      .filter((ex) => {
+        const v = parseFloat(values[ex.key]);
+        return !isNaN(v) && v > 0;
+      })
+      .map((ex) => ({
+        exercise_code: ex.key,
+        weight_kg: to_kg(parseFloat(values[ex.key]), unit),
+      }));
+
+    set_loading(true);
+    try {
+      if (items.length > 0) {
+        await bulkAdd1RM(items, token);
+      }
+      await completeOnboarding();
+    } catch (e: any) {
+      Alert.alert("오류", e.message ?? "1RM 등록에 실패했어요. 다시 시도해주세요.");
+      set_loading(false);
+    }
+  };
+
+  const handle_skip = async () => {
+    set_loading(true);
+    try {
+      await completeOnboarding();
+    } catch {
+      set_loading(false);
+    }
   };
 
   return (
@@ -72,40 +106,23 @@ export default function WO03OneRM() {
             <View style={styles.unit_row}>
               <Text style={styles.unit_label}>무게 단위</Text>
               <View style={styles.unit_toggle}>
-                <TouchableOpacity
-                  style={[
-                    styles.unit_button,
-                    unit === "kg" && styles.unit_button_active,
-                  ]}
-                  onPress={() => set_unit("kg")}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.unit_button_text,
-                      unit === "kg" && styles.unit_button_text_active,
-                    ]}
+                {(["kg", "lb"] as WeightUnit[]).map((u) => (
+                  <TouchableOpacity
+                    key={u}
+                    style={[styles.unit_button, unit === u && styles.unit_button_active]}
+                    onPress={() => set_unit(u)}
+                    activeOpacity={0.8}
                   >
-                    kg
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.unit_button,
-                    unit === "lb" && styles.unit_button_active,
-                  ]}
-                  onPress={() => set_unit("lb")}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.unit_button_text,
-                      unit === "lb" && styles.unit_button_text_active,
-                    ]}
-                  >
-                    lb
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.unit_button_text,
+                        unit === u && styles.unit_button_text_active,
+                      ]}
+                    >
+                      {u}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
@@ -130,13 +147,16 @@ export default function WO03OneRM() {
 
             {/* 등록하기 버튼 */}
             <TouchableOpacity
-              style={styles.next_button}
+              style={[styles.next_button, loading && { opacity: 0.5 }]}
               onPress={handle_register}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.next_button_text}>등록하기</Text>
+              <Text style={styles.next_button_text}>
+                {loading ? "저장 중..." : "등록하기"}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handle_register}>
+            <TouchableOpacity onPress={handle_skip} disabled={loading}>
               <Text style={styles.skip_text}>건너뛰기</Text>
             </TouchableOpacity>
           </View>
@@ -177,11 +197,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  unit_label: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.bluegray,
-  },
+  unit_label: { fontFamily: "medium", fontSize: 16, color: colors.bluegray },
   unit_toggle: {
     flexDirection: "row",
     backgroundColor: colors.select,
@@ -204,25 +220,15 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  unit_button_text: {
-    fontFamily: "medium",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
-  unit_button_text_active: {
-    color: colors.primary,
-  },
+  unit_button_text: { fontFamily: "medium", fontSize: 12, color: colors.bluegray },
+  unit_button_text_active: { color: colors.primary },
   exercise_row: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     height: 45,
   },
-  exercise_label: {
-    fontFamily: "semibold",
-    fontSize: 16,
-    color: colors.primary,
-  },
+  exercise_label: { fontFamily: "semibold", fontSize: 16, color: colors.primary },
   input_container: {
     width: 97,
     borderWidth: 1,
@@ -246,11 +252,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  next_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
   skip_text: {
     fontFamily: "regular",
     fontSize: 14,

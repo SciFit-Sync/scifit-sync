@@ -151,7 +151,55 @@ export function generateRoutineSSE(
   return () => xhr.abort();
 }
 
-// ── 상세 ──────────────────────────────────────────────────────────────────────
+// ── AI 루틴 상세 ──────────────────────────────────────────────────────────────
+
+export interface SetItem {
+  set_number: number;
+  weight_kg: number | null;
+  reps: number | null;
+  rest_seconds: number;
+  completed: boolean;
+  completed_at: string | null;
+}
+
+export interface MuscleActivationDetailItem {
+  muscle: string;
+  muscle_en: string;
+  percentage: number | null;
+  type: string;
+}
+
+export interface ExerciseDetailItem {
+  order: number;
+  exercise_id: string;
+  name: string;
+  name_en: string | null;
+  gif_url: string | null;
+  thumbnail_url: string | null;
+  category: string | null;
+  equipment: string | null;
+  muscle_activation: MuscleActivationDetailItem[];
+  sets: SetItem[];
+  ai_reasoning: string | null;
+  is_replaceable: boolean;
+}
+
+export interface AIRoutineDetail {
+  routine_id: string;
+  title: string;
+  goal: string | null;
+  estimated_duration_min: number | null;
+  default_rest_seconds: number | null;
+  created_by: string;
+  created_at: string;
+  exercises: ExerciseDetailItem[];
+}
+
+export function getAIRoutineDetail(token: string, routine_id: string): Promise<AIRoutineDetail> {
+  return apiFetch<AIRoutineDetail>(`/api/v1/routines/${routine_id}/ai-detail`, { token });
+}
+
+// ── 루틴 상세 ─────────────────────────────────────────────────────────────────
 
 export interface RoutineExerciseItem {
   routine_exercise_id: string;

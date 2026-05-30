@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { signInWithKakao } from "../../services/kakaoAuth";
+import { loginApi } from "../../services/auth";
 import { useAuthStore } from "../../stores/authStore";
 
 export default function WA01Login() {
@@ -23,20 +24,39 @@ export default function WA01Login() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigation = useNavigation();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("알림", "이메일과 비밀번호를 입력해주세요");
       return;
     }
-    // TODO: 이메일/비밀번호 로그인 API 연동
-    if (__DEV__) console.log("이메일 로그인 시도:", email);
+    setLoading(true);
+    try {
+      const result = await loginApi(email, password);
+      await setAuth({
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+        is_new_user: false,
+      });
+    } catch (e: any) {
+      Alert.alert("로그인 실패", e.message ?? "이메일 또는 비밀번호를 확인해주세요.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKakaoLogin = async () => {
     setLoading(true);
     try {
       const result = await signInWithKakao();
-      await setAuth(result);
+      if (result.is_new_user) {
+        // 신규 카카오 유저 → 신체 정보 입력(WA03SignupInfo) 후 온보딩 진입
+        (navigation as any).navigate("WA03SignupInfo", {
+          access_token: result.access_token,
+          refresh_token: result.refresh_token,
+        });
+      } else {
+        await setAuth(result);
+      }
     } catch (e: any) {
       Alert.alert("로그인 실패", e.message ?? "다시 시도해주세요.");
     } finally {
@@ -50,7 +70,6 @@ export default function WA01Login() {
 
   const handleSignup = () => {
     navigation.navigate("WA02Signup" as never);
-    if (__DEV__) console.log("회원가입");
   };
 
   return (
@@ -93,11 +112,14 @@ export default function WA01Login() {
 
             {/* 로그인 버튼 */}
             <TouchableOpacity
-              style={styles.loginButton}
+              style={[styles.loginButton, loading && { opacity: 0.5 }]}
               onPress={handleLogin}
+              disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.loginButtonText}>로그인</Text>
+              <Text style={styles.loginButtonText}>
+                {loading ? "로그인 중..." : "로그인"}
+              </Text>
             </TouchableOpacity>
 
             {/* 비밀번호 찾기 / 회원가입 */}
@@ -119,10 +141,7 @@ export default function WA01Login() {
 
             {/* 카카오 로그인 버튼 */}
             <TouchableOpacity
-              style={[
-                styles.kakaoButton,
-                loading && styles.kakaoButtonDisabled,
-              ]}
+              style={[styles.kakaoButton, loading && styles.kakaoButtonDisabled]}
               onPress={handleKakaoLogin}
               disabled={loading}
               activeOpacity={0.8}
@@ -139,28 +158,16 @@ export default function WA01Login() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  flex: { flex: 1 },
   logoContainer: {
     alignItems: "center",
     marginTop: 63,
     marginBottom: 56,
     gap: 8,
   },
-  logo: {
-    fontFamily: "sacheon",
-    color: colors.primary,
-    fontSize: 20,
-  },
-  slogan: {
-    fontFamily: "medium",
-    fontSize: 14,
-    color: "#1E3A8A",
-  },
+  logo: { fontFamily: "sacheon", color: colors.primary, fontSize: 20 },
+  slogan: { fontFamily: "medium", fontSize: 14, color: "#1E3A8A" },
   card: {
     backgroundColor: "#FFFFFF",
     marginHorizontal: 24,
@@ -192,32 +199,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 8,
   },
-  loginButtonText: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
+  loginButtonText: { fontFamily: "medium", fontSize: 16, color: colors.white },
   linkContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 8,
     marginBottom: 24,
   },
-  linkText: {
-    fontFamily: "regular",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
+  linkText: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
   divider: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: {
     fontFamily: "regular",
     marginHorizontal: 10,
@@ -230,12 +225,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  kakaoButtonDisabled: {
-    opacity: 0.5,
-  },
-  kakaoText: {
-    fontFamily: "medium",
-    color: "#111111",
-    fontSize: 16,
-  },
+  kakaoButtonDisabled: { opacity: 0.5 },
+  kakaoText: { fontFamily: "medium", color: "#111111", fontSize: 16 },
 });

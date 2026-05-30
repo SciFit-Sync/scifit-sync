@@ -20,6 +20,7 @@ from app.models import (
     CareerLevel,
     Equipment,
     Exercise,
+    Gender,
     Gym,
     OnermSource,
     User,
@@ -35,8 +36,11 @@ from app.schemas.users import (
     BodyMeasurementData,
     BulkAdd1RMRequest,
     BulkOneRMData,
+    CoreLift1RMItem,
     GymData,
     MeData,
+    OnboardData,
+    OnboardRequest,
     OneRMData,
     OneRMListData,
     ProfileData,
@@ -70,8 +74,9 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
-        default_goals=profile.default_goals,
+        default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
         career_level=profile.career_level.value if profile.career_level else None,
+        career_years=profile.career_years,
     )
 
 
@@ -83,6 +88,77 @@ def _measurement_to_dto(m: UserBodyMeasurement | None) -> BodyMeasurementData | 
         skeletal_muscle_kg=m.skeletal_muscle_kg,
         body_fat_pct=m.body_fat_pct,
         measured_at=m.measured_at,
+    )
+
+
+# ── POST /users/me/onboard ───────────────────────────────────────────────────
+@rate_limit("60/minute")
+@router.post(
+    "/me/onboard",
+    response_model=SuccessResponse[OnboardData],
+    status_code=201,
+    summary="온보딩 완료 (최초 신체정보 등록)",
+)
+async def onboard(
+    request: Request,
+    body: OnboardRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """회원가입 또는 재가입 직후 W-A03 화면에서 호출. 기존 프로필이 있으면 덮어씀(재가입 대응)."""
+    existing = (
+        await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    ).scalar_one_or_none()
+
+    try:
+        career = CareerLevel(body.career_level)
+    except ValueError as e:
+        raise ValidationError(message=f"알 수 없는 경력 레벨입니다: {body.career_level}") from e
+
+    try:
+        gender = Gender(body.gender)
+    except ValueError as e:
+        raise ValidationError(message=f"알 수 없는 성별 값입니다: {body.gender}") from e
+
+    if existing is not None:
+        # 재가입(탈퇴 후 재활성화): 기존 프로필 업데이트
+        existing.gender = gender
+        existing.birth_date = body.birth_date
+        existing.height_cm = body.height_cm
+        existing.career_level = career
+        existing.career_years = body.career_years
+        existing.default_goals = body.default_goals or None
+        profile = existing
+    else:
+        profile = UserProfile(
+            user_id=current_user.id,
+            gender=gender,
+            birth_date=body.birth_date,
+            height_cm=body.height_cm,
+            career_level=career,
+            career_years=body.career_years,
+            default_goals=body.default_goals or None,
+        )
+        db.add(profile)
+
+    # 체중 측정값 추가 (재가입 포함 매번 기록)
+    db.add(
+        UserBodyMeasurement(
+            user_id=current_user.id,
+            weight_kg=body.weight_kg,
+            measured_at=datetime.now(timezone.utc).date(),
+        )
+    )
+
+    await db.commit()
+    await db.refresh(profile)
+
+    logger.info("User %s onboarding complete", current_user.id)
+    return SuccessResponse(
+        data=OnboardData(
+            user_id=str(current_user.id),
+            profile=_profile_to_dto(profile),  # type: ignore[arg-type]
+        )
     )
 
 
@@ -113,6 +189,25 @@ async def get_me(
     )
     gyms = [GymData(gym_id=str(ug.gym_id), name=g.name, is_primary=ug.is_primary) for ug, g in gyms_result.all()]
 
+    # 4대 운동 1RM (마이페이지 카드용)
+    from app.services.core_lifts import CORE_LIFTS_KO_LABEL, resolve_exercise_id_by_code
+
+    core_lifts_1rm: list[CoreLift1RMItem] = []
+    for code, label in CORE_LIFTS_KO_LABEL.items():
+        ex_id = await resolve_exercise_id_by_code(code, db)
+        if ex_id is None:
+            core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=None))
+            continue
+        row = (
+            await db.execute(
+                select(UserExercise1RM.weight_kg)
+                .where(UserExercise1RM.user_id == current_user.id, UserExercise1RM.exercise_id == ex_id)
+                .order_by(UserExercise1RM.estimated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=float(row) if row else None))
+
     return SuccessResponse(
         data=MeData(
             user_id=str(current_user.id),
@@ -123,6 +218,7 @@ async def get_me(
             profile=_profile_to_dto(profile),
             latest_measurement=_measurement_to_dto(latest_m),
             gyms=gyms,
+            core_lifts_1rm=core_lifts_1rm,
         )
     )
 
@@ -137,14 +233,24 @@ async def update_body(
     db: AsyncSession = Depends(get_db),
 ):
     measurement_dto: BodyMeasurementData | None = None
+    updated_birth_date: date | None = None
+    updated_gender: str | None = None
 
-    # 키는 UserProfile.height_cm에 저장
-    if body.height_cm is not None:
+    # UserProfile 갱신 (키 / 생년월일 / 성별)
+    needs_profile_update = any(v is not None for v in (body.height_cm, body.birth_date, body.gender))
+    if needs_profile_update:
         profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
         profile = profile_result.scalar_one_or_none()
         if profile is None:
             raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
-        profile.height_cm = body.height_cm
+        if body.height_cm is not None:
+            profile.height_cm = body.height_cm
+        if body.birth_date is not None:
+            profile.birth_date = body.birth_date
+            updated_birth_date = body.birth_date
+        if body.gender is not None:
+            profile.gender = Gender(body.gender)
+            updated_gender = body.gender
 
     # 체중/근육량/체지방률은 새 측정 기록으로 추가
     if any(v is not None for v in (body.weight_kg, body.skeletal_muscle_kg, body.body_fat_pct)):
@@ -162,7 +268,19 @@ async def update_body(
         measurement_dto = _measurement_to_dto(m)
 
     await db.commit()
-    return SuccessResponse(data=UpdateBodyData(height_cm=body.height_cm, measurement=measurement_dto))
+
+    # 수정 후 전체 현재값 반환 (프론트 화면 갱신용)
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
+    return SuccessResponse(
+        data=UpdateBodyData(
+            height_cm=profile.height_cm if profile else body.height_cm,
+            birth_date=profile.birth_date if profile else updated_birth_date,
+            age=_calc_age(profile.birth_date) if profile else None,
+            gender=profile.gender.value if profile and profile.gender else updated_gender,
+            measurement=measurement_dto,
+        )
+    )
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
@@ -202,6 +320,8 @@ async def update_career(
     if profile is None:
         raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
     profile.career_level = career
+    if body.career_years is not None:
+        profile.career_years = body.career_years
     await db.commit()
     return SuccessResponse(data=_profile_to_dto(profile))  # type: ignore[arg-type]
 
@@ -272,7 +392,7 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
 
 
 @rate_limit("60/minute")
-@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 추가")
+@router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 등록")
 async def add_1rm(
     request: Request,
     body: Add1RMRequest,
@@ -288,7 +408,6 @@ async def add_1rm(
     if exercise is None:
         raise NotFoundError(message="운동을 찾을 수 없습니다.")
 
-    # reps가 주어지면 Epley로 추정, 아니면 manual
     if body.reps is not None and body.reps > 1:
         weight = estimate_1rm(body.weight_kg, body.reps)
         source = OnermSource.EPLEY
@@ -316,9 +435,32 @@ async def update_1rm(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """가장 최근 기록을 갱신하는 대신, 새 기록을 추가하는 방식.
-    기록 추적이 가능하도록 단순히 add를 호출한다."""
-    return await add_1rm(request, body, current_user, db)
+    try:
+        exercise_uuid = uuid.UUID(body.exercise_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 exercise_id 형식입니다.") from e
+
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == exercise_uuid))).scalar_one_or_none()
+    if exercise is None:
+        raise NotFoundError(message="운동을 찾을 수 없습니다.")
+
+    if body.reps is not None and body.reps > 1:
+        weight = estimate_1rm(body.weight_kg, body.reps)
+        source = OnermSource.EPLEY
+    else:
+        weight = body.weight_kg
+        source = OnermSource.MANUAL
+
+    record = UserExercise1RM(
+        user_id=current_user.id,
+        exercise_id=exercise_uuid,
+        weight_kg=weight,
+        source=source,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
 # ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
