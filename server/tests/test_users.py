@@ -113,7 +113,8 @@ async def client():
 
 class TestGetMe:
     @pytest.mark.asyncio
-    async def test_success_with_profile(self, client):
+    async def test_success_with_profile(self, client, monkeypatch):
+        monkeypatch.setattr("app.services.core_lifts.resolve_exercise_id_by_code", AsyncMock(return_value=None))
         db = _make_db(
             _exec_scalar(_mock_profile()),
             _exec_scalar(_mock_measurement()),
@@ -136,7 +137,8 @@ class TestGetMe:
         assert profile["age"] == expected_age
 
     @pytest.mark.asyncio
-    async def test_success_no_profile(self, client):
+    async def test_success_no_profile(self, client, monkeypatch):
+        monkeypatch.setattr("app.services.core_lifts.resolve_exercise_id_by_code", AsyncMock(return_value=None))
         db = _make_db(
             _exec_scalar(None),  # no profile
             _exec_scalar(None),  # no measurement
@@ -156,7 +158,7 @@ class TestGetMe:
 class TestUpdateBody:
     @pytest.mark.asyncio
     async def test_update_weight_only(self, client):
-        db = _make_db()
+        db = _make_db(_exec_scalar(None))  # post-commit profile re-fetch
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch("/api/v1/users/me/body", json={"weight_kg": 76.5})
@@ -176,7 +178,7 @@ class TestUpdateBody:
     @pytest.mark.asyncio
     async def test_update_height_success(self, client):
         profile = _mock_profile()
-        db = _make_db(_exec_scalar(profile))
+        db = _make_db(_exec_scalar(profile), _exec_scalar(profile))  # initial fetch + post-commit re-fetch
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch("/api/v1/users/me/body", json={"height_cm": 178.0})

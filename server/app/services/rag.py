@@ -40,7 +40,9 @@ from llm import generate_stream as llm_generate_stream  # noqa: E402, I001
 # ── 설정 ──────────────────────────────────────────────────────
 def _resolve_chroma_path() -> str:
     """ChromaDB 데이터 경로 결정 (컨테이너 /chroma-data 마운트 vs 로컬 fallback)."""
-    raw = os.getenv("CHROMA_PERSIST_PATH", "./chroma-data")
+    # 기본값은 서버 config.py / mlops config와 동일한 절대경로(EFS 마운트)로 통일.
+    # ECS 태스크에 env가 명시되지 않아도 admin(쓰기)과 동일한 /chroma-data를 읽도록 한다.
+    raw = os.getenv("CHROMA_PERSIST_PATH", "/chroma-data")
     p = Path(raw)
     if p.is_absolute():
         if p.exists() and os.access(p, os.W_OK):
@@ -61,22 +63,76 @@ SIMILARITY_THRESHOLD = 0.70
 OVER_FETCH_MULTIPLIER = 3
 DEFAULT_EVIDENCE_WEIGHT = 0.50
 
+# ── Alias-swap (PR-δ §2.3) ────────────────────────────────────
+# EFS /chroma-data/current_alias.json을 SOT로 사용해 모든 ECS 태스크가 같은 alias를 본다.
+# admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
+# 다음 _get_collection 호출부터 새 alias가 반영된다.
+ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
+# F4: DEFAULT_COLLECTION 모듈 상수 제거 — 호출 경로에서 미사용 dead variable.
+# fallback은 _current_collection_name() 내부의 os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")로 처리.
+
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
-_chroma_collection = None
+_client = None
+_collection_cache: dict[str, object] = {}
 _embed_model = None
 
 
-def _get_collection():
-    """ChromaDB collection을 싱글턴으로 반환한다."""
-    global _chroma_collection
-    if _chroma_collection is None:
-        import chromadb
+def _current_collection_name() -> str:
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'paper_chunks' fallback.
 
-        logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
-        client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
-        _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
-        logger.info("ChromaDB 준비 완료 (문서 수: %d)", _chroma_collection.count())
-    return _chroma_collection
+    B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
+    매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    F2 fix: fallback을 config default("paper_chunks")와 일치시켜 일관성 확보.
+    """
+    try:
+        if ALIAS_FILE.exists():
+            data = json.loads(ALIAS_FILE.read_text(encoding="utf-8"))
+            name = data.get("current")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
+    # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
+    # fallback은 config.py CHROMA_COLLECTION_NAME default("paper_chunks")와 일치 (F2 fix)
+    return os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
+
+
+def _get_collection():
+    """현재 alias가 가리키는 ChromaDB collection을 반환.
+
+    매 호출마다 alias 파일(`ALIAS_FILE`)을 확인해 swap을 즉시 반영한다.
+    collection 핸들은 이름별로 캐시되므로 reload 비용은 alias 변경 시점에만 발생한다.
+
+    B1 fix: get_or_create_collection 대신 get_collection 사용 — 존재하지 않는 collection을
+    silent하게 빈 상태로 생성하는 것을 방지한다. collection이 없으면 RuntimeError로 fail-closed.
+    alias 파일 또는 초기 ingest가 올바르게 설정되지 않은 경우 운영자가 즉시 인지할 수 있다.
+    """
+    global _client
+    name = _current_collection_name()
+    if name not in _collection_cache:
+        if _client is None:
+            import chromadb
+
+            logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
+            _client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+        try:
+            collection = _client.get_collection(name=name)
+        except Exception as e:
+            # collection이 없으면 명확한 에러 — silent empty fallback 방지 (B1 fix)
+            # 운영자가 alias 파일 또는 초기 ingest 설정을 확인해야 함
+            raise RuntimeError(
+                f"ChromaDB collection {name!r} not found. Check {ALIAS_FILE} or run initial ingest."
+            ) from e
+        count = collection.count()
+        if count == 0:
+            logger.warning(
+                "ChromaDB 컬렉션 '%s'이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.",
+                name,
+            )
+        else:
+            logger.info("ChromaDB 준비 완료 (collection=%s, 문서 수: %d)", name, count)
+        _collection_cache[name] = collection
+    return _collection_cache[name]
 
 
 def _get_embed_model():
@@ -184,11 +240,13 @@ def translate_to_english(text: str) -> str:
     if korean_chars < 3:
         return text  # 영어면 번역 불필요
 
+    # 사용자 입력은 <user_query> 태그로 격리 (CLAUDE.md §12 프롬프트 인젝션 방어)
+    safe_text = text.replace("</user_query>", "</ user_query>")
     try:
         translated = llm_generate(
             "Translate the following Korean fitness/exercise query to English. "
             "Return only the translation, no explanation.\n\n"
-            f"<user_query>{text}</user_query>"
+            f"<user_query>{safe_text}</user_query>"
         )
         logger.info("번역: '%s' → '%s'", text[:30], translated[:50])
         return translated
@@ -346,11 +404,12 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
         f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
+        f"Do NOT include [Paper N] citations — write the finding naturally. "
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
         f"{name_rule}"
-        f"- notes must be written in Korean and explain the specific finding from the paper.\n"
+        f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
         f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30).\n"

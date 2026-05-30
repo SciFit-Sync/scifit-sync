@@ -235,7 +235,8 @@ class TestGetRoutine:
         assert data["session_minutes"] == 60
 
     @pytest.mark.asyncio
-    async def test_success_with_exercises(self, client):
+    async def test_success_with_exercises(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.v1.routines.get_exercise_by_name", AsyncMock(return_value=None))
         r = _routine()
         rex = _routine_exercise()
 
@@ -245,11 +246,11 @@ class TestGetRoutine:
         day.label = "가슴"
         day.exercises = [rex]
 
-        # _get_my_routine, RoutineDay+exercises, Exercise names, muscle_activation, RoutinePaper
+        # _get_my_routine, RoutineDay+exercises, Exercise names(3cols), muscle_activation, RoutinePaper
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([day]),
-            _exec_all([(_EXERCISE_ID, "벤치프레스")]),
+            _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press")]),
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
         )
@@ -317,30 +318,30 @@ class TestRenameRoutine:
 class TestUpdateRoutineExercise:
     @pytest.mark.asyncio
     async def test_success(self, client):
+        """sets/reps 부분 업데이트 — exercise_id 없이도 성공."""
         r = _routine()
         rex = _routine_exercise()
-        new_ex = MagicMock()
-        new_ex.id = _EXERCISE_ID
-        new_ex.name = "스쿼트"
+        exercise_mock = MagicMock()
+        exercise_mock.id = _EXERCISE_ID
+        exercise_mock.name = "벤치프레스"
 
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
-            _exec_scalar(new_ex),  # 교체할 Exercise 조회
+            _exec_scalar(exercise_mock),  # 응답용 Exercise 조회
         )
         db.refresh = AsyncMock(side_effect=lambda obj: None)
         app.dependency_overrides[get_db] = _db_override(db)
 
-        new_exercise_id = str(uuid.uuid4())
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": new_exercise_id},
+            json={"sets": 4, "reps_min": 8, "reps_max": 12, "rest_seconds": 90},
         )
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        assert data["message"] == "종목이 업데이트되었습니다."
-        assert data["new_exercise"]["name"] == "스쿼트"
+        assert data["exercise_name"] == "벤치프레스"
+        assert "routine_exercise_id" in data
         db.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -350,13 +351,14 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": str(uuid.uuid4())},
+            json={"sets": 3},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
     async def test_exercise_not_found(self, client):
+        """루틴 내 운동(RoutineExercise)이 없을 때 404."""
         r = _routine()
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
@@ -366,19 +368,25 @@ class TestUpdateRoutineExercise:
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={"new_exercise_id": str(uuid.uuid4())},
+            json={"sets": 3},
         )
 
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_missing_new_exercise_id_returns_400(self, client):
-        db = _make_db()
+    async def test_invalid_reps_returns_400(self, client):
+        """reps_min > reps_max 이면 400."""
+        r = _routine()
+        rex = _routine_exercise()
+        db = _make_db(
+            _exec_scalar(r),
+            _exec_scalar(rex),
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(
             f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
-            json={},
+            json={"reps_min": 15, "reps_max": 8},
         )
 
         assert resp.status_code == 400
@@ -468,6 +476,168 @@ class TestGetRoutineExercisePapers:
         resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}/paper")
 
         assert resp.status_code == 404
+
+
+# ── GET /routines/{id}/ai-detail ─────────────────────────────────────────────
+
+
+_DAY_ID = uuid.uuid4()
+_WORKOUT_LOG_ID = uuid.uuid4()
+
+
+def _exercise_mock():
+    ex = MagicMock()
+    ex.id = _EXERCISE_ID
+    ex.name = "벤치프레스"
+    ex.name_en = "Bench Press"
+    ex.gif_url = None
+    ex.category = "chest"
+    return ex
+
+
+def _exercise_muscle_mock():
+    em = MagicMock()
+    em.exercise_id = _EXERCISE_ID
+    em.activation_pct = 80
+    em.involvement = MagicMock()
+    em.involvement.value = "primary"
+    return em
+
+
+def _muscle_group_mock():
+    mg = MagicMock()
+    mg.name = "pectoralis major"
+    mg.name_ko = "대흉근"
+    return mg
+
+
+def _routine_day_mock():
+    rex = _routine_exercise()
+    day = MagicMock()
+    day.id = _DAY_ID
+    day.day_number = 1
+    day.exercises = [rex]
+    return day
+
+
+class TestGetAIRoutineDetail:
+    @pytest.mark.asyncio
+    async def test_not_found_returns_404(self, client):
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/ai-detail")
+
+        assert resp.status_code == 404
+        assert resp.json()["error"]["code"] == "NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_success_no_exercises(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.v1.routines.get_exercise_by_name", AsyncMock(return_value=None))
+        db = _make_db(
+            _exec_scalar(_routine()),
+            _exec_scalars_unique_all([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/ai-detail")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["routine_id"] == str(_ROUTINE_ID)
+        assert data["exercises"] == []
+
+    @pytest.mark.asyncio
+    async def test_success_with_exercises(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.get_exercise_by_name",
+            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+        )
+        db = _make_db(
+            _exec_scalar(_routine()),
+            _exec_scalars_unique_all([_routine_day_mock()]),
+            _exec_scalars_all([_exercise_mock()]),
+            _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
+            _exec_scalar(None),  # no active WorkoutLog
+            _exec_all([]),  # RoutinePaper counts (no papers)
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/ai-detail")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["routine_id"] == str(_ROUTINE_ID)
+        assert data["title"] == "테스트 루틴"
+        assert data["created_by"] == "ai"
+        assert len(data["exercises"]) == 1
+
+        ex = data["exercises"][0]
+        assert ex["name"] == "벤치프레스"
+        assert ex["gif_url"] == "https://example.com/bench.gif"
+        assert len(ex["sets"]) == 3
+        assert ex["sets"][0]["set_number"] == 1
+        assert ex["sets"][0]["completed"] is False
+        assert len(ex["muscle_activation"]) == 1
+        assert ex["muscle_activation"][0]["muscle"] == "대흉근"
+        assert ex["tips_count"] == 0
+        assert ex["tips_available"] is False
+
+    @pytest.mark.asyncio
+    async def test_success_with_papers(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.get_exercise_by_name",
+            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+        )
+        db = _make_db(
+            _exec_scalar(_routine()),
+            _exec_scalars_unique_all([_routine_day_mock()]),
+            _exec_scalars_all([_exercise_mock()]),
+            _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
+            _exec_scalar(None),  # no active WorkoutLog
+            _exec_all([(_REX_ID, 3)]),  # paper 3건 연결
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/ai-detail")
+
+        assert resp.status_code == 200
+        ex = resp.json()["data"]["exercises"][0]
+        assert ex["tips_count"] == 3
+        assert ex["tips_available"] is True
+
+    @pytest.mark.asyncio
+    async def test_success_with_active_session(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.v1.routines.get_exercise_by_name", AsyncMock(return_value=None))
+        active_log = MagicMock()
+        active_log.id = _WORKOUT_LOG_ID
+
+        completed_set = MagicMock()
+        completed_set.routine_exercise_id = _REX_ID
+        completed_set.set_number = 1
+        completed_set.weight_kg = 70.0
+        completed_set.reps = 10
+        completed_set.is_completed = True
+        completed_set.performed_at = _NOW
+
+        db = _make_db(
+            _exec_scalar(_routine()),
+            _exec_scalars_unique_all([_routine_day_mock()]),
+            _exec_scalars_all([_exercise_mock()]),
+            _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
+            _exec_scalar(active_log),
+            _exec_scalars_all([completed_set]),
+            _exec_all([]),  # RoutinePaper counts (no papers)
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}/ai-detail")
+
+        assert resp.status_code == 200
+        sets = resp.json()["data"]["exercises"][0]["sets"]
+        assert sets[0]["completed"] is True
+        assert sets[0]["weight_kg"] == 70.0
+        assert sets[1]["completed"] is False
 
 
 # ── POST /routines/generate (SSE) ─────────────────────────────────────────────
@@ -620,6 +790,34 @@ class TestGenerateRoutine:
         assert '"type": "error"' in body
         assert "관련 논문을 찾을 수 없습니다" in body
         assert "[DONE]" in body  # 에러여도 종료 마커는 흘러야 함
+
+    @pytest.mark.asyncio
+    async def test_rag_error_done_omits_routine_id_and_deletes_zombie(self, client, monkeypatch):
+        """RAG 에러 시 generate가 만든 빈 좀비 루틴은 삭제되고 done에 routine_id 미노출."""
+        from sqlalchemy.sql.dml import Delete
+
+        monkeypatch.setattr(
+            "app.api.v1.routines.routine_rag_stream",
+            _stub_rag_stream([{"type": "error", "message": "RAG 실패"}]),
+        )
+        db = _generate_db()
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.post(
+            "/api/v1/routines/generate",
+            json={"goals": ["hypertrophy"]},
+        )
+
+        body = resp.text
+        # error는 흐르고
+        assert '"type": "error"' in body
+        # done 이벤트 라인엔 routine_id가 없어야 함 (started 이벤트엔 있어도 됨)
+        done_lines = [line for line in body.splitlines() if line.startswith("data:") and '"type": "done"' in line]
+        assert len(done_lines) == 1, f"done 이벤트가 정확히 1개 있어야 함: {done_lines}"
+        assert "routine_id" not in done_lines[0], f"에러 시 done에 routine_id 노출됨: {done_lines[0]}"
+        # 좀비 삭제: DELETE statement가 db.execute로 호출됨
+        delete_calls = [c for c in db.execute.call_args_list if c.args and isinstance(c.args[0], Delete)]
+        assert len(delete_calls) >= 1, "RAG 에러 시 DELETE 호출 없음 (좀비 미삭제)"
 
     @pytest.mark.asyncio
     async def test_missing_goals_returns_400(self, client):

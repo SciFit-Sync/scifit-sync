@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import (
@@ -20,6 +20,7 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.email import send_otp_email
 from app.core.exceptions import (
     ConflictError,
     EmailDuplicateError,
@@ -159,15 +160,27 @@ async def logout(
 @router.post("/register", response_model=SuccessResponse[RegisterData], status_code=201, summary="회원가입")
 @rate_limit("10/minute")
 async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # 이메일 중복 확인
+    # 이메일 중복 확인 — 인증 완료된 사용자만 진짜 중복으로 처리
     result = await db.execute(select(User).where(User.email == body.email))
-    if result.scalar_one_or_none():
-        raise EmailDuplicateError(message="이미 사용 중인 이메일입니다.")
+    existing_by_email = result.scalar_one_or_none()
+    if existing_by_email:
+        if existing_by_email.is_email_verified:
+            raise EmailDuplicateError(message="이미 사용 중인 이메일입니다.")
+        # 미인증 → 기존 OTP + 사용자 삭제 후 재가입 허용
+        await db.execute(delete(EmailOtp).where(EmailOtp.email == body.email))
+        await db.delete(existing_by_email)
+        await db.flush()
 
-    # 아이디 중복 확인
+    # 아이디 중복 확인 — 인증 완료된 사용자만 진짜 중복으로 처리
     result = await db.execute(select(User).where(User.username == body.username))
-    if result.scalar_one_or_none():
-        raise ConflictError(message="이미 사용 중인 아이디입니다.")
+    existing_by_username = result.scalar_one_or_none()
+    if existing_by_username:
+        if existing_by_username.is_email_verified:
+            raise ConflictError(message="이미 사용 중인 아이디입니다.")
+        # 미인증 → 기존 OTP + 사용자 삭제 후 재가입 허용
+        await db.execute(delete(EmailOtp).where(EmailOtp.email == existing_by_username.email))
+        await db.delete(existing_by_username)
+        await db.flush()
 
     user = User(
         email=body.email,
@@ -218,14 +231,19 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
     )
     await db.commit()
 
-    # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
-    # 현재는 로그로 대체 (개발 환경)
+    # 이메일 발송 (개발 환경이거나 SMTP 미설정 시 로그만 출력)
+    await send_otp_email(body.email, otp_code)
     logger.warning("[DEV] OTP for %s: %s", body.email, otp_code)
+
+    settings = get_settings()
+    # 개발 환경에서는 otp_code를 응답에 포함 (이메일 미발송 대비)
+    expose_otp = settings.ENV == "development" or not settings.SMTP_USER
 
     return SuccessResponse(
         data=RegisterData(
             user_id=str(user.id),
             username=user.username,
+            otp_code=otp_code if expose_otp else None,
         )
     )
 
@@ -348,7 +366,9 @@ async def check_username(username: str, db: AsyncSession = Depends(get_db)):
     if len(username) < 2 or len(username) > 20:
         raise ValidationError(message="사용자명은 2~20자여야 합니다.")
     existing = (await db.execute(select(User).where(User.username == username))).scalar_one_or_none()
-    return SuccessResponse(data=CheckUsernameData(username=username, available=existing is None))
+    # 미인증 사용자는 재가입 가능 → 사용 가능으로 표시
+    available = existing is None or not existing.is_email_verified
+    return SuccessResponse(data=CheckUsernameData(username=username, available=available))
 
 
 @router.post(
@@ -464,7 +484,7 @@ async def resend_otp(request: Request, body: ResendOtpRequest, db: AsyncSession 
             )
         )
         await db.commit()
-        # ⚠️ TODO: 실제 이메일 발송 (SendGrid / AWS SES)
+        await send_otp_email(body.email, otp_code)
         logger.info("OTP resent for %s: %s", body.email, otp_code)
 
     return SuccessResponse(data=ResendOtpData(sent=True, message="인증 코드가 재발송되었습니다."))

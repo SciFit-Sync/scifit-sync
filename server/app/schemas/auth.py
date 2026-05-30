@@ -84,6 +84,7 @@ class RegisterRequest(BaseModel):
 class RegisterData(BaseModel):
     user_id: str
     username: str
+    otp_code: str | None = None  # SES 미설정 개발 환경에서만 반환
 
 
 class LoginRequest(BaseModel):
@@ -149,7 +150,7 @@ class PasswordResetData(BaseModel):
 
 
 class WithdrawRequest(BaseModel):
-    password: str
+    password: str | None = None  # 카카오 소셜 유저는 비밀번호 없음
 
 
 class WithdrawData(BaseModel):

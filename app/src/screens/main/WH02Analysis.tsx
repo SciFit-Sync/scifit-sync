@@ -102,10 +102,10 @@ export default function WH02Analysis() {
           ))}
         </View>
 
-        {/* ─── AI 인사이트 ─── */}
-        <View style={styles.insight_card}>
+        {/* ─── 운동 팁 ─── */}
+        <View style={styles.tip_card}>
           <Octicons name="light-bulb" size={16} color={colors.white} />
-          <Text style={styles.insight_text}>
+          <Text style={styles.tip_text}>
             현재 가슴 볼륨은 근비대 최적 범위에{"\n"}도달했습니다.
           </Text>
         </View>
@@ -248,8 +248,8 @@ const styles = StyleSheet.create({
     color: colors.bluegray,
   },
 
-  // AI 인사이트
-  insight_card: {
+  // 운동 팁
+  tip_card: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
   },
-  insight_text: {
+  tip_text: {
     fontFamily: "regular",
     fontSize: 16,
     color: colors.white,

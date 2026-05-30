@@ -213,6 +213,7 @@ class TestFinishSession:
             _exec_scalar(session),  # _get_my_session
             _exec_scalar_one(0),  # total_sets
             _exec_scalar_one(0),  # completed_exercises
+            _exec_scalar(None),  # UserBodyMeasurement (없으면 70kg 기본값)
         )
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)

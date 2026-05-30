@@ -36,6 +36,7 @@ from app.schemas.users import (
     BodyMeasurementData,
     BulkAdd1RMRequest,
     BulkOneRMData,
+    CoreLift1RMItem,
     GymData,
     MeData,
     OnboardData,
@@ -73,8 +74,9 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
-        default_goals=profile.default_goals,
+        default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
         career_level=profile.career_level.value if profile.career_level else None,
+        career_years=profile.career_years,
     )
 
 
@@ -187,6 +189,25 @@ async def get_me(
     )
     gyms = [GymData(gym_id=str(ug.gym_id), name=g.name, is_primary=ug.is_primary) for ug, g in gyms_result.all()]
 
+    # 4대 운동 1RM (마이페이지 카드용)
+    from app.services.core_lifts import CORE_LIFTS_KO_LABEL, resolve_exercise_id_by_code
+
+    core_lifts_1rm: list[CoreLift1RMItem] = []
+    for code, label in CORE_LIFTS_KO_LABEL.items():
+        ex_id = await resolve_exercise_id_by_code(code, db)
+        if ex_id is None:
+            core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=None))
+            continue
+        row = (
+            await db.execute(
+                select(UserExercise1RM.weight_kg)
+                .where(UserExercise1RM.user_id == current_user.id, UserExercise1RM.exercise_id == ex_id)
+                .order_by(UserExercise1RM.estimated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=float(row) if row else None))
+
     return SuccessResponse(
         data=MeData(
             user_id=str(current_user.id),
@@ -197,6 +218,7 @@ async def get_me(
             profile=_profile_to_dto(profile),
             latest_measurement=_measurement_to_dto(latest_m),
             gyms=gyms,
+            core_lifts_1rm=core_lifts_1rm,
         )
     )
 
@@ -211,14 +233,24 @@ async def update_body(
     db: AsyncSession = Depends(get_db),
 ):
     measurement_dto: BodyMeasurementData | None = None
+    updated_birth_date: date | None = None
+    updated_gender: str | None = None
 
-    # 키는 UserProfile.height_cm에 저장
-    if body.height_cm is not None:
+    # UserProfile 갱신 (키 / 생년월일 / 성별)
+    needs_profile_update = any(v is not None for v in (body.height_cm, body.birth_date, body.gender))
+    if needs_profile_update:
         profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
         profile = profile_result.scalar_one_or_none()
         if profile is None:
             raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
-        profile.height_cm = body.height_cm
+        if body.height_cm is not None:
+            profile.height_cm = body.height_cm
+        if body.birth_date is not None:
+            profile.birth_date = body.birth_date
+            updated_birth_date = body.birth_date
+        if body.gender is not None:
+            profile.gender = Gender(body.gender)
+            updated_gender = body.gender
 
     # 체중/근육량/체지방률은 새 측정 기록으로 추가
     if any(v is not None for v in (body.weight_kg, body.skeletal_muscle_kg, body.body_fat_pct)):
@@ -236,7 +268,19 @@ async def update_body(
         measurement_dto = _measurement_to_dto(m)
 
     await db.commit()
-    return SuccessResponse(data=UpdateBodyData(height_cm=body.height_cm, measurement=measurement_dto))
+
+    # 수정 후 전체 현재값 반환 (프론트 화면 갱신용)
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
+    return SuccessResponse(
+        data=UpdateBodyData(
+            height_cm=profile.height_cm if profile else body.height_cm,
+            birth_date=profile.birth_date if profile else updated_birth_date,
+            age=_calc_age(profile.birth_date) if profile else None,
+            gender=profile.gender.value if profile and profile.gender else updated_gender,
+            measurement=measurement_dto,
+        )
+    )
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
@@ -276,6 +320,8 @@ async def update_career(
     if profile is None:
         raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
     profile.career_level = career
+    if body.career_years is not None:
+        profile.career_years = body.career_years
     await db.commit()
     return SuccessResponse(data=_profile_to_dto(profile))  # type: ignore[arg-type]
 

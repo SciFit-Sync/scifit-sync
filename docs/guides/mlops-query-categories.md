@@ -1,6 +1,6 @@
 # MLOps 논문 검색 쿼리 카테고리 가이드
 
-`mlops/pipeline/crawler.py`의 `SEARCH_QUERY_CATEGORIES`(65개)는 SciFit-Sync RAG가 다양한
+`mlops/pipeline/crawler.py`의 `SEARCH_QUERY_CATEGORIES`(50개)는 SciFit-Sync RAG가 다양한
 사용자 컨텍스트에 답할 수 있도록 PubMed에서 운동 루틴 생성에 직접 관련된 근거 데이터를
 수집하기 위한 카테고리별 검색 쿼리 모음이다. 본 가이드는 카테고리를 **추가/수정/검증/적재**할
 때의 표준 절차를 정리한다.
@@ -34,7 +34,7 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
 | `semi` | RCT / 메타분석 / 시스템 리뷰만 | 좁은 임상 주제 — abstract만으로도 RAG 청크 다양성 확보 (failure_rir, periodization, 부위별 등) |
 | `loose` | 없음 (humans/adults만) | RCT가 거의 없는 영역 (메커니즘 이론, 신규 분야, 추천 시스템, 종목 특화 등) |
 
-### 현재 분포 (65개)
+### 현재 분포 (50개: strict 29 / semi 12 / loose 9)
 
 | level | 카테고리 수 | 대표 예시 |
 |---|---|---|
@@ -182,7 +182,7 @@ python3 -m mlops.scripts.export_embeddings
 
 #### C. 운영 환경 (GitHub Actions monthly)
 
-`.github/workflows/monthly-ingest.yml`이 매월 1일 실행. 신규 카테고리 추가가 운영에 반영되려면:
+`.github/workflows/mlops.yml`이 매월 1일 실행. 신규 카테고리 추가가 운영에 반영되려면:
 1. develop → main PR 머지
 2. GitHub Actions secrets 확인: `NCBI_API_KEY`, `API_BASE_URL` (운영), `ADMIN_API_TOKEN`
 3. workflow 수동 트리거 또는 다음 월간 사이클 대기
