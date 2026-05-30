@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,7 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
@@ -36,11 +36,14 @@ export default function WP01MyPage() {
   const [one_rms, set_one_rms] = useState<OneRMData[]>([]);
   const [loading, set_loading] = useState(true);
 
-  useEffect(() => {
-    fetch_data();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetch_data();
+    }, [token]),
+  );
 
-  const fetch_data = async () => {
+  const fetch_data = useCallback(async () => {
+    set_loading(true);
     try {
       const [me_data, rm_data] = await Promise.all([
         getMe(token),
@@ -53,7 +56,7 @@ export default function WP01MyPage() {
     } finally {
       set_loading(false);
     }
-  };
+  }, [token]);
 
   const handle_logout = () => {
     Alert.alert("로그아웃", "로그아웃 하시겠습니까?", [
