@@ -30,5 +30,10 @@ class CreateProgramRequest(BaseModel):
     routine_ids: list[str] = Field(..., min_length=1)
 
 
+class UpdateProgramRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str | None = None
+
+
 class DeleteProgramData(BaseModel):
     message: str

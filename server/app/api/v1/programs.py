@@ -20,6 +20,7 @@ from app.schemas.programs import (
     ProgramItem,
     ProgramListData,
     ProgramRoutineItem,
+    UpdateProgramRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,36 @@ async def get_program(
 
     if program is None:
         raise NotFoundError(message="프로그램을 찾을 수 없습니다.")
+
+    return SuccessResponse(data=await _program_to_dto(program, db))
+
+
+# ── PATCH /programs/{id} ─────────────────────────────────────────────────────
+@rate_limit("60/minute")
+@router.patch("/{program_id}", response_model=SuccessResponse[ProgramItem], summary="프로그램 수정")
+async def update_program(
+    request: Request,
+    program_id: str,
+    body: UpdateProgramRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pid = _parse_uuid(program_id, "program_id")
+    program = (
+        await db.execute(
+            select(Program)
+            .where(Program.id == pid, Program.user_id == current_user.id)
+            .options(selectinload(Program.program_routines))
+        )
+    ).scalar_one_or_none()
+
+    if program is None:
+        raise NotFoundError(message="프로그램을 찾을 수 없습니다.")
+
+    program.name = body.name
+    program.description = body.description
+    await db.commit()
+    await db.refresh(program)
 
     return SuccessResponse(data=await _program_to_dto(program, db))
 
