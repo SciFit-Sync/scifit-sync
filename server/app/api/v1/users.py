@@ -74,7 +74,7 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
-        default_goals=profile.default_goals,
+        default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
         career_level=profile.career_level.value if profile.career_level else None,
         career_years=profile.career_years,
     )
@@ -105,12 +105,10 @@ async def onboard(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """회원가입 직후 W-A03 화면에서 호출. UserProfile이 이미 존재하면 409."""
+    """회원가입 또는 재가입 직후 W-A03 화면에서 호출. 기존 프로필이 있으면 덮어씀(재가입 대응)."""
     existing = (
         await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
     ).scalar_one_or_none()
-    if existing is not None:
-        raise ConflictError(message="이미 온보딩이 완료된 계정입니다.")
 
     try:
         career = CareerLevel(body.career_level)
@@ -122,18 +120,28 @@ async def onboard(
     except ValueError as e:
         raise ValidationError(message=f"알 수 없는 성별 값입니다: {body.gender}") from e
 
-    profile = UserProfile(
-        user_id=current_user.id,
-        gender=gender,
-        birth_date=body.birth_date,
-        height_cm=body.height_cm,
-        career_level=career,
-        career_years=body.career_years,
-        default_goals=body.default_goals or None,
-    )
-    db.add(profile)
+    if existing is not None:
+        # 재가입(탈퇴 후 재활성화): 기존 프로필 업데이트
+        existing.gender = gender
+        existing.birth_date = body.birth_date
+        existing.height_cm = body.height_cm
+        existing.career_level = career
+        existing.career_years = body.career_years
+        existing.default_goals = body.default_goals or None
+        profile = existing
+    else:
+        profile = UserProfile(
+            user_id=current_user.id,
+            gender=gender,
+            birth_date=body.birth_date,
+            height_cm=body.height_cm,
+            career_level=career,
+            career_years=body.career_years,
+            default_goals=body.default_goals or None,
+        )
+        db.add(profile)
 
-    # 초기 체중 측정값
+    # 체중 측정값 추가 (재가입 포함 매번 기록)
     db.add(
         UserBodyMeasurement(
             user_id=current_user.id,
@@ -260,11 +268,16 @@ async def update_body(
         measurement_dto = _measurement_to_dto(m)
 
     await db.commit()
+
+    # 수정 후 전체 현재값 반환 (프론트 화면 갱신용)
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
     return SuccessResponse(
         data=UpdateBodyData(
-            height_cm=body.height_cm,
-            birth_date=updated_birth_date,
-            gender=updated_gender,
+            height_cm=profile.height_cm if profile else body.height_cm,
+            birth_date=profile.birth_date if profile else updated_birth_date,
+            age=_calc_age(profile.birth_date) if profile else None,
+            gender=profile.gender.value if profile and profile.gender else updated_gender,
             measurement=measurement_dto,
         )
     )

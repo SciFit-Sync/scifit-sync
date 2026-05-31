@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,21 +6,34 @@ import {
   TouchableOpacity,
   View,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
-import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
+import { getMe, withdrawUser } from "../../services/users";
 
 export default function WP06Withdraw() {
   const navigation = useNavigation();
-  const [password, set_password] = useState("");
+  const token = useAuthStore((s) => s.accessToken) ?? "";
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
+  const [provider, set_provider] = useState<string | null>(null);
+  const [password, set_password] = useState("");
+  const [loading, set_loading] = useState(false);
+
+  const is_kakao = provider === "kakao";
+
+  useEffect(() => {
+    getMe(token)
+      .then((me) => set_provider(me.provider))
+      .catch(() => set_provider("local"));
+  }, [token]);
+
   const handle_withdraw = () => {
-    if (!password) {
+    if (!is_kakao && !password) {
       Alert.alert("알림", "비밀번호를 입력해주세요");
       return;
     }
@@ -33,8 +46,15 @@ export default function WP06Withdraw() {
           text: "탈퇴하기",
           style: "destructive",
           onPress: async () => {
-            // TODO: 탈퇴 API 연동
-            await clearAuth();
+            set_loading(true);
+            try {
+              await withdrawUser(token, is_kakao ? undefined : password);
+              await clearAuth();
+            } catch (e: any) {
+              Alert.alert("오류", e.message ?? "탈퇴 처리에 실패했어요.");
+            } finally {
+              set_loading(false);
+            }
           },
         },
       ],
@@ -42,9 +62,7 @@ export default function WP06Withdraw() {
   };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView edges={["top"]} style={styles.safe_top} />
-
+    <SafeAreaView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -54,58 +72,51 @@ export default function WP06Withdraw() {
         <View style={styles.placeholder} />
       </View>
 
-      {/* 카드 */}
-      <View style={styles.card_wrapper}>
+      <View style={styles.content}>
         <View style={styles.card}>
-          <View style={styles.field}>
-            <Text style={styles.label}>비밀번호를 입력해 주세요</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="비밀번호 입력"
-              placeholderTextColor={colors.border}
-              value={password}
-              onChangeText={set_password}
-              secureTextEntry
-              autoCapitalize="none"
-            />
-          </View>
-          <TouchableOpacity
-            style={styles.withdraw_button}
-            onPress={handle_withdraw}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.withdraw_button_text}>탈퇴하기</Text>
-          </TouchableOpacity>
+          {provider === null ? (
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+          ) : is_kakao ? (
+            <View style={styles.field}>
+              <Text style={styles.label}>카카오 계정으로 가입하셨습니다.</Text>
+              <Text style={styles.desc}>
+                비밀번호 없이 탈퇴할 수 있어요.{"\n"}탈퇴 후 모든 데이터가 삭제됩니다.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.field}>
+              <Text style={styles.label}>비밀번호를 입력해 주세요</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="비밀번호 입력"
+                placeholderTextColor={colors.border}
+                value={password}
+                onChangeText={set_password}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
+          )}
+          {provider !== null && (
+            <TouchableOpacity
+              style={[styles.withdraw_button, loading && styles.withdraw_button_disabled]}
+              onPress={handle_withdraw}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.withdraw_button_text}>
+                {loading ? "처리 중..." : "탈퇴하기"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-      <View style={styles.flex} />
-
-      {/* 하단 네브바 */}
-      <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
-        <BottomNavBar />
-      </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  safe_top: {
-    backgroundColor: colors.background,
-  },
-  safe_bottom: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 10,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -114,16 +125,9 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
   },
-  logo: {
-    fontFamily: "sacheon",
-    fontSize: 20,
-    color: colors.primary,
-  },
+  logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
   placeholder: { width: 32 },
-  card_wrapper: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
+  content: { paddingHorizontal: 24, paddingTop: 16 },
   card: {
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -131,10 +135,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   field: { gap: 8 },
-  label: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.primary,
+  label: { fontFamily: "medium", fontSize: 16, color: colors.primary },
+  desc: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+    lineHeight: 22,
   },
   input: {
     fontFamily: "regular",
@@ -152,12 +158,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
   },
-  withdraw_button_text: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.white,
-  },
-  flex: {
-    flex: 1,
-  },
+  withdraw_button_disabled: { opacity: 0.5 },
+  withdraw_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
 });

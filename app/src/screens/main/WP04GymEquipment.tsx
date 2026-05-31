@@ -25,24 +25,24 @@ import {
   EquipmentItem,
 } from "../../services/gyms";
 
-export default function WO02Equipment() {
+export default function WP04GymEquipment() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { gym_id } = (route.params ?? {}) as { gym_id: string | null };
+  const { gym_id, gym_name } = (route.params ?? {}) as {
+    gym_id: string;
+    gym_name: string;
+  };
   const token = useAuthStore((s) => s.accessToken) ?? "";
 
   const [equipment_list, set_equipment_list] = useState<EquipmentItem[]>([]);
-  const [gym_name, set_gym_name] = useState<string | null>(null);
   const [loading, set_loading] = useState(false);
   const [search, set_search] = useState("");
   const [selected_brand, set_selected_brand] = useState<string | null>(null);
 
-  const fetch_gym_equipment = useCallback(async () => {
-    if (!gym_id) return;
+  const fetch_equipment = useCallback(async () => {
     set_loading(true);
     try {
       const data = await getGymEquipment(gym_id, token);
-      set_gym_name(data.gym_name);
       set_equipment_list(data.equipment);
     } catch {
       set_equipment_list([]);
@@ -53,8 +53,8 @@ export default function WO02Equipment() {
 
   useFocusEffect(
     useCallback(() => {
-      fetch_gym_equipment();
-    }, [fetch_gym_equipment]),
+      fetch_equipment();
+    }, [fetch_equipment]),
   );
 
   // 브랜드 목록 — 로드된 기구에서 추출
@@ -81,16 +81,8 @@ export default function WO02Equipment() {
     });
   }, [equipment_list, search, selected_brand]);
 
-  const handle_next = () => {
-    (navigation as any).navigate("WO03OneRM");
-  };
-
-  const handle_skip = () => {
-    (navigation as any).navigate("WO03OneRM");
-  };
-
   const handle_add = () => {
-    (navigation as any).navigate("WO02EquipmentRegister", { gym_id });
+    (navigation as any).navigate("WP04GymEquipmentRegister", { gym_id });
   };
 
   const handle_menu = (item: EquipmentItem) => {
@@ -99,14 +91,13 @@ export default function WO02Equipment() {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
-          if (!gym_id) return;
           set_equipment_list((prev) =>
             prev.filter((i) => i.equipment_id !== item.equipment_id),
           );
           try {
             await deleteGymEquipment(gym_id, item.equipment_id, token);
           } catch {
-            fetch_gym_equipment();
+            fetch_equipment();
           }
         },
       },
@@ -134,6 +125,9 @@ export default function WO02Equipment() {
               {gym_name ? (
                 <Text style={styles.gym_name_text}>{gym_name}</Text>
               ) : null}
+              {!loading && equipment_list.length > 0 && (
+                <Text style={styles.count_text}>총 {equipment_list.length}개</Text>
+              )}
             </View>
             <TouchableOpacity
               style={styles.add_btn}
@@ -147,7 +141,6 @@ export default function WO02Equipment() {
           {/* 기구가 있을 때만 검색창 + 브랜드 필터 표시 */}
           {equipment_list.length > 0 && (
             <View style={styles.search_filter_area}>
-              {/* 검색창 */}
               <View style={styles.search_container}>
                 <Octicons name="search" size={20} color={colors.border} />
                 <TextInput
@@ -164,7 +157,6 @@ export default function WO02Equipment() {
                 )}
               </View>
 
-              {/* 브랜드 필터 */}
               {brands.length > 0 && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.brand_row}>
@@ -220,15 +212,6 @@ export default function WO02Equipment() {
                 color={colors.primary}
                 style={{ marginTop: 24 }}
               />
-            ) : !gym_id ? (
-              <View style={styles.empty_wrapper}>
-                <Text style={styles.empty_text}>
-                  헬스장을 선택하지 않았어요.
-                </Text>
-                <Text style={styles.empty_sub}>
-                  기구 목록을 이용하려면 헬스장을 설정해 주세요.
-                </Text>
-              </View>
             ) : equipment_list.length === 0 ? (
               <View style={styles.empty_wrapper}>
                 <Text style={styles.empty_text}>등록된 기구가 없어요.</Text>
@@ -284,18 +267,6 @@ export default function WO02Equipment() {
               </ScrollView>
             )}
           </View>
-
-          {/* 다음 / 건너뛰기 */}
-          <TouchableOpacity
-            style={styles.next_button}
-            onPress={handle_next}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.next_button_text}>다음</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handle_skip}>
-            <Text style={styles.skip_text}>건너뛰기</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -332,6 +303,11 @@ const styles = StyleSheet.create({
   gym_name_text: {
     fontFamily: "regular",
     fontSize: 13,
+    color: colors.bluegray,
+  },
+  count_text: {
+    fontFamily: "regular",
+    fontSize: 12,
     color: colors.bluegray,
   },
   add_btn: {
@@ -388,12 +364,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     textAlign: "center",
   },
-  empty_sub: {
-    fontFamily: "regular",
-    fontSize: 13,
-    color: colors.bluegray,
-    textAlign: "center",
-  },
   empty_add_hint: {
     fontFamily: "regular",
     fontSize: 13,
@@ -435,19 +405,5 @@ const styles = StyleSheet.create({
     top: 6,
     right: 10,
     padding: 4,
-  },
-  next_button: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
-  skip_text: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-    textAlign: "center",
   },
 });
