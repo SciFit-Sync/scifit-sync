@@ -412,7 +412,7 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
         f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
-        f"endurance 15-20, rehabilitation 20-30).\n"
+        f"endurance 15-20, rehabilitation 20-30, weight_loss 15-20).\n"
         f"- Use rest_seconds appropriate to each exercise type and goal:\n"
         f"  * strength compound lifts (squat/deadlift/bench/overhead press): 180-300\n"
         f"  * strength accessory (curl/row/extension/isolation): 60-90\n"
