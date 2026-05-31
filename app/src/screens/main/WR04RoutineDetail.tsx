@@ -41,6 +41,7 @@ import {
   logSet,
   finishSession,
 } from "../../services/sessions";
+import WC01Chatbot from "../../components/WC01Chatbot";
 
 interface Set {
   id: string;
@@ -123,8 +124,10 @@ export default function WR04RoutineDetail() {
 
   // 세션 관리
   const session_id_ref = useRef<string | null>(null);
+  const session_promise_ref = useRef<Promise<string> | null>(null); // race condition 방지용 in-flight 캐시
   const [session_started, set_session_started] = useState(false);
   const [is_finishing, set_is_finishing] = useState(false);
+  const [show_chatbot, set_show_chatbot] = useState(false);
 
   // 워크아웃 세션 스토어 — 화면 이탈 후 복귀 시 체크 상태 복원
   const ws_set_session = useWorkoutSessionStore((s) => s.set_session);
@@ -278,7 +281,11 @@ export default function WR04RoutineDetail() {
             }),
           )
           .catch(() => {
-            // API 실패는 UX 방해 없이 조용히 무시
+            // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
+            Alert.alert(
+              "세트 기록 실패",
+              "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
+            );
           });
       }
     } else {
@@ -314,7 +321,8 @@ export default function WR04RoutineDetail() {
         if (ex.id !== exercise_id) return ex;
         const last_set = ex.sets[ex.sets.length - 1];
         const new_set: Set = {
-          id: String(ex.sets.length + 1),
+          // exercise_id 접두사 + 타임스탬프로 운동 간 ID 충돌 방지
+          id: `${exercise_id}_new_${Date.now()}`,
           weight: last_set?.weight ?? "",
           reps: last_set?.reps ?? "10",
           is_done: false,
@@ -549,19 +557,29 @@ export default function WR04RoutineDetail() {
 
   // ── 세션 헬퍼 ───────────────────────────────────────────────────────────────
 
-  /** 세션이 없으면 새로 시작하고 session_id를 반환 */
-  const ensure_session = async (): Promise<string> => {
-    if (session_id_ref.current) return session_id_ref.current;
+  /** 세션이 없으면 새로 시작하고 session_id를 반환.
+   *  in-flight Promise를 캐싱해 빠른 연속 탭 시 세션 중복 생성을 방지한다. */
+  const ensure_session = (): Promise<string> => {
+    if (session_id_ref.current) return Promise.resolve(session_id_ref.current);
+    if (session_promise_ref.current) return session_promise_ref.current;
     const day = detail?.days[selected_day_idx];
-    const data = await startSession(token, {
+    const p = startSession(token, {
       routine_id: routine_id ?? undefined,
       routine_day_id: day?.routine_day_id ?? undefined,
-    });
-    session_id_ref.current = data.session_id;
-    set_session_started(true);
-    // 스토어에 세션 ID + 루틴 ID 저장 → 화면 이탈 후 복귀 시 복원에 사용
-    if (routine_id) ws_set_session(routine_id, data.session_id);
-    return data.session_id;
+    })
+      .then((data) => {
+        session_id_ref.current = data.session_id;
+        session_promise_ref.current = null;
+        set_session_started(true);
+        if (routine_id) ws_set_session(routine_id, data.session_id);
+        return data.session_id;
+      })
+      .catch((e) => {
+        session_promise_ref.current = null;
+        throw e;
+      });
+    session_promise_ref.current = p;
+    return p;
   };
 
   /** 타이머 수정 — 프리셋 Alert */
@@ -1277,11 +1295,14 @@ export default function WR04RoutineDetail() {
       {/* 챗봇 FAB */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate("WC01Chatbot" as never)}
+        onPress={() => set_show_chatbot(true)}
         activeOpacity={0.8}
       >
         <Octicons name="comment" size={24} color={colors.white} />
       </TouchableOpacity>
+
+      {/* 챗봇 오버레이 — WM01Main과 동일한 패턴 */}
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
 
       {/* 하단 네브바 */}
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
