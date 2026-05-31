@@ -30,7 +30,13 @@ interface Props {
 }
 
 export default function WC01Chatbot({ onClose }: Props) {
-  const [messages, set_messages] = useState<Message[]>([]);
+  const [messages, set_messages] = useState<Message[]>([
+    {
+      id: "greeting",
+      type: "bot",
+      text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+    },
+  ]);
   const [input, set_input] = useState("");
   const [is_sending, set_is_sending] = useState(false);
   const [session_id, set_session_id] = useState<string | undefined>(undefined);
@@ -54,7 +60,7 @@ export default function WC01Chatbot({ onClose }: Props) {
       }),
     ]).start();
 
-    // 챗봇 진입 시 루틴 목록 로드 → 인사 메시지 + 칩
+    // 챗봇 진입 시 루틴 목록 로드 → 루틴 칩 추가 (인사 메시지는 즉시 표시됨)
     listRoutines(access_token)
       .then((data) => {
         const routine_chips = data.items.map((r) => r.name);
@@ -68,13 +74,7 @@ export default function WC01Chatbot({ onClose }: Props) {
         ]);
       })
       .catch(() => {
-        set_messages([
-          {
-            id: "greeting",
-            type: "bot",
-            text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
-          },
-        ]);
+        // 루틴 로드 실패 시 기본 인사 메시지 유지 (이미 초기값으로 표시 중)
       });
   }, []);
 
