@@ -38,3 +38,40 @@ export function getSessions(token: string, year?: number, month?: number): Promi
 export function getSessionStats(token: string): Promise<SessionStatsData> {
   return apiFetch<SessionStatsData>('/api/v1/sessions/stats', { token });
 }
+
+export interface VolumeAnalysisItem {
+  date: string;
+  volume_kg: number;
+}
+
+export interface VolumeAnalysisData {
+  items: VolumeAnalysisItem[];
+}
+
+export interface MuscleVolumeItem {
+  muscle: string;
+  weekly_volume: number;
+  optimal_min: number;
+  optimal_max: number;
+  status: 'LOW' | 'OPTIMAL' | 'HIGH';
+}
+
+export interface MuscleVolumeData {
+  period: string;
+  volume_by_muscle: MuscleVolumeItem[];
+  ai_coach_message: string;
+}
+
+export function getVolumeAnalysis(token: string, days = 7): Promise<VolumeAnalysisData> {
+  return apiFetch<VolumeAnalysisData>(`/api/v1/sessions/analysis/volume?days=${days}`, { token });
+}
+
+export function getMuscleVolumeAnalysis(
+  token: string,
+  period: 'WEEK' | 'MONTH' = 'WEEK'
+): Promise<MuscleVolumeData> {
+  return apiFetch<MuscleVolumeData>(
+    `/api/v1/sessions/analysis/muscle-volume?period=${period}`,
+    { token }
+  );
+}
