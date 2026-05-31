@@ -17,19 +17,17 @@
   skip_warning      - 운동 건너뜀 경고
   system            - 시스템 알림
 """
-import sys
 import asyncio
-import uuid
-from datetime import datetime
-from dotenv import load_dotenv
 import os
+import sys
+import uuid
+
+from dotenv import load_dotenv
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
-
-import sqlalchemy
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, text
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/scifiitsync")
 # asyncpg 드라이버 강제 (postgresql:// → postgresql+asyncpg://)
@@ -109,7 +107,7 @@ async def main():
         await session.commit()
 
     await engine.dispose()
-    print(f"✅ 테스트 알림 전송 완료!")
+    print("✅ 테스트 알림 전송 완료!")
     print(f"   수신자: {email}")
     print(f"   타입:   {ntype}")
     print(f"   제목:   {notif['title']}")
