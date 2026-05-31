@@ -172,6 +172,7 @@ async def update_program(
     if body.name is not None:
         program.name = body.name
     if body.description is not None:
+        # TODO: description을 None으로 초기화하는 방법 미정 (clear_description 필드 또는 "" 허용 방향 검토 필요)
         program.description = body.description
 
     await db.commit()
@@ -204,4 +205,4 @@ async def delete_program(
     await db.commit()
 
     logger.info("Program %s deleted by user %s", pid, current_user.id)
-    return SuccessResponse(data=DeleteProgramData(message="프로그램이 삭제되었습니다."))
+    return SuccessResponse(data=DeleteProgramData(program_id=str(pid), message="프로그램이 삭제되었습니다."))

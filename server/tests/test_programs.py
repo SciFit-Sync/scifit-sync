@@ -167,6 +167,63 @@ class TestListPrograms:
         assert res.json()["data"]["items"] == []
 
 
+# ── GET /programs/{id} ───────────────────────────────────────────────────────
+
+
+class TestGetProgram:
+    @pytest.mark.asyncio
+    async def test_success(self, client):
+        pr = _mock_program_routine(_ROUTINE_ID_1)
+        program = _mock_program([pr])
+        db = _make_db(_exec_scalar(program))
+        app.dependency_overrides[get_db] = _db_override(db)
+        res = await client.get(f"/api/v1/programs/{_PROGRAM_ID}")
+        assert res.status_code == 200
+        assert res.json()["data"]["program_id"] == str(_PROGRAM_ID)
+
+    @pytest.mark.asyncio
+    async def test_not_found_404(self, client):
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+        res = await client.get(f"/api/v1/programs/{_PROGRAM_ID}")
+        assert res.status_code == 404
+        assert res.json()["error"]["code"] == "NOT_FOUND"
+
+
+# ── PATCH /programs/{id} ──────────────────────────────────────────────────────
+
+
+class TestUpdateProgram:
+    @pytest.mark.asyncio
+    async def test_name_update_success(self, client):
+        pr = _mock_program_routine(_ROUTINE_ID_1)
+        program = _mock_program([pr])
+        updated = _mock_program([pr])
+        updated.name = "수정된 프로그램"
+        db = _make_db(
+            _exec_scalar(program),  # 기존 프로그램 조회
+            _exec_scalar(updated),  # program_loaded
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+        res = await client.patch(
+            f"/api/v1/programs/{_PROGRAM_ID}",
+            json={"name": "수정된 프로그램"},
+        )
+        assert res.status_code == 200
+        assert res.json()["data"]["name"] == "수정된 프로그램"
+
+    @pytest.mark.asyncio
+    async def test_not_found_404(self, client):
+        db = _make_db(_exec_scalar(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+        res = await client.patch(
+            f"/api/v1/programs/{_PROGRAM_ID}",
+            json={"name": "수정"},
+        )
+        assert res.status_code == 404
+        assert res.json()["error"]["code"] == "NOT_FOUND"
+
+
 # ── DELETE /programs/{id} ─────────────────────────────────────────────────────
 
 

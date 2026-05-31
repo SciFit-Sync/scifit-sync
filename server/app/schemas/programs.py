@@ -37,4 +37,5 @@ class UpdateProgramRequest(BaseModel):
 
 
 class DeleteProgramData(BaseModel):
+    program_id: str
     message: str
