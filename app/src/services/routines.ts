@@ -201,6 +201,11 @@ export function getAIRoutineDetail(token: string, routine_id: string): Promise<A
 
 // ── 루틴 상세 ─────────────────────────────────────────────────────────────────
 
+export interface MuscleActivationItem {
+  muscle: string;       // 한국어 근육명
+  activation_pct: number | null;
+}
+
 export interface RoutineExerciseItem {
   routine_exercise_id: string;
   exercise_id: string;
@@ -213,6 +218,37 @@ export interface RoutineExerciseItem {
   weight_kg: number | null;
   rest_seconds: number;
   note: string | null;
+  has_paper: boolean;
+  gif_url: string | null;
+  muscle_activation: MuscleActivationItem[];
+}
+
+export interface PaperItem {
+  paper_id: string;
+  title: string;
+  authors: string | null;
+  journal: string | null;
+  year: number | null;
+  doi: string | null;
+  pmid: string | null;
+  doi_url: string | null;
+  relevance_summary: string | null;
+}
+
+export interface ExercisePapersData {
+  routine_exercise_id: string;
+  items: PaperItem[];
+}
+
+export function getExercisePapers(
+  token: string,
+  routine_id: string,
+  routine_exercise_id: string,
+): Promise<ExercisePapersData> {
+  return apiFetch<ExercisePapersData>(
+    `/api/v1/routines/${routine_id}/exercises/${routine_exercise_id}/paper`,
+    { token },
+  );
 }
 
 export interface RoutineDayItem {
@@ -263,4 +299,20 @@ export function renameRoutine(token: string, routine_id: string, name: string): 
     token,
     body: JSON.stringify({ name }),
   });
+}
+
+export function updateRoutineExercise(
+  token: string,
+  routine_id: string,
+  routine_exercise_id: string,
+  exercise_id: string,
+): Promise<RoutineExerciseItem> {
+  return apiFetch<RoutineExerciseItem>(
+    `/api/v1/routines/${routine_id}/exercises/${routine_exercise_id}`,
+    {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify({ exercise_id }),
+    },
+  );
 }

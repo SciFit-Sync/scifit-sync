@@ -43,6 +43,25 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# Gemini가 반환하는 해부학적 명칭 → DB muscle_groups.name 매핑
+_SLUG_ALIAS: dict[str, str] = {
+    "anterior deltoid": "Front Deltoid",
+    "front deltoid": "Front Deltoid",
+    "front delt": "Front Deltoid",
+    "lateral deltoid": "Side Deltoid",
+    "medial deltoid": "Side Deltoid",
+    "side delt": "Side Deltoid",
+    "side deltoid": "Side Deltoid",
+    "posterior deltoid": "Rear Deltoid",
+    "rear delt": "Rear Deltoid",
+    "rear deltoid": "Rear Deltoid",
+    "upper back": "Upper Back",
+    "upper_back": "Upper Back",
+    "rhomboids": "Upper Back",
+    "mid traps": "Upper Back",
+    "middle trapezius": "Upper Back",
+}
+
 _PROMPT = """\
 You are a sports science expert. Provide estimated EMG muscle activation percentages \
 for the exercise "{exercise}" based on published research.
@@ -150,8 +169,10 @@ async def main() -> None:
                 if not 0 <= pct_int <= 100:
                     logger.warning("✗ %s / %s — 범위 초과: %d", exercise_name, slug, pct_int)
                     continue
+                # alias 정규화: Gemini 해부학 명칭 → DB 표기
+                normalized = _SLUG_ALIAS.get(slug.lower(), slug)
                 for r in muscle_rows:
-                    if r["muscle_slug"] == slug:
+                    if r["muscle_slug"].lower() == normalized.lower():
                         await session.execute(
                             text(
                                 "UPDATE exercise_muscles "

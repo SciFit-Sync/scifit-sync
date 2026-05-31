@@ -2,11 +2,13 @@ import { useState, useRef } from "react";
 import {
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -20,54 +22,22 @@ import { useAuthStore } from "../../stores/authStore";
 import {
   listRoutines,
   generateRoutineSSE,
+  renameRoutine,
+  deleteRoutine,
   GOAL_LABELS,
   type RoutineSummary,
 } from "../../services/routines";
+import {
+  getProgramList,
+  createProgram,
+  updateProgram,
+  deleteProgram,
+  type ProgramItem,
+} from "../../services/programs";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 import WC01Chatbot from "../../components/WC01Chatbot";
 
 type RoutineTab = "single" | "program";
-
-interface Program {
-  id: string;
-  name: string;
-  date: string;
-  routines: { id: string; name: string }[];
-}
-
-// 프로그램 탭은 API 미구현 — 임시 목업
-const mock_programs: Program[] = [
-  {
-    id: "1",
-    name: "박재훈 루틴",
-    date: "2026.03.26",
-    routines: [
-      { id: "1", name: "상체 근비대 루틴" },
-      { id: "2", name: "하체 스트렝스 루틴" },
-    ],
-  },
-  {
-    id: "2",
-    name: "이지연 루틴",
-    date: "2026.03.26",
-    routines: [
-      { id: "1", name: "상체 근비대 루틴" },
-      { id: "2", name: "하체 스트렝스 루틴" },
-    ],
-  },
-  {
-    id: "3",
-    name: "구예빈 루틴",
-    date: "2026.03.26",
-    routines: [{ id: "1", name: "풀 바디 루틴" }],
-  },
-  {
-    id: "4",
-    name: "장태현 루틴",
-    date: "2026.03.26",
-    routines: [{ id: "1", name: "하체 강화 루틴" }],
-  },
-];
 
 function format_date(date_str: string): string {
   try {
@@ -99,13 +69,52 @@ export default function WM01Main() {
   const [show_create_sheet, set_show_create_sheet] = useState(false);
   const [show_program_sheet, set_show_program_sheet] = useState(false);
   const [is_generating, set_is_generating] = useState(false);
-  const [generate_message, set_generate_message] = useState(
-    "AI가 루틴을 생성하는 중...",
-  );
+  const [generate_message, set_generate_message] =
+    useState("AI가 루틴을 생성하는 중...");
   const [show_chatbot, set_show_chatbot] = useState(false);
+  const [show_rename_modal, set_show_rename_modal] = useState(false);
+  const [rename_target_id, set_rename_target_id] = useState("");
+  const [rename_target_type, set_rename_target_type] = useState<
+    "routine" | "program"
+  >("routine");
+  const [rename_input, set_rename_input] = useState("");
+  const [is_renaming, set_is_renaming] = useState(false);
 
   // cleanup ref (SSE abort)
   const cleanup_ref = useRef<(() => void) | null>(null);
+
+  const open_rename = (
+    type: "routine" | "program",
+    id: string,
+    current_name: string,
+  ) => {
+    set_rename_target_type(type);
+    set_rename_target_id(id);
+    set_rename_input(current_name);
+    set_show_rename_modal(true);
+  };
+
+  const confirm_rename = () => {
+    const trimmed = rename_input.trim();
+    if (!trimmed) return;
+    set_is_renaming(true);
+    const api_call =
+      rename_target_type === "program"
+        ? updateProgram(token, rename_target_id, { name: trimmed }).then(() => {
+            query_client.invalidateQueries({ queryKey: ["programs"] });
+          })
+        : renameRoutine(token, rename_target_id, trimmed).then(() => {
+            query_client.invalidateQueries({ queryKey: ["routines"] });
+          });
+    api_call
+      .then(() => set_show_rename_modal(false))
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error ? err.message : "이름 변경에 실패했습니다.";
+        Alert.alert("오류", msg);
+      })
+      .finally(() => set_is_renaming(false));
+  };
 
   const { data: routines_data, isLoading: routines_loading } = useQuery({
     queryKey: ["routines"],
@@ -113,7 +122,89 @@ export default function WM01Main() {
     enabled: !!token,
   });
 
+  const { data: programs_data, isLoading: programs_loading } = useQuery({
+    queryKey: ["programs"],
+    queryFn: () => getProgramList(token),
+    enabled: !!token,
+  });
+
   const real_routines = routines_data?.items ?? [];
+  const real_programs = programs_data?.items ?? [];
+
+  const open_routine_actions = (item: RoutineSummary) => {
+    Alert.alert("루틴 설정", undefined, [
+      {
+        text: "이름 수정",
+        onPress: () => open_rename("routine", item.routine_id, item.name),
+      },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "루틴 삭제",
+            `"${item.name}"을(를) 삭제할까요?\n삭제 후 복구가 불가능합니다.`,
+            [
+              { text: "취소", style: "cancel" },
+              {
+                text: "삭제",
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                    await deleteRoutine(token, item.routine_id);
+                    query_client.invalidateQueries({ queryKey: ["routines"] });
+                  } catch (err: unknown) {
+                    const msg =
+                      err instanceof Error ? err.message : "삭제에 실패했습니다.";
+                    Alert.alert("삭제 실패", msg);
+                  }
+                },
+              },
+            ],
+          );
+        },
+      },
+      { text: "취소", style: "cancel" },
+    ]);
+  };
+
+  const open_program_actions = (program: ProgramItem) => {
+    Alert.alert("프로그램 설정", undefined, [
+      {
+        text: "이름 수정",
+        onPress: () =>
+          open_rename("program", program.program_id, program.name),
+      },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: () => {
+          Alert.alert(
+            "프로그램 삭제",
+            `"${program.name}"을(를) 삭제할까요?\n삭제 후 복구가 불가능합니다.`,
+            [
+              { text: "취소", style: "cancel" },
+              {
+                text: "삭제",
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                    await deleteProgram(token, program.program_id);
+                    query_client.invalidateQueries({ queryKey: ["programs"] });
+                  } catch (err: unknown) {
+                    const msg =
+                      err instanceof Error ? err.message : "삭제에 실패했습니다.";
+                    Alert.alert("삭제 실패", msg);
+                  }
+                },
+              },
+            ],
+          );
+        },
+      },
+      { text: "취소", style: "cancel" },
+    ]);
+  };
 
   const toggle_program = (id: string) => {
     set_expanded_id((prev) => (prev === id ? null : id));
@@ -206,8 +297,8 @@ export default function WM01Main() {
               ) : real_routines.length === 0 ? (
                 <View style={styles.empty_container}>
                   <Text style={styles.empty_text}>
-                    아직 루틴이 없어요.{"\n"}오른쪽 상단 생성 버튼을 눌러
-                    AI 루틴을 만들어보세요!
+                    아직 루틴이 없어요.{"\n"}오른쪽 상단 생성 버튼을 눌러 AI
+                    루틴을 만들어 보세요!
                   </Text>
                 </View>
               ) : (
@@ -216,7 +307,9 @@ export default function WM01Main() {
                     key={item.routine_id}
                     style={styles.routine_item}
                     onPress={() =>
-                      navigation.navigate("WR04RoutineDetail" as never, { routine_id: item.routine_id } as never)
+                      (navigation as any).navigate("WR04RoutineDetail", {
+                        routine_id: item.routine_id,
+                      })
                     }
                     activeOpacity={0.8}
                   >
@@ -231,11 +324,18 @@ export default function WM01Main() {
                         {format_date(item.created_at)}
                       </Text>
                     </View>
-                    <Octicons
-                      name="triangle-right"
-                      size={24}
-                      color={colors.primary}
-                    />
+                    <TouchableOpacity
+                      style={styles.kebab_button}
+                      onPress={() => open_routine_actions(item)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      activeOpacity={0.6}
+                    >
+                      <Octicons
+                        name="kebab-horizontal"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 ))
               )}
@@ -245,67 +345,94 @@ export default function WM01Main() {
           {/* 프로그램 리스트 */}
           {tab === "program" && (
             <View style={styles.routine_list}>
-              {mock_programs.map((program) => {
-                const is_expanded = expanded_id === program.id;
-                return (
-                  <View
-                    key={program.id}
-                    style={[
-                      styles.program_item,
-                      is_expanded && styles.program_item_expanded,
-                    ]}
-                  >
-                    {/* 프로그램 헤더 */}
-                    <TouchableOpacity
+              {programs_loading ? (
+                <ActivityIndicator
+                  size="large"
+                  color={colors.primary}
+                  style={styles.loader}
+                />
+              ) : real_programs.length === 0 ? (
+                <View style={styles.empty_container}>
+                  <Text style={styles.empty_text}>
+                    아직 프로그램이 없어요.{"\n"}오른쪽 상단 생성 버튼을 눌러
+                    프로그램을 만들어 보세요!
+                  </Text>
+                </View>
+              ) : (
+                real_programs.map((program) => {
+                  const is_expanded = expanded_id === program.program_id;
+                  return (
+                    <View
+                      key={program.program_id}
                       style={[
-                        styles.program_header,
-                        is_expanded && styles.program_header_expanded,
+                        styles.program_item,
+                        is_expanded && styles.program_item_expanded,
                       ]}
-                      onPress={() => toggle_program(program.id)}
-                      activeOpacity={0.8}
                     >
-                      <View style={styles.routine_info}>
-                        <Text style={styles.routine_name}>{program.name}</Text>
-                        <Text style={styles.routine_sub}>{program.date}</Text>
-                      </View>
-                      <Octicons
-                        name={is_expanded ? "triangle-down" : "triangle-right"}
-                        size={24}
-                        color={colors.primary}
-                      />
-                    </TouchableOpacity>
+                      {/* 프로그램 헤더 */}
+                      <TouchableOpacity
+                        style={[
+                          styles.program_header,
+                          is_expanded && styles.program_header_expanded,
+                        ]}
+                        onPress={() => toggle_program(program.program_id)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.routine_info}>
+                          <Text style={styles.routine_name}>
+                            {program.name}
+                          </Text>
+                          <Text style={styles.routine_sub}>
+                            {format_date(program.created_at)}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.kebab_button}
+                          onPress={() => open_program_actions(program)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          activeOpacity={0.6}
+                        >
+                          <Octicons
+                            name="kebab-horizontal"
+                            size={18}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
 
-                    {/* 펼쳐진 루틴 목록 */}
-                    {is_expanded && (
-                      <>
-                        {program.routines.map((routine) => (
-                          <View key={routine.id}>
-                            <View style={styles.divider} />
-                            <View style={styles.sub_routine_item}>
-                              <Text style={styles.sub_routine_name}>
-                                {routine.name}
-                              </Text>
-                              <TouchableOpacity
-                                style={styles.detail_button}
-                                onPress={() =>
-                                  navigation.navigate(
-                                    "WR04RoutineDetail" as never,
-                                  )
-                                }
-                                activeOpacity={0.8}
-                              >
-                                <Text style={styles.detail_button_text}>
-                                  루틴 상세보기
+                      {/* 펼쳐진 루틴 목록 */}
+                      {is_expanded && (
+                        <>
+                          {program.routines.map((routine) => (
+                            <View key={routine.routine_id}>
+                              <View style={styles.divider} />
+                              <View style={styles.sub_routine_item}>
+                                <Text style={styles.sub_routine_name}>
+                                  {routine.name}
                                 </Text>
-                              </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.detail_button}
+                                  onPress={() =>
+                                    (navigation as any).navigate(
+                                      "WR04RoutineDetail",
+                                      { routine_id: routine.routine_id },
+                                    )
+                                  }
+                                  activeOpacity={0.8}
+                                >
+                                  <Text style={styles.detail_button_text}>
+                                    루틴 상세보기
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
                             </View>
-                          </View>
-                        ))}
-                      </>
-                    )}
-                  </View>
-                );
-              })}
+                          ))}
+                        </>
+                      )}
+                    </View>
+                  );
+                })
+              )}
             </View>
           )}
         </View>
@@ -335,7 +462,9 @@ export default function WM01Main() {
                 set_is_generating(false);
                 cleanup_ref.current = null;
                 query_client.invalidateQueries({ queryKey: ["routines"] });
-                navigation.navigate("WR04RoutineDetail" as never, { routine_id: _routine_id } as never);
+                (navigation as any).navigate("WR04RoutineDetail", {
+                  routine_id: _routine_id,
+                });
               },
               on_error: (message) => {
                 set_is_generating(false);
@@ -359,9 +488,18 @@ export default function WM01Main() {
             date: format_date(r.created_at),
           }))}
           onConfirm={(data) => {
-            if (__DEV__) console.log("프로그램 생성:", data);
             set_show_program_sheet(false);
-            // TODO: 프로그램 API 연동
+            createProgram(token, data.program_name, data.selected_routine_ids)
+              .then(() => {
+                query_client.invalidateQueries({ queryKey: ["programs"] });
+              })
+              .catch((err: unknown) => {
+                const msg =
+                  err instanceof Error
+                    ? err.message
+                    : "프로그램 생성에 실패했습니다.";
+                Alert.alert("프로그램 생성 실패", msg);
+              });
           }}
           onClose={() => set_show_program_sheet(false)}
         />
@@ -388,6 +526,59 @@ export default function WM01Main() {
           </View>
         </View>
       )}
+
+      {/* 프로그램 이름 수정 모달 */}
+      <Modal
+        visible={show_rename_modal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => set_show_rename_modal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modal_overlay}
+          activeOpacity={1}
+          onPress={() => set_show_rename_modal(false)}
+        >
+          <TouchableOpacity style={styles.modal_box} activeOpacity={1}>
+            <Text style={styles.modal_title}>
+              {rename_target_type === "program" ? "프로그램" : "루틴"} 이름 수정
+            </Text>
+            <TextInput
+              style={styles.modal_input}
+              value={rename_input}
+              onChangeText={set_rename_input}
+              placeholder="프로그램 이름을 입력하세요"
+              placeholderTextColor={colors.bluegray}
+              maxLength={200}
+              autoFocus
+            />
+            <View style={styles.modal_actions}>
+              <TouchableOpacity
+                style={styles.modal_btn_cancel}
+                onPress={() => set_show_rename_modal(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modal_btn_cancel_text}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modal_btn_confirm,
+                  is_renaming && { opacity: 0.6 },
+                ]}
+                onPress={confirm_rename}
+                disabled={is_renaming}
+                activeOpacity={0.8}
+              >
+                {is_renaming ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.modal_btn_confirm_text}>확인</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
       {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
@@ -640,5 +831,80 @@ const styles = StyleSheet.create({
     fontFamily: "medium",
     fontSize: 14,
     color: colors.bluegray,
+  },
+
+  // 케밥 버튼
+  kebab_button: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // 프로그램 헤더 우측 (케밥 + chevron)
+  program_header_actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  // 이름 수정 모달 (WR04RoutineDetail과 동일)
+  modal_overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal_box: {
+    width: "80%",
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+  },
+  modal_title: {
+    fontFamily: "semibold",
+    fontSize: 16,
+    color: colors.primary,
+    textAlign: "center",
+  },
+  modal_input: {
+    fontFamily: "regular",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.primary,
+  },
+  modal_actions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  modal_btn_cancel: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.select,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal_btn_cancel_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.primary,
+  },
+  modal_btn_confirm: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modal_btn_confirm_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.white,
   },
 });

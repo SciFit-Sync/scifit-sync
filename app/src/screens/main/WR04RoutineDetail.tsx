@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Alert,
+  FlatList,
+  Image,
+  Linking,
   Modal,
   StyleSheet,
   Text,
@@ -21,9 +25,21 @@ import {
   getRoutineDetail,
   deleteRoutine,
   renameRoutine,
+  updateRoutineExercise,
+  getExercisePapers,
   GOAL_LABELS,
   type RoutineExerciseItem,
+  type PaperItem,
 } from "../../services/routines";
+import {
+  searchExercises,
+  type ExerciseItem as ExerciseSearchItem,
+} from "../../services/exercises";
+import {
+  startSession,
+  logSet,
+  finishSession,
+} from "../../services/sessions";
 
 interface Set {
   id: string;
@@ -38,17 +54,22 @@ interface MuscleActivation {
 }
 
 interface Exercise {
-  id: string;
+  id: string;           // = routine_exercise_id
+  exercise_id: string;  // 실제 exercises.id (세트 기록 API 용)
   name: string;
   sets: Set[];
   is_expanded: boolean;
   muscles: MuscleActivation[];
   rest_seconds: number;
+  reps_min: number | null;
+  reps_max: number | null;
+  has_paper: boolean;
+  gif_url: string | null;
 }
 
 function api_to_exercise(item: RoutineExerciseItem): Exercise {
-  const default_weight =
-    item.weight_kg != null ? String(item.weight_kg) : "0";
+  // weight_kg null이면 빈 문자열 → 사용자가 직접 입력
+  const default_weight = item.weight_kg != null ? String(item.weight_kg) : "";
   const default_reps =
     item.reps_max != null
       ? String(item.reps_max)
@@ -63,11 +84,19 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
   }));
   return {
     id: item.routine_exercise_id,
+    exercise_id: item.exercise_id,
     name: item.exercise_name,
     sets,
     is_expanded: false,
-    muscles: [],
-    rest_seconds: item.rest_seconds ?? 180,
+    muscles: (item.muscle_activation ?? []).map((m) => ({
+      name: m.muscle,
+      percentage: m.activation_pct ?? 0,
+    })),
+    rest_seconds: item.rest_seconds ?? 90,
+    reps_min: item.reps_min ?? null,
+    reps_max: item.reps_max ?? null,
+    has_paper: item.has_paper ?? false,
+    gif_url: item.gif_url ?? null,
   };
 }
 
@@ -90,6 +119,35 @@ export default function WR04RoutineDetail() {
   const [rename_value, set_rename_value] = useState("");
   const [is_renaming, set_is_renaming] = useState(false);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 세션 관리
+  const session_id_ref = useRef<string | null>(null);
+  const [session_started, set_session_started] = useState(false);
+  const [is_finishing, set_is_finishing] = useState(false);
+
+  // 바텀시트 애니메이션 (backdrop opacity + sheet translateY)
+  const MODAL_DUR = 250;
+  const tips_overlay_anim = useRef(new Animated.Value(0)).current;
+  const tips_sheet_anim = useRef(new Animated.Value(500)).current;
+  const replace_overlay_anim = useRef(new Animated.Value(0)).current;
+  const replace_sheet_anim = useRef(new Animated.Value(500)).current;
+
+  // TIPS 모달
+  const [show_tips_modal, set_show_tips_modal] = useState(false);
+  const [tips_papers, set_tips_papers] = useState<PaperItem[]>([]);
+  const [is_tips_loading, set_is_tips_loading] = useState(false);
+
+  // 운동 변경 모달
+  const [show_replace_modal, set_show_replace_modal] = useState(false);
+  const [replacing_rex_id, set_replacing_rex_id] = useState<string | null>(
+    null,
+  );
+  const [replace_keyword, set_replace_keyword] = useState("");
+  const [replace_results, set_replace_results] = useState<ExerciseSearchItem[]>(
+    [],
+  );
+  const [is_replace_searching, set_is_replace_searching] = useState(false);
+  const [is_replacing, set_is_replacing] = useState(false);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ["routine", routine_id],
@@ -138,30 +196,68 @@ export default function WR04RoutineDetail() {
   };
 
   const toggle_exercise = (exercise_id: string) => {
-    set_exercises((prev) =>
-      prev.map((ex) =>
+    set_exercises((prev) => {
+      const next = prev.map((ex) =>
         ex.id === exercise_id ? { ...ex, is_expanded: !ex.is_expanded } : ex,
-      ),
-    );
+      );
+      // 카드가 펼쳐지는 경우 해당 운동의 권장 휴식 시간으로 타이머 초기화
+      const target = prev.find((ex) => ex.id === exercise_id);
+      if (target && !target.is_expanded) {
+        set_is_timer_running(false);
+        set_timer(target.rest_seconds);
+      }
+      return next;
+    });
   };
 
   const toggle_set_done = (exercise_id: string, set_id: string) => {
+    // 상태 변경 전 현재 값 캡처
+    const ex = exercises.find((e) => e.id === exercise_id);
+    const current_set = ex?.sets.find((s) => s.id === set_id);
+    const becoming_done = !current_set?.is_done;
+    const set_index = ex?.sets.findIndex((s) => s.id === set_id) ?? 0;
+
     set_exercises((prev) =>
-      prev.map((ex) =>
-        ex.id === exercise_id
+      prev.map((e) =>
+        e.id === exercise_id
           ? {
-              ...ex,
-              sets: ex.sets.map((s) =>
+              ...e,
+              sets: e.sets.map((s) =>
                 s.id === set_id ? { ...s, is_done: !s.is_done } : s,
               ),
             }
-          : ex,
+          : e,
       ),
     );
-    const rest =
-      exercises.find((ex) => ex.id === exercise_id)?.rest_seconds ?? 180;
-    set_timer(rest);
-    set_is_timer_running(true);
+
+    const rest = ex?.rest_seconds ?? 90;
+    if (becoming_done) {
+      // 체크 시: 타이머 리셋 후 시작 + 세트 기록 API 호출 (fire-and-forget)
+      set_timer(rest);
+      set_is_timer_running(true);
+      if (ex && current_set) {
+        ensure_session()
+          .then((sid) =>
+            logSet(token, sid, {
+              exercise_id: ex.exercise_id,
+              routine_exercise_id: ex.id,
+              set_number: set_index + 1,
+              weight_kg: current_set.weight
+                ? parseFloat(current_set.weight)
+                : null,
+              reps: parseInt(current_set.reps, 10) || 0,
+              is_completed: true,
+            }),
+          )
+          .catch(() => {
+            // API 실패는 UX 방해 없이 조용히 무시
+          });
+      }
+    } else {
+      // 체크 해제 시: 타이머 정지 후 권장 시간으로 복원
+      set_is_timer_running(false);
+      set_timer(rest);
+    }
   };
 
   const update_set = (
@@ -191,8 +287,8 @@ export default function WR04RoutineDetail() {
         const last_set = ex.sets[ex.sets.length - 1];
         const new_set: Set = {
           id: String(ex.sets.length + 1),
-          weight: last_set?.weight ?? "0",
-          reps: last_set?.reps ?? "0",
+          weight: last_set?.weight ?? "",
+          reps: last_set?.reps ?? "10",
           is_done: false,
         };
         return { ...ex, sets: [...ex.sets, new_set] };
@@ -216,30 +312,166 @@ export default function WR04RoutineDetail() {
     );
   };
 
+  // 운동 변경 — 키워드 디바운스 검색 (300ms)
+  useEffect(() => {
+    if (!show_replace_modal) return;
+    if (!replace_keyword.trim()) {
+      set_replace_results([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      set_is_replace_searching(true);
+      try {
+        const data = await searchExercises(token, replace_keyword.trim());
+        set_replace_results(data.items);
+      } catch {
+        // 검색 오류는 조용히 무시
+      } finally {
+        set_is_replace_searching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [replace_keyword, show_replace_modal, token]);
+
+  // ── 바텀시트 애니메이션 헬퍼 ────────────────────────────────────────────────
+  const open_tips_modal = () => {
+    tips_overlay_anim.setValue(0);
+    tips_sheet_anim.setValue(500);
+    set_show_tips_modal(true);
+    Animated.parallel([
+      Animated.timing(tips_overlay_anim, {
+        toValue: 1,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+      Animated.timing(tips_sheet_anim, {
+        toValue: 0,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const close_tips_modal = () => {
+    Animated.parallel([
+      Animated.timing(tips_overlay_anim, {
+        toValue: 0,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+      Animated.timing(tips_sheet_anim, {
+        toValue: 500,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+    ]).start(() => set_show_tips_modal(false));
+  };
+
+  const open_replace_modal_anim = () => {
+    replace_overlay_anim.setValue(0);
+    replace_sheet_anim.setValue(500);
+    set_show_replace_modal(true);
+    Animated.parallel([
+      Animated.timing(replace_overlay_anim, {
+        toValue: 1,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+      Animated.timing(replace_sheet_anim, {
+        toValue: 0,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const close_replace_modal = () => {
+    Animated.parallel([
+      Animated.timing(replace_overlay_anim, {
+        toValue: 0,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+      Animated.timing(replace_sheet_anim, {
+        toValue: 500,
+        duration: MODAL_DUR,
+        useNativeDriver: true,
+      }),
+    ]).start(() => set_show_replace_modal(false));
+  };
+
+  const handle_tips_press = async (rex_id: string) => {
+    if (!routine_id) return;
+    set_tips_papers([]);
+    set_is_tips_loading(true);
+    open_tips_modal();
+    try {
+      const data = await getExercisePapers(token, routine_id, rex_id);
+      set_tips_papers(data.items);
+    } catch {
+      // 조용히 빈 상태로
+    } finally {
+      set_is_tips_loading(false);
+    }
+  };
+
+  const handle_replace_press = (rex_id: string) => {
+    set_replacing_rex_id(rex_id);
+    set_replace_keyword("");
+    set_replace_results([]);
+    open_replace_modal_anim();
+  };
+
+  const handle_replace_confirm = async (new_exercise_id: string) => {
+    if (!replacing_rex_id || !routine_id) return;
+    try {
+      set_is_replacing(true);
+      await updateRoutineExercise(
+        token,
+        routine_id,
+        replacing_rex_id,
+        new_exercise_id,
+      );
+      query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
+      close_replace_modal();
+      set_replacing_rex_id(null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "운동 변경에 실패했습니다.";
+      Alert.alert("변경 실패", msg);
+    } finally {
+      set_is_replacing(false);
+    }
+  };
+
   const goals_label = detail?.fitness_goals
     ? detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")
     : null;
 
   const handle_delete_confirm = () => {
-    Alert.alert("루틴 삭제", "이 루틴을 삭제할까요?\n삭제 후 복구가 불가능합니다.", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            set_is_deleting(true);
-            await deleteRoutine(token, routine_id!);
-            query_client.invalidateQueries({ queryKey: ["routines"] });
-            navigation.goBack();
-          } catch (e: unknown) {
-            set_is_deleting(false);
-            const msg = e instanceof Error ? e.message : "삭제에 실패했습니다.";
-            Alert.alert("삭제 실패", msg);
-          }
+    Alert.alert(
+      "루틴 삭제",
+      "이 루틴을 삭제할까요?\n삭제 후 복구가 불가능합니다.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              set_is_deleting(true);
+              await deleteRoutine(token, routine_id!);
+              query_client.invalidateQueries({ queryKey: ["routines"] });
+              navigation.goBack();
+            } catch (e: unknown) {
+              set_is_deleting(false);
+              const msg =
+                e instanceof Error ? e.message : "삭제에 실패했습니다.";
+              Alert.alert("삭제 실패", msg);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handle_more_press = () => {
@@ -277,6 +509,67 @@ export default function WR04RoutineDetail() {
       Alert.alert("수정 실패", msg);
     } finally {
       set_is_renaming(false);
+    }
+  };
+
+  // ── 세션 헬퍼 ───────────────────────────────────────────────────────────────
+
+  /** 세션이 없으면 새로 시작하고 session_id를 반환 */
+  const ensure_session = async (): Promise<string> => {
+    if (session_id_ref.current) return session_id_ref.current;
+    const day = detail?.days[selected_day_idx];
+    const data = await startSession(token, {
+      routine_id: routine_id ?? undefined,
+      routine_day_id: day?.routine_day_id ?? undefined,
+    });
+    session_id_ref.current = data.session_id;
+    set_session_started(true);
+    return data.session_id;
+  };
+
+  /** 타이머 수정 — 프리셋 Alert */
+  const handle_timer_edit = (rex_id: string) => {
+    const presets: { label: string; seconds: number }[] = [
+      { label: "30초", seconds: 30 },
+      { label: "1분", seconds: 60 },
+      { label: "1분 30초", seconds: 90 },
+      { label: "2분", seconds: 120 },
+      { label: "3분", seconds: 180 },
+    ];
+    Alert.alert(
+      "휴식 시간 설정",
+      undefined,
+      [
+        ...presets.map((p) => ({
+          text: p.label,
+          onPress: () => {
+            set_exercises((prev) =>
+              prev.map((ex) =>
+                ex.id === rex_id ? { ...ex, rest_seconds: p.seconds } : ex,
+              ),
+            );
+            set_timer(p.seconds);
+            set_is_timer_running(false);
+          },
+        })),
+        { text: "취소", style: "cancel" as const },
+      ],
+    );
+  };
+
+  /** 운동 완료 처리 */
+  const handle_finish = async () => {
+    if (!session_id_ref.current || is_finishing) return;
+    try {
+      set_is_finishing(true);
+      await finishSession(token, session_id_ref.current);
+      query_client.invalidateQueries({ queryKey: ["sessions"] });
+      navigation.goBack();
+    } catch (e: unknown) {
+      set_is_finishing(false);
+      const msg =
+        e instanceof Error ? e.message : "운동 완료 처리에 실패했습니다.";
+      Alert.alert("오류", msg);
     }
   };
 
@@ -333,12 +626,14 @@ export default function WR04RoutineDetail() {
               style={styles.title_side}
               activeOpacity={0.7}
             >
-              <Octicons name="kebab-horizontal" size={20} color={colors.primary} />
+              <Octicons
+                name="kebab-horizontal"
+                size={16}
+                color={colors.primary}
+              />
             </TouchableOpacity>
           </View>
-          {goals_label && (
-            <Text style={styles.goals_label}>{goals_label}</Text>
-          )}
+          {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
 
           {/* 데이 선택 탭 (다중 날 루틴) */}
           {has_multiple_days && (
@@ -372,6 +667,7 @@ export default function WR04RoutineDetail() {
 
           {/* 운동 목록 */}
           {exercises.map((exercise) => {
+
             const is_editing = editing_exercise_id === exercise.id;
             return (
               <View
@@ -411,6 +707,7 @@ export default function WR04RoutineDetail() {
                       <TouchableOpacity
                         style={styles.action_button}
                         activeOpacity={0.8}
+                        onPress={() => handle_replace_press(exercise.id)}
                       >
                         <Text style={styles.action_text}>운동 변경</Text>
                         <Octicons
@@ -422,6 +719,7 @@ export default function WR04RoutineDetail() {
                       <TouchableOpacity
                         style={styles.action_button}
                         activeOpacity={0.8}
+                        onPress={() => handle_tips_press(exercise.id)}
                       >
                         <Text style={styles.action_text}>TIPS</Text>
                         <Octicons
@@ -433,9 +731,21 @@ export default function WR04RoutineDetail() {
                     </View>
 
                     {/* 그래픽 영상 placeholder */}
-                    <View style={styles.image_placeholder}>
-                      <Octicons name="play" size={32} color={colors.bluegray} />
-                    </View>
+                    {exercise.gif_url ? (
+                      <Image
+                        source={{ uri: exercise.gif_url }}
+                        style={styles.exercise_gif}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={styles.image_placeholder}>
+                        <Octicons
+                          name="play"
+                          size={32}
+                          color={colors.bluegray}
+                        />
+                      </View>
+                    )}
 
                     {/* 근육 활성화 */}
                     <View style={styles.muscle_section}>
@@ -464,6 +774,18 @@ export default function WR04RoutineDetail() {
 
                     {/* 세트 섹션 */}
                     <View style={styles.sets_section}>
+                      {/* 권장 범위 힌트 */}
+                      {(exercise.reps_min != null || exercise.reps_max != null) && (
+                        <Text style={styles.recommended_hint}>
+                          권장{" "}
+                          {exercise.reps_min != null && exercise.reps_max != null
+                            ? `${exercise.reps_min}~${exercise.reps_max}회`
+                            : exercise.reps_max != null
+                              ? `${exercise.reps_max}회`
+                              : `${exercise.reps_min}회`}
+                        </Text>
+                      )}
+
                       {/* 세트 헤더 */}
                       <View style={styles.sets_header}>
                         <View style={styles.sets_title_row}>
@@ -531,8 +853,8 @@ export default function WR04RoutineDetail() {
                                   selectTextOnFocus
                                 />
                               ) : (
-                                <Text style={styles.set_input_value}>
-                                  {set.weight}
+                                <Text style={[styles.set_input_value, !set.weight && styles.set_input_placeholder]}>
+                                  {set.weight || "-"}
                                 </Text>
                               )}
                               <Text style={styles.set_input_unit}>kg</Text>
@@ -580,8 +902,17 @@ export default function WR04RoutineDetail() {
                     {/* 휴식 타이머 */}
                     <View style={styles.timer_section}>
                       <View style={styles.timer_section_header}>
-                        <Text style={styles.section_label}>휴식 타이머</Text>
-                        <TouchableOpacity style={styles.small_button}>
+                        <View>
+                          <Text style={styles.section_label}>휴식 타이머</Text>
+                          <Text style={styles.recommended_hint}>
+                            권장 {exercise.rest_seconds}초
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.small_button}
+                          onPress={() => handle_timer_edit(exercise.id)}
+                          activeOpacity={0.8}
+                        >
                           <Text style={styles.small_button_text}>수정</Text>
                         </TouchableOpacity>
                       </View>
@@ -608,6 +939,22 @@ export default function WR04RoutineDetail() {
             );
           })}
         </View>
+
+        {/* 운동 완료 버튼 — 첫 세트 체크 후 표시 */}
+        {session_started && (
+          <TouchableOpacity
+            style={[styles.finish_btn, is_finishing && { opacity: 0.6 }]}
+            onPress={handle_finish}
+            disabled={is_finishing}
+            activeOpacity={0.8}
+          >
+            {is_finishing ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <Text style={styles.finish_btn_text}>운동 완료</Text>
+            )}
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* 이름 수정 모달 */}
@@ -642,7 +989,10 @@ export default function WR04RoutineDetail() {
                 <Text style={styles.modal_btn_cancel_text}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modal_btn_confirm, is_renaming && { opacity: 0.6 }]}
+                style={[
+                  styles.modal_btn_confirm,
+                  is_renaming && { opacity: 0.6 },
+                ]}
                 onPress={handle_rename_confirm}
                 disabled={is_renaming}
                 activeOpacity={0.8}
@@ -656,6 +1006,237 @@ export default function WR04RoutineDetail() {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* TIPS 모달 (바텀시트) */}
+      <Modal
+        visible={show_tips_modal}
+        transparent
+        animationType="none"
+        onRequestClose={close_tips_modal}
+      >
+        {/* 서서히 사라지는 dimmed backdrop */}
+        <Animated.View
+          style={[styles.modal_backdrop, { opacity: tips_overlay_anim }]}
+          pointerEvents="none"
+        />
+        <View style={styles.tips_overlay}>
+          {/* 빈 영역 탭 → 닫기 */}
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={close_tips_modal}
+          />
+          <Animated.View
+            style={[
+              styles.tips_sheet,
+              { transform: [{ translateY: tips_sheet_anim }] },
+            ]}
+          >
+            {/* 핸들 */}
+            <View style={styles.replace_handle} />
+
+            {/* 헤더 */}
+            <View style={styles.tips_header}>
+              <View style={styles.tips_header_side} />
+              <Text style={styles.tips_title}>TIPS</Text>
+              <TouchableOpacity
+                style={styles.tips_header_side}
+                onPress={close_tips_modal}
+              >
+                <Octicons name="x" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 내용 */}
+            {is_tips_loading ? (
+              <View style={styles.tips_center}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : tips_papers.length === 0 ? (
+              <View style={styles.tips_center}>
+                <Octicons name="book" size={28} color={colors.border} />
+                <Text style={styles.tips_empty_text}>
+                  논문 근거 데이터가 없습니다
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.tips_scroll}
+                showsVerticalScrollIndicator={false}
+              >
+                {tips_papers.map((paper, idx) => (
+                  <View key={paper.paper_id}>
+                    {/* 한국어 근거 요약 */}
+                    {paper.relevance_summary && (
+                      <Text style={styles.tips_summary}>
+                        {paper.relevance_summary}
+                      </Text>
+                    )}
+
+                    {/* 논문 카드 */}
+                    <View
+                      style={[
+                        styles.tips_paper_card,
+                        idx < tips_papers.length - 1 && { marginBottom: 16 },
+                      ]}
+                    >
+                      <Text style={styles.tips_paper_title}>{paper.title}</Text>
+                      <Text style={styles.tips_paper_meta}>
+                        {[paper.authors, paper.year]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </Text>
+                      {paper.doi_url && (
+                        <TouchableOpacity
+                          style={styles.tips_link_btn}
+                          onPress={() => Linking.openURL(paper.doi_url!)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.tips_link_text}>논문 링크</Text>
+                          <Octicons
+                            name="arrow-right"
+                            size={13}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* 확인 버튼 */}
+            <TouchableOpacity
+              style={styles.tips_confirm_btn}
+              onPress={close_tips_modal}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.tips_confirm_text}>확인</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* 운동 변경 모달 (바텀시트) */}
+      <Modal
+        visible={show_replace_modal}
+        transparent
+        animationType="none"
+        onRequestClose={() => {
+          if (!is_replacing) close_replace_modal();
+        }}
+      >
+        {/* 서서히 사라지는 dimmed backdrop */}
+        <Animated.View
+          style={[styles.modal_backdrop, { opacity: replace_overlay_anim }]}
+          pointerEvents="none"
+        />
+        <View style={styles.replace_overlay}>
+          {/* 빈 영역 탭 → 닫기 */}
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => {
+              if (!is_replacing) close_replace_modal();
+            }}
+          />
+          <Animated.View
+            style={[
+              styles.replace_sheet,
+              { transform: [{ translateY: replace_sheet_anim }] },
+            ]}
+          >
+            {/* 핸들 바 */}
+            <View style={styles.replace_handle} />
+
+            {/* 헤더 */}
+            <View style={styles.replace_header}>
+              <Text style={styles.replace_title}>운동 변경</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!is_replacing) close_replace_modal();
+                }}
+                disabled={is_replacing}
+              >
+                <Octicons name="x" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 검색 인풋 */}
+            <View style={styles.replace_search_row}>
+              <Octicons name="search" size={20} color={colors.border} />
+              <TextInput
+                style={styles.replace_search_input}
+                value={replace_keyword}
+                onChangeText={set_replace_keyword}
+                placeholder="운동 이름으로 검색"
+                placeholderTextColor={colors.bluegray}
+                autoFocus
+                returnKeyType="search"
+                editable={!is_replacing}
+              />
+              {is_replace_searching && (
+                <ActivityIndicator size="small" color={colors.bluegray} />
+              )}
+            </View>
+
+            {/* 결과 목록 */}
+            {replace_keyword.trim() === "" ? (
+              <View style={styles.replace_empty}>
+                <Octicons name="search" size={28} color={colors.border} />
+                <Text style={styles.replace_empty_text}>
+                  운동 이름을 입력해 검색하세요
+                </Text>
+              </View>
+            ) : !is_replace_searching && replace_results.length === 0 ? (
+              <View style={styles.replace_empty}>
+                <Octicons name="x-circle" size={28} color={colors.border} />
+                <Text style={styles.replace_empty_text}>
+                  검색 결과가 없습니다
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={replace_results}
+                keyExtractor={(item) => item.exercise_id}
+                style={styles.replace_list}
+                contentContainerStyle={styles.replace_list_content}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.replace_item}
+                    activeOpacity={0.7}
+                    disabled={is_replacing}
+                    onPress={() => handle_replace_confirm(item.exercise_id)}
+                  >
+                    <View style={styles.replace_item_info}>
+                      <Text style={styles.replace_item_name}>{item.name}</Text>
+                      {item.primary_muscle_groups.length > 0 && (
+                        <Text style={styles.replace_item_muscles}>
+                          {item.primary_muscle_groups.join(" · ")}
+                        </Text>
+                      )}
+                    </View>
+                    {is_replacing && replacing_rex_id ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Octicons
+                        name="arrow-right"
+                        size={16}
+                        color={colors.bluegray}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ItemSeparatorComponent={() => (
+                  <View style={styles.replace_separator} />
+                )}
+              />
+            )}
+          </Animated.View>
+        </View>
       </Modal>
 
       {/* 챗봇 FAB */}
@@ -841,6 +1422,12 @@ const styles = StyleSheet.create({
   },
 
   // 그래픽 영상
+  exercise_gif: {
+    width: "100%",
+    height: 110,
+    borderRadius: 8,
+    backgroundColor: colors.select,
+  },
   image_placeholder: {
     width: "100%",
     height: 110,
@@ -936,6 +1523,14 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 
+  // 권장량 힌트
+  recommended_hint: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
+    marginBottom: 4,
+  },
+
   // 세트 행
   set_row: {
     flexDirection: "row",
@@ -977,6 +1572,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
     minWidth: 24,
     textAlign: "right",
+  },
+  set_input_placeholder: {
+    color: colors.border,
   },
   set_input_edit: {
     fontFamily: "medium",
@@ -1062,15 +1660,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   modal_input: {
-    height: 44,
-    backgroundColor: colors.select,
-    borderRadius: 8,
-    paddingHorizontal: 12,
     fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.primary,
   },
   modal_actions: {
     flexDirection: "row",
@@ -1078,7 +1675,7 @@ const styles = StyleSheet.create({
   },
   modal_btn_cancel: {
     flex: 1,
-    height: 44,
+    paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: colors.select,
     alignItems: "center",
@@ -1091,7 +1688,7 @@ const styles = StyleSheet.create({
   },
   modal_btn_confirm: {
     flex: 1,
-    height: 44,
+    paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: colors.primary,
     alignItems: "center",
@@ -1100,6 +1697,230 @@ const styles = StyleSheet.create({
   modal_btn_confirm_text: {
     fontFamily: "medium",
     fontSize: 14,
+    color: colors.white,
+  },
+
+  // 모달 공통 dimmed backdrop (Animated.View에 opacity 적용)
+  modal_backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+
+  // TIPS 바텀시트
+  tips_overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  tips_sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    maxHeight: "80%",
+  },
+  tips_header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+  },
+  tips_header_side: {
+    width: 24,
+    alignItems: "flex-end",
+  },
+  tips_title: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+  },
+  tips_center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 12,
+  },
+  tips_empty_text: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.bluegray,
+  },
+  tips_scroll: {
+    flexGrow: 0,
+    marginBottom: 16,
+  },
+  tips_summary: {
+    fontFamily: "regular",
+    fontSize: 15,
+    color: colors.primary,
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  tips_paper_card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+    gap: 6,
+    marginBottom: 8,
+  },
+  tips_paper_title: {
+    fontFamily: "semibold",
+    fontSize: 14,
+    color: colors.primary,
+    lineHeight: 20,
+  },
+  tips_paper_meta: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+  },
+  tips_link_btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  tips_link_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.primary,
+  },
+  tips_confirm_btn: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  tips_confirm_text: {
+    fontFamily: "medium",
+    fontSize: 16,
+    color: colors.white,
+  },
+  action_button_disabled: {
+    opacity: 0.4,
+  },
+  action_text_disabled: {
+    color: colors.bluegray,
+  },
+
+  // 운동 변경 바텀시트
+  replace_overlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  replace_sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    maxHeight: "75%",
+  },
+  replace_handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  replace_header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+  },
+  replace_title: {
+    fontFamily: "semibold",
+    fontSize: 16,
+    color: colors.primary,
+  },
+  replace_search_row: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 44,
+    gap: 10,
+    marginBottom: 12,
+  },
+  replace_search_input: {
+    flex: 1,
+    fontFamily: "regular",
+    fontSize: 16,
+    color: colors.primary,
+  },
+  replace_empty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 10,
+  },
+  replace_empty_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+  },
+  replace_list: {
+    flexGrow: 0,
+  },
+  replace_list_content: {
+    paddingBottom: 8,
+  },
+  replace_item: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  replace_item_info: {
+    flex: 1,
+    gap: 3,
+    marginRight: 12,
+  },
+  replace_item_name: {
+    fontFamily: "medium",
+    fontSize: 15,
+    color: colors.primary,
+  },
+  replace_item_muscles: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.bluegray,
+  },
+  replace_separator: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: 4,
+  },
+
+  // 운동 완료 버튼
+  finish_btn: {
+    marginTop: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  finish_btn_text: {
+    fontFamily: "semibold",
+    fontSize: 16,
     color: colors.white,
   },
 
