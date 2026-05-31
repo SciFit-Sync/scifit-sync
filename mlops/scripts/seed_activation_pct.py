@@ -92,9 +92,7 @@ async def main() -> None:
         total_updated = 0
 
         for exercise_name, muscle_rows in exercises.items():
-            muscle_lines = "\n".join(
-                f"- {r['muscle_slug']} ({r['involvement']})" for r in muscle_rows
-            )
+            muscle_lines = "\n".join(f"- {r['muscle_slug']} ({r['involvement']})" for r in muscle_rows)
             prompt = _PROMPT.format(exercise=exercise_name, muscles=muscle_lines)
 
             try:
