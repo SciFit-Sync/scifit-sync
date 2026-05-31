@@ -997,7 +997,6 @@ async def _run_rag_to_sse(
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
                     user_gender=profile.gender.value if profile.gender else None,
-                    user_gender=profile.gender,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
