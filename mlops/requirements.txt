@@ -28,8 +28,6 @@ python-dotenv>=1.0.0,<2.0.0
 # PDF 파싱
 pypdf>=4.0.0,<5.0.0
 
-# DB (시딩 스크립트용)
-asyncpg>=0.30.0
 
 # 테스트
 pytest>=8.0.0

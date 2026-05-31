@@ -4,9 +4,9 @@ Gemini에게 운동별 근육 EMG 활성도를 묻고, exercise_muscles.activati
 한 번만 실행하면 되는 일회성 스크립트.
 
 사전 준비:
-    mlops/.env에 아래 두 값이 있어야 한다.
+    server/.env에 아래 두 값이 있어야 한다.
         GEMINI_API_KEY=...
-        DATABASE_URL=postgresql://user:password@host:port/db
+        DATABASE_URL=postgresql+asyncpg://user:password@host:port/db
 
 실행:
     scifit-sync/ 루트에서
@@ -17,18 +17,27 @@ import asyncio
 import json
 import logging
 import os
+import platform
+import sys
 from collections import defaultdict
 from pathlib import Path
 
-import asyncpg
-from dotenv import load_dotenv
-from google import genai
+_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_ROOT))
+sys.path.insert(0, str(_ROOT / "server"))
+
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(_ROOT / "mlops" / ".env")
+load_dotenv(_ROOT / "server" / ".env", override=True)
+
+from google import genai  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
-
-_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(_ROOT / "mlops" / ".env")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -51,33 +60,53 @@ Guidelines by involvement:
 """
 
 
+def _build_connect_args() -> dict:
+    """asyncpg connect_args 생성. Windows 개발 환경 SSL 우회 포함.
+
+    프로덕션(ECS Fargate + Supabase)에서는 정상 SSL 연결을 유지한다.
+    """
+    args: dict = {"statement_cache_size": 0}
+    env = os.getenv("ENV", "development")
+    if env == "development" and platform.system() == "Windows":
+        args["ssl"] = False  # Windows 한글 경로 asyncpg 버그 우회
+    return args
+
+
 async def main() -> None:
     if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY가 mlops/.env에 없습니다.")
+        raise RuntimeError("GEMINI_API_KEY가 .env에 없습니다.")
     if not DATABASE_URL:
         raise RuntimeError(
-            "DATABASE_URL이 mlops/.env에 없습니다.\n"
-            "예) DATABASE_URL=postgresql://postgres:postgres@localhost:5432/scifiitsync"
+            "DATABASE_URL이 .env에 없습니다.\n"
+            "예) DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/scifiitsync"
         )
 
     client = genai.Client(api_key=GEMINI_API_KEY)
-    dsn = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    conn = await asyncpg.connect(dsn=dsn, ssl=False, statement_cache_size=0)
+    engine = create_async_engine(DATABASE_URL, echo=False, connect_args=_build_connect_args())
+    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    try:
-        rows = await conn.fetch("""
-            SELECT
-                e.name_en,
-                mg.name        AS muscle_slug,
-                em.involvement,
-                em.exercise_id,
-                em.muscle_group_id
-            FROM exercise_muscles em
-            JOIN exercises     e  ON e.id  = em.exercise_id
-            JOIN muscle_groups mg ON mg.id = em.muscle_group_id
-            WHERE em.activation_pct IS NULL
-            ORDER BY e.name_en
-        """)
+    async with factory() as session, session.begin():
+        rows = (
+            (
+                await session.execute(
+                    text("""
+                    SELECT
+                        e.name_en,
+                        mg.name        AS muscle_slug,
+                        em.involvement,
+                        em.exercise_id,
+                        em.muscle_group_id
+                    FROM exercise_muscles em
+                    JOIN exercises     e  ON e.id  = em.exercise_id
+                    JOIN muscle_groups mg ON mg.id = em.muscle_group_id
+                    WHERE em.activation_pct IS NULL
+                    ORDER BY e.name_en
+                """)
+                )
+            )
+            .mappings()
+            .all()
+        )
 
         if not rows:
             logger.info("모든 activation_pct가 이미 채워져 있습니다.")
@@ -113,15 +142,23 @@ async def main() -> None:
                 pct = item.get("activation_pct")
                 if slug is None or pct is None:
                     continue
+                try:
+                    pct_int = int(pct)
+                except (ValueError, TypeError):
+                    logger.warning("✗ %s / %s — 정수 변환 실패: %r", exercise_name, slug, pct)
+                    continue
+                if not 0 <= pct_int <= 100:
+                    logger.warning("✗ %s / %s — 범위 초과: %d", exercise_name, slug, pct_int)
+                    continue
                 for r in muscle_rows:
                     if r["muscle_slug"] == slug:
-                        await conn.execute(
-                            "UPDATE exercise_muscles "
-                            "SET activation_pct = $1 "
-                            "WHERE exercise_id = $2 AND muscle_group_id = $3",
-                            int(pct),
-                            r["exercise_id"],
-                            r["muscle_group_id"],
+                        await session.execute(
+                            text(
+                                "UPDATE exercise_muscles "
+                                "SET activation_pct = :pct "
+                                "WHERE exercise_id = :eid AND muscle_group_id = :mgid"
+                            ),
+                            {"pct": pct_int, "eid": r["exercise_id"], "mgid": r["muscle_group_id"]},
                         )
                         updated += 1
                         break
@@ -129,10 +166,7 @@ async def main() -> None:
             total_updated += updated
             logger.info("✓ %-35s %d/%d 근육 업데이트", exercise_name, updated, len(muscle_rows))
 
-        logger.info("완료 — 총 %d개 행 업데이트", total_updated)
-
-    finally:
-        await conn.close()
+    logger.info("완료 — 총 %d개 행 업데이트", total_updated)
 
 
 if __name__ == "__main__":
