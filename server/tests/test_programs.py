@@ -107,7 +107,7 @@ class TestCreateProgram:
         program = _mock_program([pr])
         db = _make_db(
             _exec_scalars_all([_ROUTINE_ID_1]),  # valid routines
-            _exec_scalar(program),               # program_loaded
+            _exec_scalar(program),  # program_loaded
         )
         app.dependency_overrides[get_db] = _db_override(db)
         res = await client.post(
