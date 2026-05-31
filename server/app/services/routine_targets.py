@@ -119,7 +119,7 @@ def derive_exercise_targets(
     sets = max(1, sets)
     reps_min = max(1, reps_min)
     reps_max = max(reps_min, reps_max)
-    rest_seconds = max(0, rest_seconds)
+    rest_seconds = min(600, max(0, rest_seconds))
 
     return {
         "sets": sets,
