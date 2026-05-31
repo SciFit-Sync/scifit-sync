@@ -23,13 +23,15 @@ import {
 const BAR_MAX_HEIGHT = 130;
 const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
 
+// keys는 muscle_groups.name_ko 값과 정확히 일치해야 함
+// (seed: 20260525_seed_muscle_groups_exercises.py 기준)
 const MUSCLE_GROUPS: { label: string; keys: string[]; color: string }[] = [
-  { label: "가슴", keys: ["가슴"], color: "#FDB5CE" },
-  { label: "어깨", keys: ["어깨 전면", "어깨 측면", "어깨 후면"], color: "#FF9F43" },
-  { label: "등", keys: ["광배근", "상부 등", "승모근"], color: "#54A0FF" },
-  { label: "다리", keys: ["대퇴사두근", "햄스트링", "둔근", "종아리"], color: "#5F27CD" },
+  { label: "가슴", keys: ["대흉근"], color: "#FDB5CE" },
+  { label: "어깨", keys: ["전면 삼각근", "측면 삼각근", "후면 삼각근"], color: "#FF9F43" },
+  { label: "등", keys: ["광배근", "능형근", "승모근"], color: "#54A0FF" },
+  { label: "다리", keys: ["대퇴사두근", "햄스트링", "대둔근", "종아리"], color: "#5F27CD" },
   { label: "팔", keys: ["이두근", "삼두근", "전완근"], color: "#FFEB00" },
-  { label: "복근", keys: ["복근"], color: "#2D9596" },
+  { label: "복근", keys: ["복직근", "복사근"], color: "#2D9596" },
 ];
 
 function buildWeekDays(): { date: string; dayLabel: string }[] {
