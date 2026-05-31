@@ -99,12 +99,12 @@ export default function ProgramCreate({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
-            {/* 루틴명 입력 */}
+            {/* 프로그램명 입력 */}
             <View style={styles.field}>
-              <Text style={styles.label}>루틴명</Text>
+              <Text style={styles.label}>프로그램 명</Text>
               <TextInput
                 style={styles.input}
-                placeholder="루틴명 입력"
+                placeholder="프로그램 명 입력"
                 placeholderTextColor={colors.border}
                 value={program_name}
                 onChangeText={set_program_name}

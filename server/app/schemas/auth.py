@@ -150,7 +150,7 @@ class PasswordResetData(BaseModel):
 
 
 class WithdrawRequest(BaseModel):
-    password: str
+    password: str | None = None  # 카카오 소셜 유저는 비밀번호 없음
 
 
 class WithdrawData(BaseModel):

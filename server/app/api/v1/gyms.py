@@ -3,6 +3,7 @@
 CLAUDE.md / api-endpoints.md #18-20, #44-45.
 """
 
+import asyncio
 import logging
 import uuid
 
@@ -25,6 +26,7 @@ from app.models import (
     Gym,
     GymEquipment,
     User,
+    UserGym,
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
@@ -41,6 +43,7 @@ from app.schemas.gyms import (
     SuggestEquipmentData,
     SuggestEquipmentRequest,
 )
+from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +55,7 @@ def _ratio_str(pulley_ratio: float) -> str:
     return f"{n}:1"
 
 
-def _equipment_to_dto(e: Equipment) -> EquipmentItem:
+def _equipment_to_dto(e: Equipment, image_url: str | None = None) -> EquipmentItem:
     is_cable_machine = e.equipment_type.value in ("cable", "machine")
     is_barbell = e.equipment_type.value == "barbell"
     return EquipmentItem(
@@ -67,32 +70,39 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
         min_stack=e.min_stack,
         max_stack=e.max_stack,
         stack_weight=e.stack_weight if is_cable_machine else None,
-        image_url=e.image_url,
+        image_url=image_url if image_url is not None else e.image_url,
         ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
     )
 
 
 # ── GET /gyms?keyword= ────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("", response_model=SuccessResponse[GymSearchData], summary="헬스장 검색")
+@rate_limit("60/minute")
 async def search_gyms(
     request: Request,
-    keyword: str = Query(..., min_length=1, description="검색 키워드"),
+    keyword: str | None = Query(None, description="검색 키워드 (없으면 주변 헬스장)"),
     latitude: float | None = Query(None),
     longitude: float | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """카카오 로컬 API로 검색 후, kakao_place_id로 DB 조회/매칭하여 반환한다.
+    keyword 없이 좌표만 넘기면 주변 헬스장을 거리순으로 반환한다.
     DB에 없는 헬스장은 응답에는 포함하되 gym_id 미할당 (POST /gyms로 생성 후 사용).
     """
     settings = get_settings()
     if not settings.KAKAO_REST_API_KEY:
         raise ExternalServiceError(message="카카오 로컬 API 키가 설정되지 않았습니다.")
 
-    params: dict[str, str | float] = {"query": keyword}
+    # keyword 없으면 "헬스장"으로 검색 — 좌표와 함께 쓰면 거리순 주변 헬스장
+    has_keyword = bool(keyword and keyword.strip())
+    kakao_keyword = keyword.strip() if has_keyword else "헬스장"
+    params: dict[str, str | float] = {"query": kakao_keyword}
     if latitude is not None and longitude is not None:
-        params.update({"x": longitude, "y": latitude, "radius": 5000, "sort": "distance"})
+        params.update({"x": longitude, "y": latitude, "sort": "distance"})
+        # 주변 헬스장 탐색(키워드 없음)일 때만 반경 5km 제한 — 키워드 검색은 거리 제한 없이 표시
+        if not has_keyword:
+            params["radius"] = 5000
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -108,7 +118,17 @@ async def search_gyms(
         logger.error("카카오 로컬 API 실패: status=%d body=%s", resp.status_code, resp.text[:200])
         raise ExternalServiceError(message=f"카카오 로컬 API 요청이 실패했습니다. (status={resp.status_code})")
 
-    documents = resp.json().get("documents", [])
+    # 헬스장/피트니스 관련 카테고리만 필터링
+    GYM_KEYWORDS = ("헬스", "피트니스", "크로스핏", "스포츠클럽", "pt샵", "pt 샵", "웨이트", "짐", "gym", "스포츠시설")
+    raw_docs = resp.json().get("documents", [])
+    documents = [
+        d
+        for d in raw_docs
+        if any(
+            kw in (d.get("category_name") or "").lower() or kw in (d.get("place_name") or "").lower()
+            for kw in GYM_KEYWORDS
+        )
+    ]
     place_ids = [d["id"] for d in documents]
 
     # 기존 DB 매칭 — equipment_count만 필요하므로 COUNT 서브쿼리 사용 (전체 로드 방지)
@@ -148,8 +168,8 @@ async def search_gyms(
 
 
 # ── POST /gyms ────────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post("", response_model=SuccessResponse[GymItem], status_code=201, summary="헬스장 등록")
+@rate_limit("60/minute")
 async def create_gym(
     request: Request,
     body: CreateGymRequest,
@@ -200,12 +220,12 @@ async def create_gym(
 
 
 # ── GET /gyms/{gymId}/equipment ───────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[GymEquipmentListData],
     summary="헬스장 보유 장비 목록",
 )
+@rate_limit("60/minute")
 async def list_gym_equipment(
     request: Request,
     gym_id: str,
@@ -235,23 +255,34 @@ async def list_gym_equipment(
         .all()
     )
 
+    async def _resolve_image(e: Equipment) -> str | None:
+        if e.image_url:
+            return e.image_url
+        try:
+            return await get_or_generate_image_url(str(e.id), e.name, e.name_en)
+        except Exception:
+            logger.warning("이미지 생성 실패: %s", e.id)
+            return None
+
+    image_urls = await asyncio.gather(*[_resolve_image(e) for e in equipments])
+
     return SuccessResponse(
         data=GymEquipmentListData(
             gym_id=gym_id,
             gym_name=gym.name,
-            equipment=[_equipment_to_dto(e) for e in equipments],
+            equipment=[_equipment_to_dto(e, img) for e, img in zip(equipments, image_urls, strict=True)],
         )
     )
 
 
 # ── POST /gyms/{id}/equipment ─────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[EquipmentItem],
     status_code=201,
     summary="헬스장에 장비 추가",
 )
+@rate_limit("60/minute")
 async def add_gym_equipment(
     request: Request,
     gym_id: str,
@@ -290,13 +321,13 @@ async def add_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/bulk ────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/bulk",
     response_model=SuccessResponse[BulkLinkData],
     status_code=200,
     summary="헬스장에 기구 일괄 연결",
 )
+@rate_limit("60/minute")
 async def bulk_add_gym_equipment(
     request: Request,
     gym_id: str,
@@ -357,14 +388,68 @@ async def bulk_add_gym_equipment(
     )
 
 
-# ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
+# ── DELETE /gyms/{gymId}/equipment/{equipmentId} ─────────────────────────────
+@router.delete(
+    "/{gym_id}/equipment/{equipment_id}",
+    response_model=SuccessResponse[dict],
+    status_code=200,
+    summary="헬스장 기구 삭제",
+)
 @rate_limit("60/minute")
+async def delete_gym_equipment(
+    request: Request,
+    gym_id: str,
+    equipment_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+        eq_uuid = uuid.UUID(equipment_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 ID 형식입니다.") from e
+
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
+    if gym is None:
+        raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    # 요청자가 해당 헬스장 소속인지 확인
+    user_gym = (
+        await db.execute(
+            select(UserGym).where(
+                UserGym.user_id == current_user.id,
+                UserGym.gym_id == gym_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if user_gym is None:
+        raise NotFoundError(message="본인의 헬스장 기구만 삭제할 수 있습니다.")
+
+    row = (
+        await db.execute(
+            select(GymEquipment).where(
+                GymEquipment.gym_id == gym_uuid,
+                GymEquipment.equipment_id == eq_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise NotFoundError(message="해당 기구가 헬스장에 등록되어 있지 않습니다.")
+
+    await db.delete(row)
+    await db.commit()
+
+    return SuccessResponse(data={"message": "기구가 삭제되었습니다."})
+
+
+# ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
 @router.post(
     "/{gym_id}/equipment/report",
     response_model=SuccessResponse[ReportData],
     status_code=201,
     summary="장비 정보 신고",
 )
+@rate_limit("60/minute")
 async def report_gym_equipment(
     request: Request,
     gym_id: str,
@@ -398,13 +483,13 @@ async def report_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/suggest ─────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/suggest",
     response_model=SuccessResponse[SuggestEquipmentData],
     status_code=201,
     summary="미등록 기구 제보",
 )
+@rate_limit("60/minute")
 async def suggest_gym_equipment(
     request: Request,
     gym_id: str,

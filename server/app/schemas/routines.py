@@ -77,6 +77,8 @@ class RoutineExerciseItem(BaseModel):
     note: str | None = None
     has_paper: bool = False
     has_tips: bool = False
+    gif_url: str | None = None
+    is_replaceable: bool = True
     muscle_activation: list[MuscleActivationItem] = Field(default_factory=list)
 
 

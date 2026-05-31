@@ -235,7 +235,8 @@ class TestGetRoutine:
         assert data["session_minutes"] == 60
 
     @pytest.mark.asyncio
-    async def test_success_with_exercises(self, client):
+    async def test_success_with_exercises(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.v1.routines.get_exercise_by_name", AsyncMock(return_value=None))
         r = _routine()
         rex = _routine_exercise()
 
@@ -245,11 +246,11 @@ class TestGetRoutine:
         day.label = "가슴"
         day.exercises = [rex]
 
-        # _get_my_routine, RoutineDay+exercises, Exercise names, muscle_activation, RoutinePaper
+        # _get_my_routine, RoutineDay+exercises, Exercise names(4cols), muscle_activation, RoutinePaper
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([day]),
-            _exec_all([(_EXERCISE_ID, "벤치프레스")]),
+            _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press", None)]),
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
         )
@@ -663,6 +664,7 @@ def _generate_db():
       2. _build_rag_profile:
          - SELECT UserProfile             → scalar_one_or_none
          - SELECT UserBodyMeasurement     → scalar_one_or_none
+         - SELECT Exercise.name_en        → scalars().all()
          (gym_id 없으면 equipment 쿼리 생략)
       3. _run_rag_to_sse:
          - SELECT UserExercise1RM         → .all()
@@ -673,6 +675,7 @@ def _generate_db():
     db = _make_db(
         _exec_scalar(_db_user_profile_row()),  # UserProfile
         _exec_scalar(_db_body_measurement_row()),  # UserBodyMeasurement
+        _exec_scalars_all([]),  # Exercise.name_en
         _exec_all([]),  # UserExercise1RM
     )
 
@@ -859,6 +862,7 @@ def _regenerate_db(routine):
       4. _build_rag_profile:
          - SELECT UserProfile                  → scalar
          - SELECT UserBodyMeasurement          → scalar
+         - SELECT Exercise.name_en             → scalars().all()
       5. _run_rag_to_sse:
          - SELECT UserExercise1RM              → .all() = []
     """
@@ -868,6 +872,7 @@ def _regenerate_db(routine):
         _exec_scalars_all([]),  # RoutinePaper
         _exec_scalar(_db_user_profile_row()),
         _exec_scalar(_db_body_measurement_row()),
+        _exec_scalars_all([]),  # Exercise.name_en
         _exec_all([]),  # UserExercise1RM
     )
     db.delete = AsyncMock()

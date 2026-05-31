@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -7,110 +8,19 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
+import { useAuthStore } from "../../stores/authStore";
+import { getSessions, getSessionStats } from "../../services/sessions";
 
-interface Routine {
-  id: string;
-  name: string;
-  gym: string;
-  date: string;
+function fmt_duration(minutes: number | null): string {
+  if (minutes == null) return "-";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
-
-type MuscleKey = "chest" | "back" | "shoulder" | "legs" | "arms" | "core";
-
-const MUSCLE_COLORS: Record<MuscleKey, string> = {
-  chest: colors.muscle_chest,
-  back: colors.muscle_back,
-  shoulder: colors.muscle_shoulder,
-  legs: colors.muscle_legs,
-  arms: colors.muscle_arms,
-  core: colors.muscle_core,
-};
-
-interface DayData {
-  routines: Routine[];
-  stats: { kcal: string; sets: string; duration: string };
-  streak: number;
-  bottom_stats: { weight: string; sets: string; visits: string };
-  muscles: MuscleKey[]; // 그날 사용한 근육 부위
-}
-
-// 날짜키: "YYYY-MM-DD"
-const mock_day_data: Record<string, DayData> = {
-  "2026-03-26": {
-    routines: [
-      {
-        id: "1",
-        name: "상체 근비대 루틴",
-        gym: "스포애니 강남점",
-        date: "2026.03.26",
-      },
-    ],
-    stats: { kcal: "320 kcal", sets: "18세트", duration: "1h 10m" },
-    streak: 5,
-    bottom_stats: { weight: "5kg", sets: "18세트", visits: "5번" },
-    muscles: ["chest", "back", "shoulder"],
-  },
-  "2026-03-24": {
-    routines: [
-      {
-        id: "2",
-        name: "하체 근비대 루틴",
-        gym: "스포애니 강남점",
-        date: "2026.03.24",
-      },
-    ],
-    stats: { kcal: "410 kcal", sets: "20세트", duration: "1h 30m" },
-    streak: 3,
-    bottom_stats: { weight: "80kg", sets: "20세트", visits: "4번" },
-    muscles: ["legs", "core"],
-  },
-  "2026-03-22": {
-    routines: [
-      {
-        id: "3",
-        name: "전신 스트렝스 루틴",
-        gym: "스포애니 강남점",
-        date: "2026.03.22",
-      },
-    ],
-    stats: { kcal: "280 kcal", sets: "15세트", duration: "55m" },
-    streak: 1,
-    bottom_stats: { weight: "100kg", sets: "15세트", visits: "3번" },
-    muscles: ["chest", "legs", "arms", "core"],
-  },
-};
-
-// 월간 기본값
-const monthly_default: DayData = {
-  routines: [
-    {
-      id: "1",
-      name: "상체 근비대 루틴",
-      gym: "스포애니 강남점",
-      date: "2026.03.26",
-    },
-    {
-      id: "2",
-      name: "상체 근비대 루틴",
-      gym: "스포애니 강남점",
-      date: "2026.03.24",
-    },
-    {
-      id: "3",
-      name: "상체 근비대 루틴",
-      gym: "스포애니 강남점",
-      date: "2026.03.22",
-    },
-  ],
-  stats: { kcal: "0 kcal", sets: "42세트", duration: "4h 20m" },
-  streak: 5,
-  bottom_stats: { weight: "5kg", sets: "5세트", visits: "5번" },
-  muscles: [],
-};
 
 const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -132,28 +42,38 @@ function to_date_key(year: number, month: number, day: number) {
 }
 
 export default function WL01Record() {
-  const navigation = useNavigation();
+  const token = useAuthStore((s) => s.accessToken) ?? "";
   const today = new Date();
   const [year, set_year] = useState(today.getFullYear());
   const [month, set_month] = useState(today.getMonth() + 1);
   const [selected_day, set_selected_day] = useState<number | null>(null);
 
+  const { data: calendarData, isLoading: calendarLoading } = useQuery({
+    queryKey: ["sessions", "calendar", token, year, month],
+    queryFn: () => getSessions(token, year, month),
+    enabled: !!token,
+  });
+
+  const { data: statsData } = useQuery({
+    queryKey: ["sessions", "stats", token],
+    queryFn: () => getSessionStats(token),
+    enabled: !!token,
+  });
+
+  const records = calendarData?.records ?? [];
+
   const weeks = get_calendar_weeks(year, month);
 
   const handle_prev = () => {
     set_selected_day(null);
-    if (month === 1) {
-      set_year((y) => y - 1);
-      set_month(12);
-    } else set_month((m) => m - 1);
+    if (month === 1) { set_year((y) => y - 1); set_month(12); }
+    else set_month((m) => m - 1);
   };
 
   const handle_next = () => {
     set_selected_day(null);
-    if (month === 12) {
-      set_year((y) => y + 1);
-      set_month(1);
-    } else set_month((m) => m + 1);
+    if (month === 12) { set_year((y) => y + 1); set_month(1); }
+    else set_month((m) => m + 1);
   };
 
   const handle_day_press = (day: number | null) => {
@@ -162,30 +82,37 @@ export default function WL01Record() {
   };
 
   const is_today = (day: number | null) =>
-    day !== null &&
-    day === today.getDate() &&
-    month === today.getMonth() + 1 &&
-    year === today.getFullYear();
+    day !== null && day === today.getDate() &&
+    month === today.getMonth() + 1 && year === today.getFullYear();
 
-  const is_selected = (day: number | null) =>
-    day !== null && day === selected_day;
+  const is_selected = (day: number | null) => day !== null && day === selected_day;
 
   const has_data = (day: number | null) =>
-    day !== null && !!mock_day_data[to_date_key(year, month, day)];
+    day !== null && records.some((r) => r.date === to_date_key(year, month, day));
 
-  const current_data: DayData =
-    selected_day !== null
-      ? (mock_day_data[to_date_key(year, month, selected_day)] ?? {
-          routines: [],
-          stats: { kcal: "0 kcal", sets: "0세트", duration: "0m" },
-          streak: 0,
-          bottom_stats: { weight: "0kg", sets: "0세트", visits: "0번" },
-        })
-      : monthly_default;
+  const day_records = selected_day !== null
+    ? records.filter((r) => r.date === to_date_key(year, month, selected_day))
+    : records;
 
-  const title_day = selected_day ?? today.getDate();
-  const title_month = selected_day !== null ? month : today.getMonth() + 1;
-  const section_title = `${title_month}월 ${title_day}일 운동`;
+  const section_title = selected_day !== null
+    ? `${month}월 ${selected_day}일 운동`
+    : `${year}년 ${month}월 운동`;
+
+  const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
+
+  // 통계 표시값
+  const top_stats = selected_day !== null
+    ? [
+        { value: fmt_duration(total_duration || null), label: "운동 시간" },
+        { value: `${day_records.length}회`, label: "세션 수" },
+      ]
+    : [
+        { value: `${Math.round((statsData?.total_volume_kg ?? 0))}kg`, label: "총 중량" },
+        { value: `${statsData?.total_sets ?? 0}세트`, label: "총 세트" },
+        { value: `${statsData?.weekly_session_count ?? 0}번`, label: "주간 방문" },
+      ];
+
+  const streak = statsData?.streak_days ?? 0;
 
   return (
     <View style={styles.container}>
@@ -258,17 +185,7 @@ export default function WL01Record() {
                       </Text>
                       {has_data(day) && !is_selected(day) && (
                         <View style={styles.dot_row}>
-                          {mock_day_data[to_date_key(year, month, day)].muscles
-                            .slice(0, 4)
-                            .map((m) => (
-                              <View
-                                key={m}
-                                style={[
-                                  styles.dot,
-                                  { backgroundColor: MUSCLE_COLORS[m] },
-                                ]}
-                              />
-                            ))}
+                          <View style={[styles.dot, { backgroundColor: colors.primary }]} />
                         </View>
                       )}
                     </View>
@@ -281,11 +198,7 @@ export default function WL01Record() {
 
         {/* ─── 통계 ─── */}
         <View style={styles.stats_row}>
-          {[
-            { value: current_data.stats.kcal, label: "칼로리" },
-            { value: current_data.stats.sets, label: "총 세트" },
-            { value: current_data.stats.duration, label: "운동 시간" },
-          ].map((s) => (
+          {top_stats.map((s) => (
             <View key={s.label} style={styles.stat_card}>
               <Text style={styles.stat_value}>{s.value}</Text>
               <Text style={styles.stat_label}>{s.label}</Text>
@@ -294,38 +207,37 @@ export default function WL01Record() {
         </View>
 
         {/* 연속 운동 배지 */}
-        {current_data.streak > 0 && (
+        {streak > 0 && (
           <View style={styles.badge_small}>
             <Octicons name="flame" size={16} color={colors.white} />
-            <Text style={styles.badge_text}>
-              {current_data.streak}일 연속 운동
-            </Text>
+            <Text style={styles.badge_text}>{streak}일 연속 운동</Text>
           </View>
         )}
 
         {/* ─── 운동 목록 ─── */}
         <View style={styles.section}>
           <Text style={styles.section_title}>{section_title}</Text>
-          {current_data.routines.length > 0 ? (
-            current_data.routines.map((item) => (
+          {calendarLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+          ) : day_records.length > 0 ? (
+            day_records.map((item) => (
               <TouchableOpacity
-                key={item.id}
+                key={item.session_id}
                 style={styles.routine_item}
-                onPress={() =>
-                  navigation.navigate("WR04RoutineDetail" as never)
-                }
                 activeOpacity={0.8}
               >
                 <View style={styles.routine_info}>
-                  <Text style={styles.routine_name}>{item.name}</Text>
-                  <Text style={styles.routine_sub}>{item.gym}</Text>
+                  <Text style={styles.routine_name}>
+                    {item.routine_name ?? "자유 운동"}
+                  </Text>
                   <Text style={styles.routine_sub}>{item.date}</Text>
+                  {item.duration_minutes != null && (
+                    <Text style={styles.routine_sub}>
+                      {fmt_duration(item.duration_minutes)}
+                    </Text>
+                  )}
                 </View>
-                <Octicons
-                  name="triangle-right"
-                  size={24}
-                  color={colors.primary}
-                />
+                <Octicons name="triangle-right" size={24} color={colors.primary} />
               </TouchableOpacity>
             ))
           ) : (
@@ -335,30 +247,14 @@ export default function WL01Record() {
           )}
         </View>
 
-        {/* ─── 하단 통계 ─── */}
-        <View style={styles.stats_row}>
-          {[
-            { value: current_data.bottom_stats.weight, label: "총 중량" },
-            { value: current_data.bottom_stats.sets, label: "세트 수" },
-            {
-              value: current_data.bottom_stats.visits,
-              label: "주간 방문 횟수",
-            },
-          ].map((s) => (
-            <View key={s.label} style={styles.stat_card}>
-              <Text style={styles.stat_value}>{s.value}</Text>
-              <Text style={styles.stat_label}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* 운동 팁 배지 */}
-        <View style={styles.badge_wide}>
-          <Octicons name="light-bulb" size={16} color={colors.white} />
-          <Text style={styles.badge_text}>
-            5일째, 당신은 이미 어제보다 강해졌어요
-          </Text>
-        </View>
+        {streak > 0 && (
+          <View style={styles.badge_wide}>
+            <Octicons name="light-bulb" size={16} color={colors.white} />
+            <Text style={styles.badge_text}>
+              {streak}일째, 당신은 이미 어제보다 강해졌어요
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* 하단 네브바 */}

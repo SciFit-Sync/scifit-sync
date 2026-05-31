@@ -36,6 +36,7 @@ from app.schemas.users import (
     BodyMeasurementData,
     BulkAdd1RMRequest,
     BulkOneRMData,
+    CoreLift1RMItem,
     GymData,
     MeData,
     OnboardData,
@@ -73,8 +74,9 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
-        default_goals=profile.default_goals,
+        default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
         career_level=profile.career_level.value if profile.career_level else None,
+        career_years=profile.career_years,
     )
 
 
@@ -90,25 +92,23 @@ def _measurement_to_dto(m: UserBodyMeasurement | None) -> BodyMeasurementData | 
 
 
 # ── POST /users/me/onboard ───────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/me/onboard",
     response_model=SuccessResponse[OnboardData],
     status_code=201,
     summary="온보딩 완료 (최초 신체정보 등록)",
 )
+@rate_limit("60/minute")
 async def onboard(
     request: Request,
     body: OnboardRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """회원가입 직후 W-A03 화면에서 호출. UserProfile이 이미 존재하면 409."""
+    """회원가입 또는 재가입 직후 W-A03 화면에서 호출. 기존 프로필이 있으면 덮어씀(재가입 대응)."""
     existing = (
         await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
     ).scalar_one_or_none()
-    if existing is not None:
-        raise ConflictError(message="이미 온보딩이 완료된 계정입니다.")
 
     try:
         career = CareerLevel(body.career_level)
@@ -120,17 +120,28 @@ async def onboard(
     except ValueError as e:
         raise ValidationError(message=f"알 수 없는 성별 값입니다: {body.gender}") from e
 
-    profile = UserProfile(
-        user_id=current_user.id,
-        gender=gender,
-        birth_date=body.birth_date,
-        height_cm=body.height_cm,
-        career_level=career,
-        default_goals=body.default_goals or None,
-    )
-    db.add(profile)
+    if existing is not None:
+        # 재가입(탈퇴 후 재활성화): 기존 프로필 업데이트
+        existing.gender = gender
+        existing.birth_date = body.birth_date
+        existing.height_cm = body.height_cm
+        existing.career_level = career
+        existing.career_years = body.career_years
+        existing.default_goals = body.default_goals or None
+        profile = existing
+    else:
+        profile = UserProfile(
+            user_id=current_user.id,
+            gender=gender,
+            birth_date=body.birth_date,
+            height_cm=body.height_cm,
+            career_level=career,
+            career_years=body.career_years,
+            default_goals=body.default_goals or None,
+        )
+        db.add(profile)
 
-    # 초기 체중 측정값
+    # 체중 측정값 추가 (재가입 포함 매번 기록)
     db.add(
         UserBodyMeasurement(
             user_id=current_user.id,
@@ -152,8 +163,8 @@ async def onboard(
 
 
 # ── GET /users/me ─────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("/me", response_model=SuccessResponse[MeData], summary="내 정보 조회")
+@rate_limit("60/minute")
 async def get_me(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -178,6 +189,25 @@ async def get_me(
     )
     gyms = [GymData(gym_id=str(ug.gym_id), name=g.name, is_primary=ug.is_primary) for ug, g in gyms_result.all()]
 
+    # 4대 운동 1RM (마이페이지 카드용)
+    from app.services.core_lifts import CORE_LIFTS_KO_LABEL, resolve_exercise_id_by_code
+
+    core_lifts_1rm: list[CoreLift1RMItem] = []
+    for code, label in CORE_LIFTS_KO_LABEL.items():
+        ex_id = await resolve_exercise_id_by_code(code, db)
+        if ex_id is None:
+            core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=None))
+            continue
+        row = (
+            await db.execute(
+                select(UserExercise1RM.weight_kg)
+                .where(UserExercise1RM.user_id == current_user.id, UserExercise1RM.exercise_id == ex_id)
+                .order_by(UserExercise1RM.estimated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        core_lifts_1rm.append(CoreLift1RMItem(code=code, name=label, weight_kg=float(row) if row else None))
+
     return SuccessResponse(
         data=MeData(
             user_id=str(current_user.id),
@@ -188,13 +218,14 @@ async def get_me(
             profile=_profile_to_dto(profile),
             latest_measurement=_measurement_to_dto(latest_m),
             gyms=gyms,
+            core_lifts_1rm=core_lifts_1rm,
         )
     )
 
 
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/body", response_model=SuccessResponse[UpdateBodyData], summary="신체 정보 수정")
+@rate_limit("60/minute")
 async def update_body(
     request: Request,
     body: UpdateBodyRequest,
@@ -202,14 +233,24 @@ async def update_body(
     db: AsyncSession = Depends(get_db),
 ):
     measurement_dto: BodyMeasurementData | None = None
+    updated_birth_date: date | None = None
+    updated_gender: str | None = None
 
-    # 키는 UserProfile.height_cm에 저장
-    if body.height_cm is not None:
+    # UserProfile 갱신 (키 / 생년월일 / 성별)
+    needs_profile_update = any(v is not None for v in (body.height_cm, body.birth_date, body.gender))
+    if needs_profile_update:
         profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
         profile = profile_result.scalar_one_or_none()
         if profile is None:
             raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
-        profile.height_cm = body.height_cm
+        if body.height_cm is not None:
+            profile.height_cm = body.height_cm
+        if body.birth_date is not None:
+            profile.birth_date = body.birth_date
+            updated_birth_date = body.birth_date
+        if body.gender is not None:
+            profile.gender = Gender(body.gender)
+            updated_gender = body.gender
 
     # 체중/근육량/체지방률은 새 측정 기록으로 추가
     if any(v is not None for v in (body.weight_kg, body.skeletal_muscle_kg, body.body_fat_pct)):
@@ -227,12 +268,24 @@ async def update_body(
         measurement_dto = _measurement_to_dto(m)
 
     await db.commit()
-    return SuccessResponse(data=UpdateBodyData(height_cm=body.height_cm, measurement=measurement_dto))
+
+    # 수정 후 전체 현재값 반환 (프론트 화면 갱신용)
+    profile_result = await db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id))
+    profile = profile_result.scalar_one_or_none()
+    return SuccessResponse(
+        data=UpdateBodyData(
+            height_cm=profile.height_cm if profile else body.height_cm,
+            birth_date=profile.birth_date if profile else updated_birth_date,
+            age=_calc_age(profile.birth_date) if profile else None,
+            gender=profile.gender.value if profile and profile.gender else updated_gender,
+            measurement=measurement_dto,
+        )
+    )
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/goal", response_model=SuccessResponse[ProfileData], summary="운동 목표 수정")
+@rate_limit("60/minute")
 async def update_goal(
     request: Request,
     body: UpdateGoalRequest,
@@ -249,8 +302,8 @@ async def update_goal(
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/career", response_model=SuccessResponse[ProfileData], summary="경력 수정")
+@rate_limit("60/minute")
 async def update_career(
     request: Request,
     body: UpdateCareerRequest,
@@ -267,13 +320,15 @@ async def update_career(
     if profile is None:
         raise ValidationError(message="프로필이 존재하지 않습니다. 먼저 온보딩을 완료해주세요.")
     profile.career_level = career
+    if body.career_years is not None:
+        profile.career_years = body.career_years
     await db.commit()
     return SuccessResponse(data=_profile_to_dto(profile))  # type: ignore[arg-type]
 
 
 # ── POST /users/me/gym ────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post("/me/gym", response_model=SuccessResponse[GymData], status_code=201, summary="주 헬스장 등록")
+@rate_limit("60/minute")
 async def add_primary_gym(
     request: Request,
     body: SetPrimaryGymRequest,
@@ -313,8 +368,8 @@ async def add_primary_gym(
 
 
 # ── PATCH /users/me/gym ───────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/gym", response_model=SuccessResponse[GymData], summary="주 헬스장 변경")
+@rate_limit("60/minute")
 async def change_primary_gym(
     request: Request,
     body: SetPrimaryGymRequest,
@@ -336,8 +391,8 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
     )
 
 
-@rate_limit("60/minute")
 @router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 등록")
+@rate_limit("60/minute")
 async def add_1rm(
     request: Request,
     body: Add1RMRequest,
@@ -372,8 +427,8 @@ async def add_1rm(
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
-@rate_limit("60/minute")
 @router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
+@rate_limit("60/minute")
 async def update_1rm(
     request: Request,
     body: Add1RMRequest,
@@ -409,13 +464,13 @@ async def update_1rm(
 
 
 # ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/me/1rm/bulk",
     response_model=SuccessResponse[BulkOneRMData],
     status_code=201,
     summary="1RM 일괄 등록 (온보딩용)",
 )
+@rate_limit("60/minute")
 async def bulk_add_1rm(
     request: Request,
     body: BulkAdd1RMRequest,
@@ -477,8 +532,8 @@ async def bulk_add_1rm(
     return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
 
 
-@rate_limit("60/minute")
 @router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
+@rate_limit("60/minute")
 async def list_1rms(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -495,8 +550,8 @@ async def list_1rms(
 
 
 # ── /users/me/equipment ───────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("/me/equipment", response_model=SuccessResponse[UserEquipmentListData], summary="내 보유 장비")
+@rate_limit("60/minute")
 async def list_my_equipment(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -538,13 +593,13 @@ async def list_my_equipment(
     return SuccessResponse(data=UserEquipmentListData(items=items))
 
 
-@rate_limit("60/minute")
 @router.post(
     "/me/equipment",
     response_model=SuccessResponse[UserEquipmentItem],
     status_code=201,
     summary="장비 추가 (스폿)",
 )
+@rate_limit("60/minute")
 async def add_my_equipment(
     request: Request,
     body: AddUserEquipmentRequest,
