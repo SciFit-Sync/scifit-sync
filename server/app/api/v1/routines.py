@@ -112,25 +112,26 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
 
     ex_name_map: dict[str, str] = {}
     ex_name_en_map: dict[str, str | None] = {}
+    ex_gif_map: dict[str, str | None] = {}
     if ex_ids:
         rows = (
-            await db.execute(select(Exercise.id, Exercise.name, Exercise.name_en).where(Exercise.id.in_(ex_ids)))
+            await db.execute(
+                select(Exercise.id, Exercise.name, Exercise.name_en, Exercise.gif_url).where(Exercise.id.in_(ex_ids))
+            )
         ).all()
-        ex_name_map = {str(eid): name for eid, name, _ in rows}
-        ex_name_en_map = {str(eid): name_en for eid, _, name_en in rows}
+        ex_name_map = {str(eid): name for eid, name, _, _ in rows}
+        ex_name_en_map = {str(eid): name_en for eid, _, name_en, _ in rows}
+        ex_gif_map = {str(eid): gif for eid, _, _, gif in rows}
 
-    # WorkoutX 병렬 호출 → gif_url 맵
-    gif_url_map: dict[str, str | None] = {}
-    if ex_ids:
-        name_en_list = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids]
+    # gif_url: DB 저장값 우선, 없는 항목만 WorkoutX 실시간 조회
+    gif_url_map: dict[str, str | None] = dict(ex_gif_map)
+    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if not ex_gif_map.get(str(eid))]
+    if missing:
         wx_results = await asyncio.gather(
-            *[
-                get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None)
-                for _, name_en in name_en_list
-            ],
+            *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in missing],
             return_exceptions=True,
         )
-        for (eid_str, _), wx in zip(name_en_list, wx_results, strict=True):
+        for (eid_str, _), wx in zip(missing, wx_results, strict=True):
             if isinstance(wx, dict):
                 gif_url_map[eid_str] = wx.get("gifUrl")
 
