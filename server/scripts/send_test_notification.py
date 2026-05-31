@@ -17,6 +17,7 @@
   skip_warning      - 운동 건너뜀 경고
   system            - 시스템 알림
 """
+
 import asyncio
 import os
 import sys
@@ -76,10 +77,7 @@ async def main():
 
     async with async_session() as session:
         # 유저 조회
-        row = (await session.execute(
-            text("SELECT id FROM users WHERE email = :email"),
-            {"email": email}
-        )).fetchone()
+        row = (await session.execute(text("SELECT id FROM users WHERE email = :email"), {"email": email})).fetchone()
 
         if not row:
             print(f"❌ 유저를 찾을 수 없어요: {email}")
@@ -102,7 +100,7 @@ async def main():
                 "type": ntype,
                 "title": notif["title"],
                 "body": notif["body"],
-            }
+            },
         )
         await session.commit()
 

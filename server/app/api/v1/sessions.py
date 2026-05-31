@@ -311,7 +311,10 @@ async def start_session(
         else:
             first_day = (
                 await db.execute(
-                    select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
+                    select(RoutineDay)
+                    .where(RoutineDay.routine_id == routine_id)
+                    .order_by(RoutineDay.day_number)
+                    .limit(1)
                 )
             ).scalar_one_or_none()
             session_routine_day_id = first_day.id if first_day else None
@@ -883,21 +886,21 @@ async def volume_analysis(
 # 근육 부위별 주간/월간 볼륨 조회 + 근비대 최적 범위 비교
 # 키는 muscle_groups.name_ko 값과 정확히 일치해야 함 (seed: 20260525_seed_muscle_groups_exercises.py)
 _OPTIMAL_RANGES: dict[str, tuple[float, float]] = {
-    "대흉근": (4000, 6000),       # pectoralis_major  ← 벤치프레스
-    "광배근": (4000, 6000),       # latissimus_dorsi  ← 바벨로우, 풀업
-    "능형근": (3000, 5000),       # rhomboids         ← 바벨로우
-    "승모근": (2000, 4000),       # trapezius
+    "대흉근": (4000, 6000),  # pectoralis_major  ← 벤치프레스
+    "광배근": (4000, 6000),  # latissimus_dorsi  ← 바벨로우, 풀업
+    "능형근": (3000, 5000),  # rhomboids         ← 바벨로우
+    "승모근": (2000, 4000),  # trapezius
     "전면 삼각근": (2000, 4000),  # anterior_deltoid  ← 오버헤드프레스
     "측면 삼각근": (2000, 4000),  # lateral_deltoid
     "후면 삼각근": (2000, 4000),  # posterior_deltoid
-    "이두근": (2000, 4000),       # biceps_brachii
-    "삼두근": (2000, 4000),       # triceps_brachii
-    "전완근": (1000, 3000),       # forearms
-    "복직근": (2000, 4000),       # rectus_abdominis  ← 플랭크
+    "이두근": (2000, 4000),  # biceps_brachii
+    "삼두근": (2000, 4000),  # triceps_brachii
+    "전완근": (1000, 3000),  # forearms
+    "복직근": (2000, 4000),  # rectus_abdominis  ← 플랭크
     "대퇴사두근": (6000, 10000),  # quadriceps        ← 백 스쿼트
-    "햄스트링": (4000, 8000),     # hamstrings
-    "대둔근": (4000, 8000),       # gluteus_maximus
-    "종아리": (2000, 4000),       # calves
+    "햄스트링": (4000, 8000),  # hamstrings
+    "대둔근": (4000, 8000),  # gluteus_maximus
+    "종아리": (2000, 4000),  # calves
 }
 
 
