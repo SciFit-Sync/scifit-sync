@@ -43,6 +43,20 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# Gemini가 반환하는 slug 이름과 DB muscle_groups.name이 다를 때 alias로 통일
+_SLUG_ALIASES: dict[str, str] = {
+    "anterior deltoid": "Front Deltoid",
+    "front deltoid": "Front Deltoid",
+    "lateral deltoid": "Side Deltoid",
+    "side deltoid": "Side Deltoid",
+    "posterior deltoid": "Rear Deltoid",
+    "rear deltoid": "Rear Deltoid",
+    "upper back": "Upper Back",
+    "rhomboids": "Upper Back",
+    "traps": "Upper Back",
+    "trapezius": "Upper Back",
+}
+
 _PROMPT = """\
 You are a sports science expert. Provide estimated EMG muscle activation percentages \
 for the exercise "{exercise}" based on published research.
@@ -150,8 +164,10 @@ async def main() -> None:
                 if not 0 <= pct_int <= 100:
                     logger.warning("✗ %s / %s — 범위 초과: %d", exercise_name, slug, pct_int)
                     continue
+                # alias 변환 후 case-insensitive 매칭
+                normalized = _SLUG_ALIASES.get(slug.lower(), slug)
                 for r in muscle_rows:
-                    if r["muscle_slug"] == slug:
+                    if r["muscle_slug"].lower() == normalized.lower():
                         await session.execute(
                             text(
                                 "UPDATE exercise_muscles "
