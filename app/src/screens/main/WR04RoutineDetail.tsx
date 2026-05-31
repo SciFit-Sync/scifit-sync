@@ -162,13 +162,12 @@ export default function WR04RoutineDetail() {
       e.preventDefault();
       Alert.alert(
         "운동을 종료하시겠습니까?",
-        "지금까지 체크한 세트는 저장되어 있습니다.\n'운동 완료' 버튼을 눌러야 세션이 완전히 마무리됩니다.",
+        "운동을 완료해야 세션이 저장됩니다.",
         [
           { text: "계속 운동하기", style: "cancel" },
           {
-            text: "나가기",
-            style: "destructive",
-            onPress: () => navigation.dispatch(e.data.action),
+            text: "운동 완료하고 나가기",
+            onPress: () => handle_finish(),
           },
         ],
       );
