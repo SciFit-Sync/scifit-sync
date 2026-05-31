@@ -127,6 +127,39 @@ export default function WC01Chatbot({ onClose }: Props) {
     })();
   }, []);
 
+  const handle_new_chat = async () => {
+    // 저장된 대화 삭제 + 세션 초기화
+    await AsyncStorage.removeItem(CHAT_STORAGE_KEY).catch(() => {});
+    set_session_id(undefined);
+    set_input("");
+    const now = Date.now();
+    set_messages([
+      {
+        id: "greeting",
+        type: "bot",
+        text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+        timestamp: now,
+      },
+    ]);
+    // 루틴 칩 새로 로드
+    try {
+      const data = await listRoutines(access_token);
+      const chips = data.items.map((r) => r.name);
+      set_messages([
+        {
+          id: "greeting",
+          type: "bot",
+          text: chips.length > 0
+            ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
+            : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+          chips: chips.length > 0 ? chips : undefined,
+          timestamp: now,
+        },
+      ]);
+    } catch {}
+    scroll_ref.current?.scrollTo({ y: 0, animated: false });
+  };
+
   const handle_close = () => {
     // 닫기 전 대화 저장
     AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)).catch(() => {});
@@ -244,7 +277,14 @@ export default function WC01Chatbot({ onClose }: Props) {
           >
             {/* 헤더 */}
             <View style={styles.header}>
-              <View style={styles.placeholder} />
+              <TouchableOpacity
+                style={styles.new_chat_btn}
+                onPress={handle_new_chat}
+                activeOpacity={0.7}
+              >
+                <Octicons name="plus" size={13} color={colors.primary} />
+                <Text style={styles.new_chat_text}>새 채팅</Text>
+              </TouchableOpacity>
               <Text style={styles.title}>운동 AI 가이드</Text>
               <TouchableOpacity onPress={handle_close}>
                 <Octicons name="x" size={24} color={colors.primary} />
@@ -392,8 +432,15 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     marginBottom: 16,
   },
-  placeholder: {
-    width: 24,
+  new_chat_btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  new_chat_text: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.primary,
   },
   title: {
     flex: 1,
