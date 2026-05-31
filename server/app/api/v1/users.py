@@ -603,9 +603,7 @@ async def list_my_equipment(
         return SuccessResponse(data=UserEquipmentListData(items=[]))
 
     equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
-    equipments = (
-        await db.execute(select(Equipment).where(Equipment.id.in_(equipment_ids)))
-    ).scalars().all()
+    equipments = (await db.execute(select(Equipment).where(Equipment.id.in_(equipment_ids)))).scalars().all()
 
     return SuccessResponse(data=UserEquipmentListData(items=[_equipment_to_dto(e) for e in equipments]))
 
@@ -628,9 +626,7 @@ async def add_my_equipment(
     except ValueError as e:
         raise ValidationError(message="잘못된 equipment_id 형식입니다.") from e
 
-    equipment = (
-        await db.execute(select(Equipment).where(Equipment.id == equipment_uuid))
-    ).scalar_one_or_none()
+    equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_uuid))).scalar_one_or_none()
     if equipment is None:
         raise NotFoundError(message="장비를 찾을 수 없습니다.")
 
