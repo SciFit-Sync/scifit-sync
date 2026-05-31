@@ -76,8 +76,8 @@ def _equipment_to_dto(e: Equipment, image_url: str | None = None) -> EquipmentIt
 
 
 # ── GET /gyms?keyword= ────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("", response_model=SuccessResponse[GymSearchData], summary="헬스장 검색")
+@rate_limit("60/minute")
 async def search_gyms(
     request: Request,
     keyword: str | None = Query(None, description="검색 키워드 (없으면 주변 헬스장)"),
@@ -168,8 +168,8 @@ async def search_gyms(
 
 
 # ── POST /gyms ────────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post("", response_model=SuccessResponse[GymItem], status_code=201, summary="헬스장 등록")
+@rate_limit("60/minute")
 async def create_gym(
     request: Request,
     body: CreateGymRequest,
@@ -220,12 +220,12 @@ async def create_gym(
 
 
 # ── GET /gyms/{gymId}/equipment ───────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[GymEquipmentListData],
     summary="헬스장 보유 장비 목록",
 )
+@rate_limit("60/minute")
 async def list_gym_equipment(
     request: Request,
     gym_id: str,
@@ -276,13 +276,13 @@ async def list_gym_equipment(
 
 
 # ── POST /gyms/{id}/equipment ─────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[EquipmentItem],
     status_code=201,
     summary="헬스장에 장비 추가",
 )
+@rate_limit("60/minute")
 async def add_gym_equipment(
     request: Request,
     gym_id: str,
@@ -321,13 +321,13 @@ async def add_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/bulk ────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/bulk",
     response_model=SuccessResponse[BulkLinkData],
     status_code=200,
     summary="헬스장에 기구 일괄 연결",
 )
+@rate_limit("60/minute")
 async def bulk_add_gym_equipment(
     request: Request,
     gym_id: str,
@@ -389,13 +389,13 @@ async def bulk_add_gym_equipment(
 
 
 # ── DELETE /gyms/{gymId}/equipment/{equipmentId} ─────────────────────────────
-@rate_limit("60/minute")
 @router.delete(
     "/{gym_id}/equipment/{equipment_id}",
     response_model=SuccessResponse[dict],
     status_code=200,
     summary="헬스장 기구 삭제",
 )
+@rate_limit("60/minute")
 async def delete_gym_equipment(
     request: Request,
     gym_id: str,
@@ -443,13 +443,13 @@ async def delete_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/report ───────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/report",
     response_model=SuccessResponse[ReportData],
     status_code=201,
     summary="장비 정보 신고",
 )
+@rate_limit("60/minute")
 async def report_gym_equipment(
     request: Request,
     gym_id: str,
@@ -483,13 +483,13 @@ async def report_gym_equipment(
 
 
 # ── POST /gyms/{gymId}/equipment/suggest ─────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/{gym_id}/equipment/suggest",
     response_model=SuccessResponse[SuggestEquipmentData],
     status_code=201,
     summary="미등록 기구 제보",
 )
+@rate_limit("60/minute")
 async def suggest_gym_equipment(
     request: Request,
     gym_id: str,

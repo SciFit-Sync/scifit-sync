@@ -40,8 +40,8 @@ class ExerciseListData(BaseModel):
 
 
 # ── GET /exercises ────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("", response_model=SuccessResponse[ExerciseListData], summary="운동 목록 조회")
+@rate_limit("60/minute")
 async def list_exercises(
     request: Request,
     keyword: str | None = Query(None),
@@ -107,12 +107,12 @@ async def list_exercises(
 
 
 # ── GET /exercises/core-lifts ─────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get(
     "/core-lifts",
     response_model=SuccessResponse[CoreLiftsData],
     summary="핵심 4대 운동 식별자 조회",
 )
+@rate_limit("60/minute")
 async def get_core_lifts(
     request: Request,
     current_user: User = Depends(get_current_user),
