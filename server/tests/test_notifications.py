@@ -189,8 +189,8 @@ class TestMarkAllRead:
     async def test_success_marks_all_and_returns_list(self, client):
         n = _notification(is_read=True)
         db = _make_db(
-            MagicMock(),            # UPDATE 결과 (사용 안 함)
-            _exec_scalars_all([n]), # 갱신 후 목록 조회
+            MagicMock(),  # UPDATE 결과 (사용 안 함)
+            _exec_scalars_all([n]),  # 갱신 후 목록 조회
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -205,7 +205,7 @@ class TestMarkAllRead:
     @pytest.mark.asyncio
     async def test_success_empty_notifications(self, client):
         db = _make_db(
-            MagicMock(),          # UPDATE 결과
+            MagicMock(),  # UPDATE 결과
             _exec_scalars_all([]),
         )
         app.dependency_overrides[get_db] = _db_override(db)
