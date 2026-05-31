@@ -112,7 +112,7 @@ def stage1_fetch(batch_tag: str, mode: str, max_per_category: int | None) -> Pat
 
         from mlops.pipeline.chunker import chunk_papers
         from mlops.pipeline.config import MANIFEST_PATH
-        from mlops.pipeline.crawler import crawl_papers
+        from mlops.pipeline.crawler import backfill_publication_types_from_pubmed, crawl_papers
         from mlops.pipeline.manifest import Manifest
         from mlops.pipeline.models import PaperFull
         from mlops.scripts.export_embeddings import (
@@ -168,6 +168,15 @@ def stage1_fetch(batch_tag: str, mode: str, max_per_category: int | None) -> Pat
         if not all_papers:
             logger.error("Phase 2 fetch: 0 papers — abort")
             raise RuntimeError("Phase 2 fetch produced no papers")
+
+        # ── publication_types 통합 보강 (chunk 전) ──
+        # local PDF는 DOI는 있으나 publication_types가 비어 있고, crawl_papers
+        # 밖에서 합쳐지므로 Fix A 보강을 못 거친다. 보강 없이 chunk하면 PDF 청크가
+        # pub_types=[]로 생성돼 validate fill rate를 희석시킨다. crawl_papers가
+        # 이미 보강한 JATS paper는 멱등적으로 대상에서 제외된다.
+        pdf_backfilled = backfill_publication_types_from_pubmed([pf.meta for pf in all_papers])
+        if pdf_backfilled:
+            logger.info("Phase 2 publication_types 통합 보강: %d papers", pdf_backfilled)
 
         # ── chunks 캐시 저장 (Stage 2+3에서 재사용) ──
         chunks = chunk_papers(all_papers)
