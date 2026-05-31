@@ -15,7 +15,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
-import { getNotifications, markNotificationRead } from "../../services/notifications";
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notifications";
 
 function fmt_relative_time(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -58,12 +58,12 @@ export default function WN01Notifications() {
 
   const mark_all_read = async () => {
     const unread = notifications.filter((n) => !n.is_read);
-    const results = await Promise.allSettled(
-      unread.map((n) => markNotificationRead(token, n.notification_id))
-    );
-    if (results.some((r) => r.status === "fulfilled")) {
+    if (unread.length === 0) return;
+    try {
+      await markAllNotificationsRead(token);
       queryClient.invalidateQueries({ queryKey: ["notifications", token] });
-    } else if (unread.length > 0) {
+      queryClient.invalidateQueries({ queryKey: ["notifications_unread", token] });
+    } catch {
       Alert.alert("오류", "읽음 처리에 실패했습니다. 다시 시도해주세요.");
     }
   };

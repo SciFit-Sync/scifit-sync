@@ -179,3 +179,40 @@ class TestMarkRead:
         resp = await client.patch("/api/v1/notifications/not-a-uuid/read")
 
         assert resp.status_code == 400
+
+
+# ── PATCH /notifications/read-all ────────────────────────────────────────────
+
+
+class TestMarkAllRead:
+    @pytest.mark.asyncio
+    async def test_success_marks_all_and_returns_list(self, client):
+        n = _notification(is_read=True)
+        db = _make_db(
+            MagicMock(),  # UPDATE 결과 (사용 안 함)
+            _exec_scalars_all([n]),  # 갱신 후 목록 조회
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch("/api/v1/notifications/read-all")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["unread_count"] == 0
+        assert len(data["items"]) == 1
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_success_empty_notifications(self, client):
+        db = _make_db(
+            MagicMock(),  # UPDATE 결과
+            _exec_scalars_all([]),
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch("/api/v1/notifications/read-all")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["unread_count"] == 0
+        assert data["items"] == []
