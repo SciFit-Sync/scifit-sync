@@ -996,6 +996,7 @@ async def _run_rag_to_sse(
                     primary_goal=primary_goal,
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
+                    user_gender=profile.gender.value if profile.gender else None,
                     user_gender=profile.gender,
                     db=db,
                 )
