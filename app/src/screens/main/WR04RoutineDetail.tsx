@@ -20,6 +20,7 @@ import { Octicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
+import { useWorkoutSessionStore } from "../../stores/workoutSessionStore";
 import BottomNavBar from "../../components/NavBar";
 import {
   getRoutineDetail,
@@ -125,6 +126,14 @@ export default function WR04RoutineDetail() {
   const [session_started, set_session_started] = useState(false);
   const [is_finishing, set_is_finishing] = useState(false);
 
+  // 워크아웃 세션 스토어 — 화면 이탈 후 복귀 시 체크 상태 복원
+  const ws_set_session = useWorkoutSessionStore((s) => s.set_session);
+  const ws_toggle_set = useWorkoutSessionStore((s) => s.toggle_set);
+  const ws_clear = useWorkoutSessionStore((s) => s.clear);
+  const ws_routine_id = useWorkoutSessionStore((s) => s.routine_id);
+  const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
+  const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
+
   // 바텀시트 애니메이션 (backdrop opacity + sheet translateY)
   const MODAL_DUR = 250;
   const tips_overlay_anim = useRef(new Animated.Value(0)).current;
@@ -186,7 +195,23 @@ export default function WR04RoutineDetail() {
     const sorted = [...day.exercises].sort(
       (a, b) => a.order_index - b.order_index,
     );
-    set_exercises(sorted.map(api_to_exercise));
+    const base = sorted.map(api_to_exercise);
+
+    // 이 루틴의 진행 중 세션이 스토어에 있으면 체크 상태 복원
+    if (ws_routine_id === routine_id && ws_session_id) {
+      session_id_ref.current = ws_session_id;
+      set_session_started(true);
+      const restored = base.map((ex) => ({
+        ...ex,
+        sets: ex.sets.map((s) => ({
+          ...s,
+          is_done: ws_checked_sets[s.id] ?? false,
+        })),
+      }));
+      set_exercises(restored);
+    } else {
+      set_exercises(base);
+    }
   }, [detail, selected_day_idx]);
 
   useEffect(() => {
@@ -249,6 +274,9 @@ export default function WR04RoutineDetail() {
           : e,
       ),
     );
+
+    // 스토어에 체크 상태 저장 (나갔다 돌아와도 유지)
+    ws_toggle_set(set_id, becoming_done);
 
     const rest = ex?.rest_seconds ?? 90;
     if (becoming_done) {
@@ -551,6 +579,8 @@ export default function WR04RoutineDetail() {
     });
     session_id_ref.current = data.session_id;
     set_session_started(true);
+    // 스토어에 세션 ID + 루틴 ID 저장 → 화면 이탈 후 복귀 시 복원에 사용
+    if (routine_id) ws_set_session(routine_id, data.session_id);
     return data.session_id;
   };
 
@@ -590,6 +620,7 @@ export default function WR04RoutineDetail() {
     try {
       set_is_finishing(true);
       await finishSession(token, session_id_ref.current);
+      ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
       navigation.goBack();
     } catch (e: unknown) {
