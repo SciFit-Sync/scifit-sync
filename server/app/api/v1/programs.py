@@ -175,7 +175,6 @@ async def update_program(
         program.description = body.description
 
     await db.commit()
-    await db.refresh(program)
 
     program_loaded = (
         await db.execute(select(Program).where(Program.id == program.id).options(_PROGRAM_LOAD))
