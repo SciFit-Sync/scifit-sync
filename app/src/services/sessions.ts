@@ -5,6 +5,8 @@ export interface SessionCalendarItem {
   session_id: string;
   routine_name: string | null;
   duration_minutes: number | null;
+  total_volume_kg: number;
+  total_sets: number;
 }
 
 export interface SessionCalendarData {

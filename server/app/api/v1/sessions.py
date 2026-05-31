@@ -671,6 +671,26 @@ async def list_sessions(
         ).all()
         routine_name_by_day = {str(did): name for did, name in name_rows}
 
+    # 세션별 총 중량 / 총 세트 집계 (완료된 세트만)
+    session_ids = [r.id for r in rows]
+    session_agg: dict[str, tuple[float, int]] = {}
+    if session_ids:
+        agg_rows = (
+            await db.execute(
+                select(
+                    WorkoutLogSet.workout_log_id,
+                    func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
+                    func.count(WorkoutLogSet.id).label("sets"),
+                )
+                .where(
+                    WorkoutLogSet.workout_log_id.in_(session_ids),
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+                .group_by(WorkoutLogSet.workout_log_id)
+            )
+        ).all()
+        session_agg = {str(sid): (float(vol), int(sets)) for sid, vol, sets in agg_rows}
+
     records = [
         SessionCalendarItem(
             date=s.started_at.date().isoformat(),
@@ -681,6 +701,8 @@ async def list_sessions(
                 if s.finished_at and s.started_at
                 else None
             ),
+            total_volume_kg=session_agg.get(str(s.id), (0.0, 0))[0],
+            total_sets=session_agg.get(str(s.id), (0.0, 0))[1],
         )
         for s in rows
     ]

@@ -74,6 +74,8 @@ class SessionCalendarItem(BaseModel):
     session_id: str
     routine_name: str | None = None
     duration_minutes: int | None = None
+    total_volume_kg: float = 0.0
+    total_sets: int = 0
 
 
 class SessionCalendarData(BaseModel):
