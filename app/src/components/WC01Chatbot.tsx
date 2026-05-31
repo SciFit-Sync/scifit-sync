@@ -13,7 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../assets/colors/colors";
-import { fetchChatHistory, sendChatMessage } from "../services/chat";
+import { sendChatMessage } from "../services/chat";
 import { listRoutines } from "../services/routines";
 import { useAuthStore } from "../stores/authStore";
 
@@ -43,7 +43,6 @@ export default function WC01Chatbot({ onClose }: Props) {
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
-  const has_loaded = useRef(false);
   const access_token = useAuthStore((s) => s.accessToken) ?? "";
 
   useEffect(() => {
@@ -80,21 +79,6 @@ export default function WC01Chatbot({ onClose }: Props) {
       });
   }, []);
 
-  // 세션이 있으면 이전 대화 이력 로드 (최초 1회만 — 스트리밍 중 덮어쓰기 방지)
-  useEffect(() => {
-    if (!session_id || !access_token || has_loaded.current) return;
-    has_loaded.current = true;
-    fetchChatHistory(session_id, access_token)
-      .then((data) => {
-        const loaded: Message[] = data.items.map((m) => ({
-          id: m.message_id,
-          type: m.role === "user" ? "user" : "bot",
-          text: m.content,
-        }));
-        set_messages(loaded);
-      })
-      .catch(() => {});
-  }, [session_id]);
 
   const handle_close = () => {
     Animated.parallel([
@@ -151,7 +135,19 @@ export default function WC01Chatbot({ onClose }: Props) {
     setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const handle_chip_press = (chip: string) => handle_send(chip);
+  const handle_chip_press = (chip: string) => {
+    // 루틴 칩 선택 시 로컬 봇 메시지로 질문 유도 (API 호출 없음)
+    set_messages((prev) => [
+      ...prev,
+      { id: String(Date.now()), type: "user", text: chip },
+      {
+        id: String(Date.now()) + "_bot",
+        type: "bot",
+        text: `"${chip}"가 궁금하시군요!\n운동 방법, 세트·무게 설정, 부상 예방 등\n궁금한 점을 질문해 주세요.`,
+      },
+    ]);
+    setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 100);
+  };
 
   return (
     <Modal
