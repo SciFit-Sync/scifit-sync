@@ -57,8 +57,8 @@ def _program_to_dto(program: Program) -> ProgramItem:
 
 
 # ── GET /programs ─────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("", response_model=SuccessResponse[ProgramListData], summary="프로그램 목록 조회")
+@rate_limit("60/minute")
 async def list_programs(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -80,8 +80,8 @@ async def list_programs(
 
 
 # ── POST /programs ────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post("", response_model=SuccessResponse[ProgramItem], status_code=201, summary="프로그램 생성")
+@rate_limit("60/minute")
 async def create_program(
     request: Request,
     body: CreateProgramRequest,
@@ -128,8 +128,8 @@ async def create_program(
 
 
 # ── GET /programs/{id} ────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("/{program_id}", response_model=SuccessResponse[ProgramItem], summary="프로그램 상세 조회")
+@rate_limit("60/minute")
 async def get_program(
     request: Request,
     program_id: str,
@@ -150,8 +150,8 @@ async def get_program(
 
 
 # ── PATCH /programs/{id} ─────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/{program_id}", response_model=SuccessResponse[ProgramItem], summary="프로그램 수정")
+@rate_limit("60/minute")
 async def update_program(
     request: Request,
     program_id: str,
@@ -185,8 +185,8 @@ async def update_program(
 
 
 # ── DELETE /programs/{id} ─────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.delete("/{program_id}", response_model=SuccessResponse[DeleteProgramData], summary="프로그램 삭제")
+@rate_limit("60/minute")
 async def delete_program(
     request: Request,
     program_id: str,
