@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -9,81 +10,54 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
+import { useAuthStore } from "../../stores/authStore";
+import { getNotifications, markNotificationRead } from "../../services/notifications";
 
-interface Notification {
-  id: string;
-  title: string;
-  body: string;
-  time: string;
-  is_read: boolean;
-  type: "routine" | "ai" | "system";
+function fmt_relative_time(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "방금 전";
+  if (mins < 60) return `${mins}분 전`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "어제";
+  if (days < 7) return `${days}일 전`;
+  return `${Math.floor(days / 7)}주 전`;
 }
 
-const mock_notifications: Notification[] = [
-  {
-    id: "1",
-    title: "루틴 알림",
-    body: "오늘 상체 근비대 루틴이 예정되어 있어요!",
-    time: "방금 전",
-    is_read: false,
-    type: "routine",
-  },
-  {
-    id: "2",
-    title: "AI 가이드",
-    body: "벤치프레스 1RM이 5kg 증가했어요! 새로운 루틴을 추천해드릴까요?",
-    time: "1시간 전",
-    is_read: false,
-    type: "ai",
-  },
-  {
-    id: "3",
-    title: "루틴 알림",
-    body: "어제 하체 강화 루틴을 완료하지 못했어요. 오늘 진행해보세요!",
-    time: "어제",
-    is_read: true,
-    type: "routine",
-  },
-  {
-    id: "4",
-    title: "시스템",
-    body: "SciFit-Sync 앱이 업데이트 되었어요. 새로운 기능을 확인해보세요!",
-    time: "3일 전",
-    is_read: true,
-    type: "system",
-  },
-  {
-    id: "5",
-    title: "AI 가이드",
-    body: "이번 주 운동 목표의 80%를 달성했어요. 조금만 더 힘내세요!",
-    time: "5일 전",
-    is_read: true,
-    type: "ai",
-  },
-];
-
-const get_icon = (type: Notification["type"]) => {
-  switch (type) {
-    case "routine":
-      return "calendar";
-    case "ai":
-      return "light-bulb";
-    case "system":
-      return "bell";
-  }
-};
+function get_icon(type: string): string {
+  if (type.includes("routine") || type.includes("ROUTINE")) return "calendar";
+  if (type.includes("ai") || type.includes("AI") || type.includes("po") || type.includes("PO")) return "light-bulb";
+  return "bell";
+}
 
 export default function WN01Notifications() {
   const navigation = useNavigation();
-  const [notifications, set_notifications] = useState(mock_notifications);
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+  const queryClient = useQueryClient();
 
-  const mark_all_read = () => {
-    set_notifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  const { data, isLoading } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => getNotifications(token),
+    enabled: !!token,
+  });
+
+  const notifications = data?.items ?? [];
+
+  const mark_read = async (id: string) => {
+    await markNotificationRead(token, id).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
   };
 
-  const unread_count = notifications.filter((n) => !n.is_read).length;
+  const mark_all_read = async () => {
+    const unread = notifications.filter((n) => !n.is_read);
+    await Promise.allSettled(unread.map((n) => markNotificationRead(token, n.notification_id)));
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  };
 
   return (
     <View style={styles.container}>
@@ -113,32 +87,21 @@ export default function WN01Notifications() {
             </TouchableOpacity>
           </View>
 
-          {/* 알림 목록 */}
-          {notifications.length > 0 ? (
+          {isLoading ? (
+            <ActivityIndicator color={colors.primary} style={{ paddingVertical: 40 }} />
+          ) : notifications.length > 0 ? (
             <View style={styles.notification_list}>
               {notifications.map((item, index) => (
-                <View key={item.id}>
+                <View key={item.notification_id}>
                   <TouchableOpacity
                     style={[
                       styles.notification_item,
                       !item.is_read && styles.notification_item_unread,
                     ]}
-                    onPress={() =>
-                      set_notifications((prev) =>
-                        prev.map((n) =>
-                          n.id === item.id ? { ...n, is_read: true } : n,
-                        ),
-                      )
-                    }
+                    onPress={() => !item.is_read && mark_read(item.notification_id)}
                     activeOpacity={0.8}
                   >
-                    {/* 아이콘 */}
-                    <View
-                      style={[
-                        styles.icon_box,
-                        !item.is_read && styles.icon_box_unread,
-                      ]}
-                    >
+                    <View style={[styles.icon_box, !item.is_read && styles.icon_box_unread]}>
                       <Octicons
                         name={get_icon(item.type) as any}
                         size={18}
@@ -146,35 +109,25 @@ export default function WN01Notifications() {
                       />
                     </View>
 
-                    {/* 내용 */}
                     <View style={styles.notification_content}>
                       <View style={styles.notification_header}>
-                        <Text style={styles.notification_title}>
-                          {item.title}
-                        </Text>
+                        <Text style={styles.notification_title}>{item.title}</Text>
                         <Text style={styles.notification_time}>
-                          {item.time}
+                          {fmt_relative_time(item.created_at)}
                         </Text>
                       </View>
                       <Text
-                        style={[
-                          styles.notification_body,
-                          item.is_read && styles.notification_body_read,
-                        ]}
+                        style={[styles.notification_body, item.is_read && styles.notification_body_read]}
                         numberOfLines={2}
                       >
                         {item.body}
                       </Text>
                     </View>
 
-                    {/* 읽지 않은 점 */}
                     {!item.is_read && <View style={styles.unread_dot} />}
                   </TouchableOpacity>
 
-                  {/* 구분선 */}
-                  {index < notifications.length - 1 && (
-                    <View style={styles.divider} />
-                  )}
+                  {index < notifications.length - 1 && <View style={styles.divider} />}
                 </View>
               ))}
             </View>
@@ -187,7 +140,6 @@ export default function WN01Notifications() {
         </View>
       </ScrollView>
 
-      {/* 하단 네브바 */}
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
       </SafeAreaView>
