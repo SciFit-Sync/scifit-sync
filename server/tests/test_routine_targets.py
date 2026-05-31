@@ -10,8 +10,8 @@ load_calc.py 자체의 100% 커버리지는 tests/test_load_calc.py에서 유지
 import pytest
 
 from app.services.routine_targets import (
-    DEFAULT_REST_SECONDS,
     DEFAULT_SETS,
+    _REST_BY_GOAL,
     derive_exercise_targets,
     recommended_weight_kg,
 )
@@ -70,20 +70,21 @@ class TestRecommendedWeightKg:
 class TestDeriveExerciseTargets:
     """LLM 출력 + 1RM → RoutineExercise dict 변환."""
 
-    def test_all_llm_values_passthrough(self):
+    def test_llm_sets_reps_passthrough_rest_goal_based(self):
+        # llm_rest_seconds는 무시되고 목표별 고정값(_REST_BY_GOAL)이 사용됨
         result = derive_exercise_targets(
             goal="hypertrophy",
             user_1rm_kg=100.0,
             llm_sets=4,
             llm_reps_min=8,
             llm_reps_max=12,
-            llm_rest_seconds=90,
+            llm_rest_seconds=999,  # 무시되어야 함
         )
         assert result == {
             "sets": 4,
             "reps_min": 8,
             "reps_max": 12,
-            "rest_seconds": 90,
+            "rest_seconds": _REST_BY_GOAL["hypertrophy"],  # 90
             "weight_kg": 72.5,
         }
 
@@ -101,7 +102,7 @@ class TestDeriveExerciseTargets:
     def test_default_sets_when_llm_omits(self):
         result = derive_exercise_targets(goal="hypertrophy")
         assert result["sets"] == DEFAULT_SETS
-        assert result["rest_seconds"] == DEFAULT_REST_SECONDS
+        assert result["rest_seconds"] == _REST_BY_GOAL["hypertrophy"]
 
     def test_default_reps_match_goal_hypertrophy(self):
         result = derive_exercise_targets(goal="hypertrophy")
@@ -125,17 +126,18 @@ class TestDeriveExerciseTargets:
 
     def test_string_numbers_coerced(self):
         # LLM이 가끔 "8" 같은 문자열로 보내는 경우
+        # llm_rest_seconds는 문자열이어도 무시되고 목표별 고정값이 사용됨
         result = derive_exercise_targets(
             goal="hypertrophy",
             llm_sets="4",
             llm_reps_min="10",
             llm_reps_max="15",
-            llm_rest_seconds="120",
+            llm_rest_seconds="120",  # 무시됨
         )
         assert result["sets"] == 4
         assert result["reps_min"] == 10
         assert result["reps_max"] == 15
-        assert result["rest_seconds"] == 120
+        assert result["rest_seconds"] == _REST_BY_GOAL["hypertrophy"]  # 90
 
     def test_invalid_strings_fallback_to_defaults(self):
         result = derive_exercise_targets(
@@ -163,9 +165,10 @@ class TestDeriveExerciseTargets:
         result = derive_exercise_targets(goal="hypertrophy", llm_sets=0)
         assert result["sets"] == 1
 
-    def test_negative_rest_clamped_to_zero(self):
+    def test_llm_rest_seconds_ignored(self):
+        # llm_rest_seconds는 어떤 값이어도 무시되고 목표별 고정값이 반환됨
         result = derive_exercise_targets(goal="hypertrophy", llm_rest_seconds=-30)
-        assert result["rest_seconds"] == 0
+        assert result["rest_seconds"] == _REST_BY_GOAL["hypertrophy"]
 
     def test_unknown_goal_falls_back_to_hypertrophy(self):
         result = derive_exercise_targets(goal="bulking_mode", user_1rm_kg=100.0)
@@ -211,3 +214,18 @@ class TestDeriveExerciseTargets:
         result = derive_exercise_targets(goal=goal)
         assert result["reps_min"] == expected_low_reps
         assert result["reps_max"] == expected_high_reps
+
+    @pytest.mark.parametrize(
+        "goal,expected_rest",
+        [
+            ("strength", 180),
+            ("hypertrophy", 90),
+            ("endurance", 45),
+            ("weight_loss", 45),
+            ("rehabilitation", 60),
+        ],
+    )
+    def test_rest_seconds_goal_based(self, goal, expected_rest):
+        # llm_rest_seconds는 무시되고 목표별 고정값이 항상 반환됨
+        result = derive_exercise_targets(goal=goal, llm_rest_seconds=999)
+        assert result["rest_seconds"] == expected_rest
