@@ -176,8 +176,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             # activation_pct 실제값이 있으면 그대로 사용
             if any(pct is not None for _, pct, _ in muscles):
                 muscle_activation_map[eid] = [
-                    MuscleActivationItem(muscle=name, activation_pct=pct)
-                    for name, pct, _ in muscles
+                    MuscleActivationItem(muscle=name, activation_pct=pct) for name, pct, _ in muscles
                 ]
                 continue
 
@@ -820,7 +819,9 @@ async def _build_rag_profile(
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
     # 5. DB exercises name_en 목록 → LLM 프롬프트에 허용 이름 제공 (매칭 실패 방지)
-    exercise_name_rows = (await db.execute(select(Exercise.name_en).where(Exercise.name_en.isnot(None)))).scalars().all()
+    exercise_name_rows = (
+        (await db.execute(select(Exercise.name_en).where(Exercise.name_en.isnot(None)))).scalars().all()
+    )
     available_exercises = sorted({n.strip() for n in exercise_name_rows if n and n.strip()})
 
     return RagUserProfile(

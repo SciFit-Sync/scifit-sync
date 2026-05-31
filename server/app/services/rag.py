@@ -386,7 +386,9 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         for i, chunk in enumerate(chunks[:5], 1):
             context_parts.append(f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}")
         context = "\n".join(context_parts)
-        paper_index_rule = f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        paper_index_rule = (
+            f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        )
     else:
         # ChromaDB 데이터 없음 — 논문 없이 스포츠 과학 지식으로 생성 (개발/테스트 환경 fallback)
         logger.info("RAG fallback: 논문 없이 LLM 지식 기반 루틴 생성")
