@@ -173,7 +173,10 @@ def print_report(result: ValidationResult, out=sys.stderr) -> None:
         ),
         (
             "evidence_weight distinct",
-            result.evidence_weight_distinct >= EVIDENCE_WEIGHT_DISTINCT_MIN,
+            # 라벨은 passed 집계(63~64행)와 동일하게 distinct + 0.5비율 둘 다 반영.
+            # 이전엔 distinct만 봐서 0.5비율 초과(예: 0.71)가 [OK]로 가려졌다.
+            result.evidence_weight_distinct >= EVIDENCE_WEIGHT_DISTINCT_MIN
+            and result.evidence_weight_05_ratio < EVIDENCE_WEIGHT_05_RATIO_MAX,
             f"{result.evidence_weight_distinct} values, 0.5 ratio={result.evidence_weight_05_ratio:.2f}",
         ),
         (
