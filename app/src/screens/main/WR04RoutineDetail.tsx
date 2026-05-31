@@ -296,6 +296,10 @@ export default function WR04RoutineDetail() {
               is_completed: true,
             }),
           )
+          .then(() => {
+            // 세트 저장 완료 → 기록 탭이 즉시 반영되도록 sessions 캐시 무효화
+            query_client.invalidateQueries({ queryKey: ["sessions"] });
+          })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
             Alert.alert(
