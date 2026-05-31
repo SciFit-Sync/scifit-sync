@@ -284,8 +284,10 @@ export default function WR04RoutineDetail() {
       set_is_timer_running(true);
       if (ex && current_set) {
         ensure_session()
-          .then((sid) =>
-            logSet(token, sid, {
+          .then((sid) => {
+            // 세션 생성 완료 → 기록 탭이 세션을 즉시 인식하도록 캐시 무효화
+            query_client.invalidateQueries({ queryKey: ["sessions"] });
+            return logSet(token, sid, {
               exercise_id: ex.exercise_id,
               routine_exercise_id: ex.id,
               set_number: set_index + 1,
@@ -294,10 +296,10 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
-            }),
-          )
+            });
+          })
           .then(() => {
-            // 세트 저장 완료 → 기록 탭이 즉시 반영되도록 sessions 캐시 무효화
+            // 세트 저장 완료 → 볼륨/세트 통계 반영되도록 재무효화
             query_client.invalidateQueries({ queryKey: ["sessions"] });
           })
           .catch(() => {
