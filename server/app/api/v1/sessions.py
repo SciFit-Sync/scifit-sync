@@ -213,7 +213,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         if equipment_id:
             equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
 
-        eq_type = equipment.equipment_type.value if equipment else "machine"
+        eq_type = str(equipment.equipment_type) if equipment else "machine"
         max_stack = equipment.max_stack if equipment else None
 
         stats = (

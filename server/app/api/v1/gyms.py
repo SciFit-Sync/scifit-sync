@@ -57,7 +57,7 @@ def _ratio_str(pulley_ratio: float) -> str:
 
 
 def _equipment_to_gym_dto(e: Equipment) -> GymEquipmentItem:
-    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    is_cable_machine = str(e.equipment_type) in ("cable", "machine")
     sw = None
     if is_cable_machine and e.stack_weight and isinstance(e.stack_weight, dict):
         sw = float(e.stack_weight["value"]) if "value" in e.stack_weight else None

@@ -19,6 +19,8 @@ export interface SendMessageCallbacks {
   on_done: () => void;
   on_error: (msg: string) => void;
   on_sources?: (sources: { doi: string; pmid?: string; title?: string }[]) => void;
+  /** XHR 인스턴스를 받아 abort 가능하게 하는 콜백 (언마운트 정리용) */
+  on_abort_fn?: (abort: () => void) => void;
 }
 
 /**
@@ -47,11 +49,15 @@ export function sendChatMessage(
     xhr.open('POST', `${API_BASE}/api/v1/chat/messages`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 60000; // LLM 무응답 시 60초 타임아웃
 
     xhr.onprogress = () => {
-      const new_text = xhr.responseText.slice(last_index);
-      last_index = xhr.responseText.length;
-      const lines = new_text.split('\n');
+      const buffered = xhr.responseText.slice(last_index);
+      const nl = buffered.lastIndexOf('\n');
+      if (nl === -1) return; // 완결된 라인 없으면 대기
+      const consumable = buffered.slice(0, nl);
+      last_index += nl + 1; // 개행까지만 소비 (불완전 마지막 라인 보존)
+      const lines = consumable.split('\n');
       for (const line of lines) {
         if (!line.startsWith('data:')) continue;
         const raw = line.slice(5).trim();
@@ -95,6 +101,20 @@ export function sendChatMessage(
       callbacks.on_error('네트워크 오류가 발생했습니다.');
       finish();
     };
+
+    xhr.ontimeout = () => {
+      callbacks.on_error('응답 시간이 초과됐습니다. 다시 시도해 주세요.');
+      finish();
+    };
+
+    // 언마운트 시 abort 가능하도록 abort 함수를 컴포넌트에 전달
+    callbacks.on_abort_fn?.(() => {
+      if (!finished) {
+        finished = true;
+        xhr.abort();
+        resolve();
+      }
+    });
 
     xhr.send(JSON.stringify({ content, session_id: session_id ?? null }));
   });

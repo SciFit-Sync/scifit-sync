@@ -87,18 +87,21 @@ export default function WH02Analysis() {
     queryKey: ["session-stats"],
     queryFn: () => getSessionStats(token),
     enabled: !!token,
+    staleTime: 30_000, // M-6: 30초 내 재포커스 시 불필요한 네트워크 요청 방지
   });
 
   const { data: volumeData } = useQuery({
     queryKey: ["volume-analysis", 7],
     queryFn: () => getVolumeAnalysis(token, 7),
     enabled: !!token,
+    staleTime: 30_000,
   });
 
   const { data: muscleData, isLoading: muscleLoading } = useQuery({
     queryKey: ["muscle-volume", "WEEK"],
     queryFn: () => getMuscleVolumeAnalysis(token, "WEEK"),
     enabled: !!token,
+    staleTime: 30_000,
   });
 
   const barData = useMemo(() => {

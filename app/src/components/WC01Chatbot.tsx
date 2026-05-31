@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../assets/colors/colors";
@@ -18,7 +18,16 @@ import { sendChatMessage } from "../services/chat";
 import { listRoutines } from "../services/routines";
 import { useAuthStore } from "../stores/authStore";
 
-const CHAT_STORAGE_KEY = "chatbot_messages_v1";
+/** JWT payload를 디코드해서 sub(user_id)를 추출 */
+function decode_jwt_sub(token: string): string {
+  try {
+    const payload = token.split(".")[1];
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return (JSON.parse(decoded) as { sub?: string }).sub ?? "anonymous";
+  } catch {
+    return "anonymous";
+  }
+}
 
 interface Message {
   id: string;
@@ -56,7 +65,25 @@ export default function WC01Chatbot({ onClose }: Props) {
   const scale_anim = useRef(new Animated.Value(0.95)).current;
   const access_token = useAuthStore((s) => s.accessToken) ?? "";
 
+  // M-1: user_id 기반 격리 키 — A 로그아웃 후 B 로그인 시 대화 노출 방지
+  const chat_storage_key = useMemo(
+    () => `chatbot_messages_v1_${decode_jwt_sub(access_token)}`,
+    [access_token]
+  );
+
+  // M-3: 언마운트 시 XHR abort + setState 방지
+  const is_mounted_ref = useRef(true);
+  const xhr_abort_ref = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      is_mounted_ref.current = false;
+      xhr_abort_ref.current?.();
+    };
+  }, []);
+
   // 진입 애니메이션 + 저장된 대화 or 신규 인사 로드
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fade_anim, {
@@ -75,11 +102,11 @@ export default function WC01Chatbot({ onClose }: Props) {
       // 1. 저장된 대화 이력 로드
       let restored = false;
       try {
-        const json = await AsyncStorage.getItem(CHAT_STORAGE_KEY);
+        const json = await AsyncStorage.getItem(chat_storage_key);
         if (json) {
           const saved = JSON.parse(json) as Message[];
           if (saved.length > 0) {
-            set_messages(saved);
+            if (is_mounted_ref.current) set_messages(saved);
             restored = true;
           }
         }
@@ -91,6 +118,7 @@ export default function WC01Chatbot({ onClose }: Props) {
       try {
         const data = await listRoutines(access_token);
         const chips = data.items.map((r) => r.name);
+        if (!is_mounted_ref.current) return;
 
         if (!restored) {
           // 저장 내역 없음 → 신규 인사 메시지
@@ -125,11 +153,11 @@ export default function WC01Chatbot({ onClose }: Props) {
         // listRoutines 실패 시 현재 메시지 유지
       }
     })();
-  }, []);
+  }, []); // access_token은 마운트 시 한 번만 읽으면 되므로 의도적으로 [] 사용
 
   const handle_new_chat = async () => {
     // 저장된 대화 삭제 + 세션 초기화
-    await AsyncStorage.removeItem(CHAT_STORAGE_KEY).catch(() => {});
+    await AsyncStorage.removeItem(chat_storage_key).catch(() => {});
     set_session_id(undefined);
     set_input("");
     const now = Date.now();
@@ -161,8 +189,8 @@ export default function WC01Chatbot({ onClose }: Props) {
   };
 
   const handle_close = () => {
-    // 닫기 전 대화 저장
-    AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)).catch(() => {});
+    // 닫기 전 대화 저장 (M-2: 최대 100개 유지 — AsyncStorage 6MB 한계 방어)
+    AsyncStorage.setItem(chat_storage_key, JSON.stringify(messages.slice(-100))).catch(() => {});
 
     Animated.parallel([
       Animated.timing(fade_anim, {
@@ -200,28 +228,36 @@ export default function WC01Chatbot({ onClose }: Props) {
         content,
         access_token,
         {
-          on_session_id: (sid) => set_session_id(sid),
+          on_session_id: (sid) => {
+            if (is_mounted_ref.current) set_session_id(sid);
+          },
           on_chunk: (chunk) => {
+            if (!is_mounted_ref.current) return;
             set_messages((prev) =>
               prev.map((m) => (m.id === bot_id ? { ...m, text: m.text + chunk } : m))
             );
             setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 50);
           },
-          on_done: () => set_is_sending(false),
+          on_done: () => {
+            if (is_mounted_ref.current) set_is_sending(false);
+          },
           on_error: (msg) => {
+            if (!is_mounted_ref.current) return;
             set_messages((prev) =>
               prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
             );
             set_is_sending(false);
           },
+          // M-3: XHR abort 함수 저장 — 언마운트 시 useEffect cleanup에서 호출
+          on_abort_fn: (fn) => { xhr_abort_ref.current = fn; },
         },
         session_id
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
+      if (!is_mounted_ref.current) return;
+      const msg = e instanceof Error ? e.message : "오류가 발생했습니다.";
       set_messages((prev) =>
-        prev.map((m) =>
-          m.id === bot_id ? { ...m, text: e.message ?? "오류가 발생했습니다." } : m
-        )
+        prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
       );
       set_is_sending(false);
     }

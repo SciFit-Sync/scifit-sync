@@ -384,8 +384,8 @@ def _equipment_to_dto(e: Equipment) -> UserEquipmentItem:
     return UserEquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
-        category=e.category.value if e.category else None,
-        equipment_type=e.equipment_type.value if e.equipment_type else "machine",
+        category=str(e.category) if e.category else None,
+        equipment_type=str(e.equipment_type) if e.equipment_type else "machine",
         pulley_ratio=e.pulley_ratio,
         bar_weight=e.bar_weight,
         image_url=e.image_url,

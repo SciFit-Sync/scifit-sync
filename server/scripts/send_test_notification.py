@@ -60,7 +60,16 @@ TEST_NOTIFICATIONS = {
 
 
 async def main():
-    email = sys.argv[1] if len(sys.argv) > 1 else "2ziziy@hufs.ac.kr"
+    default_email = os.getenv("TEST_EMAIL")
+    if len(sys.argv) > 1:
+        email = sys.argv[1]
+    elif default_email:
+        email = default_email
+    else:
+        print("❌ 이메일 인자가 필요합니다.")
+        print("사용법: python scripts/send_test_notification.py <이메일> [타입]")
+        print("또는 TEST_EMAIL 환경변수를 설정하세요.")
+        sys.exit(1)
     ntype = sys.argv[2] if len(sys.argv) > 2 else "motivation"
 
     if ntype not in TEST_NOTIFICATIONS:
