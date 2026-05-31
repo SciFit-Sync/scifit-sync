@@ -193,7 +193,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         ).all()
 
         recent_max_reps = [int(r.max_reps) for r in recent_rows if r.max_reps is not None]
-        if not check_po_trigger(recent_max_reps, goal):
+        if not po.check_po_trigger(recent_max_reps, goal):
             continue
 
         equipment_id = (
@@ -232,7 +232,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         current_weight = float(stats.weight or 0)
         current_sets = int(stats.sets or 0)
 
-        result = calculate_increase(eq_type, goal, current_weight, current_sets, max_stack)
+        result = po.calculate_increase(eq_type, goal, current_weight, current_sets, max_stack)
 
         ex_name = (
             await db.execute(select(Exercise.name).where(Exercise.id == exercise_id))
