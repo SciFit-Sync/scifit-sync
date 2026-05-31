@@ -92,13 +92,13 @@ def _measurement_to_dto(m: UserBodyMeasurement | None) -> BodyMeasurementData | 
 
 
 # ── POST /users/me/onboard ───────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/me/onboard",
     response_model=SuccessResponse[OnboardData],
     status_code=201,
     summary="온보딩 완료 (최초 신체정보 등록)",
 )
+@rate_limit("60/minute")
 async def onboard(
     request: Request,
     body: OnboardRequest,
@@ -163,8 +163,8 @@ async def onboard(
 
 
 # ── GET /users/me ─────────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("/me", response_model=SuccessResponse[MeData], summary="내 정보 조회")
+@rate_limit("60/minute")
 async def get_me(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -224,8 +224,8 @@ async def get_me(
 
 
 # ── PATCH /users/me/body ──────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/body", response_model=SuccessResponse[UpdateBodyData], summary="신체 정보 수정")
+@rate_limit("60/minute")
 async def update_body(
     request: Request,
     body: UpdateBodyRequest,
@@ -284,8 +284,8 @@ async def update_body(
 
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/goal", response_model=SuccessResponse[ProfileData], summary="운동 목표 수정")
+@rate_limit("60/minute")
 async def update_goal(
     request: Request,
     body: UpdateGoalRequest,
@@ -302,8 +302,8 @@ async def update_goal(
 
 
 # ── PATCH /users/me/career ────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/career", response_model=SuccessResponse[ProfileData], summary="경력 수정")
+@rate_limit("60/minute")
 async def update_career(
     request: Request,
     body: UpdateCareerRequest,
@@ -327,8 +327,8 @@ async def update_career(
 
 
 # ── POST /users/me/gym ────────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post("/me/gym", response_model=SuccessResponse[GymData], status_code=201, summary="주 헬스장 등록")
+@rate_limit("60/minute")
 async def add_primary_gym(
     request: Request,
     body: SetPrimaryGymRequest,
@@ -368,8 +368,8 @@ async def add_primary_gym(
 
 
 # ── PATCH /users/me/gym ───────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.patch("/me/gym", response_model=SuccessResponse[GymData], summary="주 헬스장 변경")
+@rate_limit("60/minute")
 async def change_primary_gym(
     request: Request,
     body: SetPrimaryGymRequest,
@@ -391,8 +391,8 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
     )
 
 
-@rate_limit("60/minute")
 @router.post("/me/1rm", response_model=SuccessResponse[OneRMData], status_code=201, summary="1RM 등록")
+@rate_limit("60/minute")
 async def add_1rm(
     request: Request,
     body: Add1RMRequest,
@@ -427,8 +427,8 @@ async def add_1rm(
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
-@rate_limit("60/minute")
 @router.patch("/me/1rm", response_model=SuccessResponse[OneRMData], summary="1RM 수정")
+@rate_limit("60/minute")
 async def update_1rm(
     request: Request,
     body: Add1RMRequest,
@@ -464,13 +464,13 @@ async def update_1rm(
 
 
 # ── POST /users/me/1rm/bulk ─────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.post(
     "/me/1rm/bulk",
     response_model=SuccessResponse[BulkOneRMData],
     status_code=201,
     summary="1RM 일괄 등록 (온보딩용)",
 )
+@rate_limit("60/minute")
 async def bulk_add_1rm(
     request: Request,
     body: BulkAdd1RMRequest,
@@ -532,8 +532,8 @@ async def bulk_add_1rm(
     return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
 
 
-@rate_limit("60/minute")
 @router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
+@rate_limit("60/minute")
 async def list_1rms(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -550,8 +550,8 @@ async def list_1rms(
 
 
 # ── /users/me/equipment ───────────────────────────────────────────────────────
-@rate_limit("60/minute")
 @router.get("/me/equipment", response_model=SuccessResponse[UserEquipmentListData], summary="내 보유 장비")
+@rate_limit("60/minute")
 async def list_my_equipment(
     request: Request,
     current_user: User = Depends(get_current_user),
@@ -593,13 +593,13 @@ async def list_my_equipment(
     return SuccessResponse(data=UserEquipmentListData(items=items))
 
 
-@rate_limit("60/minute")
 @router.post(
     "/me/equipment",
     response_model=SuccessResponse[UserEquipmentItem],
     status_code=201,
     summary="장비 추가 (스폿)",
 )
+@rate_limit("60/minute")
 async def add_my_equipment(
     request: Request,
     body: AddUserEquipmentRequest,
