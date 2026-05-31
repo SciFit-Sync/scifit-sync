@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_PATH: str = "/chroma-data"
     CHROMA_COLLECTION_NAME: str = "paper_chunks"
 
+    # AWS SES
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    SES_FROM_EMAIL: str = ""  # SES에서 발신자 인증된 이메일
+
     # Admin
     ADMIN_API_TOKEN: str = ""
 

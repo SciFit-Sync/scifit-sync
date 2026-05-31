@@ -21,6 +21,7 @@ down_revision = "008"
 branch_labels = None
 depends_on = None
 
+
 # mlops/data/equipments_seed.csv 위치는 실행 환경에 따라 다르다:
 #   - Local alembic (cwd=repo_root): repo_root/mlops/data/...    (4 parent up)
 #   - docker-compose (mlops volume to /app/mlops): /app/mlops/data/... (3 parent up)

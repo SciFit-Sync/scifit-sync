@@ -91,8 +91,10 @@ _MOCK_USER = _mock_user()
 async def client():
     app.dependency_overrides[get_required_profile] = lambda: _MOCK_USER
     transport = ASGITransport(app=app)
+
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
     app.dependency_overrides.clear()
 
 
@@ -209,8 +211,10 @@ class TestFinishSession:
     @pytest.mark.asyncio
     async def test_success(self, client):
         session = _mock_session()
+
         db = _make_db(
             _exec_scalar(session),  # _get_my_session
+            _exec_scalars_all([]),  # ex_rows in _create_po_notifications
             _exec_scalar_one(0),  # total_sets
             _exec_scalar_one(0),  # completed_exercises
             _exec_scalar(None),  # UserBodyMeasurement (없으면 70kg 기본값)
@@ -267,6 +271,7 @@ class TestSessionStats:
     @pytest.mark.asyncio
     async def test_success(self, client):
         finished_at = _NOW + timedelta(minutes=60)
+
         db = _make_db(
             _exec_scalar_raw(5),  # total_sessions count
             _exec_scalar_raw(12500.0),  # total_volume
@@ -383,6 +388,7 @@ class TestRestTimer:
         session = _mock_session()
         rex = MagicMock()
         rex.rest_seconds = 120
+
         db = _make_db(_exec_scalar(session), _exec_scalar(rex))
         app.dependency_overrides[get_db] = _db_override(db)
 

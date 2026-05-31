@@ -62,6 +62,7 @@ from app.schemas.auth import (
     WithdrawRequest,
 )
 from app.schemas.common import SuccessResponse
+from app.services.ses import send_otp_email
 
 logger = logging.getLogger(__name__)
 
@@ -424,17 +425,11 @@ async def withdraw(
     ):
         raise UnauthorizedError(message="비밀번호가 올바르지 않습니다.")
 
-    current_user.is_active = False
-    # 모든 refresh token 무효화
-    refresh_tokens = (
-        (await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))).scalars().all()
-    )
-    now_utc = _utcnow()
-    for rt in refresh_tokens:
-        rt.revoked_at = now_utc
+    user_id = current_user.id
+    await db.delete(current_user)
     await db.commit()
 
-    logger.info("User %s withdrew", current_user.id)
+    logger.info("User %s withdrew", user_id)
     return SuccessResponse(data=WithdrawData(message="회원 탈퇴가 완료되었습니다."))
 
 
