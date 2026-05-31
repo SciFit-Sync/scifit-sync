@@ -10,8 +10,8 @@ load_calc.py 자체의 100% 커버리지는 tests/test_load_calc.py에서 유지
 import pytest
 
 from app.services.routine_targets import (
-    DEFAULT_SETS,
     _REST_BY_GOAL,
+    DEFAULT_SETS,
     derive_exercise_targets,
     recommended_weight_kg,
 )
