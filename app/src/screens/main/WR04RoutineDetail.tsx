@@ -78,7 +78,7 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
         ? String(item.reps_min)
         : "10";
   const sets: Set[] = Array.from({ length: item.sets }, (_, i) => ({
-    id: String(i + 1),
+    id: `${item.routine_exercise_id}_${i + 1}`,
     weight: default_weight,
     reps: default_reps,
     is_done: false,
