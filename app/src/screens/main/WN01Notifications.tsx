@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -62,6 +63,8 @@ export default function WN01Notifications() {
     );
     if (results.some((r) => r.status === "fulfilled")) {
       queryClient.invalidateQueries({ queryKey: ["notifications", token] });
+    } else if (unread.length > 0) {
+      Alert.alert("오류", "읽음 처리에 실패했습니다. 다시 시도해주세요.");
     }
   };
 

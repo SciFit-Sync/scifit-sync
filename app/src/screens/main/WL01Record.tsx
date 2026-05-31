@@ -49,13 +49,13 @@ export default function WL01Record() {
   const [selected_day, set_selected_day] = useState<number | null>(null);
 
   const { data: calendarData, isLoading: calendarLoading } = useQuery({
-    queryKey: ["sessions-calendar", token, year, month],
+    queryKey: ["sessions", "calendar", token, year, month],
     queryFn: () => getSessions(token, year, month),
     enabled: !!token,
   });
 
   const { data: statsData } = useQuery({
-    queryKey: ["session-stats", token],
+    queryKey: ["sessions", "stats", token],
     queryFn: () => getSessionStats(token),
     enabled: !!token,
   });
@@ -104,7 +104,6 @@ export default function WL01Record() {
   const top_stats = selected_day !== null
     ? [
         { value: fmt_duration(total_duration || null), label: "운동 시간" },
-        { value: "-", label: "총 세트" },
         { value: `${day_records.length}회`, label: "세션 수" },
       ]
     : [
