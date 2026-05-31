@@ -369,3 +369,67 @@ def test_stage4_upsert_progress_atomic_no_tmp_leftover(monkeypatch, tmp_path):
 
     leftover = list(tmp_path.glob("upsert_progress_*.tmp.*"))
     assert leftover == [], f".tmp 잔여물: {leftover}"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# stage1_fetch phase2_full — local PDF publication_types 보강 wiring
+# local PDF는 DOI는 있으나 publication_types가 비어 있어, crawl_papers 밖에서
+# 합쳐지는 PDF paper도 chunk 전에 보강돼야 validate fill rate 희석을 막는다.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_phase2_full_backfills_local_pdf_publication_types(monkeypatch, tmp_path):
+    """phase2_full은 통합 set(크롤+local PDF)에 publication_types 보강을 적용해야 한다."""
+    import json as _json
+
+    import mlops.scripts.full_reingest as fr
+    from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
+
+    monkeypatch.setattr(fr, "DATA_DIR", tmp_path)
+    pdf_root = tmp_path / "local_pdfs"
+    pdf_root.mkdir(parents=True)
+    (pdf_root / "manifest.json").write_text(
+        _json.dumps({"papers": [{"doi": "10.1/pdf", "title": "P", "filename": "p.pdf"}]}),
+        encoding="utf-8",
+    )
+
+    jats = PaperFull(
+        meta=PaperMeta(pmid="1", title="J", doi="10.1/jats", publication_types=["Review"]),
+        sections=[PaperSection(name="s", content="x")],
+    )
+    pdf = PaperFull(
+        meta=PaperMeta(pmid="", title="P", doi="10.1/pdf"),  # 빈 publication_types
+        sections=[PaperSection(name="s", content="y")],
+    )
+
+    monkeypatch.setattr("mlops.pipeline.crawler.crawl_papers", lambda **kw: [jats])
+    monkeypatch.setattr("mlops.scripts.ingest_local_pdfs.build_paperfull", lambda entry, pdf_dir: pdf)
+
+    def fake_backfill(metas):
+        n = 0
+        for m in metas:
+            if not m.publication_types and m.doi:
+                m.publication_types = ["Randomized Controlled Trial"]
+                n += 1
+        return n
+
+    monkeypatch.setattr("mlops.pipeline.crawler.backfill_publication_types_from_pubmed", fake_backfill)
+
+    captured: dict = {}
+
+    def fake_chunk(papers):
+        captured["pub_types"] = {p.meta.doi: list(p.meta.publication_types) for p in papers}
+        return []
+
+    monkeypatch.setattr("mlops.pipeline.chunker.chunk_papers", fake_chunk)
+    monkeypatch.setattr("mlops.scripts.export_embeddings._chunks_path", lambda tag: tmp_path / f"{tag}.jsonl.gz")
+    monkeypatch.setattr("mlops.scripts.export_embeddings._save_chunks_atomic", lambda *a, **k: None)
+    monkeypatch.setattr("mlops.scripts.export_embeddings._write_meta_sidecar", lambda *a, **k: None)
+    monkeypatch.setattr("mlops.pipeline.config.MANIFEST_PATH", tmp_path / "pipeline_manifest.json")
+
+    fr.stage1_fetch(batch_tag="dry_test", mode="phase2_full", max_per_category=1)
+
+    # local PDF가 chunk 시점에 publication_types를 보유해야 한다 (보강 wiring)
+    assert captured["pub_types"]["10.1/pdf"] == ["Randomized Controlled Trial"]
+    # 이미 보유한 JATS는 그대로 (멱등)
+    assert captured["pub_types"]["10.1/jats"] == ["Review"]
