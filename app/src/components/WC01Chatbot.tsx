@@ -78,6 +78,31 @@ export default function WC01Chatbot({ onClose }: Props) {
       });
   }, []);
 
+  // 챗봇 진입 시 루틴 목록 로드 → 인사 메시지 + 선택 칩 표시
+  useEffect(() => {
+    listRoutines(access_token)
+      .then((data) => {
+        const chips = data.items.map((r) => r.name);
+        set_messages([
+          {
+            id: "greeting",
+            type: "bot",
+            text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
+            chips: chips.length > 0 ? chips : undefined,
+          },
+        ]);
+      })
+      .catch(() => {
+        set_messages([
+          {
+            id: "greeting",
+            type: "bot",
+            text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+          },
+        ]);
+      });
+  }, []);
+
   // 세션이 있으면 이전 대화 이력 로드 (최초 1회만 — 스트리밍 중 덮어쓰기 방지)
   useEffect(() => {
     if (!session_id || !access_token || has_loaded.current) return;
