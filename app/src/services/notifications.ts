@@ -25,3 +25,10 @@ export function markNotificationRead(token: string, notification_id: string): Pr
     token,
   });
 }
+
+export function markAllNotificationsRead(token: string): Promise<NotificationListData> {
+  return apiFetch<NotificationListData>('/api/v1/notifications/read-all', {
+    method: 'PATCH',
+    token,
+  });
+}

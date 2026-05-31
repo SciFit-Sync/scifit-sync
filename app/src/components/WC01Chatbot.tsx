@@ -53,17 +53,19 @@ export default function WC01Chatbot({ onClose }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
+  }, []);
 
-    // 챗봇 진입 시 루틴 목록 로드 → 인사 메시지 + 칩
+  // 챗봇 진입 시 루틴 목록 로드 → 인사 메시지 + 선택 칩 표시
+  useEffect(() => {
     listRoutines(access_token)
       .then((data) => {
-        const routine_chips = data.items.map((r) => r.name);
+        const chips = data.items.map((r) => r.name);
         set_messages([
           {
             id: "greeting",
             type: "bot",
             text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
-            chips: routine_chips.length > 0 ? routine_chips : undefined,
+            chips: chips.length > 0 ? chips : undefined,
           },
         ]);
       })
