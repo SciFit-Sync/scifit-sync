@@ -72,43 +72,64 @@ export default function WC01Chatbot({ onClose }: Props) {
     ]).start();
 
     (async () => {
-      // 1. 저장된 대화 이력이 있으면 복원
+      // 1. 저장된 대화 이력 로드
+      let restored = false;
       try {
         const json = await AsyncStorage.getItem(CHAT_STORAGE_KEY);
         if (json) {
           const saved = JSON.parse(json) as Message[];
           if (saved.length > 0) {
             set_messages(saved);
-            return; // 기존 대화 복원 완료, 인사 메시지 불필요
+            restored = true;
           }
         }
       } catch {
         // 스토리지 오류 무시
       }
 
-      // 2. 저장 내역 없으면 루틴 목록으로 신규 인사 메시지 생성
+      // 2. 항상 루틴 목록을 가져와서 인사 메시지 칩 갱신
       try {
         const data = await listRoutines(access_token);
         const chips = data.items.map((r) => r.name);
-        set_messages([
-          {
-            id: "greeting",
-            type: "bot",
-            text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
-            chips: chips.length > 0 ? chips : undefined,
-            timestamp: Date.now(),
-          },
-        ]);
+
+        if (!restored) {
+          // 저장 내역 없음 → 신규 인사 메시지
+          set_messages([
+            {
+              id: "greeting",
+              type: "bot",
+              text: chips.length > 0
+                ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
+                : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+              chips: chips.length > 0 ? chips : undefined,
+              timestamp: Date.now(),
+            },
+          ]);
+        } else if (chips.length > 0) {
+          // 기존 대화 복원 시 → 첫 인사 메시지 칩만 업데이트
+          set_messages((prev) => {
+            if (prev.length > 0 && prev[0].id === "greeting") {
+              return [
+                {
+                  ...prev[0],
+                  text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
+                  chips,
+                },
+                ...prev.slice(1),
+              ];
+            }
+            return prev;
+          });
+        }
       } catch {
-        // 실패 시 초기 기본 인사 메시지 유지
+        // listRoutines 실패 시 현재 메시지 유지
       }
     })();
   }, []);
 
   const handle_close = () => {
-    // 닫기 전 대화 저장 (chips 제외)
-    const to_save = messages.map(({ chips: _, ...rest }) => rest);
-    AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(to_save)).catch(() => {});
+    // 닫기 전 대화 저장
+    AsyncStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)).catch(() => {});
 
     Animated.parallel([
       Animated.timing(fade_anim, {
