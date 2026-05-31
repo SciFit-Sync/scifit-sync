@@ -336,6 +336,7 @@ class UserProfile:
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
     feedback: str | None = None  # 재생성 시 이전 루틴 대비 변경 요청
+    gender: str | None = None  # male | female | None (1RM fallback 체중 비율 계산용)
 
     @property
     def primary_goal(self) -> str:
