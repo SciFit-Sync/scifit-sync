@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
@@ -64,6 +65,16 @@ function aggregateMuscle(
 export default function WH02Analysis() {
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const weekDays = useMemo(() => buildWeekDays(), []);
+  const query_client = useQueryClient();
+
+  // 탭 포커스 시 분석 데이터 갱신
+  useFocusEffect(
+    useCallback(() => {
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+    }, [query_client]),
+  );
 
   const { data: statsData } = useQuery({
     queryKey: ["session-stats"],

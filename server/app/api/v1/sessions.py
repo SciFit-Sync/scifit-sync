@@ -695,7 +695,8 @@ async def volume_analysis(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    # WorkoutLog.started_at은 timezone-naive로 저장되므로 replace(tzinfo=None) 필수
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
     rows = (
         await db.execute(
             select(
@@ -752,7 +753,8 @@ async def muscle_volume_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     days = 7 if period == "WEEK" else 30
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    # WorkoutLog.started_at은 timezone-naive로 저장되므로 replace(tzinfo=None) 필수
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
     rows = (
         await db.execute(
