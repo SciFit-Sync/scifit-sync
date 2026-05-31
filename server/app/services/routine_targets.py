@@ -70,13 +70,29 @@ def _coerce_int(value, default=None):
     return default
 
 
-def recommended_weight_kg(goal, user_1rm_kg):
-    """사용자 1RM이 있으면 목표별 권장 범위의 중간값을 반환. 없으면 None.
+# 1RM 미보유 시 체중 기반 추정 1RM 계수 (초보자 기준, 컴파운드 운동 평균)
+_DEFAULT_1RM_RATIO: dict[str, float] = {
+    "male": 0.75,
+    "female": 0.55,
+}
 
-    weight_kg는 nullable이며, 보조운동/1RM 미보유 운동은 사용자가 첫 세션 때 채운다.
+
+def _estimate_1rm_from_body_weight(body_weight: float, gender: str | None) -> float:
+    ratio = _DEFAULT_1RM_RATIO.get(gender or "", 0.65)  # 성별 미입력 시 중간값
+    return body_weight * ratio
+
+
+def recommended_weight_kg(goal, user_1rm_kg, user_body_weight=None, user_gender=None):
+    """목표별 권장 중량 중간값 반환.
+
+    1RM이 있으면 우선 사용. 없으면 성별·체중 기반 추정 1RM으로 기본값 계산.
+    체중도 없으면 None 반환 (사용자가 첫 세션에 직접 입력).
     """
     if user_1rm_kg is None or user_1rm_kg <= 0:
-        return None
+        if user_body_weight and user_body_weight > 0:
+            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender)
+        else:
+            return None
     range_key = _GOAL_TO_RANGE_KEY.get(_normalize_goal(goal))
     if range_key is None or range_key not in RANGES:
         return None
@@ -90,6 +106,8 @@ def derive_exercise_targets(
     *,
     goal,
     user_1rm_kg=None,
+    user_body_weight=None,
+    user_gender=None,
     llm_sets=None,
     llm_reps_min=None,
     llm_reps_max=None,
@@ -138,5 +156,5 @@ def derive_exercise_targets(
         "reps_min": reps_min,
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
-        "weight_kg": recommended_weight_kg(g, user_1rm_kg),
+        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender),
     }

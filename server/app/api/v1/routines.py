@@ -829,6 +829,7 @@ async def _build_rag_profile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
         fitness_career=profile.career_level.value,
+        gender=profile.gender.value if profile.gender else None,
         available_exercises=available_exercises,
         target_muscles=target_muscle_names,
         session_minutes=(req.session_minutes if req else None),
@@ -919,6 +920,8 @@ async def _persist_day(
     day_data: dict,
     primary_goal: str,
     user_1rms: dict[uuid.UUID, float],
+    user_body_weight: float,
+    user_gender: str | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
     """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
@@ -943,6 +946,8 @@ async def _persist_day(
         targets = derive_exercise_targets(
             goal=primary_goal,
             user_1rm_kg=user_1rms.get(exercise_id),
+            user_body_weight=user_body_weight,
+            user_gender=user_gender,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -1073,6 +1078,8 @@ async def _run_rag_to_sse(
                     day_data=ev,
                     primary_goal=primary_goal,
                     user_1rms=user_1rms,
+                    user_body_weight=profile.body_weight,
+                    user_gender=profile.gender.value if profile.gender else None,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
