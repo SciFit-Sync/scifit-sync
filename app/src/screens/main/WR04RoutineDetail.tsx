@@ -155,6 +155,27 @@ export default function WR04RoutineDetail() {
     enabled: !!token && !!routine_id,
   });
 
+  // 뒤로가기 가로채기 — 세션 진행 중일 때 확인 Alert
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+      if (!session_started || is_finishing) return;
+      e.preventDefault();
+      Alert.alert(
+        "운동을 종료하시겠습니까?",
+        "지금까지 체크한 세트는 저장되어 있습니다.\n'운동 완료' 버튼을 눌러야 세션이 완전히 마무리됩니다.",
+        [
+          { text: "계속 운동하기", style: "cancel" },
+          {
+            text: "나가기",
+            style: "destructive",
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ],
+      );
+    });
+    return unsubscribe;
+  }, [navigation, session_started, is_finishing]);
+
   // API 데이터 → 로컬 exercises 변환 (day 인덱스 변경 시 재초기화)
   useEffect(() => {
     if (!detail) return;
