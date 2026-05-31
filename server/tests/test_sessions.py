@@ -277,6 +277,7 @@ class TestSessionStats:
             _exec_scalar_raw(12500.0),  # total_volume
             _exec_scalar_raw(30),  # total_sets
             _exec_all([(_NOW, finished_at)]),  # finished sessions for minutes calc
+            _exec_scalar(None),  # UserBodyMeasurement → 70kg fallback
             _exec_scalar_raw(2),  # weekly_session_count
             _exec_scalar(None),  # recent_row
             _exec_all([]),  # streak dates
@@ -291,6 +292,7 @@ class TestSessionStats:
         assert data["total_sessions"] == 5
         assert data["total_volume_kg"] == 12500.0
         assert data["total_duration_minutes"] == 60
+        assert data["total_calories_kcal"] == 350  # round(5.0 * 70 * 60 / 60)
         assert data["by_gym"] == []
 
 

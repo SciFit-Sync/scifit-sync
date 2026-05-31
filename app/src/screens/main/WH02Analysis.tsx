@@ -104,6 +104,11 @@ export default function WH02Analysis() {
     staleTime: 30_000,
   });
 
+  const weeklyVolume = useMemo(
+    () => (volumeData?.items ?? []).reduce((sum, item) => sum + item.volume_kg, 0),
+    [volumeData],
+  );
+
   const barData = useMemo(() => {
     const volMap: Record<string, number> = {};
     for (const item of volumeData?.items ?? []) {
@@ -129,9 +134,7 @@ export default function WH02Analysis() {
 
   const statCards = [
     {
-      value: statsData
-        ? `${Math.round(statsData.total_volume_kg).toLocaleString()}kg`
-        : "-",
+      value: weeklyVolume > 0 ? `${Math.round(weeklyVolume).toLocaleString()}kg` : "-",
       label: "총 볼륨",
     },
     {

@@ -106,7 +106,7 @@ export default function WL01Record() {
 
   const section_title = selected_day !== null
     ? `${month}월 ${selected_day}일 운동`
-    : `${year}년 ${month}월 운동`;
+    : "최근 한 운동";
 
   const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
 
@@ -117,9 +117,9 @@ export default function WL01Record() {
         { value: `${day_records.length}회`, label: "세션 수" },
       ]
     : [
-        { value: `${Math.round((statsData?.total_volume_kg ?? 0))}kg`, label: "총 중량" },
+        { value: `${statsData?.total_calories_kcal ?? 0} kcal`, label: "칼로리" },
         { value: `${statsData?.total_sets ?? 0}세트`, label: "총 세트" },
-        { value: `${statsData?.weekly_session_count ?? 0}번`, label: "주간 방문" },
+        { value: fmt_duration(statsData?.total_duration_minutes ?? null), label: "운동 시간" },
       ];
 
   const streak = statsData?.streak_days ?? 0;
@@ -240,6 +240,9 @@ export default function WL01Record() {
                   <Text style={styles.routine_name}>
                     {item.routine_name ?? "자유 운동"}
                   </Text>
+                  {item.gym_name != null && (
+                    <Text style={styles.routine_sub}>{item.gym_name}</Text>
+                  )}
                   <Text style={styles.routine_sub}>{item.date}</Text>
                   {item.duration_minutes != null && (
                     <Text style={styles.routine_sub}>
