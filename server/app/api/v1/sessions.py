@@ -675,11 +675,7 @@ async def list_sessions(
     gym_name_by_id: dict[str, str] = {}
 
     if gym_ids:
-        gym_rows = (
-            await db.execute(
-                select(Gym.id, Gym.name).where(Gym.id.in_(gym_ids))
-            )
-        ).all()
+        gym_rows = (await db.execute(select(Gym.id, Gym.name).where(Gym.id.in_(gym_ids)))).all()
         gym_name_by_id = {str(gid): gname for gid, gname in gym_rows}
 
     records = [
