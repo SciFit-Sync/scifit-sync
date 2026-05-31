@@ -111,15 +111,17 @@ export default function WL01Record() {
   const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
 
   // 통계 표시값
+  // 하루 선택 시: 해당 날짜의 총 시간 + 세션 수 (calendarData는 volume/sets 미제공)
+  // 월간 전체: statsData 기준 총 중량 / 총 세트 / 총 시간
   const top_stats = selected_day !== null
     ? [
-        { value: fmt_duration(total_duration || null), label: "운동 시간" },
+        { value: fmt_duration(total_duration || null), label: "총 시간" },
         { value: `${day_records.length}회`, label: "세션 수" },
       ]
     : [
         { value: `${Math.round((statsData?.total_volume_kg ?? 0))}kg`, label: "총 중량" },
         { value: `${statsData?.total_sets ?? 0}세트`, label: "총 세트" },
-        { value: `${statsData?.weekly_session_count ?? 0}번`, label: "주간 방문" },
+        { value: fmt_duration(statsData?.total_duration_minutes ?? null), label: "총 시간" },
       ];
 
   const streak = statsData?.streak_days ?? 0;
