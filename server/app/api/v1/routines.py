@@ -151,19 +151,57 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 eq_brand_map[str(eid)] = brand_name
 
     # 근육 활성화 비율 prefetch
+    # activation_pct가 NULL이면 involvement 기반으로 추정값 계산
+    # primary끼리 70% 균등 분배, secondary끼리 30% 균등 분배 (primary만 있으면 100%)
     muscle_activation_map: dict[str, list[MuscleActivationItem]] = {}
     if ex_ids:
         ma_rows = (
             await db.execute(
-                select(ExerciseMuscle.exercise_id, MuscleGroup.name_ko, ExerciseMuscle.activation_pct)
+                select(
+                    ExerciseMuscle.exercise_id,
+                    MuscleGroup.name_ko,
+                    ExerciseMuscle.activation_pct,
+                    ExerciseMuscle.involvement,
+                )
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
                 .where(ExerciseMuscle.exercise_id.in_(ex_ids))
             )
         ).all()
-        for eid, name_ko, pct in ma_rows:
-            muscle_activation_map.setdefault(str(eid), []).append(
-                MuscleActivationItem(muscle=name_ko, activation_pct=pct)
-            )
+
+        # 운동별 임시 수집
+        _raw: dict[str, list[tuple[str, int | None, str | None]]] = {}
+        for eid, name_ko, pct, involvement in ma_rows:
+            _raw.setdefault(str(eid), []).append((name_ko, pct, involvement))
+
+        for eid, muscles in _raw.items():
+            # activation_pct 실제값이 있으면 그대로 사용
+            if any(pct is not None for _, pct, _ in muscles):
+                muscle_activation_map[eid] = [
+                    MuscleActivationItem(muscle=name, activation_pct=pct) for name, pct, _ in muscles
+                ]
+                continue
+
+            # activation_pct 없으면 involvement 기반 추정
+            primaries = [name for name, _, inv in muscles if inv == "primary"]
+            secondaries = [name for name, _, inv in muscles if inv != "primary"]
+            n_p, n_s = len(primaries), len(secondaries)
+
+            items: list[MuscleActivationItem] = []
+            if n_p > 0 and n_s > 0:
+                p_pct = round(70 / n_p)
+                s_pct = round(30 / n_s)
+            elif n_p > 0:
+                p_pct = round(100 / n_p)
+                s_pct = 0
+            else:
+                p_pct = 0
+                s_pct = round(100 / n_s) if n_s > 0 else 0
+
+            for name in primaries:
+                items.append(MuscleActivationItem(muscle=name, activation_pct=p_pct))
+            for name in secondaries:
+                items.append(MuscleActivationItem(muscle=name, activation_pct=s_pct))
+            muscle_activation_map[eid] = items
 
     # 논문이 연결된 routine_exercise_id 집합
     paper_rows = await db.execute(
@@ -781,6 +819,12 @@ async def _build_rag_profile(
         except ValueError:
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
+    # 5. DB exercises name_en 목록 → LLM 프롬프트에 허용 이름 제공 (매칭 실패 방지)
+    exercise_name_rows = (
+        (await db.execute(select(Exercise.name_en).where(Exercise.name_en.isnot(None)))).scalars().all()
+    )
+    available_exercises = sorted({n.strip() for n in exercise_name_rows if n and n.strip()})
+
     return RagUserProfile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
@@ -795,14 +839,22 @@ async def _build_rag_profile(
 
 
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
-    """LLM이 출력한 운동 이름 → exercises.id. name_en/name 모두 시도, 없으면 None."""
+    """LLM이 출력한 운동 이름 → exercises.id.
+
+    순서:
+    1) name_en 정확 매치 (case-insensitive)
+    2) name(한글) 정확 매치
+    3) DB name_en이 LLM 이름을 포함 (DB가 더 긴 경우)
+    4) LLM 이름이 DB name_en을 포함 (LLM이 더 구체적인 경우, e.g. "Flat Barbell Bench Press" → "Bench Press")
+    5) 토큰 겹침 매치 — 최소 2 토큰 공통 (e.g. "Incline Dumbbell Press" → "Incline Bench Press")
+    """
     if not name or not name.strip():
         return None
     name_lc = name.strip().lower()
 
-    # 1) name_en 정확 매치 (lower)
     from sqlalchemy import func as sa_func
 
+    # 1) name_en 정확 매치
     row = (
         await db.execute(select(Exercise.id).where(sa_func.lower(Exercise.name_en) == name_lc).limit(1))
     ).scalar_one_or_none()
@@ -814,11 +866,42 @@ async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
     if row is not None:
         return row
 
-    # 3) name_en ILIKE %name% (부분 매치)
+    # 3) DB name_en이 LLM 이름을 포함 (LLM 이름이 더 짧은 경우)
     row = (
         await db.execute(select(Exercise.id).where(Exercise.name_en.ilike(f"%{name.strip()}%")).limit(1))
     ).scalar_one_or_none()
-    return row
+    if row is not None:
+        return row
+
+    # 4 & 5) 전체 exercise 목록으로 Python-side 매칭 (테이블 소규모)
+    all_exercises = (await db.execute(select(Exercise.id, Exercise.name_en))).all()
+    name_tokens = set(name_lc.split())
+
+    # 4) 역방향 부분 매치: LLM 이름이 DB name_en을 포함하는 경우 (가장 긴 매치 우선)
+    best_id: uuid.UUID | None = None
+    best_len = 0
+    for ex_id, ex_name_en in all_exercises:
+        if not ex_name_en:
+            continue
+        candidate = ex_name_en.strip().lower()
+        if candidate and candidate in name_lc and len(candidate) > best_len:
+            best_id = ex_id
+            best_len = len(candidate)
+    if best_id is not None:
+        return best_id
+
+    # 5) 토큰 겹침 매치: 공통 단어 수가 많은 운동 선택 (최소 2 토큰)
+    best_overlap = 1  # > 1 이어야 선택 (최소 2 토큰 겹침)
+    best_overlap_id: uuid.UUID | None = None
+    for ex_id, ex_name_en in all_exercises:
+        if not ex_name_en:
+            continue
+        db_tokens = set(ex_name_en.strip().lower().split())
+        overlap = len(name_tokens & db_tokens)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_overlap_id = ex_id
+    return best_overlap_id
 
 
 async def _fetch_user_1rms(user_id: uuid.UUID, db: AsyncSession) -> dict[uuid.UUID, float]:

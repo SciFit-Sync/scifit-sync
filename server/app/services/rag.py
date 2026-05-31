@@ -190,8 +190,12 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     if not query:
         return []
 
-    model = _get_embed_model()
-    collection = _get_collection()
+    try:
+        model = _get_embed_model()
+        collection = _get_collection()
+    except Exception as e:
+        logger.warning("ChromaDB 접근 실패 (논문 데이터 없음?): %s", e)
+        return []
 
     query_vec = model.encode(BGE_QUERY_INSTRUCTION + query).tolist()
     fetch_n = top_k * OVER_FETCH_MULTIPLIER
@@ -327,12 +331,12 @@ class UserProfile:
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
-    gender: str | None = None  # male | female
-    available_exercises: list[str] = field(default_factory=list)  # gym 기구로 할 수 있는 운동 name_en 목록
+    available_exercises: list[str] = field(default_factory=list)  # gym에서 할 수 있는 운동 name_en 목록
     target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
     feedback: str | None = None  # 재생성 시 이전 루틴 대비 변경 요청
+    gender: str | None = None  # male | female | None (1RM fallback 체중 비율 계산용)
 
     @property
     def primary_goal(self) -> str:
@@ -352,11 +356,7 @@ _GOAL_QUERIES = {
 
 
 def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
-    """루틴 생성 프롬프트를 조합한다. 외부 청크는 별도 섹션으로 분리한다."""
-    context = ""
-    for i, chunk in enumerate(chunks[:5], 1):
-        context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
-
+    """루틴 생성 프롬프트를 조합한다."""
     goals_str = ", ".join(g.lower() for g in profile.goals) if profile.goals else "hypertrophy"
     muscles_str = ", ".join(profile.target_muscles) if profile.target_muscles else "balanced full-body"
 
@@ -380,6 +380,21 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         safe = profile.feedback.replace("</user_query>", "</ user_query>")
         extras.append(f"- Regenerate feedback (from user): <user_query>{safe}</user_query>")
     extras_str = ("\n" + "\n".join(extras)) if extras else ""
+
+    # 논문 컨텍스트 구성
+    if chunks:
+        context_parts = []
+        for i, chunk in enumerate(chunks[:5], 1):
+            context_parts.append(f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}")
+        context = "\n".join(context_parts)
+        paper_index_rule = (
+            f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        )
+    else:
+        # ChromaDB 데이터 없음 — 논문 없이 스포츠 과학 지식으로 생성 (개발/테스트 환경 fallback)
+        logger.info("RAG fallback: 논문 없이 LLM 지식 기반 루틴 생성")
+        context = "No research papers available. Use your sports science knowledge."
+        paper_index_rule = ""
 
     name_rule = (
         '- "name" must be chosen EXACTLY from the Available exercises list above. Do not invent or paraphrase names.\n'
@@ -411,7 +426,7 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"Rules:\n"
         f"{name_rule}"
         f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
-        f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        f"{paper_index_rule}"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
         f"endurance 15-20, rehabilitation 20-30, weight_loss 15-20).\n"
         f"- Use rest_seconds appropriate to each exercise type and goal:\n"
@@ -421,7 +436,14 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"  * endurance: 30-60\n"
         f"  * rehabilitation: 60-120\n"
         f"  * weight_loss: 30-45\n"
-        f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
+        + (
+            f"IMPORTANT: You MUST use ONLY exercise names from this exact list. "
+            f"Do NOT invent new names — pick the closest match:\n"
+            f"{chr(10).join('- ' + ex for ex in profile.available_exercises)}\n\n"
+            if profile.available_exercises
+            else ""
+        )
+        + "Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
 
 
@@ -524,13 +546,12 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
     if extras:
         query = f"{query} {' '.join(extras)}"
 
-    # 2. ChromaDB 검색
+    # 2. ChromaDB 검색 (컬렉션 없거나 데이터 없으면 빈 리스트 — fallback으로 계속 진행)
     chunks = search_chunks(query)
     if not chunks:
-        yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다."}
-        return
+        logger.warning("ChromaDB 청크 없음 — 논문 없이 LLM 단독 루틴 생성으로 fallback")
 
-    # 3. 프롬프트 조합
+    # 3. 프롬프트 조합 (chunks 비어 있어도 _build_routine_prompt가 fallback 처리)
     prompt = _build_routine_prompt(profile, chunks)
 
     # 4. LLM 토큰 스트리밍

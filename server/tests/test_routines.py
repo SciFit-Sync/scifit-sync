@@ -665,6 +665,7 @@ def _generate_db():
       2. _build_rag_profile:
          - SELECT UserProfile             → scalar_one_or_none
          - SELECT UserBodyMeasurement     → scalar_one_or_none
+         - SELECT Exercise.name_en        → scalars().all()
          (gym_id 없으면 equipment 쿼리 생략)
       3. _run_rag_to_sse:
          - SELECT UserExercise1RM         → .all()
@@ -675,6 +676,7 @@ def _generate_db():
     db = _make_db(
         _exec_scalar(_db_user_profile_row()),  # UserProfile
         _exec_scalar(_db_body_measurement_row()),  # UserBodyMeasurement
+        _exec_scalars_all([]),  # Exercise.name_en
         _exec_all([]),  # UserExercise1RM
     )
 
@@ -861,6 +863,7 @@ def _regenerate_db(routine):
       4. _build_rag_profile:
          - SELECT UserProfile                  → scalar
          - SELECT UserBodyMeasurement          → scalar
+         - SELECT Exercise.name_en             → scalars().all()
       5. _run_rag_to_sse:
          - SELECT UserExercise1RM              → .all() = []
     """
@@ -870,6 +873,7 @@ def _regenerate_db(routine):
         _exec_scalars_all([]),  # RoutinePaper
         _exec_scalar(_db_user_profile_row()),
         _exec_scalar(_db_body_measurement_row()),
+        _exec_scalars_all([]),  # Exercise.name_en
         _exec_all([]),  # UserExercise1RM
     )
     db.delete = AsyncMock()
