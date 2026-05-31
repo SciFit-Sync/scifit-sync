@@ -41,7 +41,7 @@ export default function WN01Notifications() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications", token],
     queryFn: () => getNotifications(token),
     enabled: !!token,
   });
@@ -49,14 +49,20 @@ export default function WN01Notifications() {
   const notifications = data?.items ?? [];
 
   const mark_read = async (id: string) => {
-    await markNotificationRead(token, id).catch(() => {});
-    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    try {
+      await markNotificationRead(token, id);
+      queryClient.invalidateQueries({ queryKey: ["notifications", token] });
+    } catch {}
   };
 
   const mark_all_read = async () => {
     const unread = notifications.filter((n) => !n.is_read);
-    await Promise.allSettled(unread.map((n) => markNotificationRead(token, n.notification_id)));
-    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    const results = await Promise.allSettled(
+      unread.map((n) => markNotificationRead(token, n.notification_id))
+    );
+    if (results.some((r) => r.status === "fulfilled")) {
+      queryClient.invalidateQueries({ queryKey: ["notifications", token] });
+    }
   };
 
   return (

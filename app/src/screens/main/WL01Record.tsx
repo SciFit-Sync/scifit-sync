@@ -8,7 +8,6 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
@@ -17,7 +16,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { getSessions, getSessionStats } from "../../services/sessions";
 
 function fmt_duration(minutes: number | null): string {
-  if (!minutes) return "-";
+  if (minutes == null) return "-";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -43,7 +42,6 @@ function to_date_key(year: number, month: number, day: number) {
 }
 
 export default function WL01Record() {
-  const navigation = useNavigation();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const today = new Date();
   const [year, set_year] = useState(today.getFullYear());
@@ -51,13 +49,13 @@ export default function WL01Record() {
   const [selected_day, set_selected_day] = useState<number | null>(null);
 
   const { data: calendarData, isLoading: calendarLoading } = useQuery({
-    queryKey: ["sessions-calendar", year, month],
+    queryKey: ["sessions-calendar", token, year, month],
     queryFn: () => getSessions(token, year, month),
     enabled: !!token,
   });
 
   const { data: statsData } = useQuery({
-    queryKey: ["session-stats"],
+    queryKey: ["session-stats", token],
     queryFn: () => getSessionStats(token),
     enabled: !!token,
   });
@@ -96,14 +94,16 @@ export default function WL01Record() {
     ? records.filter((r) => r.date === to_date_key(year, month, selected_day))
     : records;
 
-  const title_day = selected_day ?? today.getDate();
-  const title_month = selected_day !== null ? month : today.getMonth() + 1;
-  const section_title = `${title_month}월 ${title_day}일 운동`;
+  const section_title = selected_day !== null
+    ? `${month}월 ${selected_day}일 운동`
+    : `${year}년 ${month}월 운동`;
+
+  const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
 
   // 통계 표시값
   const top_stats = selected_day !== null
     ? [
-        { value: fmt_duration(day_records[0]?.duration_minutes ?? null), label: "운동 시간" },
+        { value: fmt_duration(total_duration || null), label: "운동 시간" },
         { value: "-", label: "총 세트" },
         { value: `${day_records.length}회`, label: "세션 수" },
       ]
@@ -232,7 +232,7 @@ export default function WL01Record() {
                     {item.routine_name ?? "자유 운동"}
                   </Text>
                   <Text style={styles.routine_sub}>{item.date}</Text>
-                  {item.duration_minutes && (
+                  {item.duration_minutes != null && (
                     <Text style={styles.routine_sub}>
                       {fmt_duration(item.duration_minutes)}
                     </Text>
