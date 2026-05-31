@@ -90,7 +90,10 @@ def _session_to_dto(
 ) -> SessionData:
     duration_minutes: int | None = None
     if s.finished_at and s.started_at:
-        duration_minutes = max(0, int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60))
+        duration_minutes = max(
+            0,
+            int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60),
+        )
     return SessionData(
         session_id=str(s.id),
         routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
@@ -106,7 +109,12 @@ def _session_to_dto(
 async def _get_my_session(session_id: str, user: User, db: AsyncSession) -> WorkoutLog:
     sid = _parse_uuid(session_id, "session_id")
     s = (
-        await db.execute(select(WorkoutLog).where(WorkoutLog.id == sid, WorkoutLog.user_id == user.id))
+        await db.execute(
+            select(WorkoutLog).where(
+                WorkoutLog.id == sid,
+                WorkoutLog.user_id == user.id,
+            )
+        )
     ).scalar_one_or_none()
     if s is None:
         raise NotFoundError(message="세션을 찾을 수 없습니다.")
@@ -120,9 +128,11 @@ async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
     dates = sorted({r[0] for r in rows}, reverse=True)
     if not dates:
         return 0
+
     today = datetime.now(timezone.utc).date()
     if dates[0] != today and dates[0] != today - timedelta(days=1):
         return 0
+
     streak = 1
     cursor = dates[0]
     for d in dates[1:]:
@@ -132,6 +142,127 @@ async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
         else:
             break
     return streak
+
+
+async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncSession) -> None:
+    goal = "hypertrophy"
+    if s.routine_day_id:
+        routine = (
+            await db.execute(
+                select(WorkoutRoutine)
+                .join(RoutineDay, RoutineDay.routine_id == WorkoutRoutine.id)
+                .where(RoutineDay.id == s.routine_day_id)
+            )
+        ).scalar_one_or_none()
+
+        if routine and routine.fitness_goals:
+            goal = routine.fitness_goals[0]
+
+    ex_rows = (
+        (
+            await db.execute(
+                select(WorkoutLogSet.exercise_id)
+                .where(
+                    WorkoutLogSet.workout_log_id == s.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    notifications: list[Notification] = []
+
+    for exercise_id in ex_rows:
+        recent_rows = (
+            await db.execute(
+                select(func.max(WorkoutLogSet.reps).label("max_reps"))
+                .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+                .where(
+                    WorkoutLog.user_id == user_id,
+                    WorkoutLog.status == WorkoutStatus.COMPLETED,
+                    WorkoutLogSet.exercise_id == exercise_id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+                .group_by(WorkoutLog.id, WorkoutLog.started_at)
+                .order_by(WorkoutLog.started_at.desc())
+                .limit(2)
+            )
+        ).all()
+
+        recent_max_reps = [int(r.max_reps) for r in recent_rows if r.max_reps is not None]
+        if not po.check_po_trigger(recent_max_reps, goal):
+            continue
+
+        equipment_id = (
+            await db.execute(
+                select(RoutineExercise.equipment_id)
+                .join(WorkoutLogSet, WorkoutLogSet.routine_exercise_id == RoutineExercise.id)
+                .where(
+                    WorkoutLogSet.workout_log_id == s.id,
+                    WorkoutLogSet.exercise_id == exercise_id,
+                    RoutineExercise.equipment_id.is_not(None),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+        equipment = None
+        if equipment_id:
+            equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
+
+        eq_type = equipment.equipment_type.value if equipment else "machine"
+        max_stack = equipment.max_stack if equipment else None
+
+        stats = (
+            await db.execute(
+                select(
+                    func.max(WorkoutLogSet.weight_kg).label("weight"),
+                    func.count(WorkoutLogSet.id).label("sets"),
+                ).where(
+                    WorkoutLogSet.workout_log_id == s.id,
+                    WorkoutLogSet.exercise_id == exercise_id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+            )
+        ).one()
+
+        current_weight = float(stats.weight or 0)
+        current_sets = int(stats.sets or 0)
+
+        result = po.calculate_increase(eq_type, goal, current_weight, current_sets, max_stack)
+
+        ex_name = (
+            await db.execute(select(Exercise.name).where(Exercise.id == exercise_id))
+        ).scalar_one_or_none() or "운동"
+
+        if result["message"]:
+            title = "기구 변경 권장"
+            body_text = f"{ex_name}: {result['message']}"
+        else:
+            title = "중량 증가 제안"
+            body_text = f"{ex_name}: {current_weight}kg → {result['new_weight']}kg으로 증가해보세요"
+
+        notifications.append(
+            Notification(
+                user_id=user_id,
+                type=NotificationType.PO_SUGGESTION,
+                title=title,
+                body=body_text,
+                data_json={
+                    "exercise_id": str(exercise_id),
+                    "new_weight": result["new_weight"],
+                    "new_sets": result["new_sets"],
+                    "overflow": result["overflow"],
+                },
+            )
+        )
+
+    if notifications:
+        db.add_all(notifications)
+        await db.commit()
 
 
 # ── POST /sessions ────────────────────────────────────────────────────────────
@@ -163,10 +294,13 @@ async def start_session(
                 )
             )
         ).scalar_one_or_none()
+
         if routine is None:
             raise NotFoundError(message="루틴을 찾을 수 없습니다.")
+
         session_routine_id = str(routine_id)
         session_routine_name = routine.name
+
         # gym_id 미지정 시 루틴의 gym_id 자동 복사 (D-M9)
         if session_gym_id is None and routine.gym_id:
             session_gym_id = routine.gym_id
@@ -439,17 +573,24 @@ async def finish_session(
     s = await _get_my_session(session_id, current_user, db)
     if s.status == WorkoutStatus.COMPLETED:
         raise ConflictError(message="이미 종료된 세션입니다.")
+
     dt = body.finished_at or datetime.now(timezone.utc)
     s.finished_at = dt.replace(tzinfo=None)
     s.status = WorkoutStatus.COMPLETED
     await db.commit()
     await db.refresh(s)
 
+    try:
+        await _create_po_notifications(s, current_user.id, db)
+    except Exception:
+        logger.exception("PO 알림 생성 실패 (session_id=%s)", s.id)
+
     total_sets = int(
         (
             await db.execute(select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id))
         ).scalar_one()
     )
+
     completed_exercises = int(
         (
             await db.execute(
@@ -516,6 +657,7 @@ async def list_sessions(
 
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
     routine_name_by_day: dict[str, str] = {}
+
     if day_ids:
         name_rows = (
             await db.execute(
@@ -539,6 +681,7 @@ async def list_sessions(
         )
         for s in rows
     ]
+
     return SuccessResponse(
         data=SessionCalendarData(
             year=q_year,
@@ -568,7 +711,10 @@ async def session_stats(
             await db.execute(
                 select(func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0))
                 .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
-                .where(WorkoutLog.user_id == current_user.id, WorkoutLogSet.is_completed.is_(True))
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
             )
         ).scalar()
         or 0.0
@@ -580,7 +726,10 @@ async def session_stats(
             await db.execute(
                 select(func.count(WorkoutLogSet.id))
                 .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
-                .where(WorkoutLog.user_id == current_user.id, WorkoutLogSet.is_completed.is_(True))
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
             )
         ).scalar()
         or 0
@@ -596,6 +745,7 @@ async def session_stats(
             )
         )
     ).all()
+
     total_minutes = sum(int((f - s).total_seconds() // 60) for s, f in finished_rows if f and s)
 
     # 주간 세션 수 (최근 7일)
@@ -626,6 +776,7 @@ async def session_stats(
     ).scalar_one_or_none()
 
     recent_session: RecentSessionItem | None = None
+
     if recent_row:
         routine_name: str | None = None
         if recent_row.routine_day_id:
@@ -636,6 +787,7 @@ async def session_stats(
                     .where(RoutineDay.id == recent_row.routine_day_id)
                 )
             ).scalar_one_or_none()
+
         recent_session = RecentSessionItem(
             session_id=str(recent_row.id),
             routine_name=routine_name,
@@ -655,13 +807,15 @@ async def session_stats(
             )
             .join(WorkoutLog, WorkoutLog.gym_id == Gym.id)
             .outerjoin(
-                WorkoutLogSet, (WorkoutLogSet.workout_log_id == WorkoutLog.id) & WorkoutLogSet.is_completed.is_(True)
+                WorkoutLogSet,
+                (WorkoutLogSet.workout_log_id == WorkoutLog.id) & WorkoutLogSet.is_completed.is_(True),
             )
             .where(WorkoutLog.user_id == current_user.id)
             .group_by(Gym.id, Gym.name)
             .order_by(func.count(WorkoutLog.id).desc())
         )
     ).all()
+
     by_gym = [
         GymStatItem(
             gym_id=str(gid),
@@ -713,9 +867,15 @@ async def volume_analysis(
             .order_by("d")
         )
     ).all()
+
     items = [
-        VolumeAnalysisItem(date=d.isoformat() if isinstance(d, date) else str(d), volume_kg=float(v)) for d, v in rows
+        VolumeAnalysisItem(
+            date=d.isoformat() if isinstance(d, date) else str(d),
+            volume_kg=float(v),
+        )
+        for d, v in rows
     ]
+
     return SuccessResponse(data=VolumeAnalysisData(items=items))
 
 
@@ -779,14 +939,17 @@ async def muscle_volume_analysis(
     volume_map = {name_ko: float(vol) for name_ko, vol in rows}
 
     items: list[MuscleVolumeItem] = []
+
     for muscle, (opt_min, opt_max) in _OPTIMAL_RANGES.items():
         vol = volume_map.get(muscle, 0.0)
-        if vol >= opt_min and vol <= opt_max:
+
+        if opt_min <= vol <= opt_max:
             status = "OPTIMAL"
         elif vol < opt_min:
             status = "LOW"
         else:
             status = "HIGH"
+
         items.append(
             MuscleVolumeItem(
                 muscle=muscle,
@@ -832,6 +995,7 @@ async def session_detail(
     db: AsyncSession = Depends(get_db),
 ):
     s = await _get_my_session(session_id, current_user, db)
+
     sets_rows = (
         await db.execute(
             select(WorkoutLogSet, Exercise.name)
@@ -840,6 +1004,7 @@ async def session_detail(
             .order_by(WorkoutLogSet.performed_at)
         )
     ).all()
+
     set_dtos = [
         WorkoutSetItem(
             set_id=str(setrec.id),
@@ -854,9 +1019,11 @@ async def session_detail(
         )
         for setrec, ex_name in sets_rows
     ]
+
     total_volume = sum((ws.weight_kg or 0) * ws.reps for ws in set_dtos if ws.is_completed)
 
     routine_name: str | None = None
+
     if s.routine_day_id:
         routine_name = (
             await db.execute(
@@ -901,6 +1068,7 @@ async def rest_timer(
     if routine_exercise_id:
         rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
         rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
+
         if rex is not None:
             rec = rex.rest_seconds
             mn = max(30, rec - 30)
