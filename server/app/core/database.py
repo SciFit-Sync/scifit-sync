@@ -1,4 +1,5 @@
 import platform
+import ssl
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -18,6 +19,11 @@ def _build_connect_args() -> dict:
     args: dict = {"statement_cache_size": 0}
     if settings.ENV == "development" and platform.system() == "Windows":
         args["ssl"] = False  # Windows 한글 경로 asyncpg 버그 우회
+    elif settings.ENV not in ("development", "test"):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        args["ssl"] = ctx
     return args
 
 
