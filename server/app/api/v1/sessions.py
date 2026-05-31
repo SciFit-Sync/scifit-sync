@@ -97,7 +97,7 @@ def _session_to_dto(
         gym_id=str(s.gym_id) if s.gym_id else None,
         started_at=s.started_at,
         finished_at=s.finished_at,
-        status=s.status.value if s.status else "in_progress",
+        status=str(s.status) if s.status else "in_progress",
         routine_name=routine_name,
         duration_minutes=duration_minutes,
     )
@@ -379,7 +379,7 @@ async def _check_and_create_po_notifications(
         if rex.equipment_id:
             equip = equip_map.get(rex.equipment_id)
             if equip:
-                equipment_type = equip.equipment_type.value
+                equipment_type = str(equip.equipment_type)
                 max_stack = equip.max_stack
 
         result = po.calculate_increase(
@@ -873,7 +873,7 @@ async def session_detail(
             gym_id=str(s.gym_id) if s.gym_id else None,
             started_at=s.started_at,
             finished_at=s.finished_at,
-            status=s.status.value if s.status else "in_progress",
+            status=str(s.status) if s.status else "in_progress",
             routine_name=routine_name,
             sets=set_dtos,
             total_volume_kg=round(total_volume, 2),

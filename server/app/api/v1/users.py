@@ -70,12 +70,12 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
     if profile is None:
         return None
     return ProfileData(
-        gender=profile.gender.value if profile.gender else None,
+        gender=str(profile.gender) if profile.gender else None,
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
         default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
-        career_level=profile.career_level.value if profile.career_level else None,
+        career_level=str(profile.career_level) if profile.career_level else None,
         career_years=profile.career_years,
     )
 
@@ -214,7 +214,7 @@ async def get_me(
             email=current_user.email,
             username=current_user.username,
             name=current_user.name,
-            provider=current_user.provider.value if current_user.provider else "local",
+            provider=str(current_user.provider) if current_user.provider else "local",
             profile=_profile_to_dto(profile),
             latest_measurement=_measurement_to_dto(latest_m),
             gyms=gyms,
@@ -277,7 +277,7 @@ async def update_body(
             height_cm=profile.height_cm if profile else body.height_cm,
             birth_date=profile.birth_date if profile else updated_birth_date,
             age=_calc_age(profile.birth_date) if profile else None,
-            gender=profile.gender.value if profile and profile.gender else updated_gender,
+            gender=str(profile.gender) if profile and profile.gender else updated_gender,
             measurement=measurement_dto,
         )
     )
@@ -386,7 +386,7 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
         exercise_id=str(record.exercise_id),
         exercise_name=exercise_name,
         weight_kg=record.weight_kg,
-        source=record.source.value if record.source else "manual",
+        source=str(record.source) if record.source else "manual",
         estimated_at=record.estimated_at,
     )
 
@@ -582,8 +582,8 @@ async def list_my_equipment(
         UserEquipmentItem(
             equipment_id=str(e.id),
             name=e.name,
-            category=e.category.value if e.category else None,
-            equipment_type=e.equipment_type.value,
+            category=str(e.category) if e.category else None,
+            equipment_type=str(e.equipment_type),
             pulley_ratio=e.pulley_ratio,
             bar_weight=e.bar_weight,
             image_url=e.image_url,
@@ -643,8 +643,8 @@ async def add_my_equipment(
         data=UserEquipmentItem(
             equipment_id=str(equipment.id),
             name=equipment.name,
-            category=equipment.category.value if equipment.category else None,
-            equipment_type=equipment.equipment_type.value,
+            category=str(equipment.category) if equipment.category else None,
+            equipment_type=str(equipment.equipment_type),
             pulley_ratio=equipment.pulley_ratio,
             bar_weight=equipment.bar_weight,
             image_url=equipment.image_url,

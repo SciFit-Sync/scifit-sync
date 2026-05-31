@@ -33,7 +33,7 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
 def _to_dto(n: Notification) -> NotificationItem:
     return NotificationItem(
         notification_id=str(n.id),
-        type=n.type.value if n.type else "system",
+        type=str(n.type) if n.type else "system",
         title=n.title,
         body=n.body,
         is_read=n.is_read,

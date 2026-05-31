@@ -21,7 +21,7 @@ import {
 } from "../../services/sessions";
 
 const BAR_MAX_HEIGHT = 130;
-const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
+const WEEK_DAYS_KO = ["월", "화", "수", "목", "금", "토", "일"];
 
 // keys는 muscle_groups.name_ko 값과 정확히 일치해야 함
 // (seed: 20260525_seed_muscle_groups_exercises.py 기준)
@@ -34,14 +34,19 @@ const MUSCLE_GROUPS: { label: string; keys: string[]; color: string }[] = [
   { label: "복근", keys: ["복직근", "복사근"], color: "#2D9596" },
 ];
 
+// 이번 주 월~일 7일 반환 (월요일 시작 고정)
 function buildWeekDays(): { date: string; dayLabel: string }[] {
   const now = new Date();
+  const day = now.getDay(); // 0=일, 1=월, ..., 6=토
+  const offsetToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + offsetToMonday);
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() - (6 - i));
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
     return {
       date: d.toISOString().split("T")[0],
-      dayLabel: DAYS_KO[d.getDay()],
+      dayLabel: WEEK_DAYS_KO[i],
     };
   });
 }
