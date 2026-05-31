@@ -327,6 +327,7 @@ class UserProfile:
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
+    gender: str | None = None  # male | female
     available_exercises: list[str] = field(default_factory=list)  # gym 기구로 할 수 있는 운동 name_en 목록
     target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
     session_minutes: int | None = None  # 1회 세션 목표 시간
