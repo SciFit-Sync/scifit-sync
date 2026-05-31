@@ -170,12 +170,17 @@ async def start_session(
         # gym_id 미지정 시 루틴의 gym_id 자동 복사 (D-M9)
         if session_gym_id is None and routine.gym_id:
             session_gym_id = routine.gym_id
-        first_day = (
-            await db.execute(
-                select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
-            )
-        ).scalar_one_or_none()
-        session_routine_day_id = first_day.id if first_day else None
+        # routine_day_id가 명시적으로 전달된 경우 우선 사용 (멀티 day 루틴 대응)
+        # 그렇지 않으면 첫 번째 day 자동 선택
+        if body.routine_day_id:
+            session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
+        else:
+            first_day = (
+                await db.execute(
+                    select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
+                )
+            ).scalar_one_or_none()
+            session_routine_day_id = first_day.id if first_day else None
     elif body.routine_day_id:
         session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
 
