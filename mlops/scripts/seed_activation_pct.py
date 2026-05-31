@@ -43,18 +43,23 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-# Gemini가 반환하는 slug 이름과 DB muscle_groups.name이 다를 때 alias로 통일
-_SLUG_ALIASES: dict[str, str] = {
+# Gemini가 반환하는 해부학적 명칭 → DB muscle_groups.name 매핑
+_SLUG_ALIAS: dict[str, str] = {
     "anterior deltoid": "Front Deltoid",
     "front deltoid": "Front Deltoid",
+    "front delt": "Front Deltoid",
     "lateral deltoid": "Side Deltoid",
+    "medial deltoid": "Side Deltoid",
+    "side delt": "Side Deltoid",
     "side deltoid": "Side Deltoid",
     "posterior deltoid": "Rear Deltoid",
+    "rear delt": "Rear Deltoid",
     "rear deltoid": "Rear Deltoid",
     "upper back": "Upper Back",
+    "upper_back": "Upper Back",
     "rhomboids": "Upper Back",
-    "traps": "Upper Back",
-    "trapezius": "Upper Back",
+    "mid traps": "Upper Back",
+    "middle trapezius": "Upper Back",
 }
 
 _PROMPT = """\
@@ -64,9 +69,7 @@ for the exercise "{exercise}" based on published research.
 Muscles:
 {muscles}
 
-Return ONLY a JSON array, no markdown, no explanation.
-Use muscle_slug values EXACTLY as given in the Muscles list above — do not normalize, \
-translate, or change them.
+Return ONLY a JSON array, no markdown, no explanation:
 [{{"muscle_slug": "<slug>", "activation_pct": <integer 0-100>}}, ...]
 
 Guidelines by involvement:
@@ -166,9 +169,8 @@ async def main() -> None:
                 if not 0 <= pct_int <= 100:
                     logger.warning("✗ %s / %s — 범위 초과: %d", exercise_name, slug, pct_int)
                     continue
-                # alias 변환 후 case-insensitive 매칭
-                normalized = _SLUG_ALIASES.get(slug.lower(), slug)
-                matched = False
+                # alias 정규화: Gemini 해부학 명칭 → DB 표기
+                normalized = _SLUG_ALIAS.get(slug.lower(), slug)
                 for r in muscle_rows:
                     if r["muscle_slug"].lower() == normalized.lower():
                         await session.execute(
@@ -180,10 +182,7 @@ async def main() -> None:
                             {"pct": pct_int, "eid": r["exercise_id"], "mgid": r["muscle_group_id"]},
                         )
                         updated += 1
-                        matched = True
                         break
-                if not matched:
-                    logger.warning("✗ %s / %s — alias 미매칭 (DB에 없는 근육명)", exercise_name, normalized)
 
             total_updated += updated
             logger.info("✓ %-35s %d/%d 근육 업데이트", exercise_name, updated, len(muscle_rows))

@@ -39,39 +39,51 @@ export function getSessionStats(token: string): Promise<SessionStatsData> {
   return apiFetch<SessionStatsData>('/api/v1/sessions/stats', { token });
 }
 
-export interface VolumeAnalysisItem {
-  date: string;
-  volume_kg: number;
+// ── 세션 시작 / 세트 기록 / 완료 ─────────────────────────────────────────────
+
+export interface StartSessionData {
+  session_id: string;
+  routine_id: string | null;
+  routine_name: string | null;
+  gym_id: string | null;
+  started_at: string;
 }
 
-export interface VolumeAnalysisData {
-  items: VolumeAnalysisItem[];
+export interface StartSessionBody {
+  routine_id?: string;
+  routine_day_id?: string;
+  gym_id?: string;
 }
 
-export interface MuscleVolumeItem {
-  muscle: string;
-  weekly_volume: number;
-  optimal_min: number;
-  optimal_max: number;
-  status: 'LOW' | 'OPTIMAL' | 'HIGH';
+export interface LogSetBody {
+  exercise_id: string;
+  routine_exercise_id?: string;
+  set_number: number;
+  weight_kg?: number | null;
+  reps: number;
+  is_completed: boolean;
 }
 
-export interface MuscleVolumeData {
-  period: string;
-  volume_by_muscle: MuscleVolumeItem[];
-  ai_coach_message: string;
+export function startSession(token: string, body: StartSessionBody): Promise<StartSessionData> {
+  return apiFetch<StartSessionData>('/api/v1/sessions', {
+    token,
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
-export function getVolumeAnalysis(token: string, days = 7): Promise<VolumeAnalysisData> {
-  return apiFetch<VolumeAnalysisData>(`/api/v1/sessions/analysis/volume?days=${days}`, { token });
+export function logSet(token: string, session_id: string, body: LogSetBody): Promise<unknown> {
+  return apiFetch<unknown>(`/api/v1/sessions/${session_id}/sets`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }
 
-export function getMuscleVolumeAnalysis(
-  token: string,
-  period: 'WEEK' | 'MONTH' = 'WEEK'
-): Promise<MuscleVolumeData> {
-  return apiFetch<MuscleVolumeData>(
-    `/api/v1/sessions/analysis/muscle-volume?period=${period}`,
-    { token }
-  );
+export function finishSession(token: string, session_id: string): Promise<unknown> {
+  return apiFetch<unknown>(`/api/v1/sessions/${session_id}/finish`, {
+    token,
+    method: 'PATCH',
+    body: JSON.stringify({}),
+  });
 }
