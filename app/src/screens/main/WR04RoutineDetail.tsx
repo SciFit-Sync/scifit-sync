@@ -312,13 +312,20 @@ export default function WR04RoutineDetail() {
     );
   };
 
-  // 운동 변경 — 키워드 디바운스 검색 (300ms)
+  // 운동 변경 — 키워드 없으면 전체 목록, 있으면 디바운스 검색 (300ms)
   useEffect(() => {
     if (!show_replace_modal) return;
+
     if (!replace_keyword.trim()) {
-      set_replace_results([]);
+      // 키워드 없음 → 전체 운동 목록 로드 (최대 100개)
+      set_is_replace_searching(true);
+      searchExercises(token, "", 100)
+        .then((data) => set_replace_results(data.items))
+        .catch(() => {})
+        .finally(() => set_is_replace_searching(false));
       return;
     }
+
     const timer = setTimeout(async () => {
       set_is_replace_searching(true);
       try {
@@ -1183,14 +1190,11 @@ export default function WR04RoutineDetail() {
             </View>
 
             {/* 결과 목록 */}
-            {replace_keyword.trim() === "" ? (
+            {is_replace_searching && replace_results.length === 0 ? (
               <View style={styles.replace_empty}>
-                <Octicons name="search" size={28} color={colors.border} />
-                <Text style={styles.replace_empty_text}>
-                  운동 이름을 입력해 검색하세요
-                </Text>
+                <ActivityIndicator color={colors.primary} />
               </View>
-            ) : !is_replace_searching && replace_results.length === 0 ? (
+            ) : !is_replace_searching && replace_keyword.trim() !== "" && replace_results.length === 0 ? (
               <View style={styles.replace_empty}>
                 <Octicons name="x-circle" size={28} color={colors.border} />
                 <Text style={styles.replace_empty_text}>
@@ -1825,7 +1829,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingBottom: 32,
-    maxHeight: "75%",
+    maxHeight: "90%",
   },
   replace_handle: {
     width: 36,
