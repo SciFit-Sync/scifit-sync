@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
@@ -20,25 +21,32 @@ import {
 } from "../../services/sessions";
 
 const BAR_MAX_HEIGHT = 130;
-const DAYS_KO = ["일", "월", "화", "수", "목", "금", "토"];
+const WEEK_DAYS_KO = ["월", "화", "수", "목", "금", "토", "일"];
 
+// keys는 muscle_groups.name_ko 값과 정확히 일치해야 함
+// (seed: 20260525_seed_muscle_groups_exercises.py 기준)
 const MUSCLE_GROUPS: { label: string; keys: string[]; color: string }[] = [
-  { label: "가슴", keys: ["가슴"], color: "#FDB5CE" },
-  { label: "어깨", keys: ["어깨 전면", "어깨 측면", "어깨 후면"], color: "#FF9F43" },
-  { label: "등", keys: ["광배근", "상부 등", "승모근"], color: "#54A0FF" },
-  { label: "다리", keys: ["대퇴사두근", "햄스트링", "둔근", "종아리"], color: "#5F27CD" },
+  { label: "가슴", keys: ["대흉근"], color: "#FDB5CE" },
+  { label: "어깨", keys: ["전면 삼각근", "측면 삼각근", "후면 삼각근"], color: "#FF9F43" },
+  { label: "등", keys: ["광배근", "능형근", "승모근"], color: "#54A0FF" },
+  { label: "다리", keys: ["대퇴사두근", "햄스트링", "대둔근", "종아리"], color: "#5F27CD" },
   { label: "팔", keys: ["이두근", "삼두근", "전완근"], color: "#FFEB00" },
-  { label: "복근", keys: ["복근"], color: "#2D9596" },
+  { label: "복근", keys: ["복직근", "복사근"], color: "#2D9596" },
 ];
 
+// 이번 주 월~일 7일 반환 (월요일 시작 고정)
 function buildWeekDays(): { date: string; dayLabel: string }[] {
   const now = new Date();
+  const day = now.getDay(); // 0=일, 1=월, ..., 6=토
+  const offsetToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + offsetToMonday);
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() - (6 - i));
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
     return {
       date: d.toISOString().split("T")[0],
-      dayLabel: DAYS_KO[d.getDay()],
+      dayLabel: WEEK_DAYS_KO[i],
     };
   });
 }
@@ -64,23 +72,36 @@ function aggregateMuscle(
 export default function WH02Analysis() {
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const weekDays = useMemo(() => buildWeekDays(), []);
+  const query_client = useQueryClient();
+
+  // 탭 포커스 시 분석 데이터 갱신
+  useFocusEffect(
+    useCallback(() => {
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+    }, [query_client]),
+  );
 
   const { data: statsData } = useQuery({
     queryKey: ["session-stats"],
     queryFn: () => getSessionStats(token),
     enabled: !!token,
+    staleTime: 30_000, // M-6: 30초 내 재포커스 시 불필요한 네트워크 요청 방지
   });
 
   const { data: volumeData } = useQuery({
     queryKey: ["volume-analysis", 7],
     queryFn: () => getVolumeAnalysis(token, 7),
     enabled: !!token,
+    staleTime: 30_000,
   });
 
   const { data: muscleData, isLoading: muscleLoading } = useQuery({
     queryKey: ["muscle-volume", "WEEK"],
     queryFn: () => getMuscleVolumeAnalysis(token, "WEEK"),
     enabled: !!token,
+    staleTime: 30_000,
   });
 
   const barData = useMemo(() => {

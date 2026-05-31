@@ -10,36 +10,80 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../assets/colors/colors";
-import { fetchChatHistory, sendChatMessage } from "../services/chat";
+import { sendChatMessage } from "../services/chat";
 import { listRoutines } from "../services/routines";
 import { useAuthStore } from "../stores/authStore";
+
+/** JWT payload를 디코드해서 sub(user_id)를 추출 */
+function decode_jwt_sub(token: string): string {
+  try {
+    const payload = token.split(".")[1];
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return (JSON.parse(decoded) as { sub?: string }).sub ?? "anonymous";
+  } catch {
+    return "anonymous";
+  }
+}
 
 interface Message {
   id: string;
   type: "bot" | "user";
   text: string;
   chips?: string[];
-  date_divider?: string;
+  timestamp: number;
 }
 
 interface Props {
   onClose: () => void;
 }
 
+/** timestamp → "5월 12일 (화)" 형식 */
+function format_date(ts: number): string {
+  const d = new Date(ts);
+  const days = ["일", "월", "화", "수", "목", "금", "토"];
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+}
+
 export default function WC01Chatbot({ onClose }: Props) {
-  const [messages, set_messages] = useState<Message[]>([]);
+  const [messages, set_messages] = useState<Message[]>([
+    {
+      id: "greeting",
+      type: "bot",
+      text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+      timestamp: Date.now(),
+    },
+  ]);
   const [input, set_input] = useState("");
   const [is_sending, set_is_sending] = useState(false);
   const [session_id, set_session_id] = useState<string | undefined>(undefined);
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
-  const has_loaded = useRef(false);
   const access_token = useAuthStore((s) => s.accessToken) ?? "";
 
+  // M-1: user_id 기반 격리 키 — A 로그아웃 후 B 로그인 시 대화 노출 방지
+  const chat_storage_key = useMemo(
+    () => `chatbot_messages_v1_${decode_jwt_sub(access_token)}`,
+    [access_token]
+  );
+
+  // M-3: 언마운트 시 XHR abort + setState 방지
+  const is_mounted_ref = useRef(true);
+  const xhr_abort_ref = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      is_mounted_ref.current = false;
+      xhr_abort_ref.current?.();
+    };
+  }, []);
+
+  // 진입 애니메이션 + 저장된 대화 or 신규 인사 로드
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fade_anim, {
@@ -53,50 +97,101 @@ export default function WC01Chatbot({ onClose }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
 
-  // 챗봇 진입 시 루틴 목록 로드 → 인사 메시지 + 선택 칩 표시
-  useEffect(() => {
-    listRoutines(access_token)
-      .then((data) => {
+    (async () => {
+      // 1. 저장된 대화 이력 로드
+      let restored = false;
+      try {
+        const json = await AsyncStorage.getItem(chat_storage_key);
+        if (json) {
+          const saved = JSON.parse(json) as Message[];
+          if (saved.length > 0) {
+            if (is_mounted_ref.current) set_messages(saved);
+            restored = true;
+          }
+        }
+      } catch {
+        // 스토리지 오류 무시
+      }
+
+      // 2. 항상 루틴 목록을 가져와서 인사 메시지 칩 갱신
+      try {
+        const data = await listRoutines(access_token);
         const chips = data.items.map((r) => r.name);
-        set_messages([
-          {
-            id: "greeting",
-            type: "bot",
-            text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
-            chips: chips.length > 0 ? chips : undefined,
-          },
-        ]);
-      })
-      .catch(() => {
-        set_messages([
-          {
-            id: "greeting",
-            type: "bot",
-            text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
-          },
-        ]);
-      });
-  }, []);
+        if (!is_mounted_ref.current) return;
 
-  // 세션이 있으면 이전 대화 이력 로드 (최초 1회만 — 스트리밍 중 덮어쓰기 방지)
-  useEffect(() => {
-    if (!session_id || !access_token || has_loaded.current) return;
-    has_loaded.current = true;
-    fetchChatHistory(session_id, access_token)
-      .then((data) => {
-        const loaded: Message[] = data.items.map((m) => ({
-          id: m.message_id,
-          type: m.role === "user" ? "user" : "bot",
-          text: m.content,
-        }));
-        set_messages(loaded);
-      })
-      .catch(() => {});
-  }, [session_id]);
+        if (!restored) {
+          // 저장 내역 없음 → 신규 인사 메시지
+          set_messages([
+            {
+              id: "greeting",
+              type: "bot",
+              text: chips.length > 0
+                ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
+                : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+              chips: chips.length > 0 ? chips : undefined,
+              timestamp: Date.now(),
+            },
+          ]);
+        } else if (chips.length > 0) {
+          // 기존 대화 복원 시 → 첫 인사 메시지 칩만 업데이트
+          set_messages((prev) => {
+            if (prev.length > 0 && prev[0].id === "greeting") {
+              return [
+                {
+                  ...prev[0],
+                  text: "안녕하세요, 어떤 루틴이 궁금하신가요?",
+                  chips,
+                },
+                ...prev.slice(1),
+              ];
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // listRoutines 실패 시 현재 메시지 유지
+      }
+    })();
+  }, []); // access_token은 마운트 시 한 번만 읽으면 되므로 의도적으로 [] 사용
+
+  const handle_new_chat = async () => {
+    // 저장된 대화 삭제 + 세션 초기화
+    await AsyncStorage.removeItem(chat_storage_key).catch(() => {});
+    set_session_id(undefined);
+    set_input("");
+    const now = Date.now();
+    set_messages([
+      {
+        id: "greeting",
+        type: "bot",
+        text: "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+        timestamp: now,
+      },
+    ]);
+    // 루틴 칩 새로 로드
+    try {
+      const data = await listRoutines(access_token);
+      const chips = data.items.map((r) => r.name);
+      set_messages([
+        {
+          id: "greeting",
+          type: "bot",
+          text: chips.length > 0
+            ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
+            : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+          chips: chips.length > 0 ? chips : undefined,
+          timestamp: now,
+        },
+      ]);
+    } catch {}
+    scroll_ref.current?.scrollTo({ y: 0, animated: false });
+  };
 
   const handle_close = () => {
+    // 닫기 전 대화 저장 (M-2: 최대 100개 유지 — AsyncStorage 6MB 한계 방어)
+    AsyncStorage.setItem(chat_storage_key, JSON.stringify(messages.slice(-100))).catch(() => {});
+
     Animated.parallel([
       Animated.timing(fade_anim, {
         toValue: 0,
@@ -115,35 +210,54 @@ export default function WC01Chatbot({ onClose }: Props) {
     const content = (text ?? input).trim();
     if (!content || is_sending) return;
 
-    const user_msg: Message = { id: String(Date.now()), type: "user", text: content };
+    const now = Date.now();
+    const user_msg: Message = { id: String(now), type: "user", text: content, timestamp: now };
     set_messages((prev) => [...prev, user_msg]);
     set_input("");
     set_is_sending(true);
 
     // 스트리밍 응답용 빈 봇 메시지 미리 추가
-    const bot_id = String(Date.now()) + "_bot";
-    set_messages((prev) => [...prev, { id: bot_id, type: "bot", text: "" }]);
+    const bot_id = String(now) + "_bot";
+    set_messages((prev) => [
+      ...prev,
+      { id: bot_id, type: "bot", text: "", timestamp: now + 1 },
+    ]);
 
     try {
-      await sendChatMessage(content, access_token, {
-        on_session_id: (sid) => set_session_id(sid),
-        on_chunk: (chunk) => {
-          set_messages((prev) =>
-            prev.map((m) => (m.id === bot_id ? { ...m, text: m.text + chunk } : m))
-          );
-          setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 50);
+      await sendChatMessage(
+        content,
+        access_token,
+        {
+          on_session_id: (sid) => {
+            if (is_mounted_ref.current) set_session_id(sid);
+          },
+          on_chunk: (chunk) => {
+            if (!is_mounted_ref.current) return;
+            set_messages((prev) =>
+              prev.map((m) => (m.id === bot_id ? { ...m, text: m.text + chunk } : m))
+            );
+            setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 50);
+          },
+          on_done: () => {
+            if (is_mounted_ref.current) set_is_sending(false);
+          },
+          on_error: (msg) => {
+            if (!is_mounted_ref.current) return;
+            set_messages((prev) =>
+              prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
+            );
+            set_is_sending(false);
+          },
+          // M-3: XHR abort 함수 저장 — 언마운트 시 useEffect cleanup에서 호출
+          on_abort_fn: (fn) => { xhr_abort_ref.current = fn; },
         },
-        on_done: () => set_is_sending(false),
-        on_error: (msg) => {
-          set_messages((prev) =>
-            prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
-          );
-          set_is_sending(false);
-        },
-      }, session_id);
-    } catch (e: any) {
+        session_id
+      );
+    } catch (e: unknown) {
+      if (!is_mounted_ref.current) return;
+      const msg = e instanceof Error ? e.message : "오류가 발생했습니다.";
       set_messages((prev) =>
-        prev.map((m) => (m.id === bot_id ? { ...m, text: e.message ?? "오류가 발생했습니다." } : m))
+        prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
       );
       set_is_sending(false);
     }
@@ -151,7 +265,21 @@ export default function WC01Chatbot({ onClose }: Props) {
     setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const handle_chip_press = (chip: string) => handle_send(chip);
+  const handle_chip_press = (chip: string) => {
+    // 루틴 칩 선택 시 로컬 봇 메시지로 질문 유도 (API 호출 없음)
+    const now = Date.now();
+    set_messages((prev) => [
+      ...prev,
+      { id: String(now), type: "user", text: chip, timestamp: now },
+      {
+        id: String(now) + "_bot",
+        type: "bot",
+        text: `"${chip}"가 궁금하시군요!\n운동 방법, 세트·무게 설정, 부상 예방 등\n궁금한 점을 질문해 주세요.`,
+        timestamp: now + 1,
+      },
+    ]);
+    setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 100);
+  };
 
   return (
     <Modal
@@ -185,7 +313,14 @@ export default function WC01Chatbot({ onClose }: Props) {
           >
             {/* 헤더 */}
             <View style={styles.header}>
-              <View style={styles.placeholder} />
+              <TouchableOpacity
+                style={styles.new_chat_btn}
+                onPress={handle_new_chat}
+                activeOpacity={0.7}
+              >
+                <Octicons name="plus" size={13} color={colors.primary} />
+                <Text style={styles.new_chat_text}>새 채팅</Text>
+              </TouchableOpacity>
               <Text style={styles.title}>운동 AI 가이드</Text>
               <TouchableOpacity onPress={handle_close}>
                 <Octicons name="x" size={24} color={colors.primary} />
@@ -202,41 +337,34 @@ export default function WC01Chatbot({ onClose }: Props) {
                 scroll_ref.current?.scrollToEnd({ animated: true })
               }
             >
-              {messages.map((message) => (
-                <View key={message.id}>
-                  {/* 날짜 구분선 */}
-                  {message.date_divider && (
-                    <View style={styles.date_divider}>
-                      <View style={styles.date_line} />
-                      <Text style={styles.date_text}>
-                        {message.date_divider}
-                      </Text>
-                      <View style={styles.date_line} />
-                    </View>
-                  )}
+              {messages.map((message, index) => {
+                const prev_msg = messages[index - 1];
+                const show_date =
+                  prev_msg !== undefined &&
+                  format_date(message.timestamp) !== format_date(prev_msg.timestamp);
 
-                  {message.type === "bot" ? (
-                    <View style={styles.bot_message_group}>
-                      <View style={styles.bot_bubble}>
-                        <Text style={styles.bot_text}>{message.text}</Text>
+                return (
+                  <View key={message.id}>
+                    {/* 날짜가 바뀔 때 구분선 */}
+                    {show_date && (
+                      <View style={styles.date_divider}>
+                        <View style={styles.date_line} />
+                        <Text style={styles.date_text}>
+                          {format_date(message.timestamp)}
+                        </Text>
+                        <View style={styles.date_line} />
                       </View>
-                      {message.chips && (
-                        <View style={styles.chips_container}>
-                          <View style={styles.chips_row}>
-                            {message.chips.slice(0, 3).map((chip) => (
-                              <TouchableOpacity
-                                key={chip}
-                                style={styles.chip}
-                                onPress={() => handle_chip_press(chip)}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={styles.chip_text}>{chip}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                          {message.chips.length > 3 && (
+                    )}
+
+                    {message.type === "bot" ? (
+                      <View style={styles.bot_message_group}>
+                        <View style={styles.bot_bubble}>
+                          <Text style={styles.bot_text}>{message.text}</Text>
+                        </View>
+                        {message.chips && (
+                          <View style={styles.chips_container}>
                             <View style={styles.chips_row}>
-                              {message.chips.slice(3).map((chip) => (
+                              {message.chips.slice(0, 3).map((chip) => (
                                 <TouchableOpacity
                                   key={chip}
                                   style={styles.chip}
@@ -247,19 +375,33 @@ export default function WC01Chatbot({ onClose }: Props) {
                                 </TouchableOpacity>
                               ))}
                             </View>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  ) : (
-                    <View style={styles.user_message_wrapper}>
-                      <View style={styles.user_bubble}>
-                        <Text style={styles.user_text}>{message.text}</Text>
+                            {message.chips.length > 3 && (
+                              <View style={styles.chips_row}>
+                                {message.chips.slice(3).map((chip) => (
+                                  <TouchableOpacity
+                                    key={chip}
+                                    style={styles.chip}
+                                    onPress={() => handle_chip_press(chip)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Text style={styles.chip_text}>{chip}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        )}
                       </View>
-                    </View>
-                  )}
-                </View>
-              ))}
+                    ) : (
+                      <View style={styles.user_message_wrapper}>
+                        <View style={styles.user_bubble}>
+                          <Text style={styles.user_text}>{message.text}</Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </ScrollView>
 
             {/* 입력창 */}
@@ -326,8 +468,15 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     marginBottom: 16,
   },
-  placeholder: {
-    width: 24,
+  new_chat_btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  new_chat_text: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.primary,
   },
   title: {
     flex: 1,

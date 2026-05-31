@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
@@ -47,6 +48,15 @@ export default function WL01Record() {
   const [year, set_year] = useState(today.getFullYear());
   const [month, set_month] = useState(today.getMonth() + 1);
   const [selected_day, set_selected_day] = useState<number | null>(null);
+  const query_client = useQueryClient();
+
+  // 탭 포커스 시 세션 데이터 갱신 — 탭 이동은 컴포넌트를 재마운트하지 않으므로
+  // useFocusEffect 없이는 루틴 상세에서 체크한 세트가 분석 탭에 반영되지 않음
+  useFocusEffect(
+    useCallback(() => {
+      query_client.invalidateQueries({ queryKey: ["sessions"] });
+    }, [query_client]),
+  );
 
   const { data: calendarData, isLoading: calendarLoading } = useQuery({
     queryKey: ["sessions", "calendar", token, year, month],

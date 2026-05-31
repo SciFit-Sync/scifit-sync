@@ -100,7 +100,7 @@ def _session_to_dto(
         gym_id=str(s.gym_id) if s.gym_id else None,
         started_at=s.started_at,
         finished_at=s.finished_at,
-        status=s.status.value if s.status else "in_progress",
+        status=str(s.status) if s.status else "in_progress",
         routine_name=routine_name,
         duration_minutes=duration_minutes,
     )
@@ -213,7 +213,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         if equipment_id:
             equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
 
-        eq_type = equipment.equipment_type.value if equipment else "machine"
+        eq_type = str(equipment.equipment_type) if equipment else "machine"
         max_stack = equipment.max_stack if equipment else None
 
         stats = (
@@ -304,15 +304,20 @@ async def start_session(
         # gym_id 미지정 시 루틴의 gym_id 자동 복사 (D-M9)
         if session_gym_id is None and routine.gym_id:
             session_gym_id = routine.gym_id
-
-        first_day = (
-            await db.execute(
-                select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
-            )
-        ).scalar_one_or_none()
-
-        session_routine_day_id = first_day.id if first_day else None
-
+        # routine_day_id가 명시적으로 전달된 경우 우선 사용 (멀티 day 루틴 대응)
+        # 그렇지 않으면 첫 번째 day 자동 선택
+        if body.routine_day_id:
+            session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
+        else:
+            first_day = (
+                await db.execute(
+                    select(RoutineDay)
+                    .where(RoutineDay.routine_id == routine_id)
+                    .order_by(RoutineDay.day_number)
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            session_routine_day_id = first_day.id if first_day else None
     elif body.routine_day_id:
         session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
 
@@ -511,7 +516,7 @@ async def _check_and_create_po_notifications(
         if rex.equipment_id:
             equip = equip_map.get(rex.equipment_id)
             if equip:
-                equipment_type = equip.equipment_type.value
+                equipment_type = str(equip.equipment_type)
                 max_stack = equip.max_stack
 
         result = po.calculate_increase(
@@ -847,8 +852,8 @@ async def volume_analysis(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.now(timezone.utc) - timedelta(days=days)
-
+    # WorkoutLog.started_at은 timezone-naive로 저장되므로 replace(tzinfo=None) 필수
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
     rows = (
         await db.execute(
             select(
@@ -879,22 +884,23 @@ async def volume_analysis(
 
 # ── GET /sessions/analysis/muscle-volume ─────────────────────────────────────
 # 근육 부위별 주간/월간 볼륨 조회 + 근비대 최적 범위 비교
+# 키는 muscle_groups.name_ko 값과 정확히 일치해야 함 (seed: 20260525_seed_muscle_groups_exercises.py)
 _OPTIMAL_RANGES: dict[str, tuple[float, float]] = {
-    "가슴": (4000, 6000),
-    "광배근": (4000, 6000),
-    "상부 등": (3000, 5000),
-    "승모근": (2000, 4000),
-    "어깨 전면": (2000, 4000),
-    "어깨 측면": (2000, 4000),
-    "어깨 후면": (2000, 4000),
-    "이두근": (2000, 4000),
-    "삼두근": (2000, 4000),
-    "전완근": (1000, 3000),
-    "복근": (2000, 4000),
-    "대퇴사두근": (6000, 10000),
-    "햄스트링": (4000, 8000),
-    "둔근": (4000, 8000),
-    "종아리": (2000, 4000),
+    "대흉근": (4000, 6000),  # pectoralis_major  ← 벤치프레스
+    "광배근": (4000, 6000),  # latissimus_dorsi  ← 바벨로우, 풀업
+    "능형근": (3000, 5000),  # rhomboids         ← 바벨로우
+    "승모근": (2000, 4000),  # trapezius
+    "전면 삼각근": (2000, 4000),  # anterior_deltoid  ← 오버헤드프레스
+    "측면 삼각근": (2000, 4000),  # lateral_deltoid
+    "후면 삼각근": (2000, 4000),  # posterior_deltoid
+    "이두근": (2000, 4000),  # biceps_brachii
+    "삼두근": (2000, 4000),  # triceps_brachii
+    "전완근": (1000, 3000),  # forearms
+    "복직근": (2000, 4000),  # rectus_abdominis  ← 플랭크
+    "대퇴사두근": (6000, 10000),  # quadriceps        ← 백 스쿼트
+    "햄스트링": (4000, 8000),  # hamstrings
+    "대둔근": (4000, 8000),  # gluteus_maximus
+    "종아리": (2000, 4000),  # calves
 }
 
 
@@ -911,7 +917,8 @@ async def muscle_volume_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     days = 7 if period == "WEEK" else 30
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    # WorkoutLog.started_at은 timezone-naive로 저장되므로 replace(tzinfo=None) 필수
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
     rows = (
         await db.execute(
@@ -1036,7 +1043,7 @@ async def session_detail(
             gym_id=str(s.gym_id) if s.gym_id else None,
             started_at=s.started_at,
             finished_at=s.finished_at,
-            status=s.status.value if s.status else "in_progress",
+            status=str(s.status) if s.status else "in_progress",
             routine_name=routine_name,
             sets=set_dtos,
             total_volume_kg=round(total_volume, 2),
