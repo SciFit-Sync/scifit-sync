@@ -255,7 +255,10 @@ class TestListSessions:
     @pytest.mark.asyncio
     async def test_with_year_month_filter(self, client):
         session = _mock_session()
-        db = _make_db(_exec_scalars_all([session]))
+        db = _make_db(
+            _exec_scalars_all([session]),  # WorkoutLog 목록 조회
+            _exec_all([]),  # session_agg (volume/sets) — 세트 없음
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions?year=2025&month=5")

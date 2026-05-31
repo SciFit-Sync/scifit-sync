@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_required_profile
@@ -57,6 +57,9 @@ from app.services import po
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+# 한국 표준시 오프셋 — started_at 은 UTC 나이브로 저장되므로 KST 날짜 계산 시 보정
+_KST = timedelta(hours=9)
 
 _REST_GOAL_DEFAULTS: dict[str, tuple[int, int, int]] = {
     "hypertrophy": (90, 60, 120),
@@ -122,14 +125,19 @@ async def _get_my_session(session_id: str, user: User, db: AsyncSession) -> Work
 
 
 async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
+    # started_at은 UTC 저장 → KST 날짜 기준으로 연속 운동 계산
     rows = (
-        await db.execute(select(func.date(WorkoutLog.started_at)).where(WorkoutLog.user_id == user_id).distinct())
+        await db.execute(
+            select(func.date(WorkoutLog.started_at + text("interval '9 hours'")).label("kst_date"))
+            .where(WorkoutLog.user_id == user_id)
+            .distinct()
+        )
     ).all()
     dates = sorted({r[0] for r in rows}, reverse=True)
     if not dates:
         return 0
 
-    today = datetime.now(timezone.utc).date()
+    today = (datetime.now(timezone.utc) + _KST).date()  # KST 오늘 날짜
     if dates[0] != today and dates[0] != today - timedelta(days=1):
         return 0
 
@@ -635,12 +643,16 @@ async def list_sessions(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    q_year = year or now.year
-    q_month = month or now.month
+    now_kst = datetime.now(timezone.utc) + _KST
+    q_year = year or now_kst.year
+    q_month = month or now_kst.month
 
-    start = datetime(q_year, q_month, 1)
-    end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
+    # KST 월 경계를 UTC 나이브 datetime 으로 변환
+    # 예) KST 6월 1일 00:00 = UTC 5월 31일 15:00 → -9h 보정
+    kst_start = datetime(q_year, q_month, 1)
+    kst_end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
+    start = kst_start - _KST
+    end = kst_end - _KST
 
     rows = (
         (
@@ -693,7 +705,7 @@ async def list_sessions(
 
     records = [
         SessionCalendarItem(
-            date=s.started_at.date().isoformat(),
+            date=(s.started_at + _KST).date().isoformat(),  # KST 기준 날짜
             session_id=str(s.id),
             routine_name=routine_name_by_day.get(str(s.routine_day_id)),
             duration_minutes=(
