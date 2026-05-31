@@ -64,7 +64,9 @@ for the exercise "{exercise}" based on published research.
 Muscles:
 {muscles}
 
-Return ONLY a JSON array, no markdown, no explanation:
+Return ONLY a JSON array, no markdown, no explanation.
+Use muscle_slug values EXACTLY as given in the Muscles list above — do not normalize, \
+translate, or change them.
 [{{"muscle_slug": "<slug>", "activation_pct": <integer 0-100>}}, ...]
 
 Guidelines by involvement:
@@ -166,6 +168,7 @@ async def main() -> None:
                     continue
                 # alias 변환 후 case-insensitive 매칭
                 normalized = _SLUG_ALIASES.get(slug.lower(), slug)
+                matched = False
                 for r in muscle_rows:
                     if r["muscle_slug"].lower() == normalized.lower():
                         await session.execute(
@@ -177,7 +180,10 @@ async def main() -> None:
                             {"pct": pct_int, "eid": r["exercise_id"], "mgid": r["muscle_group_id"]},
                         )
                         updated += 1
+                        matched = True
                         break
+                if not matched:
+                    logger.warning("✗ %s / %s — alias 미매칭 (DB에 없는 근육명)", exercise_name, normalized)
 
             total_updated += updated
             logger.info("✓ %-35s %d/%d 근육 업데이트", exercise_name, updated, len(muscle_rows))
