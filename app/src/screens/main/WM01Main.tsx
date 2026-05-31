@@ -121,6 +121,7 @@ export default function WM01Main() {
     queryKey: ["notifications_unread", token],
     queryFn: () => getNotifications(token),
     enabled: !!token,
+    staleTime: 30_000,
   });
   const unread_count = notif_data?.unread_count ?? 0;
 
@@ -224,6 +225,7 @@ export default function WM01Main() {
 
       {/* 헤더 */}
       <View style={styles.header}>
+        <View style={styles.bell_btn} />
         <Text style={styles.logo}>SciFit-Sync</Text>
         <TouchableOpacity
           style={styles.bell_btn}
