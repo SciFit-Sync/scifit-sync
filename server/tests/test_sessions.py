@@ -434,14 +434,14 @@ class TestMuscleVolumeAnalysis:
     @pytest.mark.asyncio
     async def test_optimal_volume_returns_optimal_message(self, client):
         """볼륨이 최적 범위(4000~6000) 내이면 OPTIMAL 상태 및 격려 메시지."""
-        db = _make_db(_exec_all([("가슴", 5000.0), ("광배근", 4500.0)]))
+        db = _make_db(_exec_all([("대흉근", 5000.0), ("광배근", 4500.0)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "대흉근")
         assert chest["status"] == "OPTIMAL"
         assert chest["weekly_volume"] == 5000.0
         assert chest["optimal_min"] == 4000.0
@@ -451,28 +451,28 @@ class TestMuscleVolumeAnalysis:
     @pytest.mark.asyncio
     async def test_low_volume_nonzero_returns_low_message(self, client):
         """볼륨이 최적 하한 미만(단, 0 초과)이면 LOW 상태 및 볼륨 증가 메시지."""
-        db = _make_db(_exec_all([("가슴", 1000.0)]))
+        db = _make_db(_exec_all([("대흉근", 1000.0)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "대흉근")
         assert chest["status"] == "LOW"
         assert "볼륨을 늘려보세요" in data["ai_coach_message"]
 
     @pytest.mark.asyncio
     async def test_high_volume_returns_high_message(self, client):
         """볼륨이 최적 상한 초과이면 HIGH 상태 및 회복 권장 메시지."""
-        db = _make_db(_exec_all([("가슴", 9000.0)]))
+        db = _make_db(_exec_all([("대흉근", 9000.0)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "대흉근")
         assert chest["status"] == "HIGH"
         assert "회복" in data["ai_coach_message"]
 
