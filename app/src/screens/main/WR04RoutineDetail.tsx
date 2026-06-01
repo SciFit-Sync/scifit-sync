@@ -44,6 +44,26 @@ import {
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
+// WorkoutX GIF fallback: exercise_id → gif filename (검증된 5개 핵심 운동)
+const _WX_GIF_MAP: Record<string, string> = {
+  "47873ce2-633e-55ef-9f3f-bcb5c7c89766": "0102", // 백 스쿼트
+  "84ed1231-015d-4b42-a1d9-917551515674": "0025", // 벤치 프레스
+  "b091a8f3-9a4a-4149-887e-e32374bc9601": "0027", // 바벨 로우
+  "97fb4a41-c254-4de7-8914-48b8293888bb": "0091", // 오버헤드 프레스
+  "fae9c406-d1c3-4658-b05f-68e7df22afd4": "0103", // AB 롤아웃
+};
+const _WX_KEY = process.env.EXPO_PUBLIC_WORKOUTX_API_KEY ?? "";
+
+function resolve_gif_url(
+  gif_url: string | null,
+  exercise_id: string,
+): string | null {
+  if (gif_url) return gif_url;
+  const id = _WX_GIF_MAP[exercise_id];
+  if (!id || !_WX_KEY) return null;
+  return `https://api.workoutxapp.com/v1/gifs/${id}.gif?api-key=${_WX_KEY}`;
+}
+
 interface Set {
   id: string;
   weight: string;
@@ -810,22 +830,28 @@ export default function WR04RoutineDetail() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* 그래픽 영상 placeholder */}
-                    {exercise.gif_url ? (
-                      <Image
-                        source={{ uri: exercise.gif_url }}
-                        style={styles.exercise_gif}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <View style={styles.image_placeholder}>
-                        <Octicons
-                          name="play"
-                          size={32}
-                          color={colors.bluegray}
+                    {/* 그래픽 영상 */}
+                    {(() => {
+                      const gif = resolve_gif_url(
+                        exercise.gif_url,
+                        exercise.exercise_id,
+                      );
+                      return gif ? (
+                        <Image
+                          source={{ uri: gif }}
+                          style={styles.exercise_gif}
+                          resizeMode="contain"
                         />
-                      </View>
-                    )}
+                      ) : (
+                        <View style={styles.image_placeholder}>
+                          <Octicons
+                            name="play"
+                            size={32}
+                            color={colors.bluegray}
+                          />
+                        </View>
+                      );
+                    })()}
 
                     {/* 근육 활성화 */}
                     <View style={styles.muscle_section}>
