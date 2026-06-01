@@ -254,7 +254,7 @@ class TestGetRoutine:
             _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press", None)]),
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
-            MagicMock(),   # sentinel write-back UPDATE
+            MagicMock(),  # sentinel write-back UPDATE
         )
 
         app.dependency_overrides[get_db] = _db_override(db)
@@ -292,7 +292,7 @@ class TestGetRoutine:
             _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press", None)]),
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
-            MagicMock(),   # URL write-back UPDATE
+            MagicMock(),  # URL write-back UPDATE
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
