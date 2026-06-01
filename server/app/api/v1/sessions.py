@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
+    ActiveSessionData,
     FinishSessionRequest,
     GymStatItem,
     LogSetRequest,
@@ -1005,6 +1006,68 @@ async def muscle_volume_analysis(
             period=period,
             volume_by_muscle=items,
             ai_coach_message=ai_coach_message,
+        )
+    )
+
+
+# ── GET /sessions/active ─────────────────────────────────────────────────────
+@router.get(
+    "/active",
+    response_model=SuccessResponse[ActiveSessionData | None],
+    summary="진행 중인 세션 조회",
+)
+@rate_limit("60/minute")
+async def get_active_session(
+    request: Request,
+    routine_id: str | None = Query(None, description="루틴 ID — 지정 시 해당 루틴의 진행 중 세션만 반환"),
+    current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(WorkoutLog)
+        .where(
+            WorkoutLog.user_id == current_user.id,
+            WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
+        )
+        .order_by(WorkoutLog.started_at.desc())
+        .limit(1)
+    )
+
+    if routine_id:
+        routine_uuid = _parse_uuid(routine_id, "routine_id")
+        stmt = (
+            select(WorkoutLog)
+            .join(RoutineDay, WorkoutLog.routine_day_id == RoutineDay.id)
+            .where(
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
+                RoutineDay.routine_id == routine_uuid,
+            )
+            .order_by(WorkoutLog.started_at.desc())
+            .limit(1)
+        )
+
+    s = (await db.execute(stmt)).scalar_one_or_none()
+    if s is None:
+        return SuccessResponse(data=None)
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    elapsed = max(0, int((_strip_tz(now) - _strip_tz(s.started_at)).total_seconds()))
+
+    resolved_routine_id: str | None = None
+    if s.routine_day_id:
+        day = (await db.execute(select(RoutineDay).where(RoutineDay.id == s.routine_day_id))).scalar_one_or_none()
+        if day:
+            resolved_routine_id = str(day.routine_id)
+
+    return SuccessResponse(
+        data=ActiveSessionData(
+            session_id=str(s.id),
+            routine_id=resolved_routine_id,
+            routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
+            gym_id=str(s.gym_id) if s.gym_id else None,
+            started_at=s.started_at,
+            elapsed_seconds=elapsed,
         )
     )
 
