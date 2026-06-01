@@ -5,6 +5,7 @@ export interface SessionCalendarItem {
   session_id: string;
   routine_name: string | null;
   duration_minutes: number | null;
+  gym_name: string | null;
 }
 
 export interface SessionCalendarData {
@@ -27,6 +28,7 @@ export interface SessionStatsData {
   total_sets: number;
   weekly_session_count: number;
   streak_days: number;
+  total_calories_kcal: number;
   recent_session: RecentSessionItem | null;
 }
 
@@ -86,4 +88,37 @@ export function finishSession(token: string, session_id: string): Promise<unknow
     method: 'PATCH',
     body: JSON.stringify({}),
   });
+}
+
+// ── 볼륨 분석 / 근육 부위별 분석 ─────────────────────────────────────────────
+
+export interface VolumeAnalysisItem {
+  date: string;       // YYYY-MM-DD
+  volume_kg: number;
+}
+
+export interface VolumeAnalysisData {
+  items: VolumeAnalysisItem[];
+}
+
+export interface MuscleVolumeItem {
+  muscle: string;         // MuscleGroup.name_ko (예: "가슴", "광배근")
+  weekly_volume: number;
+  optimal_min: number;
+  optimal_max: number;
+  status: 'OPTIMAL' | 'LOW' | 'HIGH';
+}
+
+export interface MuscleVolumeData {
+  period: string;
+  volume_by_muscle: MuscleVolumeItem[];
+  ai_coach_message: string;
+}
+
+export function getVolumeAnalysis(token: string, days: number): Promise<VolumeAnalysisData> {
+  return apiFetch<VolumeAnalysisData>(`/api/v1/sessions/analysis/volume?days=${days}`, { token });
+}
+
+export function getMuscleVolumeAnalysis(token: string, period: 'WEEK' | 'MONTH'): Promise<MuscleVolumeData> {
+  return apiFetch<MuscleVolumeData>(`/api/v1/sessions/analysis/muscle-volume?period=${period}`, { token });
 }

@@ -254,6 +254,7 @@ class TestGetRoutine:
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
         )
+
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}")

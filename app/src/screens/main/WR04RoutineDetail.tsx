@@ -42,6 +42,7 @@ import {
   finishSession,
 } from "../../services/sessions";
 import WC01Chatbot from "../../components/WC01Chatbot";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
 interface Set {
   id: string;
@@ -137,6 +138,20 @@ export default function WR04RoutineDetail() {
   const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
 
+  // AsyncStorage persist 수화 완료 여부 — 수화 전에 exercises를 초기화하면 복원이 안 됨
+  const [store_ready, set_store_ready] = useState(
+    () => useWorkoutSessionStore.persist.hasHydrated(),
+  );
+  useEffect(() => {
+    if (useWorkoutSessionStore.persist.hasHydrated()) {
+      set_store_ready(true);
+      return;
+    }
+    return useWorkoutSessionStore.persist.onFinishHydration(() => {
+      set_store_ready(true);
+    });
+  }, []);
+
   // 바텀시트 애니메이션 (backdrop opacity + sheet translateY)
   const MODAL_DUR = 250;
   const tips_overlay_anim = useRef(new Animated.Value(0)).current;
@@ -168,8 +183,9 @@ export default function WR04RoutineDetail() {
   });
 
   // API 데이터 → 로컬 exercises 변환 (day 인덱스 변경 시 재초기화)
+  // store_ready: AsyncStorage 수화가 완료된 뒤에만 실행해야 체크 상태가 올바르게 복원됨
   useEffect(() => {
-    if (!detail) return;
+    if (!detail || !store_ready) return;
     const day = detail.days[selected_day_idx];
     if (!day) {
       set_exercises([]);
@@ -195,7 +211,7 @@ export default function WR04RoutineDetail() {
     } else {
       set_exercises(base);
     }
-  }, [detail, selected_day_idx]);
+  }, [detail, selected_day_idx, store_ready]);
 
   useEffect(() => {
     if (is_timer_running) {
@@ -280,6 +296,11 @@ export default function WR04RoutineDetail() {
               is_completed: true,
             }),
           )
+          .then(() => {
+            query_client.invalidateQueries({ queryKey: ["session-stats"] });
+            query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+            query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+          })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
             Alert.alert(
@@ -620,6 +641,9 @@ export default function WR04RoutineDetail() {
       await finishSession(token, session_id_ref.current);
       ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
       navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);
@@ -1292,16 +1316,8 @@ export default function WR04RoutineDetail() {
         </View>
       </Modal>
 
-      {/* 챗봇 FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => set_show_chatbot(true)}
-        activeOpacity={0.8}
-      >
-        <Octicons name="comment" size={24} color={colors.white} />
-      </TouchableOpacity>
-
-      {/* 챗봇 오버레이 — WM01Main과 동일한 패턴 */}
+      {/* 챗봇 FAB — WM01Main과 동일한 컴포넌트 */}
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
       {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
 
       {/* 하단 네브바 */}
@@ -1980,21 +1996,5 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 
-  // FAB
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 104,
-    width: 55,
-    height: 55,
-    borderRadius: 1000,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-  },
 });
+

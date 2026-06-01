@@ -74,6 +74,7 @@ class SessionCalendarItem(BaseModel):
     session_id: str
     routine_name: str | None = None
     duration_minutes: int | None = None
+    gym_name: str | None = None
 
 
 class SessionCalendarData(BaseModel):
@@ -108,6 +109,7 @@ class SessionStatsData(BaseModel):
     total_sets: int = 0
     weekly_session_count: int = 0
     streak_days: int
+    total_calories_kcal: int = 0
     recent_session: RecentSessionItem | None = None
     by_gym: list[GymStatItem] = Field(default_factory=list)
 
