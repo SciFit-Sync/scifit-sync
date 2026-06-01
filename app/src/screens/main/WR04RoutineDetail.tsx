@@ -296,6 +296,11 @@ export default function WR04RoutineDetail() {
               is_completed: true,
             }),
           )
+          .then(() => {
+            query_client.invalidateQueries({ queryKey: ["session-stats"] });
+            query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+            query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+          })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
             Alert.alert(
@@ -636,6 +641,9 @@ export default function WR04RoutineDetail() {
       await finishSession(token, session_id_ref.current);
       ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
       navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);

@@ -5,6 +5,7 @@ export interface SessionCalendarItem {
   session_id: string;
   routine_name: string | null;
   duration_minutes: number | null;
+  gym_name: string | null;
 }
 
 export interface SessionCalendarData {
@@ -27,6 +28,7 @@ export interface SessionStatsData {
   total_sets: number;
   weekly_session_count: number;
   streak_days: number;
+  total_calories_kcal: number;
   recent_session: RecentSessionItem | null;
 }
 

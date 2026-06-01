@@ -671,6 +671,13 @@ async def list_sessions(
         ).all()
         routine_name_by_day = {str(did): name for did, name in name_rows}
 
+    gym_ids = [r.gym_id for r in rows if r.gym_id]
+    gym_name_by_id: dict[str, str] = {}
+
+    if gym_ids:
+        gym_rows = (await db.execute(select(Gym.id, Gym.name).where(Gym.id.in_(gym_ids)))).all()
+        gym_name_by_id = {str(gid): gname for gid, gname in gym_rows}
+
     records = [
         SessionCalendarItem(
             date=s.started_at.date().isoformat(),
@@ -681,6 +688,7 @@ async def list_sessions(
                 if s.finished_at and s.started_at
                 else None
             ),
+            gym_name=gym_name_by_id.get(str(s.gym_id)) if s.gym_id else None,
         )
         for s in rows
     ]
@@ -750,6 +758,18 @@ async def session_stats(
     ).all()
 
     total_minutes = sum(int((f - s).total_seconds() // 60) for s, f in finished_rows if f and s)
+
+    # 총 칼로리 (최근 체중 기준, MET 5.0 공식)
+    latest_measurement = (
+        await db.execute(
+            select(UserBodyMeasurement)
+            .where(UserBodyMeasurement.user_id == current_user.id)
+            .order_by(UserBodyMeasurement.measured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    body_weight_kg = float(latest_measurement.weight_kg) if latest_measurement else 70.0
+    total_calories_kcal = round(5.0 * body_weight_kg * total_minutes / 60)
 
     # 주간 세션 수 (최근 7일)
     week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
@@ -837,6 +857,7 @@ async def session_stats(
             total_sets=total_sets,
             weekly_session_count=weekly_session_count,
             streak_days=streak_days,
+            total_calories_kcal=total_calories_kcal,
             recent_session=recent_session,
             by_gym=by_gym,
         )
