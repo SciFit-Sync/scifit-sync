@@ -67,6 +67,12 @@ def _exec_all(rows):
     return r
 
 
+def _exec_first(row):
+    r = MagicMock()
+    r.first.return_value = row
+    return r
+
+
 def _make_db(*side_effects):
     db = AsyncMock()
     db.execute.side_effect = list(side_effects)
@@ -91,8 +97,10 @@ _MOCK_USER = _mock_user()
 async def client():
     app.dependency_overrides[get_required_profile] = lambda: _MOCK_USER
     transport = ASGITransport(app=app)
+
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
     app.dependency_overrides.clear()
 
 
@@ -209,8 +217,10 @@ class TestFinishSession:
     @pytest.mark.asyncio
     async def test_success(self, client):
         session = _mock_session()
+
         db = _make_db(
             _exec_scalar(session),  # _get_my_session
+            _exec_scalars_all([]),  # ex_rows in _create_po_notifications
             _exec_scalar_one(0),  # total_sets
             _exec_scalar_one(0),  # completed_exercises
             _exec_scalar(None),  # UserBodyMeasurement (없으면 70kg 기본값)
@@ -267,11 +277,13 @@ class TestSessionStats:
     @pytest.mark.asyncio
     async def test_success(self, client):
         finished_at = _NOW + timedelta(minutes=60)
+
         db = _make_db(
             _exec_scalar_raw(5),  # total_sessions count
             _exec_scalar_raw(12500.0),  # total_volume
             _exec_scalar_raw(30),  # total_sets
             _exec_all([(_NOW, finished_at)]),  # finished sessions for minutes calc
+            _exec_scalar(None),  # UserBodyMeasurement → 70kg fallback
             _exec_scalar_raw(2),  # weekly_session_count
             _exec_scalar(None),  # recent_row
             _exec_all([]),  # streak dates
@@ -286,6 +298,7 @@ class TestSessionStats:
         assert data["total_sessions"] == 5
         assert data["total_volume_kg"] == 12500.0
         assert data["total_duration_minutes"] == 60
+        assert data["total_calories_kcal"] == 350  # round(5.0 * 70 * 60 / 60)
         assert data["by_gym"] == []
 
 
@@ -383,6 +396,7 @@ class TestRestTimer:
         session = _mock_session()
         rex = MagicMock()
         rex.rest_seconds = 120
+
         db = _make_db(_exec_scalar(session), _exec_scalar(rex))
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -428,14 +442,14 @@ class TestMuscleVolumeAnalysis:
     @pytest.mark.asyncio
     async def test_optimal_volume_returns_optimal_message(self, client):
         """볼륨이 최적 범위(4000~6000) 내이면 OPTIMAL 상태 및 격려 메시지."""
-        db = _make_db(_exec_all([("가슴", 5000.0), ("광배근", 4500.0)]))
+        db = _make_db(_exec_all([("대흉근", 5000.0), ("광배근", 4500.0)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "대흉근")
         assert chest["status"] == "OPTIMAL"
         assert chest["weekly_volume"] == 5000.0
         assert chest["optimal_min"] == 4000.0
@@ -445,28 +459,28 @@ class TestMuscleVolumeAnalysis:
     @pytest.mark.asyncio
     async def test_low_volume_nonzero_returns_low_message(self, client):
         """볼륨이 최적 하한 미만(단, 0 초과)이면 LOW 상태 및 볼륨 증가 메시지."""
-        db = _make_db(_exec_all([("가슴", 1000.0)]))
+        db = _make_db(_exec_all([("대흉근", 1000.0)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "대흉근")
         assert chest["status"] == "LOW"
         assert "볼륨을 늘려보세요" in data["ai_coach_message"]
 
     @pytest.mark.asyncio
     async def test_high_volume_returns_high_message(self, client):
         """볼륨이 최적 상한 초과이면 HIGH 상태 및 회복 권장 메시지."""
-        db = _make_db(_exec_all([("가슴", 9000.0)]))
+        db = _make_db(_exec_all([("대흉근", 9000.0)]))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
 
         assert resp.status_code == 200
         data = resp.json()["data"]
-        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "가슴")
+        chest = next(i for i in data["volume_by_muscle"] if i["muscle"] == "대흉근")
         assert chest["status"] == "HIGH"
         assert "회복" in data["ai_coach_message"]
 
@@ -487,3 +501,48 @@ class TestMuscleVolumeAnalysis:
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume?period=DAILY")
 
         assert resp.status_code == 400
+
+
+# ── GET /sessions/active ──────────────────────────────────────────────────────
+
+
+class TestGetActiveSession:
+    @pytest.mark.asyncio
+    async def test_no_active_session_returns_null(self, client):
+        """진행 중 세션이 없으면 data: null 반환."""
+        db = _make_db(_exec_first(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/active")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"] is None
+
+    @pytest.mark.asyncio
+    async def test_returns_active_session_with_elapsed(self, client):
+        """진행 중 세션이 있으면 session_id와 elapsed_seconds를 반환한다."""
+        routine_id = uuid.uuid4()
+        session = _mock_session()
+        session.started_at = datetime(2026, 6, 1, 10, 0, 0)
+
+        db = _make_db(_exec_first((session, routine_id)))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/active")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["session_id"] == str(_SESSION_ID)
+        assert data["routine_id"] == str(routine_id)
+        assert data["elapsed_seconds"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_routine_id_filter_no_match_returns_null(self, client):
+        """routine_id 필터 지정 시 해당 루틴의 세션이 없으면 data: null 반환."""
+        db = _make_db(_exec_first(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/sessions/active?routine_id={uuid.uuid4()}")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"] is None

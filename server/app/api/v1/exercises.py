@@ -98,7 +98,7 @@ async def list_exercises(
             name=e.name,
             name_en=e.name_en,
             category=e.category,
-            gif_url=e.gif_url if isinstance(e.gif_url, str) else None,
+            gif_url=e.gif_url if isinstance(e.gif_url, str) and e.gif_url else None,
             primary_muscle_groups=primary_map.get(e.id, []),
         )
         for e in exercises

@@ -124,7 +124,7 @@ async def home(
     notif_items = [
         NotificationItem(
             notification_id=str(n.id),
-            type=n.type.value if n.type else "system",
+            type=str(n.type) if n.type else "system",
             title=n.title,
             body=n.body,
             is_read=n.is_read,

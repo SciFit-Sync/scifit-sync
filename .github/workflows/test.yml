@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: server/requirements-dev.txt
 
       - name: Install lint dependencies
-        run: pip install ruff
+        run: pip install -r server/requirements-dev.txt
 
       - name: Lint check (ruff)
         run: ruff check server/ mlops/ --output-format=github
@@ -69,6 +69,7 @@ jobs:
         run: cd server && alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/scifiitsync_test
+          ENV: development
 
       - name: Run server tests
         run: |

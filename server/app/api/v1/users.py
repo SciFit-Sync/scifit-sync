@@ -10,7 +10,6 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
@@ -22,6 +21,7 @@ from app.models import (
     Exercise,
     Gender,
     Gym,
+    GymEquipment,
     OnermSource,
     User,
     UserBodyMeasurement,
@@ -70,12 +70,12 @@ def _profile_to_dto(profile: UserProfile | None) -> ProfileData | None:
     if profile is None:
         return None
     return ProfileData(
-        gender=profile.gender.value if profile.gender else None,
+        gender=str(profile.gender) if profile.gender else None,
         birth_date=profile.birth_date,
         age=_calc_age(profile.birth_date),
         height_cm=profile.height_cm,
         default_goals=[g.lower() for g in profile.default_goals] if profile.default_goals else None,
-        career_level=profile.career_level.value if profile.career_level else None,
+        career_level=str(profile.career_level) if profile.career_level else None,
         career_years=profile.career_years,
     )
 
@@ -214,7 +214,7 @@ async def get_me(
             email=current_user.email,
             username=current_user.username,
             name=current_user.name,
-            provider=current_user.provider.value if current_user.provider else "local",
+            provider=str(current_user.provider) if current_user.provider else "local",
             profile=_profile_to_dto(profile),
             latest_measurement=_measurement_to_dto(latest_m),
             gyms=gyms,
@@ -277,7 +277,7 @@ async def update_body(
             height_cm=profile.height_cm if profile else body.height_cm,
             birth_date=profile.birth_date if profile else updated_birth_date,
             age=_calc_age(profile.birth_date) if profile else None,
-            gender=profile.gender.value if profile and profile.gender else updated_gender,
+            gender=str(profile.gender) if profile and profile.gender else updated_gender,
             measurement=measurement_dto,
         )
     )
@@ -379,6 +379,19 @@ async def change_primary_gym(
     return await add_primary_gym(request, body, current_user, db)
 
 
+# ── equipment DTO ─────────────────────────────────────────────────────────────
+def _equipment_to_dto(e: Equipment) -> UserEquipmentItem:
+    return UserEquipmentItem(
+        equipment_id=str(e.id),
+        name=e.name,
+        category=str(e.category) if e.category else None,
+        equipment_type=str(e.equipment_type) if e.equipment_type else "machine",
+        pulley_ratio=e.pulley_ratio,
+        bar_weight=e.bar_weight,
+        image_url=e.image_url,
+    )
+
+
 # ── 1RM ───────────────────────────────────────────────────────────────────────
 def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> OneRMData:
     return OneRMData(
@@ -386,7 +399,7 @@ def _onerm_to_dto(record: UserExercise1RM, exercise_name: str | None = None) -> 
         exercise_id=str(record.exercise_id),
         exercise_name=exercise_name,
         weight_kg=record.weight_kg,
-        source=record.source.value if record.source else "manual",
+        source=str(record.source) if record.source else "manual",
         estimated_at=record.estimated_at,
     )
 
@@ -424,6 +437,7 @@ async def add_1rm(
     db.add(record)
     await db.commit()
     await db.refresh(record)
+
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
@@ -451,15 +465,32 @@ async def update_1rm(
         weight = body.weight_kg
         source = OnermSource.MANUAL
 
-    record = UserExercise1RM(
-        user_id=current_user.id,
-        exercise_id=exercise_uuid,
-        weight_kg=weight,
-        source=source,
-    )
-    db.add(record)
+    existing = (
+        await db.execute(
+            select(UserExercise1RM).where(
+                UserExercise1RM.user_id == current_user.id,
+                UserExercise1RM.exercise_id == exercise_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing is None:
+        record = UserExercise1RM(
+            user_id=current_user.id,
+            exercise_id=exercise_uuid,
+            weight_kg=weight,
+            source=source,
+        )
+        db.add(record)
+    else:
+        existing.weight_kg = weight
+        existing.source = source
+        existing.estimated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        record = existing
+
     await db.commit()
     await db.refresh(record)
+
     return SuccessResponse(data=_onerm_to_dto(record, exercise.name))
 
 
@@ -528,8 +559,12 @@ async def bulk_add_1rm(
     for record, _ in created:
         await db.refresh(record)
 
-    items = [_onerm_to_dto(rec, name) for rec, name in created]
-    return SuccessResponse(data=BulkOneRMData(items=items, created_count=len(items)))
+    return SuccessResponse(
+        data=BulkOneRMData(
+            items=[_onerm_to_dto(rec, name) for rec, name in created],
+            count=len(created),
+        )
+    )
 
 
 @router.get("/me/1rm", response_model=SuccessResponse[OneRMListData], summary="내 1RM 목록")
@@ -557,40 +592,20 @@ async def list_my_equipment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """주 헬스장 보유 장비를 반환한다.
-    별도 user_equipment 테이블이 없어 user_gyms.is_primary 기반으로 조회.
-    """
-    primary = (
+    user_gym = (
         await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
     ).scalar_one_or_none()
-    if primary is None:
+    if user_gym is None:
         return SuccessResponse(data=UserEquipmentListData(items=[]))
 
-    # primary gym의 equipments
-    result = await db.execute(select(Gym).where(Gym.id == primary.gym_id).options(selectinload(Gym.gym_equipments)))
-    gym = result.scalar_one_or_none()
-    if gym is None:
+    gym = (await db.execute(select(Gym).where(Gym.id == user_gym.gym_id))).scalar_one_or_none()
+    if gym is None or not gym.gym_equipments:
         return SuccessResponse(data=UserEquipmentListData(items=[]))
 
     equipment_ids = [ge.equipment_id for ge in gym.gym_equipments]
-    if not equipment_ids:
-        return SuccessResponse(data=UserEquipmentListData(items=[]))
-
     equipments = (await db.execute(select(Equipment).where(Equipment.id.in_(equipment_ids)))).scalars().all()
 
-    items = [
-        UserEquipmentItem(
-            equipment_id=str(e.id),
-            name=e.name,
-            category=e.category.value if e.category else None,
-            equipment_type=e.equipment_type.value,
-            pulley_ratio=e.pulley_ratio,
-            bar_weight=e.bar_weight,
-            image_url=e.image_url,
-        )
-        for e in equipments
-    ]
-    return SuccessResponse(data=UserEquipmentListData(items=items))
+    return SuccessResponse(data=UserEquipmentListData(items=[_equipment_to_dto(e) for e in equipments]))
 
 
 @router.post(
@@ -606,47 +621,33 @@ async def add_my_equipment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """주 헬스장에 장비를 추가 등록 — 헬스장에 없는 경우 보고/추가용."""
     try:
-        eq_uuid = uuid.UUID(body.equipment_id)
+        equipment_uuid = uuid.UUID(body.equipment_id)
     except ValueError as e:
         raise ValidationError(message="잘못된 equipment_id 형식입니다.") from e
 
-    equipment = (await db.execute(select(Equipment).where(Equipment.id == eq_uuid))).scalar_one_or_none()
+    equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_uuid))).scalar_one_or_none()
     if equipment is None:
         raise NotFoundError(message="장비를 찾을 수 없습니다.")
 
-    primary = (
+    user_gym = (
         await db.execute(select(UserGym).where(UserGym.user_id == current_user.id, UserGym.is_primary.is_(True)))
     ).scalar_one_or_none()
-    if primary is None:
-        raise ValidationError(message="주 헬스장이 등록되어 있지 않습니다.")
+    if user_gym is None:
+        raise ValidationError(message="주 헬스장을 먼저 등록해주세요.")
 
-    # 중복 체크
-    from app.models import GymEquipment
-
-    exists = (
+    existing = (
         await db.execute(
             select(GymEquipment).where(
-                GymEquipment.gym_id == primary.gym_id,
-                GymEquipment.equipment_id == eq_uuid,
+                GymEquipment.gym_id == user_gym.gym_id,
+                GymEquipment.equipment_id == equipment_uuid,
             )
         )
     ).scalar_one_or_none()
-    if exists is not None:
+    if existing is not None:
         raise ConflictError(message="이미 등록된 장비입니다.")
 
-    db.add(GymEquipment(gym_id=primary.gym_id, equipment_id=eq_uuid))
+    db.add(GymEquipment(gym_id=user_gym.gym_id, equipment_id=equipment_uuid))
     await db.commit()
 
-    return SuccessResponse(
-        data=UserEquipmentItem(
-            equipment_id=str(equipment.id),
-            name=equipment.name,
-            category=equipment.category.value if equipment.category else None,
-            equipment_type=equipment.equipment_type.value,
-            pulley_ratio=equipment.pulley_ratio,
-            bar_weight=equipment.bar_weight,
-            image_url=equipment.image_url,
-        )
-    )
+    return SuccessResponse(data=_equipment_to_dto(equipment))

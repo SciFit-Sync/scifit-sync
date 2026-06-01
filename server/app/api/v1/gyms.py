@@ -35,6 +35,7 @@ from app.schemas.gyms import (
     BulkLinkData,
     CreateGymRequest,
     EquipmentItem,
+    GymEquipmentItem,
     GymEquipmentListData,
     GymItem,
     GymSearchData,
@@ -55,15 +56,30 @@ def _ratio_str(pulley_ratio: float) -> str:
     return f"{n}:1"
 
 
+def _equipment_to_gym_dto(e: Equipment) -> GymEquipmentItem:
+    is_cable_machine = str(e.equipment_type) in ("cable", "machine")
+    sw = None
+    if is_cable_machine and e.stack_weight and isinstance(e.stack_weight, dict):
+        sw = float(e.stack_weight["value"]) if "value" in e.stack_weight else None
+    return GymEquipmentItem(
+        equipment_id=str(e.id),
+        name=e.name,
+        brand=e.brand.name if e.brand else None,
+        ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
+        image_url=e.image_url,
+        stack_weight=sw,
+    )
+
+
 def _equipment_to_dto(e: Equipment, image_url: str | None = None) -> EquipmentItem:
-    is_cable_machine = e.equipment_type.value in ("cable", "machine")
-    is_barbell = e.equipment_type.value == "barbell"
+    is_cable_machine = str(e.equipment_type) in ("cable", "machine")
+    is_barbell = str(e.equipment_type) == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
         brand=e.brand.name if e.brand else None,
-        category=e.category.value if e.category else None,
-        equipment_type=e.equipment_type.value,
+        category=str(e.category) if e.category else None,
+        equipment_type=str(e.equipment_type),
         pulley_ratio=e.pulley_ratio if is_cable_machine else None,
         bar_weight=e.bar_weight if is_barbell else None,
         has_weight_assist=e.has_weight_assist,
@@ -157,8 +173,8 @@ async def search_gyms(
                 gym_id=str(gym.id) if gym else "",
                 name=gym.name if gym else d.get("place_name", ""),
                 address=gym.address if gym else d.get("road_address_name") or d.get("address_name", ""),
-                latitude=float(gym.latitude) if gym else float(d.get("y", 0)),
-                longitude=float(gym.longitude) if gym else float(d.get("x", 0)),
+                latitude=gym.latitude if gym else float(d.get("y") or 0),
+                longitude=gym.longitude if gym else float(d.get("x") or 0),
                 kakao_place_id=place_id,
                 equipment_count=eq_count,
             )
@@ -280,7 +296,7 @@ async def list_gym_equipment(
     "/{gym_id}/equipment",
     response_model=SuccessResponse[EquipmentItem],
     status_code=201,
-    summary="헬스장에 장비 추가",
+    summary="헬스장 장비 단건 추가",
 )
 @rate_limit("60/minute")
 async def add_gym_equipment(
@@ -325,7 +341,7 @@ async def add_gym_equipment(
     "/{gym_id}/equipment/bulk",
     response_model=SuccessResponse[BulkLinkData],
     status_code=200,
-    summary="헬스장에 기구 일괄 연결",
+    summary="헬스장 장비 복수 추가 (일괄 연결)",
 )
 @rate_limit("60/minute")
 async def bulk_add_gym_equipment(
@@ -479,7 +495,7 @@ async def report_gym_equipment(
     await db.commit()
     await db.refresh(report)
 
-    return SuccessResponse(data=ReportData(report_id=str(report.id), status=report.status.value))
+    return SuccessResponse(data=ReportData(report_id=str(report.id), status=str(report.status)))
 
 
 # ── POST /gyms/{gymId}/equipment/suggest ─────────────────────────────────────
@@ -512,7 +528,6 @@ async def suggest_gym_equipment(
             gym_id=gym_uuid,
             name=body.name,
             brand=body.brand,
-            description=body.description,
         )
     )
     await db.commit()

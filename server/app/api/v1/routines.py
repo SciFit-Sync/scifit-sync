@@ -11,7 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -81,9 +81,9 @@ def _routine_to_summary(r: WorkoutRoutine, gym_name: str | None = None) -> Routi
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
-        split_type=r.split_type.value if r.split_type else None,
-        generated_by=r.generated_by.value if r.generated_by else "user",
-        status=r.status.value if r.status else "active",
+        split_type=str(r.split_type) if r.split_type else None,
+        generated_by=str(r.generated_by) if r.generated_by else "user",
+        status=str(r.status) if r.status else "active",
         gym_id=str(r.gym_id) if r.gym_id else None,
         gym_name=gym_name,
         created_at=r.created_at,
@@ -123,17 +123,39 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         ex_name_en_map = {str(eid): name_en for eid, _, name_en, _ in rows}
         ex_gif_map = {str(eid): gif for eid, _, _, gif in rows}
 
-    # gif_url: DB 저장값 우선, 없는 항목만 WorkoutX 실시간 조회
-    gif_url_map: dict[str, str | None] = dict(ex_gif_map)
-    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if not ex_gif_map.get(str(eid))]
+    # gif_url 캐싱 전략:
+    #   None  → 아직 WorkoutX 미조회. 이번 요청에서 API 호출 후 결과를 DB에 저장.
+    #   ""    → sentinel. WorkoutX 조회했으나 결과 없음. 재호출 방지용.
+    #           `if exercise.gif_url:` 같은 단순 truthy 체크를 하면 None과 동일하게
+    #           동작하므로, 이 컬럼을 직접 읽을 때는 `is None` 비교를 사용할 것.
+    #           응답 시에는 `v or None`으로 클라이언트에 null로 내려간다.
+    #   URL   → 캐시된 GIF URL. DB에서 바로 반환.
+    # NOTE: 조회 함수지만 write-back을 위해 UPDATE+commit이 발생한다.
+    gif_url_map: dict[str, str | None] = {k: v or None for k, v in ex_gif_map.items()}
+    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if ex_gif_map.get(str(eid)) is None]
     if missing:
         wx_results = await asyncio.gather(
             *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in missing],
             return_exceptions=True,
         )
-        for (eid_str, _), wx in zip(missing, wx_results, strict=True):
+        writes: list[tuple[str, str]] = []
+        for (eid_str, name_en), wx in zip(missing, wx_results, strict=True):
             if isinstance(wx, dict):
-                gif_url_map[eid_str] = wx.get("gifUrl")
+                url = wx.get("gifUrl")
+                gif_url_map[eid_str] = url
+                writes.append((eid_str, url or ""))
+            elif wx is None and name_en:
+                # WorkoutX가 None 반환 = 확정 not-found(404) → sentinel 저장
+                # Exception 인스턴스는 일시 장애이므로 sentinel 저장 안 함
+                writes.append((eid_str, ""))
+        try:
+            for eid_str, gif_val in writes:
+                await db.execute(update(Exercise).where(Exercise.id == uuid.UUID(eid_str)).values(gif_url=gif_val))
+            if writes:
+                await db.commit()
+        except Exception:
+            logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+            await db.rollback()
 
     eq_name_map: dict[str, str] = {}
     eq_brand_map: dict[str, str] = {}
@@ -259,9 +281,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
-        split_type=r.split_type.value if r.split_type else None,
-        generated_by=r.generated_by.value if r.generated_by else "user",
-        status=r.status.value if r.status else "active",
+        split_type=str(r.split_type) if r.split_type else None,
+        generated_by=str(r.generated_by) if r.generated_by else "user",
+        status=str(r.status) if r.status else "active",
         gym_id=str(r.gym_id) if r.gym_id else None,
         gym_name=gym_summary.name if gym_summary else None,
         gym=gym_summary,
@@ -576,7 +598,7 @@ async def get_ai_routine_detail(
                     muscle=mg.name_ko,
                     muscle_en=mg.name,
                     percentage=em.activation_pct,
-                    type=em.involvement.value,
+                    type=str(em.involvement),
                 )
             )
 
@@ -613,15 +635,37 @@ async def get_ai_routine_detail(
                 if s.routine_exercise_id:
                     completed_sets_map.setdefault(s.routine_exercise_id, {})[s.set_number] = s
 
-    # 5. WorkoutX API 병렬 호출
+    # 5. WorkoutX API 병렬 호출 (thumbnail/equipment 등 메타데이터 포함, 전체 운동 대상)
+    # gif_url write-back은 DB에 없는 운동만 수행해 중복 호출을 줄인다.
     unique_exs = list(ex_map.values())
     wx_results = await asyncio.gather(
-        *[get_exercise_by_name(e.name_en) for e in unique_exs],
+        *[get_exercise_by_name(e.name_en) if e.name_en else asyncio.sleep(0, result=None) for e in unique_exs],
         return_exceptions=True,
     )
     wx_map: dict[uuid.UUID, dict] = {
         e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
     }
+
+    # gif_url: DB 저장값 우선, IS NULL인 운동만 WorkoutX 결과로 write-back
+    gif_url_map: dict[uuid.UUID, str | None] = {e.id: e.gif_url or None for e in ex_map.values()}
+    writes: list[tuple[uuid.UUID, str]] = []
+    for ex, wx in zip(unique_exs, wx_results, strict=True):
+        if ex.gif_url is not None:
+            continue  # 이미 캐시됨 — write-back 불필요
+        if isinstance(wx, dict):
+            url = wx.get("gifUrl")
+            gif_url_map[ex.id] = url
+            writes.append((ex.id, url or ""))
+        elif wx is None and ex.name_en:
+            writes.append((ex.id, ""))
+    try:
+        for eid, gif_val in writes:
+            await db.execute(update(Exercise).where(Exercise.id == eid).values(gif_url=gif_val))
+        if writes:
+            await db.commit()
+    except Exception:
+        logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+        await db.rollback()
 
     # 6. RoutinePaper 수 batch fetch → tips_count / tips_available 계산용
     rex_ids = [rex.id for rex in all_rex]
@@ -672,7 +716,7 @@ async def get_ai_routine_detail(
                 exercise_id=str(rex.exercise_id),
                 name=ex.name,
                 name_en=ex.name_en,
-                gif_url=wx.get("gifUrl") or ex.gif_url,
+                gif_url=gif_url_map.get(rex.exercise_id),
                 thumbnail_url=wx.get("thumbnailUrl"),
                 category=ex.category,
                 equipment=wx.get("equipment"),
@@ -700,7 +744,7 @@ async def get_ai_routine_detail(
             goal=routine.fitness_goals[0] if routine.fitness_goals else None,
             estimated_duration_min=routine.session_minutes,
             default_rest_seconds=default_rest,
-            created_by=routine.generated_by.value,
+            created_by=str(routine.generated_by),
             created_at=routine.created_at,
             exercises=exercise_items,
         )
@@ -828,8 +872,8 @@ async def _build_rag_profile(
     return RagUserProfile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
-        fitness_career=profile.career_level.value,
-        gender=profile.gender.value if profile.gender else None,
+        fitness_career=str(profile.career_level),
+        gender=str(profile.gender) if profile.gender else None,
         available_exercises=available_exercises,
         target_muscles=target_muscle_names,
         session_minutes=(req.session_minutes if req else None),
@@ -1079,7 +1123,7 @@ async def _run_rag_to_sse(
                     primary_goal=primary_goal,
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
-                    user_gender=profile.gender.value if profile.gender else None,
+                    user_gender=str(profile.gender) if profile.gender else None,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
@@ -1266,7 +1310,7 @@ async def regenerate_routine(
         goals=list(routine.fitness_goals or []),
         target_muscle_group_ids=list(routine.target_muscle_group_ids or []),
         session_minutes=routine.session_minutes,
-        split_type=routine.split_type.value if routine.split_type else None,
+        split_type=str(routine.split_type) if routine.split_type else None,
         gym_id=str(routine.gym_id) if routine.gym_id else None,
         injury=None,
     )

@@ -34,6 +34,7 @@ import {
   deleteProgram,
   type ProgramItem,
 } from "../../services/programs";
+import { getNotifications } from "../../services/notifications";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 import WC01Chatbot from "../../components/WC01Chatbot";
 
@@ -115,6 +116,14 @@ export default function WM01Main() {
       })
       .finally(() => set_is_renaming(false));
   };
+
+  const { data: notif_data } = useQuery({
+    queryKey: ["notifications_unread", token],
+    queryFn: () => getNotifications(token),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+  const unread_count = notif_data?.unread_count ?? 0;
 
   const { data: routines_data, isLoading: routines_loading } = useQuery({
     queryKey: ["routines"],
@@ -216,7 +225,22 @@ export default function WM01Main() {
 
       {/* 헤더 */}
       <View style={styles.header}>
+        <View style={styles.bell_btn} />
         <Text style={styles.logo}>SciFit-Sync</Text>
+        <TouchableOpacity
+          style={styles.bell_btn}
+          onPress={() => navigation.navigate("WN01Notifications" as never)}
+          activeOpacity={0.7}
+        >
+          <Octicons name="bell" size={22} color={colors.primary} />
+          {unread_count > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badge_text}>
+                {unread_count > 99 ? "99+" : unread_count}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -599,11 +623,35 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     flexDirection: "row",
     paddingHorizontal: 24,
     paddingTop: 29,
     paddingBottom: 24,
+  },
+  bell_btn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badge_text: {
+    color: colors.white,
+    fontSize: 9,
+    fontFamily: "semibold",
+    lineHeight: 12,
   },
   logo: {
     fontFamily: "sacheon",
