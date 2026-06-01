@@ -144,12 +144,18 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 url = wx.get("gifUrl")
                 gif_url_map[eid_str] = url
                 writes.append((eid_str, url or ""))
-            elif name_en:
+            elif wx is None and name_en:
+                # WorkoutX가 None 반환 = 확정 not-found(404) → sentinel 저장
+                # Exception 인스턴스는 일시 장애이므로 sentinel 저장 안 함
                 writes.append((eid_str, ""))
-        for eid_str, gif_val in writes:
-            await db.execute(update(Exercise).where(Exercise.id == uuid.UUID(eid_str)).values(gif_url=gif_val))
-        if writes:
-            await db.commit()
+        try:
+            for eid_str, gif_val in writes:
+                await db.execute(update(Exercise).where(Exercise.id == uuid.UUID(eid_str)).values(gif_url=gif_val))
+            if writes:
+                await db.commit()
+        except Exception:
+            logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+            await db.rollback()
 
     eq_name_map: dict[str, str] = {}
     eq_brand_map: dict[str, str] = {}
