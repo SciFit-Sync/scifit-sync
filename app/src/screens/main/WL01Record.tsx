@@ -117,12 +117,12 @@ export default function WL01Record() {
   // 통계 표시값 (날짜 선택·미선택 모두 총 중량 / 총 세트 / 총 시간 3개 표시)
   const top_stats = selected_day !== null
     ? [
-        { value: `${Math.round(day_total_volume)}kg`, label: "총 중량" },
+        { value: `${Math.round(day_total_volume)}kg`, label: "총 볼륨" },
         { value: `${day_total_sets}세트`, label: "총 세트" },
         { value: fmt_duration(total_duration || null), label: "총 시간" },
       ]
     : [
-        { value: `${Math.round((statsData?.total_volume_kg ?? 0))}kg`, label: "총 중량" },
+        { value: `${Math.round((statsData?.total_volume_kg ?? 0))}kg`, label: "총 볼륨" },
         { value: `${statsData?.total_sets ?? 0}세트`, label: "총 세트" },
         { value: fmt_duration(statsData?.total_duration_minutes ?? null), label: "총 시간" },
       ];
