@@ -11,7 +11,12 @@ from __future__ import annotations
 EVIDENCE_WEIGHTS: dict[str, float] = {
     # Tier 1: 종합 분석
     "Meta-Analysis": 1.00,
+    "Network Meta-Analysis": 1.00,
     "Systematic Review": 1.00,
+    # Tier 1.5: 근거 종합 지침 (다수 연구를 임상 권고로 종합)
+    "Practice Guideline": 0.85,
+    "Guideline": 0.85,
+    "Consensus Statement": 0.70,
     # Tier 2: 통제된 실험
     "Controlled Clinical Trial": 0.80,
     "Randomized Controlled Trial": 0.90,

@@ -9,6 +9,7 @@ from app.api.v1.gyms import router as gyms_router
 from app.api.v1.health import router as health_router
 from app.api.v1.home import router as home_router
 from app.api.v1.notifications import router as notifications_router
+from app.api.v1.programs import router as programs_router
 from app.api.v1.routines import router as routines_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.users import router as users_router
@@ -21,6 +22,7 @@ router.include_router(users_router)
 router.include_router(gyms_router)
 router.include_router(equipment_router)
 router.include_router(exercises_router)
+router.include_router(programs_router)
 router.include_router(routines_router)
 router.include_router(sessions_router)
 router.include_router(chat_router)

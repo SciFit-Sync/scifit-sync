@@ -5,6 +5,13 @@
 > **상세 명세 보완 문서**:
 > - `docs/spec/api-routine-generate.md` — AI 루틴 생성 (#21) SSE 이벤트/RAG 파이프라인/논문 수집 상세
 > - `docs/spec/api-exercise-swap.md` — 운동 변경 조회(#47) + 선택(#25) Request/Response 상세
+> - `docs/spec/api-sessions.md` — 세션 (#30 #31 #32 #36) 실제 Request/Response 상세 (snake_case, total_calories, 휴식 타이머 min/max)
+>
+> **⚠️ Notion 명세서와 실제 구현 차이 (D-15: 모든 필드 snake_case)**
+> - `POST /chat/messages` Request: `message` → `content` (또는 `message`도 alias로 허용)
+> - `POST /sessions/{id}/sets` Response: `recordedAt` → `performed_at`
+> - `GET /sessions/{id}/rest-timer` Query: `exerciseId`+`rpe` → `routine_exercise_id`+`goal`
+> - `POST /routines/generate` Request: `target_muscles` (문자열) → `target_muscle_group_ids` (UUID 배열)
 
 **Base URL**: `/api/v1`
 **인증**: `Authorization: Bearer {access_token}`

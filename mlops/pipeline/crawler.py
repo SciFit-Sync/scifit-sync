@@ -25,10 +25,12 @@ from mlops.pipeline.config import (
     MAX_PAPERS_PER_RUN,
     NCBI_API_KEY,
     NCBI_BASE_URL,
+    NCBI_EMAIL,
     NCBI_HTTP_MAX_BACKOFF,
     NCBI_HTTP_MAX_RETRIES,
     NCBI_HTTP_TIMEOUT,
     NCBI_RATE_LIMIT,
+    NCBI_TOOL,
     OPENALEX_BASE_URL,
     OPENALEX_CIRCUIT_BREAKER_THRESHOLD,
     OPENALEX_MAILTO,
@@ -38,6 +40,7 @@ from mlops.pipeline.config import (
     PMC_FULLTEXT_MAX_ATTEMPTS,
     PMC_FULLTEXT_RETRY_BACKOFF_BASE,
     PMC_FULLTEXT_RETRY_BACKOFF_MAX,
+    PMC_IDCONV_URL,
     PUBMED_MAX_PER_CATEGORY,
     STRICT_PUBLICATION_FILTER,
 )
@@ -735,6 +738,11 @@ def _parse_pubmed_article(article: ET.Element) -> PaperMeta | None:
                 abstract_parts.append(text)
         abstract = " ".join(abstract_parts)
 
+        # 출판 타입 (PublicationTypeList)
+        publication_types = [
+            (pt.text or "").strip() for pt in article.findall(".//PublicationTypeList/PublicationType") if pt.text
+        ]
+
         return PaperMeta(
             pmid=pmid,
             title=title,
@@ -743,6 +751,7 @@ def _parse_pubmed_article(article: ET.Element) -> PaperMeta | None:
             published_year=year,
             doi=doi,
             abstract=abstract,
+            publication_types=publication_types,
         )
     except Exception:
         logger.warning("논문 파싱 실패: %s", ET.tostring(article, encoding="unicode")[:200])
@@ -779,8 +788,77 @@ def _parse_ncbi_json(raw: str) -> dict | None:
             return None
 
 
-def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
-    """PMID → PMCID 변환.
+def _resolve_pmc_id_via_idconv(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """PMC ID Converter API로 PMID → PMCID 변환.
+
+    elink.fcgi 서버 장애(500/timeout) 시에도 동작하는 대체 경로.
+
+    반환 계약 (dispatcher `_resolve_pmc_id`가 elink fallback 판단에 사용):
+      - PMCID 숫자 문자열: 변환 성공.
+      - None: **권위적 'PMC 없음'** — status=ok 응답에 해당 record는 있으나
+        pmcid가 없는 경우(= PMID은 유효하나 PMC 버전 미존재). 이때만 elink를
+        건너뛴다.
+      - RuntimeError raise: 변환을 **확정하지 못한 모든 경우**(전송 실패, 파싱
+        실패, status!=ok, records 비어있음, pmcid 포맷 이상). transient일 수
+        있으므로 호출부가 elink fallback을 타야 한다.
+
+    Raises:
+        RuntimeError: 위 '확정 실패' 케이스. RequestException 4xx/5xx 구분 없이
+            모두 RuntimeError로 묶는다 — 호출부(`_resolve_pmc_id`/crawl 루프)가
+            RuntimeError만 catch해 fallback/EuropePMC로 graceful degrade 하므로,
+            raw HTTPError를 흘리면 크롤이 크래시한다.
+    """
+    params = {
+        "ids": pmid,
+        "idtype": "pmid",
+        "format": "json",
+        "tool": NCBI_TOOL,
+        "email": NCBI_EMAIL,
+    }
+    try:
+        resp = _request_with_rate_limit(PMC_IDCONV_URL, params)
+    except requests.exceptions.HTTPError as e:
+        # 4xx/5xx 모두 fallback 대상(RuntimeError)이지만, HTTP 상태를 로그에 남겨
+        # idconv primary path 회귀(특히 4xx 클라이언트 오류)를 운영 중 탐지 가능케 한다.
+        status = getattr(e.response, "status_code", "?")
+        logger.warning("PMC idconv HTTP %s → elink fallback: PMID=%s", status, pmid)
+        raise RuntimeError(f"PMC idconv HTTP {status}: PMID={pmid}") from e
+    except requests.exceptions.RequestException as e:
+        # 연결 오류 / timeout / 5xx 재시도 소진 등 transport 실패
+        raise RuntimeError(f"PMC idconv 전송 실패: PMID={pmid}") from e
+
+    data = _parse_ncbi_json(resp.text)
+    if data is None:
+        # 파싱 실패는 PMC 부재 증명이 아님 → transient로 보고 fallback
+        raise RuntimeError(f"PMC idconv 응답 파싱 실패: PMID={pmid}")
+
+    if data.get("status") != "ok":
+        raise RuntimeError(f"PMC idconv 비정상 status={data.get('status')}: PMID={pmid}")
+
+    records = data.get("records", [])
+    if not records:
+        # 유효 PMID이면 record가 와야 정상 → 비어있으면 transient로 간주
+        raise RuntimeError(f"PMC idconv records 비어있음: PMID={pmid}")
+
+    record = records[0]
+    pmcid = record.get("pmcid")
+    if pmcid:
+        # "PMC5447067" → "5447067" (elink links[0]와 동일 포맷)
+        stripped = pmcid[3:] if pmcid.upper().startswith("PMC") else pmcid
+        if not stripped.isdigit():
+            # 비정상 PMCID 포맷 → efetch에 넘기기 전 차단, fallback 유도
+            raise RuntimeError(f"PMC idconv 비정상 PMCID 포맷={pmcid!r}: PMID={pmid}")
+        logger.info("PMC idconv 성공: PMID=%s → PMCID=%s", pmid, stripped)
+        return stripped
+
+    # status=ok + record 존재 + pmcid 없음 = 권위적 'PMC 버전 없음' → elink skip
+    errmsg = record.get("errmsg", "")
+    logger.info("PMC idconv PMC 버전 없음(권위적): PMID=%s errmsg=%s", pmid, errmsg)
+    return None
+
+
+def _resolve_pmc_id_via_elink(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """NCBI elink.fcgi로 PMID → PMCID 변환 (fallback 경로).
 
     NCBI elink는 가끔 ERROR 필드에 raw control character가 포함된 malformed JSON을
     반환한다. 실측 데이터(2026-05-20, 20 PMID × 3회 호출):
@@ -882,6 +960,20 @@ def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) ->
     raise RuntimeError(f"PMC elink 재시도 한도 초과: PMID={pmid}") from last_exc
 
 
+def _resolve_pmc_id(pmid: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> str | None:
+    """PMID → PMCID. 1차 PMC ID Converter API, 실패 시 elink fallback.
+
+    elink.fcgi가 서버 측 장애(500/timeout)일 때도 동작하도록 idconv를 우선한다.
+    idconv가 권위적으로 'PMC 없음'(None)을 반환하면 elink fallback 없이 None.
+    idconv 자체가 전송 실패(RuntimeError)일 때만 elink로 fallback.
+    """
+    try:
+        return _resolve_pmc_id_via_idconv(pmid, max_attempts)
+    except RuntimeError as e:
+        logger.warning("PMC idconv 전송 실패 → elink fallback: PMID=%s err=%s", pmid, e)
+    return _resolve_pmc_id_via_elink(pmid, max_attempts)
+
+
 def _fetch_pmc_sections(pmid: str, pmc_id: str, max_attempts: int = PMC_FULLTEXT_MAX_ATTEMPTS) -> list[PaperSection]:
     """PMCID로 PMC efetch XML을 받아 섹션 파싱. XML 파싱 실패는 재시도.
 
@@ -966,28 +1058,17 @@ def fetch_pmc_fulltext(pmid: str) -> list[PaperSection]:
 
 
 def _parse_pmc_sections(root: ET.Element) -> list[PaperSection]:
-    """PMC XML에서 본문 섹션을 추출한다."""
-    sections: list[PaperSection] = []
+    """PMC XML에서 본문 섹션 추출 — europepmc 코어 재사용.
 
+    JATS schema는 EuropePMC와 동일하므로 같은 파서 사용.
+    `pmc.py` 모듈 docstring의 '재사용한다' 주석과 일치.
+    """
     body = root.find(".//body")
     if body is None:
-        return sections
+        return []
+    from mlops.pipeline.europepmc import _extract_sections_from_body
 
-    for sec in body.findall(".//sec"):
-        title_el = sec.find("title")
-        section_name = title_el.text.strip() if title_el is not None and title_el.text else "Untitled"
-
-        paragraphs = []
-        for p in sec.findall("p"):
-            text = _get_text(p)
-            if text:
-                paragraphs.append(text)
-
-        content = "\n".join(paragraphs)
-        if content.strip():
-            sections.append(PaperSection(name=section_name, content=content))
-
-    return sections
+    return _extract_sections_from_body(body)
 
 
 def _round_robin_dedup(
@@ -1182,6 +1263,97 @@ def _merge_by_doi(openalex: list[PaperMeta], pubmed: list[PaperMeta]) -> list[Pa
         else:
             by_doi[m.doi] = m
     return list(by_doi.values())
+
+
+# esearch [AID] OR-쿼리 1회에 묶을 DOI 수. DOI는 30~40자라 URL 길이 한계를
+# 고려해 보수적으로 잡는다 (50개 ≈ term 길이 2~2.5KB).
+DOI_PMID_BATCH_SIZE = 50
+
+
+def _resolve_dois_to_pmids(dois: list[str]) -> list[str]:
+    """DOI 목록을 PubMed esearch [AID] 필드로 조회해 매칭되는 PMID를 반환한다.
+
+    DOI→PMID 정확한 매핑은 후속 efetch 결과의 DOI 필드로 복원하므로, 여기서는
+    매칭된 PMID 목록만 모은다. 호출 수를 줄이기 위해 DOI_PMID_BATCH_SIZE개씩
+    ``"<doi>"[AID] OR ...`` 쿼리로 묶어 보낸다.
+
+    Args:
+        dois: 역조회할 DOI 목록.
+
+    Returns:
+        매칭된 PMID 문자열 리스트 (순서·중복은 NCBI 응답에 따름).
+    """
+    pmids: list[str] = []
+    for i in range(0, len(dois), DOI_PMID_BATCH_SIZE):
+        batch = dois[i : i + DOI_PMID_BATCH_SIZE]
+        term = " OR ".join(f'"{doi}"[AID]' for doi in batch)
+        params = {
+            "db": "pubmed",
+            # 한 DOI가 복수 PubMed 레코드(중복 등재 등)에 매칭될 때 절단으로
+            # 일부 DOI의 PMID가 누락되지 않도록 여유를 둔다.
+            "retmax": len(batch) * 2,
+            "term": term,
+            "retmode": "json",
+        }
+        resp = _request_with_rate_limit(f"{NCBI_BASE_URL}/esearch.fcgi", params)
+        ids = resp.json().get("esearchresult", {}).get("idlist", [])
+        pmids.extend(ids)
+    return pmids
+
+
+def backfill_publication_types_from_pubmed(metas: list[PaperMeta]) -> int:
+    """publication_types가 비어 있고 DOI가 있는 메타를 PubMed efetch로 보강한다 (in-place).
+
+    OpenAlex API는 publication_types를 거의 비워서 반환하고, ``_merge_by_doi``는
+    동일 DOI에 PubMed 메타가 있을 때만 보강한다. PubMed 카테고리 검색에 걸리지
+    않은 OpenAlex-only 논문은 publication_types=[]로 남아 evidence_weight가
+    0.5 fallback에 갇힌다 (dry_15_v2 validate publication_types 18.5%). 이 함수는
+    그 잔여 집합만 DOI→PMID(esearch [AID])→efetch(publication_types)→DOI 매칭으로
+    메꾼다. 보강된 메타는 evidence_weight도 함께 재계산해 일관성을 유지한다.
+
+    title/abstract/journal 등 본문 메타는 OpenAlex를 권위로 두고 건드리지 않는다.
+
+    Args:
+        metas: 보강 후보 메타 리스트 (대상 메타는 in-place 변형).
+
+    Returns:
+        publication_types가 실제로 보강된 메타 수.
+    """
+    targets = [m for m in metas if not m.publication_types and m.doi]
+    if not targets:
+        return 0
+    logger.info("publication_types 보강 대상: %d papers (빈 PT + DOI)", len(targets))
+
+    pmids = _resolve_dois_to_pmids([m.doi for m in targets])
+    if not pmids:
+        logger.warning(
+            "publication_types 보강 무산: DOI→PMID 역조회 0건 (NCBI 무응답/무매칭?) — %d papers 미보강",
+            len(targets),
+        )
+        return 0
+
+    supplements = fetch_paper_metadata(pmids)
+    # DOI는 대소문자 비구분(DOI 규격). OpenAlex는 prefix만 제거(소문자화 안 함),
+    # PubMed efetch는 게재 원문 대소문자 그대로라 표기차로 매칭을 놓칠 수 있으므로
+    # 양쪽을 lower로 정규화해 비교한다.
+    types_by_doi = {s.doi.lower(): s.publication_types for s in supplements if s.doi and s.publication_types}
+
+    backfilled = 0
+    for meta in targets:
+        types = types_by_doi.get(meta.doi.lower())
+        if types:
+            meta.publication_types = types
+            meta.evidence_weight = calculate_evidence_weight(types)
+            backfilled += 1
+
+    if backfilled < len(targets):
+        logger.warning(
+            "publication_types 보강 부분 성공: %d/%d (%d papers 여전히 빈 PT)",
+            backfilled,
+            len(targets),
+            len(targets) - backfilled,
+        )
+    return backfilled
 
 
 def _round_robin_dedup_metas(
@@ -1392,6 +1564,12 @@ def crawl_papers(
     if not doi_to_meta:
         logger.info("모든 카테고리에서 신규 paper 없음")
         return []
+
+    # OpenAlex-only 논문 publication_types 보강 (dry_15_v2 18.5% → ≥90% 목표).
+    # dedup 이후에 호출해 cap으로 폐기될 논문에 NCBI 호출을 낭비하지 않는다.
+    backfilled = backfill_publication_types_from_pubmed(list(doi_to_meta.values()))
+    if backfilled:
+        logger.info("publication_types PubMed 보강: %d/%d papers", backfilled, len(doi_to_meta))
 
     # search_categories + evidence_weight 부여
     for doi, meta in doi_to_meta.items():

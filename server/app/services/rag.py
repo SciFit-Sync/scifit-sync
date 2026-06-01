@@ -63,33 +63,76 @@ SIMILARITY_THRESHOLD = 0.70
 OVER_FETCH_MULTIPLIER = 3
 DEFAULT_EVIDENCE_WEIGHT = 0.50
 
+# ── Alias-swap (PR-δ §2.3) ────────────────────────────────────
+# EFS /chroma-data/current_alias.json을 SOT로 사용해 모든 ECS 태스크가 같은 alias를 본다.
+# admin endpoint(POST /admin/rag/collection-swap)가 atomic write 하고 cache를 clear하면,
+# 다음 _get_collection 호출부터 새 alias가 반영된다.
+ALIAS_FILE = Path(CHROMA_PERSIST_PATH) / "current_alias.json"
+# F4: DEFAULT_COLLECTION 모듈 상수 제거 — 호출 경로에서 미사용 dead variable.
+# fallback은 _current_collection_name() 내부의 os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")로 처리.
+
 # ── 싱글턴 (lazy load) ────────────────────────────────────────
-_chroma_collection = None
+_client = None
+_collection_cache: dict[str, object] = {}
 _embed_model = None
 
 
-def _get_collection():
-    """ChromaDB collection을 싱글턴으로 반환한다."""
-    global _chroma_collection
-    if _chroma_collection is None:
-        import chromadb
+def _current_collection_name() -> str:
+    """매 호출 시 alias file → CHROMA_COLLECTION_NAME env → 'paper_chunks' fallback.
 
-        logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
-        client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
-        existing = [c.name for c in client.list_collections()]
-        if CHROMA_COLLECTION_NAME not in existing:
+    B1 잔여 픽스: 모듈 로드 시 고정된 DEFAULT_COLLECTION 상수 대신,
+    매 호출마다 os.getenv를 재조회하여 env 런타임 변경을 즉시 반영한다.
+    F2 fix: fallback을 config default("paper_chunks")와 일치시켜 일관성 확보.
+    """
+    try:
+        if ALIAS_FILE.exists():
+            data = json.loads(ALIAS_FILE.read_text(encoding="utf-8"))
+            name = data.get("current")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("alias file 읽기 실패: %s, env fallback 사용", e)
+    # 매 호출 시 os.getenv 재조회 — env 런타임 변경 반영 (B1 잔여 픽스)
+    # fallback은 config.py CHROMA_COLLECTION_NAME default("paper_chunks")와 일치 (F2 fix)
+    return os.getenv("CHROMA_COLLECTION_NAME", "paper_chunks")
+
+
+def _get_collection():
+    """현재 alias가 가리키는 ChromaDB collection을 반환.
+
+    매 호출마다 alias 파일(`ALIAS_FILE`)을 확인해 swap을 즉시 반영한다.
+    collection 핸들은 이름별로 캐시되므로 reload 비용은 alias 변경 시점에만 발생한다.
+
+    B1 fix: get_or_create_collection 대신 get_collection 사용 — 존재하지 않는 collection을
+    silent하게 빈 상태로 생성하는 것을 방지한다. collection이 없으면 RuntimeError로 fail-closed.
+    alias 파일 또는 초기 ingest가 올바르게 설정되지 않은 경우 운영자가 즉시 인지할 수 있다.
+    """
+    global _client
+    name = _current_collection_name()
+    if name not in _collection_cache:
+        if _client is None:
+            import chromadb
+
+            logger.info("ChromaDB 연결: %s", CHROMA_PERSIST_PATH)
+            _client = chromadb.PersistentClient(path=CHROMA_PERSIST_PATH)
+        try:
+            collection = _client.get_collection(name=name)
+        except Exception as e:
+            # collection이 없으면 명확한 에러 — silent empty fallback 방지 (B1 fix)
+            # 운영자가 alias 파일 또는 초기 ingest 설정을 확인해야 함
             raise RuntimeError(
-                f"ChromaDB 컬렉션 '{CHROMA_COLLECTION_NAME}'이 없습니다. "
-                f"(경로: {CHROMA_PERSIST_PATH}, 존재하는 컬렉션: {existing}) "
-                "mlops 파이프라인 실행 후 재시도하세요."
-            )
-        _chroma_collection = client.get_collection(CHROMA_COLLECTION_NAME)
-        count = _chroma_collection.count()
+                f"ChromaDB collection {name!r} not found. Check {ALIAS_FILE} or run initial ingest."
+            ) from e
+        count = collection.count()
         if count == 0:
-            logger.warning("ChromaDB 컬렉션이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.")
+            logger.warning(
+                "ChromaDB 컬렉션 '%s'이 비어 있습니다 (문서 0개). 파이프라인을 재실행하세요.",
+                name,
+            )
         else:
-            logger.info("ChromaDB 준비 완료 (문서 수: %d)", count)
-    return _chroma_collection
+            logger.info("ChromaDB 준비 완료 (collection=%s, 문서 수: %d)", name, count)
+        _collection_cache[name] = collection
+    return _collection_cache[name]
 
 
 def _get_embed_model():
@@ -147,8 +190,12 @@ def search_chunks(query: str, top_k: int = TOP_K) -> list[dict]:
     if not query:
         return []
 
-    model = _get_embed_model()
-    collection = _get_collection()
+    try:
+        model = _get_embed_model()
+        collection = _get_collection()
+    except Exception as e:
+        logger.warning("ChromaDB 접근 실패 (논문 데이터 없음?): %s", e)
+        return []
 
     query_vec = model.encode(BGE_QUERY_INSTRUCTION + query).tolist()
     fetch_n = top_k * OVER_FETCH_MULTIPLIER
@@ -284,11 +331,12 @@ class UserProfile:
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
-    available_exercises: list[str] = field(default_factory=list)  # gym 기구로 할 수 있는 운동 name_en 목록
+    available_exercises: list[str] = field(default_factory=list)  # gym에서 할 수 있는 운동 name_en 목록
     target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
     feedback: str | None = None  # 재생성 시 이전 루틴 대비 변경 요청
+    gender: str | None = None  # male | female | None (1RM fallback 체중 비율 계산용)
 
     @property
     def primary_goal(self) -> str:
@@ -308,11 +356,7 @@ _GOAL_QUERIES = {
 
 
 def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
-    """루틴 생성 프롬프트를 조합한다. 외부 청크는 별도 섹션으로 분리한다."""
-    context = ""
-    for i, chunk in enumerate(chunks[:5], 1):
-        context += f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}\n"
-
+    """루틴 생성 프롬프트를 조합한다."""
     goals_str = ", ".join(g.lower() for g in profile.goals) if profile.goals else "hypertrophy"
     muscles_str = ", ".join(profile.target_muscles) if profile.target_muscles else "balanced full-body"
 
@@ -336,6 +380,21 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         safe = profile.feedback.replace("</user_query>", "</ user_query>")
         extras.append(f"- Regenerate feedback (from user): <user_query>{safe}</user_query>")
     extras_str = ("\n" + "\n".join(extras)) if extras else ""
+
+    # 논문 컨텍스트 구성
+    if chunks:
+        context_parts = []
+        for i, chunk in enumerate(chunks[:5], 1):
+            context_parts.append(f"\n[Paper {i}] {chunk['title']} — {chunk['section']}\n{chunk['content'][:300]}")
+        context = "\n".join(context_parts)
+        paper_index_rule = (
+            f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        )
+    else:
+        # ChromaDB 데이터 없음 — 논문 없이 스포츠 과학 지식으로 생성 (개발/테스트 환경 fallback)
+        logger.info("RAG fallback: 논문 없이 LLM 지식 기반 루틴 생성")
+        context = "No research papers available. Use your sports science knowledge."
+        paper_index_rule = ""
 
     name_rule = (
         '- "name" must be chosen EXACTLY from the Available exercises list above. Do not invent or paraphrase names.\n'
@@ -361,15 +420,30 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'"reps_min": <number>, "reps_max": <number>, '
         f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
         f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
+        f"Do NOT include [Paper N] citations — write the finding naturally. "
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
         f"{name_rule}"
-        f"- notes must be written in Korean and explain the specific finding from the paper.\n"
-        f"- paper_index must be an integer (1 to {min(5, len(chunks))}), referring to the [Paper N] above.\n"
+        f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
+        f"{paper_index_rule}"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
-        f"endurance 15-20, rehabilitation 20-30).\n"
-        f"Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
+        f"endurance 15-20, rehabilitation 20-30, weight_loss 15-20).\n"
+        f"- Use rest_seconds appropriate to each exercise type and goal:\n"
+        f"  * strength compound lifts (squat/deadlift/bench/overhead press): 180-300\n"
+        f"  * strength accessory (curl/row/extension/isolation): 60-90\n"
+        f"  * hypertrophy: 60-90\n"
+        f"  * endurance: 30-60\n"
+        f"  * rehabilitation: 60-120\n"
+        f"  * weight_loss: 30-45\n"
+        + (
+            f"IMPORTANT: You MUST use ONLY exercise names from this exact list. "
+            f"Do NOT invent new names — pick the closest match:\n"
+            f"{chr(10).join('- ' + ex for ex in profile.available_exercises)}\n\n"
+            if profile.available_exercises
+            else ""
+        )
+        + "Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
 
 
@@ -472,13 +546,12 @@ def routine_rag_stream(profile: UserProfile) -> Generator[dict, None, None]:
     if extras:
         query = f"{query} {' '.join(extras)}"
 
-    # 2. ChromaDB 검색
+    # 2. ChromaDB 검색 (컬렉션 없거나 데이터 없으면 빈 리스트 — fallback으로 계속 진행)
     chunks = search_chunks(query)
     if not chunks:
-        yield {"type": "error", "message": "관련 논문을 찾을 수 없습니다."}
-        return
+        logger.warning("ChromaDB 청크 없음 — 논문 없이 LLM 단독 루틴 생성으로 fallback")
 
-    # 3. 프롬프트 조합
+    # 3. 프롬프트 조합 (chunks 비어 있어도 _build_routine_prompt가 fallback 처리)
     prompt = _build_routine_prompt(profile, chunks)
 
     # 4. LLM 토큰 스트리밍

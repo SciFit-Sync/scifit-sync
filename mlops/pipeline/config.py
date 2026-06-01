@@ -14,7 +14,24 @@ def _env_bool(key: str, default: str = "false") -> bool:
 # PubMed
 NCBI_API_KEY: str = os.getenv("NCBI_API_KEY", "")
 NCBI_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-NCBI_RATE_LIMIT: float = 0.34 if NCBI_API_KEY else 1.0  # 초 단위 대기
+# 초 단위 대기. NCBI 공식 한도(인증 10 req/s) 외에 IP 기반 burst-throttle이 별도로
+# 적용되어 0.34s 간격으로도 PMC elink가 sustained 5xx를 반환하는 실측 사례가 있다
+# (2026-05-28 dry_50/dry_15 — 직접 단발 호출은 200, 우리 sequential 호출은 5xx 폭주).
+# 따라서 default를 보수적으로 1.0s (≈1 req/s)로 낮추고 환경변수로 override 가능하게 둔다.
+# 인증 한도 한참 아래라 본 사이클 시간엔 추가 손해 미미하며 5xx 다발 시 retry/backoff
+# 비용이 절약 효과를 상쇄해 실효 처리량이 오히려 향상된다.
+NCBI_RATE_LIMIT: float = float(
+    os.getenv(
+        "NCBI_RATE_LIMIT_SECONDS",
+        "1.0" if NCBI_API_KEY else "1.5",
+    )
+)
+
+# PMC ID Converter API (elink.fcgi 서버 장애 우회용 PMID→PMCID 변환)
+PMC_IDCONV_URL = "https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"
+# NCBI 가이드라인: 자동 요청은 tool+email로 식별
+NCBI_TOOL = "scifit-sync"
+NCBI_EMAIL = "dev@scifit-sync.com"
 
 # PMC 전문 수집 retry 정책 (env로 조정 가능 — fulltext 회수율 ↔ 실행시간 trade-off)
 NCBI_HTTP_MAX_RETRIES: int = int(os.getenv("NCBI_HTTP_MAX_RETRIES", "5"))
