@@ -168,6 +168,9 @@ class TestSearchGyms:
         assert len(body["data"]["gyms"]) == 1
         assert body["data"]["gyms"][0]["name"] == "테스트 헬스장"
         assert body["data"]["gyms"][0]["kakao_place_id"] == "12345"
+        # 회귀 방지: 검색 응답에 lat/lng 포함 (createGym이 사용 — 누락 시 온보딩 422)
+        assert body["data"]["gyms"][0]["latitude"] == 37.4979
+        assert body["data"]["gyms"][0]["longitude"] == 127.0276
 
     @pytest.mark.asyncio
     async def test_kakao_api_failure(self, client):

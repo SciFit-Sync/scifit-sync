@@ -8,6 +8,8 @@ class GymItem(BaseModel):
     gym_id: str
     name: str
     address: str
+    latitude: float
+    longitude: float
     kakao_place_id: str | None = None
     equipment_count: int = 0
 
