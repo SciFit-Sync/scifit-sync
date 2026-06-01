@@ -54,14 +54,22 @@ const _WX_GIF_MAP: Record<string, string> = {
 };
 const _WX_KEY = process.env.EXPO_PUBLIC_WORKOUTX_API_KEY ?? "";
 
+const _WX_GIF_BASE = "https://api.workoutxapp.com/v1/gifs/";
+
 function resolve_gif_url(
   gif_url: string | null,
   exercise_id: string,
 ): string | null {
-  if (gif_url) return gif_url;
+  // DB에 저장된 bare WorkoutX URL에도 api-key 추가
+  if (gif_url) {
+    if (_WX_KEY && gif_url.startsWith(_WX_GIF_BASE) && !gif_url.includes("api-key=")) {
+      return `${gif_url}?api-key=${_WX_KEY}`;
+    }
+    return gif_url;
+  }
   const id = _WX_GIF_MAP[exercise_id];
   if (!id || !_WX_KEY) return null;
-  return `https://api.workoutxapp.com/v1/gifs/${id}.gif?api-key=${_WX_KEY}`;
+  return `${_WX_GIF_BASE}${id}.gif?api-key=${_WX_KEY}`;
 }
 
 interface Set {
