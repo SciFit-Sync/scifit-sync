@@ -28,7 +28,6 @@ from app.models import (
     User,
     UserGym,
 )
-from app.services.image_gen import get_or_generate_image_url
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
