@@ -123,8 +123,14 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         ex_name_en_map = {str(eid): name_en for eid, _, name_en, _ in rows}
         ex_gif_map = {str(eid): gif for eid, _, _, gif in rows}
 
-    # gif_url: DB 저장값 우선, 없는 항목만 WorkoutX 실시간 조회.
-    # ""(sentinel): 이전에 WorkoutX 조회했으나 없었음 → 재호출 건너뜀.
+    # gif_url 캐싱 전략:
+    #   None  → 아직 WorkoutX 미조회. 이번 요청에서 API 호출 후 결과를 DB에 저장.
+    #   ""    → sentinel. WorkoutX 조회했으나 결과 없음. 재호출 방지용.
+    #           `if exercise.gif_url:` 같은 단순 truthy 체크를 하면 None과 동일하게
+    #           동작하므로, 이 컬럼을 직접 읽을 때는 `is None` 비교를 사용할 것.
+    #           응답 시에는 `v or None`으로 클라이언트에 null로 내려간다.
+    #   URL   → 캐시된 GIF URL. DB에서 바로 반환.
+    # NOTE: 조회 함수지만 write-back을 위해 UPDATE+commit이 발생한다.
     gif_url_map: dict[str, str | None] = {k: v or None for k, v in ex_gif_map.items()}
     missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if ex_gif_map.get(str(eid)) is None]
     if missing:
