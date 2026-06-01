@@ -966,3 +966,27 @@ class TestRegenerateRoutine:
         )
 
         assert resp.status_code == 404
+
+
+# ── gif_url 헬퍼 (죽은 /static 경로 회귀 방지) ────────────────────────────────
+
+
+class TestGifUrlHelpers:
+    def test_usable_gif_url(self):
+        from app.api.v1.routines import _usable_gif_url
+
+        assert _usable_gif_url("https://api.workoutxapp.com/v1/gifs/0025.gif") == (
+            "https://api.workoutxapp.com/v1/gifs/0025.gif"
+        )
+        assert _usable_gif_url("http://x/0.gif") == "http://x/0.gif"
+        assert _usable_gif_url("/static/gifs/0025.gif") is None  # 죽은 상대경로(404)
+        assert _usable_gif_url("") is None
+        assert _usable_gif_url(None) is None
+
+    def test_needs_wx_gif(self):
+        from app.api.v1.routines import _needs_wx_gif
+
+        assert _needs_wx_gif(None) is True  # 미조회 → 조회 필요
+        assert _needs_wx_gif("/static/gifs/0025.gif") is True  # 죽은 경로 → 재조회
+        assert _needs_wx_gif("") is False  # not-found sentinel → 재호출 안 함
+        assert _needs_wx_gif("https://x/0.gif") is False  # 캐시됨 → 불필요

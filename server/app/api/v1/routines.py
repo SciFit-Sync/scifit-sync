@@ -76,6 +76,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/routines", tags=["routines"])
 
 
+def _usable_gif_url(gif_url: str | None) -> str | None:
+    """클라이언트가 바로 쓸 수 있는 GIF URL(http~)이면 그대로, 아니면 None.
+
+    과거 시드의 죽은 `/static` 상대경로나 빈 sentinel("")은 None으로 정규화한다.
+    """
+    return gif_url if (gif_url or "").startswith("http") else None
+
+
+def _needs_wx_gif(gif_url: str | None) -> bool:
+    """WorkoutX 조회가 필요한 gif_url인지 판정.
+
+    - http URL: 캐시됨 → 불필요
+    - "" sentinel: 확정 not-found → 불필요(재호출 방지)
+    - NULL / 죽은 비-URL 값(과거 `/static` 경로 등): 조회 필요
+    """
+    return gif_url != "" and _usable_gif_url(gif_url) is None
+
+
 def _routine_to_summary(r: WorkoutRoutine, gym_name: str | None = None) -> RoutineSummary:
     return RoutineSummary(
         routine_id=str(r.id),
@@ -126,13 +144,12 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
     # gif_url 캐싱 전략:
     #   None  → 아직 WorkoutX 미조회. 이번 요청에서 API 호출 후 결과를 DB에 저장.
     #   ""    → sentinel. WorkoutX 조회했으나 결과 없음. 재호출 방지용.
-    #           `if exercise.gif_url:` 같은 단순 truthy 체크를 하면 None과 동일하게
-    #           동작하므로, 이 컬럼을 직접 읽을 때는 `is None` 비교를 사용할 것.
-    #           응답 시에는 `v or None`으로 클라이언트에 null로 내려간다.
-    #   URL   → 캐시된 GIF URL. DB에서 바로 반환.
+    #   URL   → 캐시된 GIF URL(http~). DB에서 바로 반환.
+    #   그 외(죽은 /static 상대경로 등) → 미사용 값. WorkoutX 재조회 대상.
+    # 판정은 _needs_wx_gif / _usable_gif_url 헬퍼로 일원화(직접 truthy/is None 비교 금지).
     # NOTE: 조회 함수지만 write-back을 위해 UPDATE+commit이 발생한다.
-    gif_url_map: dict[str, str | None] = {k: v or None for k, v in ex_gif_map.items()}
-    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if ex_gif_map.get(str(eid)) is None]
+    gif_url_map: dict[str, str | None] = {k: _usable_gif_url(v) for k, v in ex_gif_map.items()}
+    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if _needs_wx_gif(ex_gif_map.get(str(eid)))]
     if missing:
         wx_results = await asyncio.gather(
             *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in missing],
@@ -646,12 +663,12 @@ async def get_ai_routine_detail(
         e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
     }
 
-    # gif_url: DB 저장값 우선, IS NULL인 운동만 WorkoutX 결과로 write-back
-    gif_url_map: dict[uuid.UUID, str | None] = {e.id: e.gif_url or None for e in ex_map.values()}
+    # gif_url: 사용 가능한 http URL만 캐시로 인정. 죽은 /static 경로·NULL은 WorkoutX로 갱신.
+    gif_url_map: dict[uuid.UUID, str | None] = {e.id: _usable_gif_url(e.gif_url) for e in ex_map.values()}
     writes: list[tuple[uuid.UUID, str]] = []
     for ex, wx in zip(unique_exs, wx_results, strict=True):
-        if ex.gif_url is not None:
-            continue  # 이미 캐시됨 — write-back 불필요
+        if not _needs_wx_gif(ex.gif_url):
+            continue  # http URL(캐시됨) 또는 "" sentinel → write-back 불필요
         if isinstance(wx, dict):
             url = wx.get("gifUrl")
             gif_url_map[ex.id] = url
