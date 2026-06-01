@@ -727,7 +727,8 @@ async def _build_rag_profile(
     return RagUserProfile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
-        fitness_career=str(profile.career_level),
+        fitness_career=profile.career_level.value,
+        gender=profile.gender.value if profile.gender else None,
         available_exercises=available_exercises,
         target_muscles=target_muscle_names,
         session_minutes=(req.session_minutes if req else None),

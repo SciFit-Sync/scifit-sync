@@ -3,6 +3,7 @@
 CLAUDE.md / api-endpoints.md #18-20, #44-45.
 """
 
+import asyncio
 import logging
 import uuid
 
@@ -25,7 +26,9 @@ from app.models import (
     Gym,
     GymEquipment,
     User,
+    UserGym,
 )
+from app.services.image_gen import get_or_generate_image_url
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
@@ -52,9 +55,9 @@ def _ratio_str(pulley_ratio: float) -> str:
     return f"{n}:1"
 
 
-def _equipment_to_dto(e: Equipment) -> EquipmentItem:
-    is_cable_machine = str(e.equipment_type) in ("cable", "machine")
-    is_barbell = str(e.equipment_type) == "barbell"
+def _equipment_to_dto(e: Equipment, image_url: str | None = None) -> EquipmentItem:
+    is_cable_machine = e.equipment_type.value in ("cable", "machine")
+    is_barbell = e.equipment_type.value == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
@@ -67,7 +70,7 @@ def _equipment_to_dto(e: Equipment) -> EquipmentItem:
         min_stack=e.min_stack,
         max_stack=e.max_stack,
         stack_weight=e.stack_weight if is_cable_machine else None,
-        image_url=e.image_url,
+        image_url=image_url if image_url is not None else e.image_url,
         ratio=_ratio_str(e.pulley_ratio) if is_cable_machine else None,
     )
 
@@ -235,11 +238,22 @@ async def list_gym_equipment(
         .all()
     )
 
+    async def _resolve_image(e: Equipment) -> str | None:
+        if e.image_url:
+            return e.image_url
+        try:
+            return await get_or_generate_image_url(str(e.id), e.name, e.name_en)
+        except Exception:
+            logger.warning("이미지 생성 실패: %s", e.id)
+            return None
+
+    image_urls = await asyncio.gather(*[_resolve_image(e) for e in equipments])
+
     return SuccessResponse(
         data=GymEquipmentListData(
             gym_id=gym_id,
             gym_name=gym.name,
-            equipment=[_equipment_to_dto(e) for e in equipments],
+            equipment=[_equipment_to_dto(e, img) for e, img in zip(equipments, image_urls, strict=True)],
         )
     )
 
