@@ -11,7 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -123,17 +123,27 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         ex_name_en_map = {str(eid): name_en for eid, _, name_en, _ in rows}
         ex_gif_map = {str(eid): gif for eid, _, _, gif in rows}
 
-    # gif_url: DB 저장값 우선, 없는 항목만 WorkoutX 실시간 조회
-    gif_url_map: dict[str, str | None] = dict(ex_gif_map)
-    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if not ex_gif_map.get(str(eid))]
+    # gif_url: DB 저장값 우선, 없는 항목만 WorkoutX 실시간 조회.
+    # ""(sentinel): 이전에 WorkoutX 조회했으나 없었음 → 재호출 건너뜀.
+    gif_url_map: dict[str, str | None] = {k: v or None for k, v in ex_gif_map.items()}
+    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if ex_gif_map.get(str(eid)) is None]
     if missing:
         wx_results = await asyncio.gather(
             *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in missing],
             return_exceptions=True,
         )
-        for (eid_str, _), wx in zip(missing, wx_results, strict=True):
+        writes: list[tuple[str, str]] = []
+        for (eid_str, name_en), wx in zip(missing, wx_results, strict=True):
             if isinstance(wx, dict):
-                gif_url_map[eid_str] = wx.get("gifUrl")
+                url = wx.get("gifUrl")
+                gif_url_map[eid_str] = url
+                writes.append((eid_str, url or ""))
+            elif name_en:
+                writes.append((eid_str, ""))
+        for eid_str, gif_val in writes:
+            await db.execute(update(Exercise).where(Exercise.id == uuid.UUID(eid_str)).values(gif_url=gif_val))
+        if writes:
+            await db.commit()
 
     eq_name_map: dict[str, str] = {}
     eq_brand_map: dict[str, str] = {}
