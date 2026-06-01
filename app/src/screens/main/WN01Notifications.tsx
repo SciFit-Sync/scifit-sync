@@ -9,7 +9,6 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
@@ -37,7 +36,6 @@ function get_icon(type: string): string {
 }
 
 export default function WN01Notifications() {
-  const navigation = useNavigation();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const queryClient = useQueryClient();
 
@@ -74,11 +72,7 @@ export default function WN01Notifications() {
 
       {/* 헤더 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Octicons name="chevron-left" size={32} color={colors.primary} />
-        </TouchableOpacity>
         <Text style={styles.logo}>SciFit-Sync</Text>
-        <View style={styles.placeholder} />
       </View>
 
       <ScrollView
@@ -171,15 +165,13 @@ const styles = StyleSheet.create({
   },
   flex: { flex: 1 },
   header: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 29,
+    paddingBottom: 24,
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
-  placeholder: { width: 60 },
   scroll: { paddingHorizontal: 24, paddingBottom: 32 },
   card: {
     backgroundColor: colors.white,
