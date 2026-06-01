@@ -596,6 +596,7 @@ class TestGetAIRoutineDetail:
             _exec_scalars_all([_exercise_mock()]),
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(None),  # no active WorkoutLog
+            MagicMock(),  # URL write-back UPDATE (WorkoutX 호출 후, RoutinePaper 전)
             _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
@@ -632,6 +633,7 @@ class TestGetAIRoutineDetail:
             _exec_scalars_all([_exercise_mock()]),
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(None),  # no active WorkoutLog
+            MagicMock(),  # URL write-back UPDATE (WorkoutX 호출 후, RoutinePaper 전)
             _exec_all([(_REX_ID, 3)]),  # paper 3건 연결
         )
         app.dependency_overrides[get_db] = _db_override(db)
@@ -664,6 +666,7 @@ class TestGetAIRoutineDetail:
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(active_log),
             _exec_scalars_all([completed_set]),
+            MagicMock(),  # sentinel write-back UPDATE (WorkoutX None, name_en 있음, RoutinePaper 전)
             _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
