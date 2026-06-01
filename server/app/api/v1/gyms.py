@@ -57,8 +57,8 @@ def _ratio_str(pulley_ratio: float) -> str:
 
 
 def _equipment_to_dto(e: Equipment, image_url: str | None = None) -> EquipmentItem:
-    is_cable_machine = e.equipment_type.value in ("cable", "machine")
-    is_barbell = e.equipment_type.value == "barbell"
+    is_cable_machine = str(e.equipment_type) in ("cable", "machine")
+    is_barbell = str(e.equipment_type) == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
