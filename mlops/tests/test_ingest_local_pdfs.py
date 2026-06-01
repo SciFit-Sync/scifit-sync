@@ -438,3 +438,48 @@ def test_run_dry_run_skips_embed_and_ingest(tmp_path, monkeypatch):
     )
     assert exit_code == 0
     assert calls == {"embed": 0, "ingest": 0}
+
+
+def test_parse_pdf_discards_raw_binary_extraction(tmp_path, monkeypatch):
+    """pypdf가 손상 PDF에서 텍스트 대신 raw 바이너리를 뱉으면 parse_pdf가 폐기한다.
+
+    curated.fetch_pdf_sections와 동일한 garbage 가드 — local_pdf 경로도 보호.
+    """
+    import sys
+    from unittest.mock import MagicMock
+
+    pdf = tmp_path / "corrupt.pdf"
+    pdf.write_bytes(b"%PDF-1.4 stub")
+
+    garbage = "%PDF-1.2\n%\xe2\xe3\xcf\xd3\n21548 0 obj\n" + "\x00\x01\x02\x03" * 300
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = garbage
+    mock_reader = MagicMock()
+    mock_reader.pages = [mock_page]
+    mock_pypdf = MagicMock()
+    mock_pypdf.PdfReader.return_value = mock_reader
+
+    monkeypatch.setitem(sys.modules, "pypdf", mock_pypdf)
+    assert ingest_local_pdfs.parse_pdf(pdf) == []
+
+
+def test_parse_pdf_keeps_clean_text(tmp_path, monkeypatch):
+    """깨끗한 텍스트는 길이와 무관하게 통과 (false-positive 회귀)."""
+    import sys
+    from unittest.mock import MagicMock
+
+    pdf = tmp_path / "clean.pdf"
+    pdf.write_bytes(b"%PDF-1.4 stub")
+
+    clean = "Resistance training increases muscle hypertrophy.\n" * 500
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = clean
+    mock_reader = MagicMock()
+    mock_reader.pages = [mock_page]
+    mock_pypdf = MagicMock()
+    mock_pypdf.PdfReader.return_value = mock_reader
+
+    monkeypatch.setitem(sys.modules, "pypdf", mock_pypdf)
+    result = ingest_local_pdfs.parse_pdf(pdf)
+    assert len(result) == 1
+    assert result[0].name == "Full Text"

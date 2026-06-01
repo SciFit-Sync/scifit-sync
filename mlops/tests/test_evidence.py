@@ -74,3 +74,29 @@ def test_consensus_statement_weight():
     """Consensus Statement는 전문가 합의 → 0.70 (Journal Article보다 우선)."""
     assert calculate_evidence_weight(["Consensus Statement"]) == 0.70
     assert calculate_evidence_weight(["Journal Article", "Consensus Statement"]) == 0.70
+
+
+def test_research_support_is_unmapped_funding_label():
+    """Research Support는 연구 자금 라벨 — 근거강도 무관, 의도적 미매핑(0.5 유지)."""
+    assert calculate_evidence_weight(["Research Support, Non-U.S. Gov't"]) == DEFAULT_WEIGHT
+    # 실측상 항상 Journal Article과 동반 → max 정책상 0.5 유지
+    assert calculate_evidence_weight(["Journal Article", "Research Support, N.I.H., Extramural"]) == 0.50
+
+
+def test_scoping_review_weight():
+    """Scoping Review는 근거 종합 리뷰 → 0.85 (Journal Article보다 우선, 0.5 탈출)."""
+    assert calculate_evidence_weight(["Scoping Review"]) == 0.85
+    assert calculate_evidence_weight(["Journal Article", "Scoping Review"]) == 0.85
+
+
+def test_trial_variants_weight():
+    """RCT 변형/단계·다기관 연구는 통제 실험 tier로 0.5 baseline을 넘는다."""
+    assert calculate_evidence_weight(["Pragmatic Clinical Trial"]) == 0.85
+    assert calculate_evidence_weight(["Clinical Trial, Phase III"]) == 0.85
+    assert calculate_evidence_weight(["Journal Article", "Multicenter Study"]) == 0.65
+
+
+def test_clinical_trial_protocol_downweighted():
+    """Clinical Trial Protocol은 결과 미보고 → 0.30. max 정책상 Journal Article과 오면 0.5."""
+    assert calculate_evidence_weight(["Clinical Trial Protocol"]) == 0.30
+    assert calculate_evidence_weight(["Journal Article", "Clinical Trial Protocol"]) == 0.50

@@ -13,29 +13,48 @@ EVIDENCE_WEIGHTS: dict[str, float] = {
     "Meta-Analysis": 1.00,
     "Network Meta-Analysis": 1.00,
     "Systematic Review": 1.00,
+    "Scoping Review": 0.85,  # 근거 종합 리뷰 (systematic보다 포괄적·낮은 엄격성)
     # Tier 1.5: 근거 종합 지침 (다수 연구를 임상 권고로 종합)
     "Practice Guideline": 0.85,
     "Guideline": 0.85,
     "Consensus Statement": 0.70,
-    # Tier 2: 통제된 실험
-    "Controlled Clinical Trial": 0.80,
+    # Tier 2: 통제된 실험 (RCT 및 그 변형/단계)
     "Randomized Controlled Trial": 0.90,
+    "Pragmatic Clinical Trial": 0.85,  # 실세계 RCT 변형
+    "Equivalence Trial": 0.85,
+    "Adaptive Clinical Trial": 0.85,
+    "Clinical Trial, Phase III": 0.85,
+    "Clinical Trial, Phase IV": 0.80,
+    "Controlled Clinical Trial": 0.80,
+    "Clinical Trial, Phase II": 0.75,
     "Clinical Trial": 0.75,
+    "Clinical Trial, Phase I": 0.65,
+    "Multicenter Study": 0.65,  # 다기관 — 표본·일반화 보강
     "Comparative Study": 0.65,
     # Tier 3: 관찰
-    "Observational Study": 0.55,
-    "Cross-Sectional Study": 0.50,
     "Cohort Study": 0.60,
+    "Observational Study": 0.55,
+    "Validation Study": 0.55,
+    "Evaluation Study": 0.55,
+    "Cross-Sectional Study": 0.50,
     "Case-Control Study": 0.50,
     # Tier 4: 약한 근거
     "Review": 0.40,
     "Narrative Review": 0.35,
     "Case Reports": 0.30,
+    "Clinical Trial Protocol": 0.30,  # 프로토콜(결과 미보고) — 근거 약함
     "Editorial": 0.20,
     "Letter": 0.15,
     "Comment": 0.15,
+    "News": 0.15,
+    "Newspaper Article": 0.15,
+    "Published Erratum": 0.15,
+    "Retracted Publication": 0.10,
     # 일반 라벨 (다른 type이 없을 때만 적용)
     "Journal Article": 0.50,
+    # NOTE: "Research Support, *" (N.I.H./Non-U.S. Gov't 등)는 연구 자금 출처
+    # 라벨로 근거강도와 무관하므로 의도적으로 미매핑(0.5 baseline 유지)한다.
+    # 실측상 항상 "Journal Article"과 동반 출현 → max 정책상 weight 영향 없음.
 }
 
 DEFAULT_WEIGHT: float = 0.50
