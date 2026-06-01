@@ -265,7 +265,7 @@ def _is_extraction_garbage(text: str) -> bool:
     return bad / len(sample) > _GARBAGE_CONTROL_RATIO_MAX
 
 
-def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
+def fetch_pdf_sections(url: str, timeout: int = 20) -> list:
     """OA PDF URL에서 sections 추출.
 
     Returns: list[PaperSection]. 실패(non-PDF / parse error / 50MB 초과 / timeout) 시 [].
@@ -387,7 +387,7 @@ def unpaywall_oa_locations(doi: str, email: str = "research@example.com", timeou
     return locations
 
 
-def fetch_html_sections(url: str, timeout: int = 60) -> list:
+def fetch_html_sections(url: str, timeout: int = 20) -> list:
     """OA HTML landing page에서 본문 추출.
 
     Returns: list[PaperSection]. 실패 또는 본문 < 500자 시 [].
