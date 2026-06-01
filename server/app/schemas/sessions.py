@@ -138,6 +138,16 @@ class MuscleVolumeData(BaseModel):
     ai_coach_message: str
 
 
+# ── 활성 세션 조회 ────────────────────────────────────────────────────────────
+class ActiveSessionData(BaseModel):
+    session_id: str
+    routine_id: str | None = None
+    routine_day_id: str | None = None
+    gym_id: str | None = None
+    started_at: datetime
+    elapsed_seconds: int
+
+
 # ── 휴식 타이머 ──────────────────────────────────────────────────────────────
 class RestTimerData(BaseModel):
     rest_seconds: int

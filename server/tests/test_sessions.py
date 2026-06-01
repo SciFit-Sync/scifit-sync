@@ -67,6 +67,12 @@ def _exec_all(rows):
     return r
 
 
+def _exec_first(row):
+    r = MagicMock()
+    r.first.return_value = row
+    return r
+
+
 def _make_db(*side_effects):
     db = AsyncMock()
     db.execute.side_effect = list(side_effects)
@@ -495,3 +501,48 @@ class TestMuscleVolumeAnalysis:
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume?period=DAILY")
 
         assert resp.status_code == 400
+
+
+# ── GET /sessions/active ──────────────────────────────────────────────────────
+
+
+class TestGetActiveSession:
+    @pytest.mark.asyncio
+    async def test_no_active_session_returns_null(self, client):
+        """진행 중 세션이 없으면 data: null 반환."""
+        db = _make_db(_exec_first(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/active")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"] is None
+
+    @pytest.mark.asyncio
+    async def test_returns_active_session_with_elapsed(self, client):
+        """진행 중 세션이 있으면 session_id와 elapsed_seconds를 반환한다."""
+        routine_id = uuid.uuid4()
+        session = _mock_session()
+        session.started_at = datetime(2026, 6, 1, 10, 0, 0)
+
+        db = _make_db(_exec_first((session, routine_id)))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/active")
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["session_id"] == str(_SESSION_ID)
+        assert data["routine_id"] == str(routine_id)
+        assert data["elapsed_seconds"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_routine_id_filter_no_match_returns_null(self, client):
+        """routine_id 필터 지정 시 해당 루틴의 세션이 없으면 data: null 반환."""
+        db = _make_db(_exec_first(None))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/sessions/active?routine_id={uuid.uuid4()}")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"] is None
