@@ -49,12 +49,12 @@ async def get_exercise_by_name(name_en: str) -> dict | None:
             return data
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                return None
+                return None  # confirmed not-found → sentinel 저장 허용
             logger.error("WorkoutX API HTTP 오류: %s", e)
-            return None
+            raise  # 일시 장애 → sentinel 저장 방지
         except Exception as e:
             logger.error("WorkoutX API 호출 실패: %s", e)
-            return None
+            raise  # 일시 장애 → sentinel 저장 방지
 
 
 async def get_exercise_gif(name_en: str) -> str | None:

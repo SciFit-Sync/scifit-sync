@@ -11,7 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -123,17 +123,39 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         ex_name_en_map = {str(eid): name_en for eid, _, name_en, _ in rows}
         ex_gif_map = {str(eid): gif for eid, _, _, gif in rows}
 
-    # gif_url: DB 저장값 우선, 없는 항목만 WorkoutX 실시간 조회
-    gif_url_map: dict[str, str | None] = dict(ex_gif_map)
-    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if not ex_gif_map.get(str(eid))]
+    # gif_url 캐싱 전략:
+    #   None  → 아직 WorkoutX 미조회. 이번 요청에서 API 호출 후 결과를 DB에 저장.
+    #   ""    → sentinel. WorkoutX 조회했으나 결과 없음. 재호출 방지용.
+    #           `if exercise.gif_url:` 같은 단순 truthy 체크를 하면 None과 동일하게
+    #           동작하므로, 이 컬럼을 직접 읽을 때는 `is None` 비교를 사용할 것.
+    #           응답 시에는 `v or None`으로 클라이언트에 null로 내려간다.
+    #   URL   → 캐시된 GIF URL. DB에서 바로 반환.
+    # NOTE: 조회 함수지만 write-back을 위해 UPDATE+commit이 발생한다.
+    gif_url_map: dict[str, str | None] = {k: v or None for k, v in ex_gif_map.items()}
+    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if ex_gif_map.get(str(eid)) is None]
     if missing:
         wx_results = await asyncio.gather(
             *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in missing],
             return_exceptions=True,
         )
-        for (eid_str, _), wx in zip(missing, wx_results, strict=True):
+        writes: list[tuple[str, str]] = []
+        for (eid_str, name_en), wx in zip(missing, wx_results, strict=True):
             if isinstance(wx, dict):
-                gif_url_map[eid_str] = wx.get("gifUrl")
+                url = wx.get("gifUrl")
+                gif_url_map[eid_str] = url
+                writes.append((eid_str, url or ""))
+            elif wx is None and name_en:
+                # WorkoutX가 None 반환 = 확정 not-found(404) → sentinel 저장
+                # Exception 인스턴스는 일시 장애이므로 sentinel 저장 안 함
+                writes.append((eid_str, ""))
+        try:
+            for eid_str, gif_val in writes:
+                await db.execute(update(Exercise).where(Exercise.id == uuid.UUID(eid_str)).values(gif_url=gif_val))
+            if writes:
+                await db.commit()
+        except Exception:
+            logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+            await db.rollback()
 
     eq_name_map: dict[str, str] = {}
     eq_brand_map: dict[str, str] = {}
