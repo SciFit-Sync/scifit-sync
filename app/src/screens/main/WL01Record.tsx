@@ -10,11 +10,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
 import { getSessions, getSessionStats } from "../../services/sessions";
+
+const GOAL_LABELS: Record<string, string> = {
+  hypertrophy: "근비대",
+  strength: "근력 향상",
+  endurance: "근지구력",
+  rehabilitation: "재활",
+  weight_loss: "다이어트",
+};
 
 function fmt_duration(minutes: number | null): string {
   if (minutes == null) return "-";
@@ -43,6 +51,7 @@ function to_date_key(year: number, month: number, day: number) {
 }
 
 export default function WL01Record() {
+  const navigation = useNavigation();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const today = new Date();
   const [year, set_year] = useState(today.getFullYear());
@@ -111,18 +120,18 @@ export default function WL01Record() {
   const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
 
   // 하루 선택 시: 해당 날짜의 세션들을 합산
-  const day_total_volume = day_records.reduce((s, r) => s + (r.total_volume_kg ?? 0), 0);
+  const day_total_volume = day_records.reduce((s, r) => s + (r.total_weight_kg ?? 0), 0);
   const day_total_sets = day_records.reduce((s, r) => s + (r.total_sets ?? 0), 0);
 
   // 통계 표시값 (날짜 선택·미선택 모두 총 중량 / 총 세트 / 총 시간 3개 표시)
   const top_stats = selected_day !== null
     ? [
-        { value: `${Math.round(day_total_volume)}kg`, label: "총 볼륨" },
+        { value: `${parseFloat(day_total_volume.toFixed(2))}kg`, label: "총 중량" },
         { value: `${day_total_sets}세트`, label: "총 세트" },
         { value: fmt_duration(total_duration || null), label: "총 시간" },
       ]
     : [
-        { value: `${Math.round((statsData?.total_volume_kg ?? 0))}kg`, label: "총 볼륨" },
+        { value: `${parseFloat((statsData?.total_weight_kg ?? 0).toFixed(2))}kg`, label: "총 중량" },
         { value: `${statsData?.total_sets ?? 0}세트`, label: "총 세트" },
         { value: fmt_duration(statsData?.total_duration_minutes ?? null), label: "총 시간" },
       ];
@@ -240,19 +249,32 @@ export default function WL01Record() {
                 key={item.session_id}
                 style={styles.routine_item}
                 activeOpacity={0.8}
+                onPress={() => {
+                  if (item.routine_id) {
+                    (navigation as any).navigate("WR04RoutineDetail", {
+                      routine_id: item.routine_id,
+                    });
+                  }
+                }}
               >
                 <View style={styles.routine_info}>
                   <Text style={styles.routine_name}>
                     {item.routine_name ?? "자유 운동"}
                   </Text>
-                  <Text style={styles.routine_sub}>{item.date}</Text>
-                  {item.duration_minutes != null && (
+                  {item.fitness_goals.length > 0 && (
                     <Text style={styles.routine_sub}>
-                      {fmt_duration(item.duration_minutes)}
+                      {item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")}
                     </Text>
                   )}
+                  <Text style={styles.routine_sub}>
+                    {item.date.replace(/-/g, ".")}
+                  </Text>
                 </View>
-                <Octicons name="triangle-right" size={24} color={colors.primary} />
+                <Octicons
+                  name="triangle-right"
+                  size={24}
+                  color={item.routine_id ? colors.primary : colors.border}
+                />
               </TouchableOpacity>
             ))
           ) : (

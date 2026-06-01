@@ -197,9 +197,16 @@ export default function WR04RoutineDetail() {
     const base = sorted.map(api_to_exercise);
 
     // 이 루틴의 진행 중 세션이 스토어에 있으면 체크 상태 복원
-    if (ws_routine_id === routine_id && ws_session_id) {
-      session_id_ref.current = ws_session_id;
-      set_session_started(true);
+    // ws_session_id 가 아직 null 이어도 (세트 체크 직후 화면 이탈 → API 응답 대기 중)
+    // checked_sets 는 이미 저장돼 있으므로 session_id 를 요구하지 않고 복원
+    if (ws_routine_id === routine_id) {
+      if (ws_session_id) {
+        session_id_ref.current = ws_session_id;
+        set_session_started(true);
+      } else if (Object.values(ws_checked_sets).some(Boolean)) {
+        // session_id 응답 대기 중이지만 체크된 세트가 존재 → 세션 시작 상태 유지
+        set_session_started(true);
+      }
       const restored = base.map((ex) => ({
         ...ex,
         sets: ex.sets.map((s) => ({
@@ -212,6 +219,14 @@ export default function WR04RoutineDetail() {
       set_exercises(base);
     }
   }, [detail, selected_day_idx, store_ready]);
+
+  // ws_session_id 가 나중에 도착하면 (ensure_session async 완료) ref / 버튼 동기화
+  useEffect(() => {
+    if (ws_session_id && ws_routine_id === routine_id && !session_id_ref.current) {
+      session_id_ref.current = ws_session_id;
+      set_session_started(true);
+    }
+  }, [ws_session_id]);
 
   useEffect(() => {
     if (is_timer_running) {

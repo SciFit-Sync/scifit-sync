@@ -671,17 +671,21 @@ async def list_sessions(
     )
 
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
-    routine_name_by_day: dict[str, str] = {}
+    # day_id → (routine_id, routine_name, fitness_goals)
+    routine_info_by_day: dict[str, tuple[str, str, list[str]]] = {}
 
     if day_ids:
         name_rows = (
             await db.execute(
-                select(RoutineDay.id, WorkoutRoutine.name)
+                select(RoutineDay.id, WorkoutRoutine.id, WorkoutRoutine.name, WorkoutRoutine.fitness_goals)
                 .join(WorkoutRoutine, RoutineDay.routine_id == WorkoutRoutine.id)
                 .where(RoutineDay.id.in_(day_ids))
             )
         ).all()
-        routine_name_by_day = {str(did): name for did, name in name_rows}
+        routine_info_by_day = {
+            str(did): (str(rid), rname, goals or [])
+            for did, rid, rname, goals in name_rows
+        }
 
     # 세션별 총 중량 / 총 세트 집계 (완료된 세트만)
     session_ids = [r.id for r in rows]
@@ -693,6 +697,7 @@ async def list_sessions(
                     WorkoutLogSet.workout_log_id,
                     func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
                     func.count(WorkoutLogSet.id).label("sets"),
+                    func.coalesce(func.sum(WorkoutLogSet.weight_kg), 0.0).label("weight"),
                 )
                 .where(
                     WorkoutLogSet.workout_log_id.in_(session_ids),
@@ -701,20 +706,26 @@ async def list_sessions(
                 .group_by(WorkoutLogSet.workout_log_id)
             )
         ).all()
-        session_agg = {str(sid): (float(vol), int(sets)) for sid, vol, sets in agg_rows}
+        session_agg = {str(sid): (float(vol), int(sets), float(weight)) for sid, vol, sets, weight in agg_rows}
 
+    _no_info: tuple[str | None, str | None, list[str]] = (None, None, [])
     records = [
         SessionCalendarItem(
             date=(s.started_at + _KST).date().isoformat(),  # KST 기준 날짜
             session_id=str(s.id),
-            routine_name=routine_name_by_day.get(str(s.routine_day_id)),
+            routine_id=routine_info_by_day.get(str(s.routine_day_id), _no_info)[0] if s.routine_day_id else None,
+            routine_name=routine_info_by_day.get(str(s.routine_day_id), _no_info)[1] if s.routine_day_id else None,
+            fitness_goals=routine_info_by_day.get(str(s.routine_day_id), _no_info)[2] if s.routine_day_id else [],
             duration_minutes=(
                 max(0, int((s.finished_at - s.started_at).total_seconds() // 60))
                 if s.finished_at and s.started_at
+                else max(0, int((datetime.now(timezone.utc).replace(tzinfo=None) - _strip_tz(s.started_at)).total_seconds() // 60))
+                if s.started_at
                 else None
             ),
-            total_volume_kg=session_agg.get(str(s.id), (0.0, 0))[0],
-            total_sets=session_agg.get(str(s.id), (0.0, 0))[1],
+            total_volume_kg=session_agg.get(str(s.id), (0.0, 0, 0.0))[0],
+            total_sets=session_agg.get(str(s.id), (0.0, 0, 0.0))[1],
+            total_weight_kg=session_agg.get(str(s.id), (0.0, 0, 0.0))[2],
         )
         for s in rows
     ]
@@ -742,11 +753,26 @@ async def session_stats(
         (await db.execute(select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == current_user.id))).scalar() or 0
     )
 
-    # 총 볼륨
+    # 총 볼륨 (weight × reps)
     total_volume = float(
         (
             await db.execute(
                 select(func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0))
+                .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+            )
+        ).scalar()
+        or 0.0
+    )
+
+    # 총 중량 (세트 무게 단순 합산 — weight × reps 아님)
+    total_weight = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(WorkoutLogSet.weight_kg), 0.0))
                 .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
                 .where(
                     WorkoutLog.user_id == current_user.id,
@@ -867,6 +893,7 @@ async def session_stats(
         data=SessionStatsData(
             total_sessions=total_sessions,
             total_volume_kg=round(total_volume, 2),
+            total_weight_kg=round(total_weight, 2),
             total_duration_minutes=total_minutes,
             total_sets=total_sets,
             weekly_session_count=weekly_session_count,

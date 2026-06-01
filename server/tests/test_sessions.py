@@ -277,7 +277,8 @@ class TestSessionStats:
 
         db = _make_db(
             _exec_scalar_raw(5),  # total_sessions count
-            _exec_scalar_raw(12500.0),  # total_volume
+            _exec_scalar_raw(12500.0),  # total_volume (weight × reps)
+            _exec_scalar_raw(250.0),  # total_weight (세트 무게 합산)
             _exec_scalar_raw(30),  # total_sets
             _exec_all([(_NOW, finished_at)]),  # finished sessions for minutes calc
             _exec_scalar_raw(2),  # weekly_session_count
