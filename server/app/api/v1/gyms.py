@@ -173,6 +173,8 @@ async def search_gyms(
                 gym_id=str(gym.id) if gym else "",
                 name=gym.name if gym else d.get("place_name", ""),
                 address=gym.address if gym else d.get("road_address_name") or d.get("address_name", ""),
+                latitude=gym.latitude if gym else float(d.get("y") or 0),
+                longitude=gym.longitude if gym else float(d.get("x") or 0),
                 kakao_place_id=place_id,
                 equipment_count=eq_count,
             )
@@ -202,6 +204,8 @@ async def create_gym(
                     gym_id=str(existing.id),
                     name=existing.name,
                     address=existing.address,
+                    latitude=existing.latitude,
+                    longitude=existing.longitude,
                     kakao_place_id=existing.kakao_place_id,
                     equipment_count=len(existing.gym_equipments),
                 )
@@ -223,6 +227,8 @@ async def create_gym(
             gym_id=str(gym.id),
             name=gym.name,
             address=gym.address,
+            latitude=gym.latitude,
+            longitude=gym.longitude,
             kakao_place_id=gym.kakao_place_id,
             equipment_count=0,
         )
