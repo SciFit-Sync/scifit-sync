@@ -635,33 +635,37 @@ async def get_ai_routine_detail(
                 if s.routine_exercise_id:
                     completed_sets_map.setdefault(s.routine_exercise_id, {})[s.set_number] = s
 
-    # 5. gif_url 캐싱: DB 저장값 우선, gif_url IS NULL인 운동만 WorkoutX 호출.
-    # sentinel/write-back 전략은 _routine_to_detail과 동일.
+    # 5. WorkoutX API 병렬 호출 (thumbnail/equipment 등 메타데이터 포함, 전체 운동 대상)
+    # gif_url write-back은 DB에 없는 운동만 수행해 중복 호출을 줄인다.
+    unique_exs = list(ex_map.values())
+    wx_results = await asyncio.gather(
+        *[get_exercise_by_name(e.name_en) if e.name_en else asyncio.sleep(0, result=None) for e in unique_exs],
+        return_exceptions=True,
+    )
+    wx_map: dict[uuid.UUID, dict] = {
+        e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
+    }
+
+    # gif_url: DB 저장값 우선, IS NULL인 운동만 WorkoutX 결과로 write-back
     gif_url_map: dict[uuid.UUID, str | None] = {e.id: e.gif_url or None for e in ex_map.values()}
-    missing_exs = [e for e in ex_map.values() if e.gif_url is None]
-    wx_map: dict[uuid.UUID, dict] = {}
-    if missing_exs:
-        wx_results = await asyncio.gather(
-            *[get_exercise_by_name(e.name_en) if e.name_en else asyncio.sleep(0, result=None) for e in missing_exs],
-            return_exceptions=True,
-        )
-        writes: list[tuple[uuid.UUID, str]] = []
-        for ex, wx in zip(missing_exs, wx_results, strict=True):
-            if isinstance(wx, dict):
-                url = wx.get("gifUrl")
-                gif_url_map[ex.id] = url
-                wx_map[ex.id] = wx
-                writes.append((ex.id, url or ""))
-            elif wx is None and ex.name_en:
-                writes.append((ex.id, ""))
-        try:
-            for eid, gif_val in writes:
-                await db.execute(update(Exercise).where(Exercise.id == eid).values(gif_url=gif_val))
-            if writes:
-                await db.commit()
-        except Exception:
-            logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
-            await db.rollback()
+    writes: list[tuple[uuid.UUID, str]] = []
+    for ex, wx in zip(unique_exs, wx_results, strict=True):
+        if ex.gif_url is not None:
+            continue  # 이미 캐시됨 — write-back 불필요
+        if isinstance(wx, dict):
+            url = wx.get("gifUrl")
+            gif_url_map[ex.id] = url
+            writes.append((ex.id, url or ""))
+        elif wx is None and ex.name_en:
+            writes.append((ex.id, ""))
+    try:
+        for eid, gif_val in writes:
+            await db.execute(update(Exercise).where(Exercise.id == eid).values(gif_url=gif_val))
+        if writes:
+            await db.commit()
+    except Exception:
+        logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+        await db.rollback()
 
     # 6. RoutinePaper 수 batch fetch → tips_count / tips_available 계산용
     rex_ids = [rex.id for rex in all_rex]
