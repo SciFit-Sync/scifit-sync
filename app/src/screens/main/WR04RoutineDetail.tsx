@@ -99,7 +99,11 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
     reps_min: item.reps_min ?? null,
     reps_max: item.reps_max ?? null,
     has_paper: item.has_paper ?? false,
-    gif_url: item.gif_url ?? null,
+    gif_url: item.gif_url
+      ? item.gif_url.startsWith("/")
+        ? `${process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000"}${item.gif_url}`
+        : item.gif_url
+      : null,
   };
 }
 
