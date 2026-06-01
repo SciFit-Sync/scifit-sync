@@ -33,7 +33,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     for name, _ in _GIF_URLS:
-        op.execute(
-            f"UPDATE exercises SET gif_url = NULL, updated_at = NOW() "
-            f"WHERE name = '{name}'"
-        )
+        op.execute(f"UPDATE exercises SET gif_url = NULL, updated_at = NOW() WHERE name = '{name}'")
