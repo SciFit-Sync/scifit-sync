@@ -1011,6 +1011,8 @@ async def muscle_volume_analysis(
 
 
 # ── GET /sessions/active ─────────────────────────────────────────────────────
+# NOTE: /active must precede /{session_id} — FastAPI matches routes in
+# declaration order; placing it after would capture "active" as session_id.
 @router.get(
     "/active",
     response_model=SuccessResponse[ActiveSessionData | None],
@@ -1024,7 +1026,8 @@ async def get_active_session(
     db: AsyncSession = Depends(get_db),
 ):
     stmt = (
-        select(WorkoutLog)
+        select(WorkoutLog, RoutineDay.routine_id)
+        .outerjoin(RoutineDay, WorkoutLog.routine_day_id == RoutineDay.id)
         .where(
             WorkoutLog.user_id == current_user.id,
             WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
@@ -1035,35 +1038,20 @@ async def get_active_session(
 
     if routine_id:
         routine_uuid = _parse_uuid(routine_id, "routine_id")
-        stmt = (
-            select(WorkoutLog)
-            .join(RoutineDay, WorkoutLog.routine_day_id == RoutineDay.id)
-            .where(
-                WorkoutLog.user_id == current_user.id,
-                WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
-                RoutineDay.routine_id == routine_uuid,
-            )
-            .order_by(WorkoutLog.started_at.desc())
-            .limit(1)
-        )
+        stmt = stmt.where(RoutineDay.routine_id == routine_uuid)
 
-    s = (await db.execute(stmt)).scalar_one_or_none()
-    if s is None:
+    row = (await db.execute(stmt)).first()
+    if row is None:
         return SuccessResponse(data=None)
 
+    s, resolved_routine_id = row
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    elapsed = max(0, int((_strip_tz(now) - _strip_tz(s.started_at)).total_seconds()))
-
-    resolved_routine_id: str | None = None
-    if s.routine_day_id:
-        day = (await db.execute(select(RoutineDay).where(RoutineDay.id == s.routine_day_id))).scalar_one_or_none()
-        if day:
-            resolved_routine_id = str(day.routine_id)
+    elapsed = max(0, int((now - _strip_tz(s.started_at)).total_seconds()))
 
     return SuccessResponse(
         data=ActiveSessionData(
             session_id=str(s.id),
-            routine_id=resolved_routine_id,
+            routine_id=str(resolved_routine_id) if resolved_routine_id else None,
             routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
             gym_id=str(s.gym_id) if s.gym_id else None,
             started_at=s.started_at,
