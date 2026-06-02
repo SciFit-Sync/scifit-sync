@@ -4,7 +4,6 @@ import {
   Animated,
   Alert,
   FlatList,
-  Image,
   Linking,
   Modal,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   View,
   ScrollView,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
@@ -315,11 +315,14 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
-            });
-          })
+            }),
+          )
           .then(() => {
-            // 세트 저장 완료 → 볼륨/세트 통계 반영되도록 재무효화
             query_client.invalidateQueries({ queryKey: ["sessions"] });
+            query_client.invalidateQueries({ queryKey: ["session-stats"] });
+            query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+            query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+
           })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
@@ -661,6 +664,9 @@ export default function WR04RoutineDetail() {
       await finishSession(token, session_id_ref.current);
       ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
       navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);
@@ -827,22 +833,25 @@ export default function WR04RoutineDetail() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* 그래픽 영상 placeholder */}
-                    {exercise.gif_url ? (
-                      <Image
-                        source={{ uri: exercise.gif_url }}
-                        style={styles.exercise_gif}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <View style={styles.image_placeholder}>
-                        <Octicons
-                          name="play"
-                          size={32}
-                          color={colors.bluegray}
+                    {/* 그래픽 영상 */}
+                    {(() => {
+                      // gif_url은 백엔드 프록시 URL(키 불필요). expo-image로 release GIF 디코딩.
+                      return exercise.gif_url ? (
+                        <ExpoImage
+                          source={{ uri: exercise.gif_url }}
+                          style={styles.exercise_gif}
+                          contentFit="contain"
                         />
-                      </View>
-                    )}
+                      ) : (
+                        <View style={styles.image_placeholder}>
+                          <Octicons
+                            name="play"
+                            size={32}
+                            color={colors.bluegray}
+                          />
+                        </View>
+                      );
+                    })()}
 
                     {/* 근육 활성화 */}
                     <View style={styles.muscle_section}>

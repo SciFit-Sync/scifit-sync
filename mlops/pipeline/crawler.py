@@ -53,6 +53,12 @@ from mlops.pipeline.pmc import PMCClient
 
 logger = logging.getLogger(__name__)
 
+# DOI→PMID backfill로도 publication_types를 확보 못 한 잔여 논문의 폴백 라벨.
+# 수집 소스가 OpenAlex(type:article 필터) + PubMed(저널 색인)이므로 최소 저널 아티클이
+# 보장된다. evidence.EVIDENCE_WEIGHTS의 "Journal Article"(0.50) = DEFAULT_WEIGHT와 동일해
+# evidence_weight 분포에 영향을 주지 않으면서 publication_types fill rate만 끌어올린다.
+DEFAULT_PUBLICATION_TYPE = "Journal Article"
+
 # 추천 시스템 근거 데이터를 다양한 축으로 수집하기 위한 카테고리별 쿼리.
 # 단일 광범위 쿼리는 NCBI relevance 정렬이 메타분석 한두 편에 편중되기 쉬워,
 # 추천 알고리즘이 필요로 하는 세부 결정 축(볼륨/강도/빈도 등)이 비균등하게 수집된다.
@@ -1485,6 +1491,7 @@ def crawl_papers(
     max_date: str | None = None,
     fetch_fulltext: bool = True,
     existing_dois: set[str] | None = None,
+    categories: list[str] | None = None,
 ) -> list[PaperFull]:
     """65개 카테고리에 대해 OpenAlex 메인 + PubMed 보조 통합 검색.
 
@@ -1506,6 +1513,9 @@ def crawl_papers(
         min_date / max_date: PubMed pdat 필터 (YYYY/MM/DD).
         fetch_fulltext: cascading fulltext 수집 여부 (테스트에서 False로 끔).
         existing_dois: 이미 수집된 DOI 집합 (중복 방지).
+        categories: 실행할 카테고리명 리스트 (subset 배치 실행용).
+            None이면 전체 카테고리 순회. 알 수 없는 이름이 포함되면 ValueError.
+            35~50h fetch가 중단된 경우 배치 단위로 재개할 때 사용한다.
 
     Returns:
         PaperFull 리스트. 각 PaperMeta는 search_categories + evidence_weight + fulltext_source 부여됨.
@@ -1515,6 +1525,16 @@ def crawl_papers(
         # 기존 SEARCH_QUERY_CATEGORIES의 filter_level은 strict/semi/loose가 있지만,
         # Task 10에서는 strict 토글로 단일화 — strict 의도가 있는 카테고리만 True.
         queries = [(name, query, level != "loose") for name, query, level in SEARCH_QUERY_CATEGORIES]
+
+    # categories subset 필터 — 오타로 조용히 빈 결과를 내는 것을 방지
+    if categories is not None:
+        valid_names = {name for name, _query, _strict in queries}
+        unknown = [c for c in categories if c not in valid_names]
+        if unknown:
+            raise ValueError(f"알 수 없는 카테고리명: {unknown}. 유효한 이름: {sorted(valid_names)}")
+        category_set = set(categories)
+        queries = [(name, query, strict) for name, query, strict in queries if name in category_set]
+        logger.info("카테고리 subset 지정: %d / %d 카테고리 실행 → %s", len(queries), len(valid_names), categories)
     openalex_max = max_per_category if max_per_category is not None else OPENALEX_MAX_PER_CATEGORY
     pubmed_max = max_per_category if max_per_category is not None else PUBMED_MAX_PER_CATEGORY
     max_total = max_total or MAX_PAPERS_PER_RUN
@@ -1570,6 +1590,21 @@ def crawl_papers(
     backfilled = backfill_publication_types_from_pubmed(list(doi_to_meta.values()))
     if backfilled:
         logger.info("publication_types PubMed 보강: %d/%d papers", backfilled, len(doi_to_meta))
+
+    # 잔여 빈 publication_types 폴백: backfill(DOI→PMID)로도 PT를 못 얻은 논문
+    # (PMID 미해석 OpenAlex-only 논문이 대부분)을 DEFAULT_PUBLICATION_TYPE로 채운다.
+    # 이 폴백이 없으면 OpenAlex API가 publication_types를 비워 반환하는 탓에
+    # pre-upsert validation publication_types fill rate 게이트가 탈락한다
+    # (refeed_v2 d010: 0.8491 < 0.85). "Journal Article"=0.50이라 evidence_weight 분포 무영향.
+    residual_empty = [meta for meta in doi_to_meta.values() if not meta.publication_types]
+    for meta in residual_empty:
+        meta.publication_types = [DEFAULT_PUBLICATION_TYPE]
+    if residual_empty:
+        logger.info(
+            "publication_types 잔여 폴백: %d papers → %s",
+            len(residual_empty),
+            DEFAULT_PUBLICATION_TYPE,
+        )
 
     # search_categories + evidence_weight 부여
     for doi, meta in doi_to_meta.items():

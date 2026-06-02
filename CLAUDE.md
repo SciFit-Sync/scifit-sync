@@ -586,6 +586,7 @@ git pull origin <현재-브랜치>   # 또는 git merge origin/develop
 - ECS 멀티 태스크 배포 → Task count=1 유지 (ChromaDB 동시 접근 금지)
 - 테스트 없이 main/develop PR → CI 통과 필수
 - CLAUDE.md 팀 합의 없이 단독 수정 → PR 리뷰 필수
+- `server/seed.py` 실행 → Alembic이 근육군/운동/기구/헬스장 전부 커버하므로 실행 시 name_ko 중복(가슴↔대흉근 등) 충돌 발생. 레퍼런스 데이터는 `alembic upgrade head`만 사용
 
 ---
 

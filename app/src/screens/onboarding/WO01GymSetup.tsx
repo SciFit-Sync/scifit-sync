@@ -194,7 +194,7 @@ export default function WO01GymSetup() {
   };
 
   const handle_skip = () => {
-    (navigation as any).navigate("WO02Equipment", { gym_id: null });
+    (navigation as any).navigate("WO03OneRM");
   };
 
   return (

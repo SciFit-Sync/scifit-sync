@@ -22,8 +22,10 @@ from mlops.eval.validation_thresholds import (
     CHUNKS_PER_PAPER_MAX,
     CHUNKS_PER_PAPER_MIN,
     EMBEDDING_DIM,
-    EVIDENCE_WEIGHT_05_RATIO_MAX,
     EVIDENCE_WEIGHT_DISTINCT_MIN,
+    EVIDENCE_WEIGHT_HIGH_CUTOFF,
+    EVIDENCE_WEIGHT_HIGH_SHARE_MIN,
+    EVIDENCE_WEIGHT_MAX_BUCKET_MAX,
     IDENTIFIER_FILL_RATE_MIN,
     PAPER_DOI_FILL_RATE_INFO_MIN,
     PDF_AVG_TOKEN_MAX,
@@ -46,6 +48,8 @@ class ValidationResult:
     publication_types_fill_rate: float = 0.0
     evidence_weight_distinct: int = 0
     evidence_weight_05_ratio: float = 0.0
+    evidence_weight_max_bucket_share: float = 0.0
+    evidence_weight_high_share: float = 0.0
     avg_token: float = 0.0
     p99_token: float = 0.0
     over_512_ratio: float = 0.0
@@ -61,7 +65,8 @@ class ValidationResult:
             and self.identifier_fill_rate >= IDENTIFIER_FILL_RATE_MIN
             and self.publication_types_fill_rate >= PUBLICATION_TYPES_FILL_RATE_MIN
             and self.evidence_weight_distinct >= EVIDENCE_WEIGHT_DISTINCT_MIN
-            and self.evidence_weight_05_ratio < EVIDENCE_WEIGHT_05_RATIO_MAX
+            and self.evidence_weight_max_bucket_share <= EVIDENCE_WEIGHT_MAX_BUCKET_MAX
+            and self.evidence_weight_high_share >= EVIDENCE_WEIGHT_HIGH_SHARE_MIN
             and AVG_TOKEN_MIN <= self.avg_token <= AVG_TOKEN_MAX
             and self.p99_token <= TOKEN_P99_MAX
             and self.over_512_ratio <= TOKEN_OVER_512_RATIO_MAX
@@ -137,8 +142,14 @@ def validate_jsonl(paths: list[Path]) -> ValidationResult:
     if pdf_tokens:
         result.pdf_avg_token = mean(pdf_tokens)
     if ew_values:
-        result.evidence_weight_distinct = len(set(round(v, 2) for v in ew_values))
+        ew_buckets = Counter(round(v, 2) for v in ew_values)
+        result.evidence_weight_distinct = len(ew_buckets)
         result.evidence_weight_05_ratio = sum(1 for v in ew_values if abs(v - 0.5) < 1e-6) / len(ew_values)
+        # 붕괴 탐지(값 불문): 최대 단일 버킷 점유율 + 고근거(>=cutoff) 청크 질량
+        result.evidence_weight_max_bucket_share = max(ew_buckets.values()) / len(ew_values)
+        result.evidence_weight_high_share = sum(1 for v in ew_values if v >= EVIDENCE_WEIGHT_HIGH_CUTOFF) / len(
+            ew_values
+        )
     if paper_chunks:
         result.chunks_per_paper_avg = mean(paper_chunks.values())
     if emb_dims:
@@ -172,12 +183,15 @@ def print_report(result: ValidationResult, out=sys.stderr) -> None:
             f"{result.publication_types_fill_rate:.4f}",
         ),
         (
-            "evidence_weight distinct",
-            # 라벨은 passed 집계(63~64행)와 동일하게 distinct + 0.5비율 둘 다 반영.
-            # 이전엔 distinct만 봐서 0.5비율 초과(예: 0.71)가 [OK]로 가려졌다.
+            "evidence_weight",
+            # 라벨은 passed 집계와 동일한 3신호 AND: distinct + 최대버킷점유 + 고근거질량.
             result.evidence_weight_distinct >= EVIDENCE_WEIGHT_DISTINCT_MIN
-            and result.evidence_weight_05_ratio < EVIDENCE_WEIGHT_05_RATIO_MAX,
-            f"{result.evidence_weight_distinct} values, 0.5 ratio={result.evidence_weight_05_ratio:.2f}",
+            and result.evidence_weight_max_bucket_share <= EVIDENCE_WEIGHT_MAX_BUCKET_MAX
+            and result.evidence_weight_high_share >= EVIDENCE_WEIGHT_HIGH_SHARE_MIN,
+            f"distinct={result.evidence_weight_distinct}, "
+            f"max_bucket={result.evidence_weight_max_bucket_share:.2f}, "
+            f"high(>={EVIDENCE_WEIGHT_HIGH_CUTOFF})={result.evidence_weight_high_share:.2f}, "
+            f"0.5_ratio={result.evidence_weight_05_ratio:.2f}(info)",
         ),
         (
             "avg token",
@@ -193,7 +207,10 @@ def print_report(result: ValidationResult, out=sys.stderr) -> None:
         ),
         (
             "pdf subset avg",
-            PDF_AVG_TOKEN_MIN <= result.pdf_avg_token <= PDF_AVG_TOKEN_MAX,
+            # 라벨도 passed 집계(71행)와 동일하게 pdf_avg_token==0(local_pdf 청크 없음
+            # =--skip-local-pdf 정상 케이스) 예외를 둔다. 이전엔 이 예외가 없어
+            # 정상 skip인데도 라벨만 [FAIL]로 찍혀 passed와 어긋났다.
+            result.pdf_avg_token == 0 or PDF_AVG_TOKEN_MIN <= result.pdf_avg_token <= PDF_AVG_TOKEN_MAX,
             f"{result.pdf_avg_token:.1f}",
         ),
         ("embedding dim", result.embedding_dim == EMBEDDING_DIM, f"{result.embedding_dim}"),

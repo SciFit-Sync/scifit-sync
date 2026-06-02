@@ -76,6 +76,7 @@ class SessionCalendarItem(BaseModel):
     routine_name: str | None = None
     fitness_goals: list[str] = []
     duration_minutes: int | None = None
+    gym_name: str | None = None
     total_volume_kg: float = 0.0
     total_weight_kg: float = 0.0
     total_sets: int = 0
@@ -114,6 +115,7 @@ class SessionStatsData(BaseModel):
     total_sets: int = 0
     weekly_session_count: int = 0
     streak_days: int
+    total_calories_kcal: int = 0
     recent_session: RecentSessionItem | None = None
     by_gym: list[GymStatItem] = Field(default_factory=list)
 
@@ -140,6 +142,16 @@ class MuscleVolumeData(BaseModel):
     period: str  # "WEEK" | "MONTH"
     volume_by_muscle: list[MuscleVolumeItem]
     ai_coach_message: str
+
+
+# ── 활성 세션 조회 ────────────────────────────────────────────────────────────
+class ActiveSessionData(BaseModel):
+    session_id: str
+    routine_id: str | None = None
+    routine_day_id: str | None = None
+    gym_id: str | None = None
+    started_at: datetime
+    elapsed_seconds: int
 
 
 # ── 휴식 타이머 ──────────────────────────────────────────────────────────────

@@ -107,6 +107,15 @@ def parse_pdf(pdf_path: Path) -> list[PaperSection]:
     full_text = "\n".join(texts).strip()
     if not full_text:
         return []
+
+    # curated.fetch_pdf_sections와 동일하게 추출 결과 유효성 검증 — pypdf가 손상·
+    # linearized PDF에서 raw 바이너리를 뱉으면 폐기 (silent failure 차단).
+    from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+    if _is_extraction_garbage(full_text):
+        logger.warning("parse_pdf: 추출 결과가 raw PDF 바이너리/garbage — 폐기 %s", pdf_path)
+        return []
+
     return [PaperSection(name="Full Text", content=full_text)]
 
 

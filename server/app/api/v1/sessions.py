@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
+    ActiveSessionData,
     FinishSessionRequest,
     GymStatItem,
     LogSetRequest,
@@ -687,9 +688,15 @@ async def list_sessions(
             for did, rid, rname, goals in name_rows
         }
 
+    gym_ids = [r.gym_id for r in rows if r.gym_id]
+    gym_name_by_id: dict[str, str] = {}
+    if gym_ids:
+        gym_rows_q = (await db.execute(select(Gym.id, Gym.name).where(Gym.id.in_(gym_ids)))).all()
+        gym_name_by_id = {str(gid): gname for gid, gname in gym_rows_q}
+
     # 세션별 총 중량 / 총 세트 집계 (완료된 세트만)
     session_ids = [r.id for r in rows]
-    session_agg: dict[str, tuple[float, int]] = {}
+    session_agg: dict[str, tuple[float, int, float]] = {}
     if session_ids:
         agg_rows = (
             await db.execute(
@@ -723,6 +730,7 @@ async def list_sessions(
                 if s.started_at
                 else None
             ),
+            gym_name=gym_name_by_id.get(str(s.gym_id)) if s.gym_id else None,
             total_volume_kg=session_agg.get(str(s.id), (0.0, 0, 0.0))[0],
             total_sets=session_agg.get(str(s.id), (0.0, 0, 0.0))[1],
             total_weight_kg=session_agg.get(str(s.id), (0.0, 0, 0.0))[2],
@@ -811,6 +819,18 @@ async def session_stats(
 
     total_minutes = sum(int((f - s).total_seconds() // 60) for s, f in finished_rows if f and s)
 
+    # 총 칼로리 (최근 체중 기준, MET 5.0 공식)
+    latest_measurement = (
+        await db.execute(
+            select(UserBodyMeasurement)
+            .where(UserBodyMeasurement.user_id == current_user.id)
+            .order_by(UserBodyMeasurement.measured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    body_weight_kg = float(latest_measurement.weight_kg) if latest_measurement else 70.0
+    total_calories_kcal = round(5.0 * body_weight_kg * total_minutes / 60)
+
     # 주간 세션 수 (최근 7일)
     week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
     weekly_session_count = int(
@@ -898,6 +918,7 @@ async def session_stats(
             total_sets=total_sets,
             weekly_session_count=weekly_session_count,
             streak_days=streak_days,
+            total_calories_kcal=total_calories_kcal,
             recent_session=recent_session,
             by_gym=by_gym,
         )
@@ -1045,6 +1066,56 @@ async def muscle_volume_analysis(
             period=period,
             volume_by_muscle=items,
             ai_coach_message=ai_coach_message,
+        )
+    )
+
+
+# ── GET /sessions/active ─────────────────────────────────────────────────────
+# NOTE: /active must precede /{session_id} — FastAPI matches routes in
+# declaration order; placing it after would capture "active" as session_id.
+@router.get(
+    "/active",
+    response_model=SuccessResponse[ActiveSessionData | None],
+    summary="진행 중인 세션 조회",
+)
+@rate_limit("60/minute")
+async def get_active_session(
+    request: Request,
+    routine_id: str | None = Query(None, description="루틴 ID — 지정 시 해당 루틴의 진행 중 세션만 반환"),
+    current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(WorkoutLog, RoutineDay.routine_id)
+        .outerjoin(RoutineDay, WorkoutLog.routine_day_id == RoutineDay.id)
+        .where(
+            WorkoutLog.user_id == current_user.id,
+            WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
+        )
+        .order_by(WorkoutLog.started_at.desc())
+        .limit(1)
+    )
+
+    if routine_id:
+        routine_uuid = _parse_uuid(routine_id, "routine_id")
+        stmt = stmt.where(RoutineDay.routine_id == routine_uuid)
+
+    row = (await db.execute(stmt)).first()
+    if row is None:
+        return SuccessResponse(data=None)
+
+    s, resolved_routine_id = row
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    elapsed = max(0, int((now - _strip_tz(s.started_at)).total_seconds()))
+
+    return SuccessResponse(
+        data=ActiveSessionData(
+            session_id=str(s.id),
+            routine_id=str(resolved_routine_id) if resolved_routine_id else None,
+            routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
+            gym_id=str(s.gym_id) if s.gym_id else None,
+            started_at=s.started_at,
+            elapsed_seconds=elapsed,
         )
     )
 

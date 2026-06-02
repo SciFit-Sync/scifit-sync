@@ -29,7 +29,6 @@ from app.schemas.gyms import (
     SelectData,
     SelectEquipmentRequest,
 )
-from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +181,7 @@ async def get_equipment(
 
     e, brand_name = row
     muscles = await _fetch_muscles(db, [e.id])
-    image_url = e.image_url or await get_or_generate_image_url(str(e.id), e.name, e.name_en)
+    image_url = e.image_url
     item = _to_item(e, brand_name, muscles.get(str(e.id)), image_url_override=image_url)
     return SuccessResponse(data=item)
 

@@ -7,6 +7,7 @@ export interface SessionCalendarItem {
   routine_name: string | null;
   fitness_goals: string[];
   duration_minutes: number | null;
+  gym_name: string | null;
   total_volume_kg: number;
   total_weight_kg: number;
   total_sets: number;
@@ -33,6 +34,7 @@ export interface SessionStatsData {
   total_sets: number;
   weekly_session_count: number;
   streak_days: number;
+  total_calories_kcal: number;
   recent_session: RecentSessionItem | null;
 }
 

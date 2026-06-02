@@ -3,7 +3,6 @@
 CLAUDE.md / api-endpoints.md #18-20, #44-45.
 """
 
-import asyncio
 import logging
 import uuid
 
@@ -44,7 +43,6 @@ from app.schemas.gyms import (
     SuggestEquipmentData,
     SuggestEquipmentRequest,
 )
-from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +171,8 @@ async def search_gyms(
                 gym_id=str(gym.id) if gym else "",
                 name=gym.name if gym else d.get("place_name", ""),
                 address=gym.address if gym else d.get("road_address_name") or d.get("address_name", ""),
+                latitude=gym.latitude if gym else float(d.get("y") or 0),
+                longitude=gym.longitude if gym else float(d.get("x") or 0),
                 kakao_place_id=place_id,
                 equipment_count=eq_count,
             )
@@ -202,6 +202,8 @@ async def create_gym(
                     gym_id=str(existing.id),
                     name=existing.name,
                     address=existing.address,
+                    latitude=existing.latitude,
+                    longitude=existing.longitude,
                     kakao_place_id=existing.kakao_place_id,
                     equipment_count=len(existing.gym_equipments),
                 )
@@ -223,6 +225,8 @@ async def create_gym(
             gym_id=str(gym.id),
             name=gym.name,
             address=gym.address,
+            latitude=gym.latitude,
+            longitude=gym.longitude,
             kakao_place_id=gym.kakao_place_id,
             equipment_count=0,
         )
@@ -265,22 +269,11 @@ async def list_gym_equipment(
         .all()
     )
 
-    async def _resolve_image(e: Equipment) -> str | None:
-        if e.image_url:
-            return e.image_url
-        try:
-            return await get_or_generate_image_url(str(e.id), e.name, e.name_en)
-        except Exception:
-            logger.warning("이미지 생성 실패: %s", e.id)
-            return None
-
-    image_urls = await asyncio.gather(*[_resolve_image(e) for e in equipments])
-
     return SuccessResponse(
         data=GymEquipmentListData(
             gym_id=gym_id,
             gym_name=gym.name,
-            equipment=[_equipment_to_dto(e, img) for e, img in zip(equipments, image_urls, strict=True)],
+            equipment=[_equipment_to_dto(e) for e in equipments],
         )
     )
 
