@@ -88,11 +88,15 @@ export function logSet(token: string, session_id: string, body: LogSetBody): Pro
   });
 }
 
-export function finishSession(token: string, session_id: string): Promise<unknown> {
+export interface FinishSessionBody {
+  finished_at?: string; // ISO 8601 UTC
+}
+
+export function finishSession(token: string, session_id: string, body?: FinishSessionBody): Promise<unknown> {
   return apiFetch<unknown>(`/api/v1/sessions/${session_id}/finish`, {
     token,
     method: 'PATCH',
-    body: JSON.stringify({}),
+    body: JSON.stringify(body ?? {}),
   });
 }
 

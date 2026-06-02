@@ -58,7 +58,7 @@ async def search_by_name(client: httpx.AsyncClient, name: str) -> dict | None:
     """이름으로 첫 번째 매칭 운동 반환. 429 시 대기 후 재시도."""
     from datetime import datetime, timezone
 
-    for attempt in range(_RETRY_MAX):
+    for _attempt in range(_RETRY_MAX):
         try:
             resp = await client.get(f"/exercises/name/{name}")
         except Exception as e:

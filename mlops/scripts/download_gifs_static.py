@@ -42,7 +42,7 @@ def extract_gif_filename(url: str) -> str | None:
 
 async def download_gif(client: httpx.AsyncClient, url: str, dest: Path) -> bool:
     """gif 다운로드. 성공 여부 반환."""
-    for attempt in range(_RETRY_MAX):
+    for _attempt in range(_RETRY_MAX):
         try:
             resp = await client.get(url)
             if resp.status_code == 200:

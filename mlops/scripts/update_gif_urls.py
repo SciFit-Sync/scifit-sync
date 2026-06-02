@@ -42,7 +42,6 @@ async def fetch_gif_by_name(client: httpx.AsyncClient, name_en: str) -> str | No
     429 → 지수 백오프 재시도.
     """
     url = f"/exercises/name/{name_en}"
-    delay = 3.0
     for attempt in range(_RETRY_MAX):
         try:
             resp = await client.get(url)

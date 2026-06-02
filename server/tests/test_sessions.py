@@ -263,7 +263,8 @@ class TestListSessions:
         session = _mock_session()
         db = _make_db(
             _exec_scalars_all([session]),  # WorkoutLog 목록 조회
-            _exec_all([]),  # session_agg (volume/sets) — 세트 없음
+            # session_agg: 세트 기록 없는 세션은 필터링되므로 세트 1개 제공
+            _exec_all([(session.id, 62.5, 3, 62.5)]),  # (workout_log_id, volume, sets, weight)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -281,17 +282,22 @@ class TestSessionStats:
     async def test_success(self, client):
         finished_at = _NOW + timedelta(minutes=60)
 
+        # total_sessions: (started_at, routine_day_id) 5개 — 날짜 다르게 해 5개 카운트
+        session_rows_5 = [(_NOW - timedelta(days=i), None) for i in range(5)]
+        # weekly_session_count: 2개
+        session_rows_2 = [(_NOW - timedelta(days=i), None) for i in range(2)]
+
         db = _make_db(
-            _exec_scalar_raw(5),  # total_sessions count
-            _exec_scalar_raw(12500.0),  # total_volume (weight × reps)
-            _exec_scalar_raw(250.0),  # total_weight (세트 무게 합산)
-            _exec_scalar_raw(30),  # total_sets
-            _exec_all([(_NOW, finished_at)]),  # finished sessions for minutes calc
-            _exec_scalar(None),  # UserBodyMeasurement → 70kg fallback
-            _exec_scalar_raw(2),  # weekly_session_count
-            _exec_scalar(None),  # recent_row
-            _exec_all([]),  # streak dates
-            _exec_all([]),  # by_gym 집계 (D-M9)
+            _exec_all(session_rows_5),           # all_session_rows → total_sessions 계산용
+            _exec_scalar_raw(12500.0),           # total_volume (weight × reps)
+            _exec_scalar_raw(250.0),             # total_weight (세트 무게 합산)
+            _exec_scalar_raw(30),                # total_sets
+            _exec_all([(_NOW, finished_at)]),    # finished_rows → total_duration_minutes
+            _exec_scalar(None),                  # UserBodyMeasurement → 70kg fallback
+            _exec_all(session_rows_2),           # weekly_rows → weekly_session_count 계산용
+            _exec_scalar(None),                  # recent_row
+            _exec_all([]),                       # streak dates
+            _exec_all([]),                       # by_gym 집계 (D-M9)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 

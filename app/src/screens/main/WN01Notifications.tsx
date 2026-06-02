@@ -266,6 +266,9 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     gap: 12,
   },
+  placeholder: {
+    width: 60,
+  },
   empty_text: {
     fontFamily: "regular",
     fontSize: 14,
