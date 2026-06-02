@@ -3,7 +3,6 @@
 CLAUDE.md / api-endpoints.md #18-20, #44-45.
 """
 
-import asyncio
 import logging
 import uuid
 
@@ -44,7 +43,6 @@ from app.schemas.gyms import (
     SuggestEquipmentData,
     SuggestEquipmentRequest,
 )
-from app.services.image_gen import get_or_generate_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -271,22 +269,11 @@ async def list_gym_equipment(
         .all()
     )
 
-    async def _resolve_image(e: Equipment) -> str | None:
-        if e.image_url:
-            return e.image_url
-        try:
-            return await get_or_generate_image_url(str(e.id), e.name, e.name_en)
-        except Exception:
-            logger.warning("이미지 생성 실패: %s", e.id)
-            return None
-
-    image_urls = await asyncio.gather(*[_resolve_image(e) for e in equipments])
-
     return SuccessResponse(
         data=GymEquipmentListData(
             gym_id=gym_id,
             gym_name=gym.name,
-            equipment=[_equipment_to_dto(e, img) for e, img in zip(equipments, image_urls, strict=True)],
+            equipment=[_equipment_to_dto(e) for e in equipments],
         )
     )
 
