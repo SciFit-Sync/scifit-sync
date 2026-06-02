@@ -864,11 +864,21 @@ async def _build_rag_profile(
         except ValueError:
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
-    # 5. DB exercises name_en 목록 → LLM 프롬프트에 허용 이름 제공 (매칭 실패 방지)
-    exercise_name_rows = (
-        (await db.execute(select(Exercise.name_en).where(Exercise.name_en.isnot(None)))).scalars().all()
-    )
-    available_exercises = sorted({n.strip() for n in exercise_name_rows if n and n.strip()})
+    # gym_id 없거나 gym 필터 결과가 비어 있을 때 → 전체 DB 기준 fallback
+    # (근육 선택이 있으면 fallback에서도 근육 필터 유지)
+    if not available_exercises:
+        fb_stmt = select(Exercise.name_en).where(Exercise.name_en.isnot(None))
+        if target_muscle_ids:
+            fb_stmt = (
+                fb_stmt.join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
+                .where(
+                    ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
+                    ExerciseMuscle.involvement == "primary",
+                )
+                .distinct()
+            )
+        fallback_rows = (await db.execute(fb_stmt)).scalars().all()
+        available_exercises = sorted({n.strip() for n in fallback_rows if n and n.strip()})
 
     return RagUserProfile(
         goals=(req.goals if req else []),
