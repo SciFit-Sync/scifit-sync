@@ -315,8 +315,8 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
-            }),
-          )
+            });
+          })
           .then(() => {
             query_client.invalidateQueries({ queryKey: ["sessions"] });
             query_client.invalidateQueries({ queryKey: ["session-stats"] });
@@ -656,8 +656,8 @@ export default function WR04RoutineDetail() {
     );
   };
 
-  /** 운동 완료 처리 */
-  const handle_finish = async () => {
+  /** 운동 완료 처리 (실제 로직) */
+  const do_finish = async () => {
     if (!session_id_ref.current || is_finishing) return;
     try {
       set_is_finishing(true);
@@ -674,6 +674,15 @@ export default function WR04RoutineDetail() {
         e instanceof Error ? e.message : "운동 완료 처리에 실패했습니다.";
       Alert.alert("오류", msg);
     }
+  };
+
+  /** 운동 완료 버튼 — 확인 다이얼로그 표시 */
+  const handle_finish = () => {
+    if (!session_id_ref.current || is_finishing) return;
+    Alert.alert("운동 완료", "세션이 초기화됩니다. 완료하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      { text: "확인", onPress: do_finish },
+    ]);
   };
 
   // 로딩 상태
