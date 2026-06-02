@@ -167,6 +167,8 @@ def _valid_result(**overrides) -> ValidationResult:
         publication_types_fill_rate=0.95,
         evidence_weight_distinct=6,
         evidence_weight_05_ratio=0.2,
+        evidence_weight_max_bucket_share=0.6,
+        evidence_weight_high_share=0.2,
         avg_token=400.0,
         p99_token=580.0,
         over_512_ratio=0.01,
@@ -232,43 +234,52 @@ class TestPublicationTypesThreshold:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# evidence_weight 게이트 = 차등화 "붕괴" 탐지 (0.50 → 0.65 → 0.85 → 0.92).
-# 게이트는 두 신호의 AND: distinct >= 5 (차등화 다양성) AND 0.5비율 < 0.92.
-# 0.5비율이 높음 ≠ 붕괴 — 코퍼스 depth가 깊어지면 매핑 불가한 일반 저널 논문
-# (baseline 0.5) 비중이 자연 상승하지만, 고근거 청크(@0.9·@1.0)가 공존하고
-# distinct가 건강하면 차등화는 멀쩡하다. d100 실측(0.5비율 0.86, distinct 9)이
-# 그 예 — depth-driven 상승이지 붕괴가 아니므로 통과해야 한다. 진짜 붕괴
-# (전부 0.5 → distinct 1, 비율 ~1.0)는 두 신호 동시 위반으로 차단된다.
+# evidence_weight 게이트 = 차등화 "붕괴" 탐지 (값 불문, 3신호 AND).
+#   distinct >= 5  AND  max_bucket_share <= 0.95  AND  high_share(>=0.85) >= 0.05
+# 0.5비율이 높음 ≠ 붕괴 — depth가 깊어지면 baseline 0.5 비중은 자연 상승하지만
+# 고근거 청크가 공존하면 차등화는 멀쩡하다(d100: max_bucket 0.86, high 0.12 → PASS).
+# 이전 "0.5 전용 비율 < 0.92"의 허점 2개를 닫는다:
+#   H2(0.5 아닌 값으로 붕괴) → max_bucket_share(값 불문 쏠림)로 차단.
+#   H1(0.5에 91% + decoy로 distinct만 채움) → high_share(고근거 질량)로 차단.
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class TestEvidenceWeight05RatioThreshold:
-    def test_ratio_065_passes(self):
-        """depth 깊은 run의 0.65(d030 실측)는 distinct 건강하면 통과."""
-        assert _valid_result(evidence_weight_05_ratio=0.65).passed
+class TestEvidenceWeightGate:
+    def test_d100_depth_driven_passes(self):
+        """d100 실측: max_bucket 0.86 + high 0.12 + distinct 9 → depth-상승, 통과."""
+        assert _valid_result(
+            evidence_weight_max_bucket_share=0.86,
+            evidence_weight_high_share=0.12,
+            evidence_weight_distinct=9,
+        ).passed
 
-    def test_ratio_084_passes(self):
-        """0.84도 통과 (production 점증 적재 수용)."""
-        assert _valid_result(evidence_weight_05_ratio=0.84).passed
+    def test_high_baseline_ok_when_high_evidence_mass_present(self):
+        """baseline 쏠림 0.90이어도 고근거 질량 충분(0.08)하면 통과 — deep tier 수용."""
+        assert _valid_result(evidence_weight_max_bucket_share=0.90, evidence_weight_high_share=0.08).passed
 
-    def test_d100_depth_driven_086_with_healthy_distinct_passes(self):
-        """d100 실측 재현: 0.5비율 0.86 + distinct 9 → depth-driven 상승, 통과.
+    def test_near_total_single_value_collapse_fails(self):
+        """단일값 점유 0.96(붕괴) → max_bucket 상한 위반 FAIL (값 불문, H2)."""
+        assert not _valid_result(evidence_weight_max_bucket_share=0.96, evidence_weight_high_share=0.10).passed
 
-        이전 0.85 단독 상한이 오탐하던 핵심 케이스(게이트 0.92로 재정의).
-        """
-        assert _valid_result(evidence_weight_05_ratio=0.86, evidence_weight_distinct=9).passed
+    def test_padding_collapse_low_high_share_fails(self):
+        """0.5에 91% 몰림 + decoy로 distinct만 채운 padding 붕괴 → 고근거 질량 부족 FAIL (H1)."""
+        assert not _valid_result(
+            evidence_weight_max_bucket_share=0.91,
+            evidence_weight_high_share=0.02,
+            evidence_weight_distinct=5,
+        ).passed
 
-    def test_ratio_092_collapse_fails(self):
-        """0.92(전부 0.5 fallback 회귀선)은 경계 포함 FAIL."""
-        assert not _valid_result(evidence_weight_05_ratio=0.92).passed
-
-    def test_low_distinct_fails_even_under_max_ratio(self):
-        """0.5비율이 낮아도(0.40) distinct<5면 차등화 붕괴로 FAIL."""
-        assert not _valid_result(evidence_weight_05_ratio=0.40, evidence_weight_distinct=3).passed
+    def test_low_distinct_fails(self):
+        """distinct < 5면 다른 신호 정상이어도 FAIL (다양성 가드)."""
+        assert not _valid_result(evidence_weight_distinct=3).passed
 
     def test_total_collapse_fails(self):
-        """전부 0.5(distinct 1, 비율 1.0) — 정본 붕괴, distinct·상한 동시 위반 FAIL."""
-        assert not _valid_result(evidence_weight_05_ratio=1.0, evidence_weight_distinct=1).passed
+        """전부 0.5: max_bucket 1.0 + high 0.0 + distinct 1 → 전 신호 위반 FAIL."""
+        assert not _valid_result(
+            evidence_weight_max_bucket_share=1.0,
+            evidence_weight_high_share=0.0,
+            evidence_weight_distinct=1,
+        ).passed
 
 
 def test_pdf_avg_token_zero_report_label_matches_passed():
