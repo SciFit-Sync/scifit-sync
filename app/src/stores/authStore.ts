@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
+import { useWorkoutSessionStore } from './workoutSessionStore';
 
 const KEYS = {
   ACCESS_TOKEN: 'scifiit_access_token',
@@ -65,6 +66,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN),
       SecureStore.deleteItemAsync(KEYS.ONBOARDING_COMPLETE),
     ]);
+    // 로그아웃 시 진행 중인 운동 세션 상태도 함께 초기화
+    useWorkoutSessionStore.getState().clear();
     set({ accessToken: null, refreshToken: null, isLoggedIn: false, isNewUser: false });
   },
 }));

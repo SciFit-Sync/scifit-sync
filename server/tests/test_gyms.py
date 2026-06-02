@@ -168,6 +168,9 @@ class TestSearchGyms:
         assert len(body["data"]["gyms"]) == 1
         assert body["data"]["gyms"][0]["name"] == "테스트 헬스장"
         assert body["data"]["gyms"][0]["kakao_place_id"] == "12345"
+        # 회귀 방지: 검색 응답에 lat/lng 포함 (createGym이 사용 — 누락 시 온보딩 422)
+        assert body["data"]["gyms"][0]["latitude"] == 37.4979
+        assert body["data"]["gyms"][0]["longitude"] == 127.0276
 
     @pytest.mark.asyncio
     async def test_kakao_api_failure(self, client):
@@ -196,9 +199,22 @@ class TestSearchGyms:
         assert resp.status_code == 503
 
     @pytest.mark.asyncio
-    async def test_missing_keyword_param(self, client):
-        resp = await client.get("/api/v1/gyms")
-        assert resp.status_code == 400
+    async def test_no_keyword_falls_back_to_default(self, client):
+        """keyword 없으면 '헬스장'으로 fallback 검색 — 카카오 mock으로 200 확인."""
+        db = _make_db(_exec_scalars_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        mock_settings = MagicMock()
+        mock_settings.KAKAO_REST_API_KEY = "test-key"
+
+        with (
+            patch("app.api.v1.gyms.get_settings", return_value=mock_settings),
+            patch("app.api.v1.gyms.httpx.AsyncClient", return_value=_kakao_mock_ctx([])),
+        ):
+            resp = await client.get("/api/v1/gyms")
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["gyms"] == []
 
 
 # ── GET /gyms/{gymId}/equipment ───────────────────────────────────────────────

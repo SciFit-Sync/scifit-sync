@@ -33,9 +33,19 @@ class Settings(BaseSettings):
     KAKAO_REST_API_KEY: str = ""
     WORKOUTX_API_KEY: str = ""
 
+    # 서버 자기 공개 base URL (gif 프록시 등 self-referential 절대 URL 생성용)
+    # 환경별 override: dev=http://localhost:8000, prod=https://scifit-sync.com
+    PUBLIC_BASE_URL: str = "https://scifit-sync.com"
+
     # ChromaDB
     CHROMA_PERSIST_PATH: str = "/chroma-data"
     CHROMA_COLLECTION_NAME: str = "paper_chunks"
+
+    # AWS SES
+    AWS_REGION: str = "ap-northeast-2"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    SES_FROM_EMAIL: str = ""  # SES에서 발신자 인증된 이메일
 
     # Admin
     ADMIN_API_TOKEN: str = ""
@@ -59,6 +69,13 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
+
+    # Email (SMTP)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM_NAME: str = "SciFit-Sync"
 
     # Environment — fail-safe: 기본값 production (로컬 개발 시 ENV=development 명시 필요)
     ENV: str = "production"

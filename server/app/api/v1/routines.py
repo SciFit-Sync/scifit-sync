@@ -11,11 +11,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_required_profile
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
@@ -69,7 +70,7 @@ from app.schemas.routines import (
 from app.services.rag import UserProfile as RagUserProfile
 from app.services.rag import routine_rag_stream
 from app.services.routine_targets import derive_exercise_targets
-from app.services.workoutx import get_exercise_by_name
+from app.services.workoutx import get_exercise_by_name, to_gif_proxy_url
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +82,9 @@ def _routine_to_summary(r: WorkoutRoutine, gym_name: str | None = None) -> Routi
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
-        split_type=r.split_type.value if r.split_type else None,
-        generated_by=r.generated_by.value if r.generated_by else "user",
-        status=r.status.value if r.status else "active",
+        split_type=str(r.split_type) if r.split_type else None,
+        generated_by=str(r.generated_by) if r.generated_by else "user",
+        status=str(r.status) if r.status else "active",
         gym_id=str(r.gym_id) if r.gym_id else None,
         gym_name=gym_name,
         created_at=r.created_at,
@@ -112,27 +113,50 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
 
     ex_name_map: dict[str, str] = {}
     ex_name_en_map: dict[str, str | None] = {}
+    ex_gif_map: dict[str, str | None] = {}
     if ex_ids:
         rows = (
-            await db.execute(select(Exercise.id, Exercise.name, Exercise.name_en).where(Exercise.id.in_(ex_ids)))
+            await db.execute(
+                select(Exercise.id, Exercise.name, Exercise.name_en, Exercise.gif_url).where(Exercise.id.in_(ex_ids))
+            )
         ).all()
-        ex_name_map = {str(eid): name for eid, name, _ in rows}
-        ex_name_en_map = {str(eid): name_en for eid, _, name_en in rows}
+        ex_name_map = {str(eid): name for eid, name, _, _ in rows}
+        ex_name_en_map = {str(eid): name_en for eid, _, name_en, _ in rows}
+        ex_gif_map = {str(eid): gif for eid, _, _, gif in rows}
 
-    # WorkoutX 병렬 호출 → gif_url 맵
-    gif_url_map: dict[str, str | None] = {}
-    if ex_ids:
-        name_en_list = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids]
+    # gif_url 캐싱 전략:
+    #   None  → 아직 WorkoutX 미조회. 이번 요청에서 API 호출 후 결과를 DB에 저장.
+    #   ""    → sentinel. WorkoutX 조회했으나 결과 없음. 재호출 방지용.
+    #           `if exercise.gif_url:` 같은 단순 truthy 체크를 하면 None과 동일하게
+    #           동작하므로, 이 컬럼을 직접 읽을 때는 `is None` 비교를 사용할 것.
+    #           응답 시에는 `v or None`으로 클라이언트에 null로 내려간다.
+    #   URL   → 캐시된 GIF URL. DB에서 바로 반환.
+    # NOTE: 조회 함수지만 write-back을 위해 UPDATE+commit이 발생한다.
+    gif_url_map: dict[str, str | None] = {k: v or None for k, v in ex_gif_map.items()}
+    missing = [(str(eid), ex_name_en_map.get(str(eid))) for eid in ex_ids if ex_gif_map.get(str(eid)) is None]
+    if missing:
         wx_results = await asyncio.gather(
-            *[
-                get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None)
-                for _, name_en in name_en_list
-            ],
+            *[get_exercise_by_name(name_en) if name_en else asyncio.sleep(0, result=None) for _, name_en in missing],
             return_exceptions=True,
         )
-        for (eid_str, _), wx in zip(name_en_list, wx_results, strict=True):
+        writes: list[tuple[str, str]] = []
+        for (eid_str, name_en), wx in zip(missing, wx_results, strict=True):
             if isinstance(wx, dict):
-                gif_url_map[eid_str] = wx.get("gifUrl")
+                url = wx.get("gifUrl")
+                gif_url_map[eid_str] = url
+                writes.append((eid_str, url or ""))
+            elif wx is None and name_en:
+                # WorkoutX가 None 반환 = 확정 not-found(404) → sentinel 저장
+                # Exception 인스턴스는 일시 장애이므로 sentinel 저장 안 함
+                writes.append((eid_str, ""))
+        try:
+            for eid_str, gif_val in writes:
+                await db.execute(update(Exercise).where(Exercise.id == uuid.UUID(eid_str)).values(gif_url=gif_val))
+            if writes:
+                await db.commit()
+        except Exception:
+            logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+            await db.rollback()
 
     eq_name_map: dict[str, str] = {}
     eq_brand_map: dict[str, str] = {}
@@ -150,19 +174,57 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 eq_brand_map[str(eid)] = brand_name
 
     # 근육 활성화 비율 prefetch
+    # activation_pct가 NULL이면 involvement 기반으로 추정값 계산
+    # primary끼리 70% 균등 분배, secondary끼리 30% 균등 분배 (primary만 있으면 100%)
     muscle_activation_map: dict[str, list[MuscleActivationItem]] = {}
     if ex_ids:
         ma_rows = (
             await db.execute(
-                select(ExerciseMuscle.exercise_id, MuscleGroup.name_ko, ExerciseMuscle.activation_pct)
+                select(
+                    ExerciseMuscle.exercise_id,
+                    MuscleGroup.name_ko,
+                    ExerciseMuscle.activation_pct,
+                    ExerciseMuscle.involvement,
+                )
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
                 .where(ExerciseMuscle.exercise_id.in_(ex_ids))
             )
         ).all()
-        for eid, name_ko, pct in ma_rows:
-            muscle_activation_map.setdefault(str(eid), []).append(
-                MuscleActivationItem(muscle=name_ko, activation_pct=pct)
-            )
+
+        # 운동별 임시 수집
+        _raw: dict[str, list[tuple[str, int | None, str | None]]] = {}
+        for eid, name_ko, pct, involvement in ma_rows:
+            _raw.setdefault(str(eid), []).append((name_ko, pct, involvement))
+
+        for eid, muscles in _raw.items():
+            # activation_pct 실제값이 있으면 그대로 사용
+            if any(pct is not None for _, pct, _ in muscles):
+                muscle_activation_map[eid] = [
+                    MuscleActivationItem(muscle=name, activation_pct=pct) for name, pct, _ in muscles
+                ]
+                continue
+
+            # activation_pct 없으면 involvement 기반 추정
+            primaries = [name for name, _, inv in muscles if inv == "primary"]
+            secondaries = [name for name, _, inv in muscles if inv != "primary"]
+            n_p, n_s = len(primaries), len(secondaries)
+
+            items: list[MuscleActivationItem] = []
+            if n_p > 0 and n_s > 0:
+                p_pct = round(70 / n_p)
+                s_pct = round(30 / n_s)
+            elif n_p > 0:
+                p_pct = round(100 / n_p)
+                s_pct = 0
+            else:
+                p_pct = 0
+                s_pct = round(100 / n_s) if n_s > 0 else 0
+
+            for name in primaries:
+                items.append(MuscleActivationItem(muscle=name, activation_pct=p_pct))
+            for name in secondaries:
+                items.append(MuscleActivationItem(muscle=name, activation_pct=s_pct))
+            muscle_activation_map[eid] = items
 
     # 논문이 연결된 routine_exercise_id 집합
     paper_rows = await db.execute(
@@ -193,7 +255,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 note=ex.note,
                 has_paper=str(ex.id) in exercise_ids_with_papers,
                 has_tips=False,
-                gif_url=gif_url_map.get(str(ex.exercise_id)),
+                gif_url=to_gif_proxy_url(gif_url_map.get(str(ex.exercise_id)), get_settings().PUBLIC_BASE_URL),
                 muscle_activation=muscle_activation_map.get(str(ex.exercise_id), []),
             )
             for ex in sorted_exs
@@ -220,9 +282,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
-        split_type=r.split_type.value if r.split_type else None,
-        generated_by=r.generated_by.value if r.generated_by else "user",
-        status=r.status.value if r.status else "active",
+        split_type=str(r.split_type) if r.split_type else None,
+        generated_by=str(r.generated_by) if r.generated_by else "user",
+        status=str(r.status) if r.status else "active",
         gym_id=str(r.gym_id) if r.gym_id else None,
         gym_name=gym_summary.name if gym_summary else None,
         gym=gym_summary,
@@ -537,7 +599,7 @@ async def get_ai_routine_detail(
                     muscle=mg.name_ko,
                     muscle_en=mg.name,
                     percentage=em.activation_pct,
-                    type=em.involvement.value,
+                    type=str(em.involvement),
                 )
             )
 
@@ -574,15 +636,37 @@ async def get_ai_routine_detail(
                 if s.routine_exercise_id:
                     completed_sets_map.setdefault(s.routine_exercise_id, {})[s.set_number] = s
 
-    # 5. WorkoutX API 병렬 호출
+    # 5. WorkoutX API 병렬 호출 (thumbnail/equipment 등 메타데이터 포함, 전체 운동 대상)
+    # gif_url write-back은 DB에 없는 운동만 수행해 중복 호출을 줄인다.
     unique_exs = list(ex_map.values())
     wx_results = await asyncio.gather(
-        *[get_exercise_by_name(e.name_en) for e in unique_exs],
+        *[get_exercise_by_name(e.name_en) if e.name_en else asyncio.sleep(0, result=None) for e in unique_exs],
         return_exceptions=True,
     )
     wx_map: dict[uuid.UUID, dict] = {
         e.id: r for e, r in zip(unique_exs, wx_results, strict=True) if isinstance(r, dict)
     }
+
+    # gif_url: DB 저장값 우선, IS NULL인 운동만 WorkoutX 결과로 write-back
+    gif_url_map: dict[uuid.UUID, str | None] = {e.id: e.gif_url or None for e in ex_map.values()}
+    writes: list[tuple[uuid.UUID, str]] = []
+    for ex, wx in zip(unique_exs, wx_results, strict=True):
+        if ex.gif_url is not None:
+            continue  # 이미 캐시됨 — write-back 불필요
+        if isinstance(wx, dict):
+            url = wx.get("gifUrl")
+            gif_url_map[ex.id] = url
+            writes.append((ex.id, url or ""))
+        elif wx is None and ex.name_en:
+            writes.append((ex.id, ""))
+    try:
+        for eid, gif_val in writes:
+            await db.execute(update(Exercise).where(Exercise.id == eid).values(gif_url=gif_val))
+        if writes:
+            await db.commit()
+    except Exception:
+        logger.warning("gif_url write-back 실패 — 조회 결과는 정상 반환")
+        await db.rollback()
 
     # 6. RoutinePaper 수 batch fetch → tips_count / tips_available 계산용
     rex_ids = [rex.id for rex in all_rex]
@@ -633,7 +717,7 @@ async def get_ai_routine_detail(
                 exercise_id=str(rex.exercise_id),
                 name=ex.name,
                 name_en=ex.name_en,
-                gif_url=wx.get("gifUrl") or ex.gif_url,
+                gif_url=to_gif_proxy_url(gif_url_map.get(rex.exercise_id), get_settings().PUBLIC_BASE_URL),
                 thumbnail_url=wx.get("thumbnailUrl"),
                 category=ex.category,
                 equipment=wx.get("equipment"),
@@ -661,7 +745,7 @@ async def get_ai_routine_detail(
             goal=routine.fitness_goals[0] if routine.fitness_goals else None,
             estimated_duration_min=routine.session_minutes,
             default_rest_seconds=default_rest,
-            created_by=routine.generated_by.value,
+            created_by=str(routine.generated_by),
             created_at=routine.created_at,
             exercises=exercise_items,
         )
@@ -780,10 +864,17 @@ async def _build_rag_profile(
         except ValueError:
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
+    # 5. DB exercises name_en 목록 → LLM 프롬프트에 허용 이름 제공 (매칭 실패 방지)
+    exercise_name_rows = (
+        (await db.execute(select(Exercise.name_en).where(Exercise.name_en.isnot(None)))).scalars().all()
+    )
+    available_exercises = sorted({n.strip() for n in exercise_name_rows if n and n.strip()})
+
     return RagUserProfile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
-        fitness_career=profile.career_level.value,
+        fitness_career=str(profile.career_level),
+        gender=str(profile.gender) if profile.gender else None,
         available_exercises=available_exercises,
         target_muscles=target_muscle_names,
         session_minutes=(req.session_minutes if req else None),
@@ -793,14 +884,22 @@ async def _build_rag_profile(
 
 
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
-    """LLM이 출력한 운동 이름 → exercises.id. name_en/name 모두 시도, 없으면 None."""
+    """LLM이 출력한 운동 이름 → exercises.id.
+
+    순서:
+    1) name_en 정확 매치 (case-insensitive)
+    2) name(한글) 정확 매치
+    3) DB name_en이 LLM 이름을 포함 (DB가 더 긴 경우)
+    4) LLM 이름이 DB name_en을 포함 (LLM이 더 구체적인 경우, e.g. "Flat Barbell Bench Press" → "Bench Press")
+    5) 토큰 겹침 매치 — 최소 2 토큰 공통 (e.g. "Incline Dumbbell Press" → "Incline Bench Press")
+    """
     if not name or not name.strip():
         return None
     name_lc = name.strip().lower()
 
-    # 1) name_en 정확 매치 (lower)
     from sqlalchemy import func as sa_func
 
+    # 1) name_en 정확 매치
     row = (
         await db.execute(select(Exercise.id).where(sa_func.lower(Exercise.name_en) == name_lc).limit(1))
     ).scalar_one_or_none()
@@ -812,11 +911,42 @@ async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
     if row is not None:
         return row
 
-    # 3) name_en ILIKE %name% (부분 매치)
+    # 3) DB name_en이 LLM 이름을 포함 (LLM 이름이 더 짧은 경우)
     row = (
         await db.execute(select(Exercise.id).where(Exercise.name_en.ilike(f"%{name.strip()}%")).limit(1))
     ).scalar_one_or_none()
-    return row
+    if row is not None:
+        return row
+
+    # 4 & 5) 전체 exercise 목록으로 Python-side 매칭 (테이블 소규모)
+    all_exercises = (await db.execute(select(Exercise.id, Exercise.name_en))).all()
+    name_tokens = set(name_lc.split())
+
+    # 4) 역방향 부분 매치: LLM 이름이 DB name_en을 포함하는 경우 (가장 긴 매치 우선)
+    best_id: uuid.UUID | None = None
+    best_len = 0
+    for ex_id, ex_name_en in all_exercises:
+        if not ex_name_en:
+            continue
+        candidate = ex_name_en.strip().lower()
+        if candidate and candidate in name_lc and len(candidate) > best_len:
+            best_id = ex_id
+            best_len = len(candidate)
+    if best_id is not None:
+        return best_id
+
+    # 5) 토큰 겹침 매치: 공통 단어 수가 많은 운동 선택 (최소 2 토큰)
+    best_overlap = 1  # > 1 이어야 선택 (최소 2 토큰 겹침)
+    best_overlap_id: uuid.UUID | None = None
+    for ex_id, ex_name_en in all_exercises:
+        if not ex_name_en:
+            continue
+        db_tokens = set(ex_name_en.strip().lower().split())
+        overlap = len(name_tokens & db_tokens)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_overlap_id = ex_id
+    return best_overlap_id
 
 
 async def _fetch_user_1rms(user_id: uuid.UUID, db: AsyncSession) -> dict[uuid.UUID, float]:
@@ -835,6 +965,8 @@ async def _persist_day(
     day_data: dict,
     primary_goal: str,
     user_1rms: dict[uuid.UUID, float],
+    user_body_weight: float,
+    user_gender: str | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
     """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
@@ -859,6 +991,8 @@ async def _persist_day(
         targets = derive_exercise_targets(
             goal=primary_goal,
             user_1rm_kg=user_1rms.get(exercise_id),
+            user_body_weight=user_body_weight,
+            user_gender=user_gender,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -989,6 +1123,8 @@ async def _run_rag_to_sse(
                     day_data=ev,
                     primary_goal=primary_goal,
                     user_1rms=user_1rms,
+                    user_body_weight=profile.body_weight,
+                    user_gender=str(profile.gender) if profile.gender else None,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
@@ -1175,7 +1311,7 @@ async def regenerate_routine(
         goals=list(routine.fitness_goals or []),
         target_muscle_group_ids=list(routine.target_muscle_group_ids or []),
         session_minutes=routine.session_minutes,
-        split_type=routine.split_type.value if routine.split_type else None,
+        split_type=str(routine.split_type) if routine.split_type else None,
         gym_id=str(routine.gym_id) if routine.gym_id else None,
         injury=None,
     )

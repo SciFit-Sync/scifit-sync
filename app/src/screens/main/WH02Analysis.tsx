@@ -1,45 +1,156 @@
+import { useMemo, useCallback } from "react";
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
+import { useAuthStore } from "../../stores/authStore";
+import {
+  getSessionStats,
+  getVolumeAnalysis,
+  getMuscleVolumeAnalysis,
+  MuscleVolumeItem,
+} from "../../services/sessions";
 
 const BAR_MAX_HEIGHT = 130;
+const WEEK_DAYS_KO = ["월", "화", "수", "목", "금", "토", "일"];
 
-const weekly_data = [
-  { day: "월", height: 50 },
-  { day: "화", height: 80 },
-  { day: "수", height: 62 },
-  { day: "목", height: 62 },
-  { day: "금", height: 62 },
-  { day: "토", height: 62 },
-  { day: "일", height: 62 },
+// keys는 muscle_groups.name_ko 값과 정확히 일치해야 함
+// (seed: 20260525_seed_muscle_groups_exercises.py 기준)
+const MUSCLE_GROUPS: { label: string; keys: string[]; color: string }[] = [
+  { label: "가슴", keys: ["대흉근"], color: "#FDB5CE" },
+  { label: "어깨", keys: ["전면 삼각근", "측면 삼각근", "후면 삼각근"], color: "#FF9F43" },
+  { label: "등", keys: ["광배근", "능형근", "승모근"], color: "#54A0FF" },
+  { label: "다리", keys: ["대퇴사두근", "햄스트링", "대둔근", "종아리"], color: "#5F27CD" },
+  { label: "팔", keys: ["이두근", "삼두근", "전완근"], color: "#FFEB00" },
+  { label: "복근", keys: ["복직근", "복사근"], color: "#2D9596" },
 ];
 
-const muscle_data = [
-  { label: "가슴", percent: 84, color: "#FDB5CE" },
-  { label: "어깨", percent: 84, color: "#FF9F43" },
-  { label: "등", percent: 84, color: "#54A0FF" },
-  { label: "다리", percent: 84, color: "#5F27CD" },
-  { label: "팔", percent: 84, color: "#FFEB00" },
-  { label: "복근", percent: 84, color: "#2D9596" },
-];
+// 이번 주 월~일 7일 반환 (월요일 시작 고정)
+function buildWeekDays(): { date: string; dayLabel: string }[] {
+  const now = new Date();
+  const day = now.getDay(); // 0=일, 1=월, ..., 6=토
+  const offsetToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + offsetToMonday);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return {
+      date: d.toISOString().split("T")[0],
+      dayLabel: WEEK_DAYS_KO[i],
+    };
+  });
+}
+
+function aggregateMuscle(
+  items: MuscleVolumeItem[],
+  keys: string[]
+): { volume: number; optimalMax: number } {
+  const map = Object.fromEntries(items.map((i) => [i.muscle, i]));
+  return keys.reduce(
+    (acc, key) => {
+      const item = map[key];
+      if (!item) return acc;
+      return {
+        volume: acc.volume + item.weekly_volume,
+        optimalMax: acc.optimalMax + item.optimal_max,
+      };
+    },
+    { volume: 0, optimalMax: 0 }
+  );
+}
 
 export default function WH02Analysis() {
-  const navigation = useNavigation();
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+  const weekDays = useMemo(() => buildWeekDays(), []);
+  const query_client = useQueryClient();
+
+  // 탭 포커스 시 분석 데이터 갱신
+  useFocusEffect(
+    useCallback(() => {
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+    }, [query_client]),
+  );
+
+  const { data: statsData } = useQuery({
+    queryKey: ["session-stats"],
+    queryFn: () => getSessionStats(token),
+    enabled: !!token,
+    staleTime: 30_000, // M-6: 30초 내 재포커스 시 불필요한 네트워크 요청 방지
+  });
+
+  const { data: volumeData } = useQuery({
+    queryKey: ["volume-analysis", 7],
+    queryFn: () => getVolumeAnalysis(token, 7),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+
+  const { data: muscleData, isLoading: muscleLoading } = useQuery({
+    queryKey: ["muscle-volume", "WEEK"],
+    queryFn: () => getMuscleVolumeAnalysis(token, "WEEK"),
+    enabled: !!token,
+    staleTime: 30_000,
+  });
+
+  const weeklyVolume = useMemo(
+    () => (volumeData?.items ?? []).reduce((sum, item) => sum + item.volume_kg, 0),
+    [volumeData],
+  );
+
+  const barData = useMemo(() => {
+    const volMap: Record<string, number> = {};
+    for (const item of volumeData?.items ?? []) {
+      volMap[item.date] = item.volume_kg;
+    }
+    const volumes = weekDays.map((d) => volMap[d.date] ?? 0);
+    const maxVol = Math.max(...volumes, 1);
+    return weekDays.map((d, i) => ({
+      day: d.dayLabel,
+      height: Math.round((volumes[i] / maxVol) * BAR_MAX_HEIGHT),
+    }));
+  }, [volumeData, weekDays]);
+
+  const muscleRows = useMemo(() => {
+    const items = muscleData?.volume_by_muscle ?? [];
+    return MUSCLE_GROUPS.map(({ label, keys, color }) => {
+      const { volume, optimalMax } = aggregateMuscle(items, keys);
+      const percent =
+        optimalMax > 0 ? Math.min(100, Math.round((volume / optimalMax) * 100)) : 0;
+      return { label, percent, color };
+    });
+  }, [muscleData]);
+
+  const statCards = [
+    {
+      value: weeklyVolume > 0 ? `${Math.round(weeklyVolume).toLocaleString()}kg` : "-",
+      label: "총 볼륨",
+    },
+    {
+      value: statsData ? `${statsData.weekly_session_count}세션` : "-",
+      label: "이번 주",
+    },
+    {
+      value: statsData ? `${statsData.streak_days}일` : "-",
+      label: "연속",
+    },
+  ];
 
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.safe_top} />
 
-      {/* 헤더 */}
       <View style={styles.header}>
         <Text style={styles.logo}>SciFit-Sync</Text>
       </View>
@@ -53,7 +164,7 @@ export default function WH02Analysis() {
         <View style={styles.card}>
           <Text style={styles.card_title}>주간 운동량</Text>
           <View style={styles.bar_chart}>
-            {weekly_data.map((item) => (
+            {barData.map((item) => (
               <View key={item.day} style={styles.bar_col}>
                 <View style={styles.bar_track}>
                   <View style={[styles.bar_fill, { height: item.height }]} />
@@ -67,34 +178,34 @@ export default function WH02Analysis() {
         {/* ─── 근육 부위별 운동량 ─── */}
         <View style={styles.card}>
           <Text style={styles.card_title}>근육 부위별 운동량</Text>
-          <View style={styles.muscle_list}>
-            {muscle_data.map((item) => (
-              <View key={item.label} style={styles.muscle_row}>
-                <Text style={styles.muscle_label}>{item.label}</Text>
-                <View style={styles.progress_track}>
-                  <View
-                    style={[
-                      styles.progress_fill,
-                      {
-                        width: `${item.percent}%` as any,
-                        backgroundColor: item.color,
-                      },
-                    ]}
-                  />
+          {muscleLoading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <View style={styles.muscle_list}>
+              {muscleRows.map((item) => (
+                <View key={item.label} style={styles.muscle_row}>
+                  <Text style={styles.muscle_label}>{item.label}</Text>
+                  <View style={styles.progress_track}>
+                    <View
+                      style={[
+                        styles.progress_fill,
+                        {
+                          width: `${item.percent}%` as any,
+                          backgroundColor: item.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.muscle_percent}>{item.percent}%</Text>
                 </View>
-                <Text style={styles.muscle_percent}>{item.percent}%</Text>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ─── 통계 카드 ─── */}
         <View style={styles.stats_row}>
-          {[
-            { value: "4,800", label: "근육 피로도" },
-            { value: "5세션", label: "이번 주" },
-            { value: "5일", label: "연속" },
-          ].map((s) => (
+          {statCards.map((s) => (
             <View key={s.label} style={styles.stat_card}>
               <Text style={styles.stat_value}>{s.value}</Text>
               <Text style={styles.stat_label}>{s.label}</Text>
@@ -102,16 +213,15 @@ export default function WH02Analysis() {
           ))}
         </View>
 
-        {/* ─── 운동 팁 ─── */}
-        <View style={styles.tip_card}>
-          <Octicons name="light-bulb" size={16} color={colors.white} />
-          <Text style={styles.tip_text}>
-            현재 가슴 볼륨은 근비대 최적 범위에{"\n"}도달했습니다.
-          </Text>
-        </View>
+        {/* ─── AI 코치 팁 ─── */}
+        {!!muscleData?.ai_coach_message && (
+          <View style={styles.tip_card}>
+            <Octicons name="light-bulb" size={16} color={colors.white} />
+            <Text style={styles.tip_text}>{muscleData.ai_coach_message}</Text>
+          </View>
+        )}
       </ScrollView>
 
-      {/* 하단 네브바 */}
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
       </SafeAreaView>
@@ -142,10 +252,8 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   logo: { fontFamily: "sacheon", fontSize: 20, color: colors.primary },
-  placeholder: { width: 32 },
   scroll: { paddingHorizontal: 24, paddingBottom: 32, gap: 8 },
 
-  // 카드
   card: {
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -158,7 +266,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  // 막대 차트
   bar_chart: {
     flexDirection: "row",
     justifyContent: "center",
@@ -166,11 +273,7 @@ const styles = StyleSheet.create({
     height: BAR_MAX_HEIGHT + 24,
     alignItems: "flex-end",
   },
-  bar_col: {
-    alignItems: "center",
-    gap: 4,
-    width: 28,
-  },
+  bar_col: { alignItems: "center", gap: 4, width: 28 },
   bar_track: {
     width: 28,
     height: BAR_MAX_HEIGHT,
@@ -178,11 +281,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     justifyContent: "flex-end",
   },
-  bar_fill: {
-    width: 28,
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-  },
+  bar_fill: { width: 28, backgroundColor: colors.primary, borderRadius: 6 },
   bar_label: {
     fontFamily: "regular",
     fontSize: 12,
@@ -190,13 +289,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // 근육 부위별
   muscle_list: { gap: 16 },
-  muscle_row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
+  muscle_row: { flexDirection: "row", alignItems: "center", gap: 14 },
   muscle_label: {
     fontFamily: "regular",
     fontSize: 12,
@@ -211,10 +305,7 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     overflow: "hidden",
   },
-  progress_fill: {
-    height: 12,
-    borderRadius: 100,
-  },
+  progress_fill: { height: 12, borderRadius: 100 },
   muscle_percent: {
     fontFamily: "regular",
     fontSize: 12,
@@ -223,11 +314,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // 통계
-  stats_row: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  stats_row: { flexDirection: "row", gap: 8 },
   stat_card: {
     flex: 1,
     backgroundColor: colors.white,
@@ -237,18 +324,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  stat_value: {
-    fontFamily: "medium",
-    fontSize: 16,
-    color: colors.primary,
-  },
-  stat_label: {
-    fontFamily: "regular",
-    fontSize: 12,
-    color: colors.bluegray,
-  },
+  stat_value: { fontFamily: "medium", fontSize: 16, color: colors.primary },
+  stat_label: { fontFamily: "regular", fontSize: 12, color: colors.bluegray },
 
-  // 운동 팁
   tip_card: {
     flexDirection: "row",
     alignItems: "flex-start",

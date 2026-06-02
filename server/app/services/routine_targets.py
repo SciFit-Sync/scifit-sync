@@ -30,8 +30,18 @@ _GOAL_TO_RANGE_KEY: dict[str, str] = {
     "weight_loss": "endurance",
 }
 
+# 목표별 권장 휴식 시간 (초). LLM 제안값을 무시하고 이 값을 사용한다.
+# 근거: LLM은 운동별로 동일한 휴식 시간을 반복 제안하는 경향이 있어 신뢰할 수 없음.
+# 운동생리학 기준: strength=고중량 회복 3분, hypertrophy=90초, endurance/weight_loss=45초, rehab=60초
+_REST_BY_GOAL: dict[str, int] = {
+    "strength": 180,
+    "hypertrophy": 90,
+    "endurance": 45,
+    "weight_loss": 45,
+    "rehabilitation": 60,
+}
+
 DEFAULT_SETS = 3
-DEFAULT_REST_SECONDS = 90
 
 
 def _normalize_goal(goal):
@@ -60,13 +70,29 @@ def _coerce_int(value, default=None):
     return default
 
 
-def recommended_weight_kg(goal, user_1rm_kg):
-    """사용자 1RM이 있으면 목표별 권장 범위의 중간값을 반환. 없으면 None.
+# 1RM 미보유 시 체중 기반 추정 1RM 계수 (초보자 기준, 컴파운드 운동 평균)
+_DEFAULT_1RM_RATIO: dict[str, float] = {
+    "male": 0.75,
+    "female": 0.55,
+}
 
-    weight_kg는 nullable이며, 보조운동/1RM 미보유 운동은 사용자가 첫 세션 때 채운다.
+
+def _estimate_1rm_from_body_weight(body_weight: float, gender: str | None) -> float:
+    ratio = _DEFAULT_1RM_RATIO.get(gender or "", 0.65)  # 성별 미입력 시 중간값
+    return body_weight * ratio
+
+
+def recommended_weight_kg(goal, user_1rm_kg, user_body_weight=None, user_gender=None):
+    """목표별 권장 중량 중간값 반환.
+
+    1RM이 있으면 우선 사용. 없으면 성별·체중 기반 추정 1RM으로 기본값 계산.
+    체중도 없으면 None 반환 (사용자가 첫 세션에 직접 입력).
     """
     if user_1rm_kg is None or user_1rm_kg <= 0:
-        return None
+        if user_body_weight and user_body_weight > 0:
+            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender)
+        else:
+            return None
     range_key = _GOAL_TO_RANGE_KEY.get(_normalize_goal(goal))
     if range_key is None or range_key not in RANGES:
         return None
@@ -80,17 +106,21 @@ def derive_exercise_targets(
     *,
     goal,
     user_1rm_kg=None,
+    user_body_weight=None,
+    user_gender=None,
     llm_sets=None,
     llm_reps_min=None,
     llm_reps_max=None,
-    llm_rest_seconds=None,
+    llm_rest_seconds=None,  # 수신은 하되 사용하지 않음 (LLM 값 신뢰 불가)
 ):
     """LLM이 제안한 day-exercise 항목을 RoutineExercise 컬럼 dict로 변환.
 
     Args:
         goal: 1차 운동 목표 (대소문자 무관)
         user_1rm_kg: 해당 운동에 대한 사용자 1RM (없으면 None → weight_kg=None)
-        llm_*: LLM 응답의 sets/reps_min/reps_max/rest_seconds (str/int/None 모두 허용)
+        llm_*: LLM 응답의 sets/reps_min/reps_max (str/int/None 모두 허용)
+               llm_rest_seconds는 LLM이 모든 운동에 동일한 값을 반복 제안하므로 무시하고
+               _REST_BY_GOAL 기반으로 목표별 고정값을 사용한다.
 
     Returns:
         {
@@ -109,7 +139,8 @@ def derive_exercise_targets(
     sets = _coerce_int(llm_sets, DEFAULT_SETS)
     reps_min = _coerce_int(llm_reps_min, default_reps_min)
     reps_max = _coerce_int(llm_reps_max, default_reps_max)
-    rest_seconds = _coerce_int(llm_rest_seconds, DEFAULT_REST_SECONDS)
+    # LLM 값 무시 — 목표별 운동생리학 기준값 사용
+    rest_seconds = _REST_BY_GOAL[g]
 
     # 반복 범위 정합성: min > max인 경우 swap
     if reps_min > reps_max:
@@ -119,12 +150,11 @@ def derive_exercise_targets(
     sets = max(1, sets)
     reps_min = max(1, reps_min)
     reps_max = max(reps_min, reps_max)
-    rest_seconds = max(0, rest_seconds)
 
     return {
         "sets": sets,
         "reps_min": reps_min,
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
-        "weight_kg": recommended_weight_kg(g, user_1rm_kg),
+        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender),
     }
