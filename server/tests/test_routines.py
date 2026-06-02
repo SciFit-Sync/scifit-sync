@@ -300,7 +300,8 @@ class TestGetRoutine:
 
         assert resp.status_code == 200
         exercises = resp.json()["data"]["days"][0]["exercises"]
-        assert exercises[0]["gif_url"] == "https://api.workoutxapp.com/v1/gifs/0025.gif"
+        # 응답은 WorkoutX 직링크가 아니라 키 불필요 백엔드 프록시 URL (gif id 0025 추출)
+        assert exercises[0]["gif_url"] == "https://scifit-sync.com/api/v1/exercises/gif/0025"
         db.commit.assert_awaited_once()
 
 
@@ -588,7 +589,7 @@ class TestGetAIRoutineDetail:
     async def test_success_with_exercises(self, client, monkeypatch):
         monkeypatch.setattr(
             "app.api.v1.routines.get_exercise_by_name",
-            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+            AsyncMock(return_value={"gifUrl": "https://api.workoutxapp.com/v1/gifs/0025.gif", "equipment": "barbell"}),
         )
         db = _make_db(
             _exec_scalar(_routine()),
@@ -612,7 +613,7 @@ class TestGetAIRoutineDetail:
 
         ex = data["exercises"][0]
         assert ex["name"] == "벤치프레스"
-        assert ex["gif_url"] == "https://example.com/bench.gif"
+        assert ex["gif_url"] == "https://scifit-sync.com/api/v1/exercises/gif/0025"
         assert len(ex["sets"]) == 3
         assert ex["sets"][0]["set_number"] == 1
         assert ex["sets"][0]["completed"] is False
@@ -625,7 +626,7 @@ class TestGetAIRoutineDetail:
     async def test_success_with_papers(self, client, monkeypatch):
         monkeypatch.setattr(
             "app.api.v1.routines.get_exercise_by_name",
-            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+            AsyncMock(return_value={"gifUrl": "https://api.workoutxapp.com/v1/gifs/0025.gif", "equipment": "barbell"}),
         )
         db = _make_db(
             _exec_scalar(_routine()),
