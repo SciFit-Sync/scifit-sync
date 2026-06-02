@@ -29,8 +29,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s %(me
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.workoutxapp.com/v1"
-_DELAY_BETWEEN = 3.0   # 요청 사이 대기(초) — rate limit 30 req/60s 여유 확보
-_RETRY_MAX = 3         # 429 최대 재시도 횟수
+_DELAY_BETWEEN = 3.0  # 요청 사이 대기(초) — rate limit 30 req/60s 여유 확보
+_RETRY_MAX = 3  # 429 최대 재시도 횟수
 
 
 async def fetch_gif_by_name(client: httpx.AsyncClient, name_en: str) -> str | None:
@@ -58,7 +58,10 @@ async def fetch_gif_by_name(client: httpx.AsyncClient, name_en: str) -> str | No
                     wait = 65.0
                 logger.warning(
                     "429 Too Many Requests (%s) — %.0f초 대기 후 재시도 [%d/%d]",
-                    name_en, wait, attempt + 1, _RETRY_MAX,
+                    name_en,
+                    wait,
+                    attempt + 1,
+                    _RETRY_MAX,
                 )
                 await asyncio.sleep(wait)
                 continue
@@ -102,12 +105,15 @@ async def fetch_gif_by_name(client: httpx.AsyncClient, name_en: str) -> str | No
             tag = "(정확)" if exact else "(유사)"
             logger.info(
                 "  ✓ %-40s %s → '%s'",
-                name_en, tag, matched_name[:40],
+                name_en,
+                tag,
+                matched_name[:40],
             )
         else:
             logger.warning(
                 "  ✗ %-40s gifUrl 없음 (매칭: '%s')",
-                name_en, matched_name[:40],
+                name_en,
+                matched_name[:40],
             )
         return gif_url
 
@@ -138,11 +144,7 @@ async def main() -> None:
     from app.models.exercise import Exercise  # noqa: E402
 
     async with factory() as session:
-        rows = (
-            await session.execute(
-                select(Exercise.id, Exercise.name_en).where(Exercise.name_en.isnot(None))
-            )
-        ).all()
+        rows = (await session.execute(select(Exercise.id, Exercise.name_en).where(Exercise.name_en.isnot(None)))).all()
 
     exercises = [(str(eid), name) for eid, name in rows if name]
     logger.info("DB 조회: name_en 있는 운동 %d개", len(exercises))
@@ -177,9 +179,7 @@ async def main() -> None:
 
     async with factory() as session, session.begin():
         for eid, gif_url in updates:
-            await session.execute(
-                update(Exercise).where(Exercise.id == eid).values(gif_url=gif_url)
-            )
+            await session.execute(update(Exercise).where(Exercise.id == eid).values(gif_url=gif_url))
 
     logger.info("DB 업데이트 완료: %d건", len(updates))
     await engine.dispose()

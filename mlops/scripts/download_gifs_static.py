@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-5s %(me
 logger = logging.getLogger(__name__)
 
 STATIC_GIFS_DIR = REPO_ROOT / "server" / "static" / "gifs"
-_DELAY = 0.5   # 초 단위 (static 서버 다운로드는 rate limit 덜 엄격)
+_DELAY = 0.5  # 초 단위 (static 서버 다운로드는 rate limit 덜 엄격)
 _RETRY_MAX = 3
 
 
@@ -125,9 +125,7 @@ async def main() -> None:
     if updates:
         async with factory() as session, session.begin():
             for eid, relative_url in updates:
-                await session.execute(
-                    update(Exercise).where(Exercise.id == eid).values(gif_url=relative_url)
-                )
+                await session.execute(update(Exercise).where(Exercise.id == eid).values(gif_url=relative_url))
         logger.info("DB gif_url → 상대경로 변경 완료")
 
     await engine.dispose()

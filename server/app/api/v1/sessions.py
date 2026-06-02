@@ -683,10 +683,7 @@ async def list_sessions(
                 .where(RoutineDay.id.in_(day_ids))
             )
         ).all()
-        routine_info_by_day = {
-            str(did): (str(rid), rname, goals or [])
-            for did, rid, rname, goals in name_rows
-        }
+        routine_info_by_day = {str(did): (str(rid), rname, goals or []) for did, rid, rname, goals in name_rows}
 
     gym_ids = [r.gym_id for r in rows if r.gym_id]
     gym_name_by_id: dict[str, str] = {}
@@ -732,7 +729,10 @@ async def list_sessions(
         duration = (
             max(0, int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60))
             if s.finished_at and s.started_at
-            else max(0, int((datetime.now(timezone.utc).replace(tzinfo=None) - _strip_tz(s.started_at)).total_seconds() // 60))
+            else max(
+                0,
+                int((datetime.now(timezone.utc).replace(tzinfo=None) - _strip_tz(s.started_at)).total_seconds() // 60),
+            )
             if s.started_at
             else None
         )

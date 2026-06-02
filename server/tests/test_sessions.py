@@ -288,16 +288,16 @@ class TestSessionStats:
         session_rows_2 = [(_NOW - timedelta(days=i), None) for i in range(2)]
 
         db = _make_db(
-            _exec_all(session_rows_5),           # all_session_rows → total_sessions 계산용
-            _exec_scalar_raw(12500.0),           # total_volume (weight × reps)
-            _exec_scalar_raw(250.0),             # total_weight (세트 무게 합산)
-            _exec_scalar_raw(30),                # total_sets
-            _exec_all([(_NOW, finished_at)]),    # finished_rows → total_duration_minutes
-            _exec_scalar(None),                  # UserBodyMeasurement → 70kg fallback
-            _exec_all(session_rows_2),           # weekly_rows → weekly_session_count 계산용
-            _exec_scalar(None),                  # recent_row
-            _exec_all([]),                       # streak dates
-            _exec_all([]),                       # by_gym 집계 (D-M9)
+            _exec_all(session_rows_5),  # all_session_rows → total_sessions 계산용
+            _exec_scalar_raw(12500.0),  # total_volume (weight × reps)
+            _exec_scalar_raw(250.0),  # total_weight (세트 무게 합산)
+            _exec_scalar_raw(30),  # total_sets
+            _exec_all([(_NOW, finished_at)]),  # finished_rows → total_duration_minutes
+            _exec_scalar(None),  # UserBodyMeasurement → 70kg fallback
+            _exec_all(session_rows_2),  # weekly_rows → weekly_session_count 계산용
+            _exec_scalar(None),  # recent_row
+            _exec_all([]),  # streak dates
+            _exec_all([]),  # by_gym 집계 (D-M9)
         )
         app.dependency_overrides[get_db] = _db_override(db)
 

@@ -33,24 +33,24 @@ _RETRY_MAX = 3
 
 # DB에 저장된 name_en → WorkoutX에서 검색할 대체 이름들 (우선순위 순)
 ALTERNATE_NAMES: dict[str, list[str]] = {
-    "Back Squat":              ["Barbell Squat", "Barbell Back Squat"],
-    "Barbell Row":             ["Bent Over Barbell Row", "Barbell Bent Over Row", "Bent-Over Barbell Row"],
-    "Side Lateral Raise":      ["Dumbbell Lateral Raise", "Lateral Raise", "Dumbbell Side Lateral Raise"],
-    "Face Pull":               ["Cable Face Pull", "Cable Pull Through"],
+    "Back Squat": ["Barbell Squat", "Barbell Back Squat"],
+    "Barbell Row": ["Bent Over Barbell Row", "Barbell Bent Over Row", "Bent-Over Barbell Row"],
+    "Side Lateral Raise": ["Dumbbell Lateral Raise", "Lateral Raise", "Dumbbell Side Lateral Raise"],
+    "Face Pull": ["Cable Face Pull", "Cable Pull Through"],
     "Dumbbell Shoulder Press": ["Seated Dumbbell Shoulder Press", "Dumbbell Seated Shoulder Press", "Arnold Press"],
-    "Seated Cable Row":        ["Cable Seated Row", "Seated Row", "Cable Row"],
-    "Dumbbell Curl":           ["Dumbbell Alternate Bicep Curl", "Dumbbell Bicep Curl", "Alternating Dumbbell Curl"],
-    "Conventional Deadlift":   ["Barbell Deadlift"],
-    "Cable Fly":               ["Cable Crossover Fly", "Cable Chest Fly", "Low Cable Crossover"],
-    "Cable Crunch":            ["Kneeling Cable Crunch", "Cable Kneeling Crunch"],
-    "Chest Press Machine":     ["Machine Chest Press", "Lever Chest Press"],
-    "Pec Deck Fly":            ["Pec Deck", "Chest Fly Machine", "Lever Pec Deck Fly"],
-    "Cable Crossover":         ["Cable Crossover Chest", "High Cable Crossover"],
-    "One-Arm Dumbbell Row":    ["Dumbbell One Arm Row", "Single Arm Dumbbell Row"],
-    "Rear Delt Fly":           ["Dumbbell Rear Delt Fly", "Reverse Fly", "Bent Over Reverse Fly"],
-    "Incline Dumbbell Curl":   ["Dumbbell Incline Curl", "Incline Hammer Curl"],
-    "Bulgarian Split Squat":   ["Dumbbell Bulgarian Split Squat", "Split Squat"],
-    "Ab Rollout":              ["Ab Wheel Rollout", "Wheel Rollout", "Ab Roller"],
+    "Seated Cable Row": ["Cable Seated Row", "Seated Row", "Cable Row"],
+    "Dumbbell Curl": ["Dumbbell Alternate Bicep Curl", "Dumbbell Bicep Curl", "Alternating Dumbbell Curl"],
+    "Conventional Deadlift": ["Barbell Deadlift"],
+    "Cable Fly": ["Cable Crossover Fly", "Cable Chest Fly", "Low Cable Crossover"],
+    "Cable Crunch": ["Kneeling Cable Crunch", "Cable Kneeling Crunch"],
+    "Chest Press Machine": ["Machine Chest Press", "Lever Chest Press"],
+    "Pec Deck Fly": ["Pec Deck", "Chest Fly Machine", "Lever Pec Deck Fly"],
+    "Cable Crossover": ["Cable Crossover Chest", "High Cable Crossover"],
+    "One-Arm Dumbbell Row": ["Dumbbell One Arm Row", "Single Arm Dumbbell Row"],
+    "Rear Delt Fly": ["Dumbbell Rear Delt Fly", "Reverse Fly", "Bent Over Reverse Fly"],
+    "Incline Dumbbell Curl": ["Dumbbell Incline Curl", "Incline Hammer Curl"],
+    "Bulgarian Split Squat": ["Dumbbell Bulgarian Split Squat", "Split Squat"],
+    "Ab Rollout": ["Ab Wheel Rollout", "Wheel Rollout", "Ab Roller"],
 }
 
 
@@ -68,7 +68,17 @@ async def search_by_name(client: httpx.AsyncClient, name: str) -> dict | None:
         if resp.status_code == 429:
             try:
                 reset_str = resp.json().get("resetAt")
-                wait = max(5.0, (datetime.fromisoformat(reset_str.replace("Z", "+00:00")) - datetime.now(timezone.utc)).total_seconds() + 3) if reset_str else 65.0
+                wait = (
+                    max(
+                        5.0,
+                        (
+                            datetime.fromisoformat(reset_str.replace("Z", "+00:00")) - datetime.now(timezone.utc)
+                        ).total_seconds()
+                        + 3,
+                    )
+                    if reset_str
+                    else 65.0
+                )
             except Exception:
                 wait = 65.0
             logger.warning("429 (%s) — %.0f초 대기", name, wait)
