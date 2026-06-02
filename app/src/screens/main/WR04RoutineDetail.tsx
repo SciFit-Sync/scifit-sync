@@ -4,7 +4,6 @@ import {
   Animated,
   Alert,
   FlatList,
-  Image,
   Linking,
   Modal,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   View,
   ScrollView,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
@@ -43,34 +43,6 @@ import {
 } from "../../services/sessions";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
-
-// WorkoutX GIF fallback: exercise_id → gif filename (검증된 5개 핵심 운동)
-const _WX_GIF_MAP: Record<string, string> = {
-  "47873ce2-633e-55ef-9f3f-bcb5c7c89766": "0102", // 백 스쿼트
-  "84ed1231-015d-4b42-a1d9-917551515674": "0025", // 벤치 프레스
-  "b091a8f3-9a4a-4149-887e-e32374bc9601": "0027", // 바벨 로우
-  "97fb4a41-c254-4de7-8914-48b8293888bb": "0091", // 오버헤드 프레스
-  "fae9c406-d1c3-4658-b05f-68e7df22afd4": "0103", // AB 롤아웃
-};
-const _WX_KEY = process.env.EXPO_PUBLIC_WORKOUTX_API_KEY ?? "";
-
-const _WX_GIF_BASE = "https://api.workoutxapp.com/v1/gifs/";
-
-function resolve_gif_url(
-  gif_url: string | null,
-  exercise_id: string,
-): string | null {
-  // DB에 저장된 bare WorkoutX URL에도 api-key 추가
-  if (gif_url) {
-    if (_WX_KEY && gif_url.startsWith(_WX_GIF_BASE) && !gif_url.includes("api-key=")) {
-      return `${gif_url}?api-key=${_WX_KEY}`;
-    }
-    return gif_url;
-  }
-  const id = _WX_GIF_MAP[exercise_id];
-  if (!id || !_WX_KEY) return null;
-  return `${_WX_GIF_BASE}${id}.gif?api-key=${_WX_KEY}`;
-}
 
 interface Set {
   id: string;
@@ -840,15 +812,12 @@ export default function WR04RoutineDetail() {
 
                     {/* 그래픽 영상 */}
                     {(() => {
-                      const gif = resolve_gif_url(
-                        exercise.gif_url,
-                        exercise.exercise_id,
-                      );
-                      return gif ? (
-                        <Image
-                          source={{ uri: gif }}
+                      // gif_url은 백엔드 프록시 URL(키 불필요). expo-image로 release GIF 디코딩.
+                      return exercise.gif_url ? (
+                        <ExpoImage
+                          source={{ uri: exercise.gif_url }}
                           style={styles.exercise_gif}
-                          resizeMode="contain"
+                          contentFit="contain"
                         />
                       ) : (
                         <View style={styles.image_placeholder}>
