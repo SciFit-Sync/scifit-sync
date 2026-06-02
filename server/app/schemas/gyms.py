@@ -70,7 +70,7 @@ class GymEquipmentItem(BaseModel):
 class GymEquipmentListData(BaseModel):
     gym_id: str
     gym_name: str
-    equipment: list[GymEquipmentItem]
+    equipment: list[EquipmentItem]
 
 
 class AddGymEquipmentRequest(BaseModel):
