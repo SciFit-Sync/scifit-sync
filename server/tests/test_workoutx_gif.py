@@ -33,7 +33,9 @@ class TestGifHelpers:
         assert to_gif_proxy_url(None, base) is None
         assert to_gif_proxy_url("garbage", base) is None
         # base에 trailing slash 있어도 중복 안 됨
-        assert to_gif_proxy_url("0025", "https://scifit-sync.com/") == "https://scifit-sync.com/api/v1/exercises/gif/0025"
+        assert (
+            to_gif_proxy_url("0025", "https://scifit-sync.com/") == "https://scifit-sync.com/api/v1/exercises/gif/0025"
+        )
 
 
 @pytest_asyncio.fixture
