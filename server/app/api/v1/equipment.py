@@ -29,6 +29,7 @@ from app.schemas.gyms import (
     SelectData,
     SelectEquipmentRequest,
 )
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/equipment", tags=["equipment"])
