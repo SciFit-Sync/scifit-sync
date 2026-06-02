@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_required_profile
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.limiter import rate_limit
@@ -69,7 +70,7 @@ from app.schemas.routines import (
 from app.services.rag import UserProfile as RagUserProfile
 from app.services.rag import routine_rag_stream
 from app.services.routine_targets import derive_exercise_targets
-from app.services.workoutx import get_exercise_by_name
+from app.services.workoutx import get_exercise_by_name, to_gif_proxy_url
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +255,7 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 note=ex.note,
                 has_paper=str(ex.id) in exercise_ids_with_papers,
                 has_tips=False,
-                gif_url=gif_url_map.get(str(ex.exercise_id)),
+                gif_url=to_gif_proxy_url(gif_url_map.get(str(ex.exercise_id)), get_settings().PUBLIC_BASE_URL),
                 muscle_activation=muscle_activation_map.get(str(ex.exercise_id), []),
             )
             for ex in sorted_exs
@@ -716,7 +717,7 @@ async def get_ai_routine_detail(
                 exercise_id=str(rex.exercise_id),
                 name=ex.name,
                 name_en=ex.name_en,
-                gif_url=gif_url_map.get(rex.exercise_id),
+                gif_url=to_gif_proxy_url(gif_url_map.get(rex.exercise_id), get_settings().PUBLIC_BASE_URL),
                 thumbnail_url=wx.get("thumbnailUrl"),
                 category=ex.category,
                 equipment=wx.get("equipment"),
