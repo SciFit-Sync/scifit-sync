@@ -335,6 +335,107 @@ class TestFetchPdfSections:
 
         assert result == []
 
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_returns_empty_when_extraction_is_raw_pdf_bytes(self, mock_get):
+        """pypdf가 손상/linearized PDF에서 텍스트 대신 raw PDF 바이트를 뱉으면 폐기.
+
+        실측: 14MB linearized PDF가 '%PDF-' 헤더로 시작하는 19,758개 garbage
+        청크로 적재돼 pre-upsert 게이트를 막았다. 추출 결과가 PDF 바이너리면
+        [] 반환해 chain이 다음 source로 진행하거나 폐기하도록 한다.
+        """
+        import sys  # noqa: PLC0415
+
+        garbage = (
+            "%PDF-1.2\n%\xe2\xe3\xcf\xd3\n21548 0 obj\n"
+            "<< /Linearized 1 /L 14608246 /N 158 >>\nendobj\n" + "\x00\x01\x02\x03" * 300
+        )
+
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.headers = {"Content-Type": "application/pdf"}
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.iter_content.return_value = [b"fake pdf bytes"]
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_get.return_value = mock_resp
+
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = garbage
+        mock_reader_instance = MagicMock()
+        mock_reader_instance.pages = [mock_page]
+        mock_pypdf = MagicMock()
+        mock_pypdf.PdfReader.return_value = mock_reader_instance
+
+        with patch.dict(sys.modules, {"pypdf": mock_pypdf}):
+            result = fetch_pdf_sections("https://example.com/corrupt.pdf")
+
+        assert result == []
+
+    @patch("mlops.pipeline.curated.requests.get")
+    def test_keeps_long_clean_text(self, mock_get):
+        """긴 정상 본문(메타분석/리뷰 등)은 garbage 가드에 걸리지 않는다.
+
+        false-positive 방지 회귀 테스트 — 가드는 '청크/본문 길이'가 아니라
+        '텍스트 유효성'으로 판별하므로 아무리 길어도 깨끗한 텍스트는 통과한다.
+        """
+        import sys  # noqa: PLC0415
+
+        clean = (
+            "Resistance training increases muscle hypertrophy through mechanical tension and metabolic stress.\n"
+        ) * 3000  # 매우 긴 정상 텍스트
+
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.headers = {"Content-Type": "application/pdf"}
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.iter_content.return_value = [b"fake pdf bytes"]
+        mock_resp.__enter__ = lambda s: mock_resp
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_get.return_value = mock_resp
+
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = clean
+        mock_reader_instance = MagicMock()
+        mock_reader_instance.pages = [mock_page]
+        mock_pypdf = MagicMock()
+        mock_pypdf.PdfReader.return_value = mock_reader_instance
+
+        with patch.dict(sys.modules, {"pypdf": mock_pypdf}):
+            result = fetch_pdf_sections("https://example.com/meta-analysis.pdf")
+
+        assert len(result) == 1
+        assert result[0].name == "Full Text"
+
+
+class TestIsExtractionGarbage:
+    def test_detects_pdf_signature(self):
+        from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+        assert _is_extraction_garbage("%PDF-1.5\n21548 0 obj\n<< /Linearized 1 >>") is True
+
+    def test_detects_high_control_char_ratio(self):
+        from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+        assert _is_extraction_garbage("\x00\x01\x02\x03" * 200) is True
+
+    def test_detects_replacement_char_flood(self):
+        from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+        assert _is_extraction_garbage("�" * 500) is True
+
+    def test_clean_text_is_not_garbage(self):
+        from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+        assert _is_extraction_garbage("Resistance training improves muscular strength.") is False
+
+    def test_clean_text_with_normal_whitespace_is_not_garbage(self):
+        from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+        assert _is_extraction_garbage("Line one.\n\tIndented line.\n\fNew page begins here.\r\n") is False
+
+    def test_empty_string_is_not_garbage(self):
+        from mlops.pipeline.curated import _is_extraction_garbage  # noqa: PLC0415
+
+        assert _is_extraction_garbage("") is False
+
 
 class TestFetchHtmlSections:
     @patch("mlops.pipeline.curated.requests.get")
