@@ -678,7 +678,11 @@ export default function WR04RoutineDetail() {
 
   /** 운동 완료 버튼 — 확인 다이얼로그 표시 */
   const handle_finish = () => {
-    if (!session_id_ref.current || is_finishing) return;
+    if (is_finishing) return;
+    if (!session_id_ref.current) {
+      Alert.alert("잠깐만요", "세션을 준비 중이에요. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
     Alert.alert("운동 완료", "세션이 초기화됩니다. 완료하시겠어요?", [
       { text: "취소", style: "cancel" },
       { text: "확인", onPress: do_finish },

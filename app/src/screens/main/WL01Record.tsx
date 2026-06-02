@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
@@ -50,8 +51,12 @@ function to_date_key(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+type MainStackParamList = {
+  WR04RoutineDetail: { routine_id: string };
+} & Record<string, undefined | object>;
+
 export default function WL01Record() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const today = new Date();
   const [year, set_year] = useState(today.getFullYear());
@@ -251,7 +256,7 @@ export default function WL01Record() {
                 activeOpacity={0.8}
                 onPress={() => {
                   if (item.routine_id) {
-                    (navigation as any).navigate("WR04RoutineDetail", {
+                    navigation.navigate("WR04RoutineDetail", {
                       routine_id: item.routine_id,
                     });
                   }

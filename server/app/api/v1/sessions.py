@@ -723,7 +723,8 @@ async def list_sessions(
         kst_date = (s.started_at + _KST).date().isoformat()
         info = routine_info_by_day.get(str(s.routine_day_id), _no_info) if s.routine_day_id else _no_info
         routine_id_val = info[0]
-        key = f"{kst_date}_{routine_id_val}"
+        # routine_id가 없는 자유 운동 세션은 세션별로 독립 표시 (합산 대상 아님)
+        key = f"{kst_date}_{routine_id_val}" if routine_id_val else f"{kst_date}_{s.id}"
 
         vol, sets, weight = session_agg.get(str(s.id), (0.0, 0, 0.0))
         duration = (
@@ -867,7 +868,10 @@ async def session_stats(
     total_calories_kcal = round(5.0 * body_weight_kg * total_minutes / 60)
 
     # 주간 세션 수 (최근 7일) — 완료된 세트가 있는 세션만, 같은 날 같은 루틴은 1개로 카운트
-    week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+    # KST 기준 7일 전 자정 → UTC 변환 (list_sessions의 KST 날짜 경계 정책과 일관성 유지)
+    today_kst_date = (datetime.now(timezone.utc) + _KST).date()
+    week_ago_kst_date = today_kst_date - timedelta(days=7)
+    week_ago = datetime(week_ago_kst_date.year, week_ago_kst_date.month, week_ago_kst_date.day) - _KST
     weekly_rows = (
         await db.execute(
             select(WorkoutLog.started_at, WorkoutLog.routine_day_id)
