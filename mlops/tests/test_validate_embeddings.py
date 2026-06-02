@@ -1,11 +1,12 @@
 """validate_embeddings.py 단위 테스트."""
 
 import gzip
+import io
 import json
 import tempfile
 from pathlib import Path
 
-from mlops.scripts.validate_embeddings import ValidationResult, validate_jsonl
+from mlops.scripts.validate_embeddings import ValidationResult, print_report, validate_jsonl
 
 
 def _make_jsonl(records: list[dict]) -> Path:
@@ -231,27 +232,52 @@ class TestPublicationTypesThreshold:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# evidence_weight 0.5 비율 게이트 완화 (0.50 → 0.65 → 0.85).
-# evidence.py 매핑 보강 후에도 운동과학 코퍼스는 일반 저널 논문(baseline 0.5)이
-# 다수이고, 이 비율은 수집 depth가 깊어질수록 단조 상승한다(refeed_v2: d010 0.61
-# → d020 0.63 → d030 0.65). production 점증 적재(~10k) 수용 위해 0.85로 정렬.
-# 단 차등화 붕괴(전부 0.5, ~0.92) 회귀는 distinct≥5 + 이 상한으로 여전히 차단.
+# evidence_weight 게이트 = 차등화 "붕괴" 탐지 (0.50 → 0.65 → 0.85 → 0.92).
+# 게이트는 두 신호의 AND: distinct >= 5 (차등화 다양성) AND 0.5비율 < 0.92.
+# 0.5비율이 높음 ≠ 붕괴 — 코퍼스 depth가 깊어지면 매핑 불가한 일반 저널 논문
+# (baseline 0.5) 비중이 자연 상승하지만, 고근거 청크(@0.9·@1.0)가 공존하고
+# distinct가 건강하면 차등화는 멀쩡하다. d100 실측(0.5비율 0.86, distinct 9)이
+# 그 예 — depth-driven 상승이지 붕괴가 아니므로 통과해야 한다. 진짜 붕괴
+# (전부 0.5 → distinct 1, 비율 ~1.0)는 두 신호 동시 위반으로 차단된다.
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class TestEvidenceWeight05RatioThreshold:
     def test_ratio_065_passes(self):
-        """depth 깊은 run의 0.65(d030 실측)는 새 임계(<0.85)에서 통과."""
+        """depth 깊은 run의 0.65(d030 실측)는 distinct 건강하면 통과."""
         assert _valid_result(evidence_weight_05_ratio=0.65).passed
 
     def test_ratio_084_passes(self):
-        """경계 직전 0.84도 통과 (production 점증 적재 수용)."""
+        """0.84도 통과 (production 점증 적재 수용)."""
         assert _valid_result(evidence_weight_05_ratio=0.84).passed
 
-    def test_ratio_086_fails(self):
-        """0.85 이상은 FAIL (차등화 붕괴 접근 회귀 가드)."""
-        assert not _valid_result(evidence_weight_05_ratio=0.86).passed
+    def test_d100_depth_driven_086_with_healthy_distinct_passes(self):
+        """d100 실측 재현: 0.5비율 0.86 + distinct 9 → depth-driven 상승, 통과.
+
+        이전 0.85 단독 상한이 오탐하던 핵심 케이스(게이트 0.92로 재정의).
+        """
+        assert _valid_result(evidence_weight_05_ratio=0.86, evidence_weight_distinct=9).passed
 
     def test_ratio_092_collapse_fails(self):
-        """전부 0.5 fallback(0.92, 보강 붕괴)은 명확히 FAIL."""
+        """0.92(전부 0.5 fallback 회귀선)은 경계 포함 FAIL."""
         assert not _valid_result(evidence_weight_05_ratio=0.92).passed
+
+    def test_low_distinct_fails_even_under_max_ratio(self):
+        """0.5비율이 낮아도(0.40) distinct<5면 차등화 붕괴로 FAIL."""
+        assert not _valid_result(evidence_weight_05_ratio=0.40, evidence_weight_distinct=3).passed
+
+    def test_total_collapse_fails(self):
+        """전부 0.5(distinct 1, 비율 1.0) — 정본 붕괴, distinct·상한 동시 위반 FAIL."""
+        assert not _valid_result(evidence_weight_05_ratio=1.0, evidence_weight_distinct=1).passed
+
+
+def test_pdf_avg_token_zero_report_label_matches_passed():
+    """D 회귀: pdf_avg_token==0(--skip-local-pdf 정상)이면 passed=True이고
+    print_report의 'pdf subset avg' 행 라벨도 [OK]여야 한다 (이전엔 라벨만 [FAIL]).
+    """
+    result = _valid_result(pdf_avg_token=0.0)
+    assert result.passed
+    buf = io.StringIO()
+    print_report(result, out=buf)
+    pdf_line = next(line for line in buf.getvalue().splitlines() if "pdf subset avg" in line)
+    assert pdf_line.startswith("[OK]"), pdf_line

@@ -193,7 +193,10 @@ def print_report(result: ValidationResult, out=sys.stderr) -> None:
         ),
         (
             "pdf subset avg",
-            PDF_AVG_TOKEN_MIN <= result.pdf_avg_token <= PDF_AVG_TOKEN_MAX,
+            # 라벨도 passed 집계(71행)와 동일하게 pdf_avg_token==0(local_pdf 청크 없음
+            # =--skip-local-pdf 정상 케이스) 예외를 둔다. 이전엔 이 예외가 없어
+            # 정상 skip인데도 라벨만 [FAIL]로 찍혀 passed와 어긋났다.
+            result.pdf_avg_token == 0 or PDF_AVG_TOKEN_MIN <= result.pdf_avg_token <= PDF_AVG_TOKEN_MAX,
             f"{result.pdf_avg_token:.1f}",
         ),
         ("embedding dim", result.embedding_dim == EMBEDDING_DIM, f"{result.embedding_dim}"),

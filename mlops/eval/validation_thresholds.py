@@ -32,18 +32,21 @@ PAPER_DOI_FILL_RATE_INFO_MIN: float = 0.99
 # 걸린다. 미등재분은 코드 결함이 아니라 데이터 특성이므로 게이트를 85%로 정렬.
 PUBLICATION_TYPES_FILL_RATE_MIN: float = 0.85
 
-# evidence_weight 다양화
+# evidence_weight 게이트 = 차등화 "붕괴" 탐지 (design §3.3.1).
+# 게이트는 두 신호의 AND (ValidationResult.passed):
+#   (1) distinct >= EVIDENCE_WEIGHT_DISTINCT_MIN(5)  ← 차등화 다양성 유지
+#   (2) 0.5 비율 < EVIDENCE_WEIGHT_05_RATIO_MAX        ← 붕괴 수준 상한
 EVIDENCE_WEIGHT_DISTINCT_MIN: int = 5
-# 0.50 → 0.85 완화: 운동과학 코퍼스는 대다수가 일반 저널 논문(baseline 0.5)이다.
-# evidence.py 매핑 보강(Network Meta-Analysis/Guideline/Consensus 추가) 후에도
-# 순수 저널 논문이 다수라 0.5 비율은 데이터 특성이다. 게다가 이 비율은 수집
-# depth가 깊어질수록 단조 상승한다 — 메타분석/RCT 등 고근거 논문은 얕은 depth에서
-# 대부분 소진되고, 깊은 depth에는 근거등급 표기 없는 일반 저널 논문이 더 붙기
-# 때문이다 (refeed_v2 실측: d010 0.61 → d020 0.63 → d030 0.65). 0.65는 dry(얕은)
-# 기준이라 production 점증 적재(max-per-cat 200, ~10k)를 d030부터 오탐 차단했다.
-# 차등화 자체는 정상(distinct 7~8값)이므로 0.85로 정렬하되, 0.92 같은
-# "전부 0.5 fallback"(차등화 붕괴) 회귀는 distinct≥5 + 이 상한으로 여전히 차단한다.
-EVIDENCE_WEIGHT_05_RATIO_MAX: float = 0.85
+# 0.50 → 0.65 → 0.85 → 0.92: 0.5 비율이 높다고 붕괴가 아니다. 붕괴의 정의는
+# "차등화 소실" — publication_types=[] → evidence_weight=0.5 단일값으로 추락해
+# distinct가 무너지고 거의 전부가 0.5인 상태다(이때 RAG의 cosine×evidence_weight
+# 가중이 무의미해진다). 코퍼스 depth가 깊어질수록 매핑 불가한 일반 저널 논문
+# (baseline 0.5) 비중은 자연 상승하지만, 고근거 청크(@0.9·@1.0)가 다량 공존하고
+# distinct가 건강하면 차등화는 멀쩡하다. d100 실측(0.5비율 0.86, distinct 9,
+# @0.9=1177·@1.0=587)이 정확히 이 경우 — depth-driven 상승이지 붕괴가 아니다.
+# 단독 상한 0.85가 이를 오탐했으므로, 상한을 진짜 fallback 회귀선인 0.92로
+# 올린다. 진짜 붕괴(전부 0.5)는 distinct 붕락 AND 0.92 상한 동시 위반으로 차단.
+EVIDENCE_WEIGHT_05_RATIO_MAX: float = 0.92
 
 # 청크 토큰 (CLAUDE.md §10 청크 정책 300~512 토큰과 정합)
 AVG_TOKEN_MIN: int = 300
