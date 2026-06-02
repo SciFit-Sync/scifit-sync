@@ -59,11 +59,22 @@ EVIDENCE_WEIGHTS: dict[str, float] = {
 
 DEFAULT_WEIGHT: float = 0.50
 
+# generic 라벨: 거의 모든 PubMed 논문에 붙는 무정보 type. 근거 강도 신호가
+# 아니라 floor/fallback으로만 쓴다 (max 경쟁에서 제외해 더 약한 구체 type을
+# 가리지 않게 한다 — masking quirk 해소).
+GENERIC_TYPES: frozenset[str] = frozenset({"Journal Article"})
+
 
 def calculate_evidence_weight(publication_types: list[str]) -> float:
-    """가장 강한 publication type의 weight를 반환.
+    """가장 강한 '구체' publication type의 weight를 반환.
 
-    알려진 type 없으면 DEFAULT_WEIGHT (0.50).
+    generic 라벨("Journal Article")은 max 경쟁에서 제외하고 floor로만 쓴다.
+    구체 type이 하나도 없고 generic만 있으면 generic의 floor(0.50)를,
+    알려진 type이 전혀 없으면 DEFAULT_WEIGHT(0.50)를 반환한다.
     """
-    weights = [EVIDENCE_WEIGHTS[pt] for pt in publication_types if pt in EVIDENCE_WEIGHTS]
-    return max(weights, default=DEFAULT_WEIGHT)
+    specific = [EVIDENCE_WEIGHTS[pt] for pt in publication_types if pt in EVIDENCE_WEIGHTS and pt not in GENERIC_TYPES]
+    if specific:
+        return max(specific)
+    if any(pt in GENERIC_TYPES for pt in publication_types):
+        return EVIDENCE_WEIGHTS["Journal Article"]
+    return DEFAULT_WEIGHT
