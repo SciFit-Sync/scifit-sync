@@ -1,0 +1,21 @@
+﻿hip_flexors | ��������� | legs
+latissimus_dorsi | ����� | back
+rhomboids | ������ | back
+gluteus_maximus | ��б� | legs
+quadriceps | �����α� | legs
+pectoralis_major | ����� | chest
+obliques | ����� | core
+rectus_abdominis | ������ | core
+triceps_brachii | ��α� | arms
+pectoralis_minor | ����� | chest
+trapezius | �¸�� | back
+transverse_abdominis | �ɺ� ���� | core
+biceps_brachii | �̵α� | arms
+anterior_deltoid | ���� �ﰢ�� | shoulders
+forearms | ���ϱ� | arms
+calves | ���Ƹ� | legs
+gluteus_medius | �ߵб� | legs
+erector_spinae | ô�߱⸳�� | back
+lateral_deltoid | ���� �ﰢ�� | shoulders
+hamstrings | �ܽ�Ʈ�� | legs
+posterior_deltoid | �ĸ� �ﰢ�� | shoulders
