@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import WC01Chatbot from "../../components/WC01Chatbot";
 import {
   StyleSheet,
   Text,
@@ -31,6 +33,7 @@ export default function WP01MyPage() {
   const navigation = useNavigation();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const [show_chatbot, set_show_chatbot] = useState(false);
 
   const [me, set_me] = useState<MeData | null>(null);
   const [one_rms, set_one_rms] = useState<OneRMData[]>([]);
@@ -168,6 +171,8 @@ export default function WP01MyPage() {
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
       </SafeAreaView>
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
     </View>
   );
 }

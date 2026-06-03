@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import WC01Chatbot from "../../components/WC01Chatbot";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -59,6 +61,7 @@ export default function WL01Record() {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const today = new Date();
+  const [show_chatbot, set_show_chatbot] = useState(false);
   const [year, set_year] = useState(today.getFullYear());
   const [month, set_month] = useState(today.getMonth() + 1);
   const [selected_day, set_selected_day] = useState<number | null>(today.getDate());
@@ -306,6 +309,8 @@ export default function WL01Record() {
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
       </SafeAreaView>
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
     </View>
   );
 }
