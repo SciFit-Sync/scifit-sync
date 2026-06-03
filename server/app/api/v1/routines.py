@@ -200,7 +200,11 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                     ExerciseMuscle.involvement,
                 )
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
-                .where(ExerciseMuscle.exercise_id.in_(ex_ids))
+                .where(
+                    ExerciseMuscle.exercise_id.in_(ex_ids),
+                    ExerciseMuscle.involvement == "primary",
+                )
+                .distinct()
             )
         ).all()
 
