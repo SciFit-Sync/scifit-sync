@@ -59,7 +59,7 @@ def effective_to_stack_weight(
 ) -> float | None:
     """실효 부하(근육 하중) → 장비 스택 설정값 역변환.
 
-    cable/machine은 stack = (effective - bar_weight) / pulley_ratio.
+    cable/machine은 stack = (effective - bar_weight) * pulley_ratio.
     barbell/dumbbell/bodyweight는 None 반환 (effective를 그대로 사용).
     """
     if equipment_type in ("cable", "machine"):
