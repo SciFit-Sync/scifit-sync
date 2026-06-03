@@ -15,6 +15,7 @@ import chromadb
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -392,8 +393,10 @@ async def seed_exercises_from_workoutx(
 
     upserted = 0
     mapped = 0
+    errors = 0
+    _BATCH = 50
 
-    for item in wx_exercises:
+    for i, item in enumerate(wx_exercises):
         name_en: str = (item.get("name") or "").strip()
         if not name_en:
             continue
@@ -402,43 +405,87 @@ async def seed_exercises_from_workoutx(
         gif_url: str | None = item.get("gifUrl")
         wx_equipment: str = (item.get("equipment") or "").strip().lower()
 
-        # exercises upsert (name_en unique)
-        stmt = (
-            pg_insert(Exercise)
-            .values(
-                name=name_en,
-                name_en=name_en,
-                category=body_part or "unknown",
-                gif_url=gif_url,
-            )
-            .on_conflict_do_update(
-                index_elements=["name_en"],
-                set_={"gif_url": gif_url, "category": body_part or "unknown"},
-            )
-            .returning(Exercise.id)
-        )
-        result = await db.execute(stmt)
-        exercise_id = result.scalar_one()
-        upserted += 1
-
-        # exercise_equipment_map: 매핑 타입의 모든 기구와 연결
-        eq_type = _WX_EQUIPMENT_TYPE.get(wx_equipment)
-        if eq_type:
-            for eq_id in equipment_by_type.get(eq_type, []):
-                map_stmt = (
-                    pg_insert(ExerciseEquipmentMap)
-                    .values(
-                        exercise_id=exercise_id,
-                        equipment_id=eq_id,
-                    )
-                    .on_conflict_do_nothing()
+        try:
+            # exercises upsert (name_en unique)
+            stmt = (
+                pg_insert(Exercise)
+                .values(
+                    name=name_en,
+                    name_en=name_en,
+                    category=body_part or "unknown",
+                    gif_url=gif_url,
                 )
-                await db.execute(map_stmt)
-                mapped += 1
+                .on_conflict_do_update(
+                    index_elements=["name_en"],
+                    set_={"gif_url": gif_url, "category": body_part or "unknown"},
+                )
+                .returning(Exercise.id)
+            )
+            result = await db.execute(stmt)
+            exercise_id = result.scalar_one()
+            upserted += 1
+
+            # exercise_equipment_map: 매핑 타입의 모든 기구와 연결
+            eq_type = _WX_EQUIPMENT_TYPE.get(wx_equipment)
+            if eq_type:
+                for eq_id in equipment_by_type.get(eq_type, []):
+                    map_stmt = (
+                        pg_insert(ExerciseEquipmentMap)
+                        .values(
+                            exercise_id=exercise_id,
+                            equipment_id=eq_id,
+                        )
+                        .on_conflict_do_nothing()
+                    )
+                    await db.execute(map_stmt)
+                    mapped += 1
+
+            # 배치 단위로 커밋 (긴 트랜잭션 방지)
+            if (i + 1) % _BATCH == 0:
+                await db.commit()
+
+        except Exception as e:
+            logger.warning("운동 '%s' 처리 실패, 스킵: %s", name_en, e)
+            await db.rollback()
+            errors += 1
 
     await db.commit()
-    logger.info("seed-workoutx 완료: exercises=%d, equipment_map=%d", upserted, mapped)
-    return {"success": True, "data": {"upserted": upserted, "mapped": mapped}}
+
+    # 2nd pass: gif_url이 NULL인 기존 운동에 WorkoutX gif 퍼지 매칭
+    wx_by_name_lc = {(item.get("name") or "").strip().lower(): item for item in wx_exercises if item.get("name")}
+    null_gif_rows = (
+        await db.execute(
+            select(Exercise.id, Exercise.name_en).where(Exercise.gif_url.is_(None), Exercise.name_en.isnot(None))
+        )
+    ).all()
+
+    gif_updated = 0
+    for ex_id, ex_name_en in null_gif_rows:
+        name_lc = ex_name_en.strip().lower()
+        wx = wx_by_name_lc.get(name_lc)
+        if not wx:
+            for wx_name, wx_item in wx_by_name_lc.items():
+                if name_lc in wx_name or wx_name in name_lc:
+                    wx = wx_item
+                    break
+        if wx and wx.get("gifUrl"):
+            await db.execute(sa_update(Exercise).where(Exercise.id == ex_id).values(gif_url=wx.get("gifUrl")))
+            gif_updated += 1
+
+    if gif_updated:
+        await db.commit()
+
+    logger.info(
+        "seed-workoutx 완료: exercises=%d, equipment_map=%d, gif_updated=%d, errors=%d",
+        upserted,
+        mapped,
+        gif_updated,
+        errors,
+    )
+    return {
+        "success": True,
+        "data": {"upserted": upserted, "mapped": mapped, "gif_updated": gif_updated, "errors": errors},
+    }
 
 
 class CollectionSwapRequest(BaseModel):

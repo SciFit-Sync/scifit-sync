@@ -402,12 +402,18 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         else ""
     )
 
+    target_muscle_rule = (
+        f"- Include ONLY exercises that target {muscles_str}. Do NOT add exercises for any other muscle group, even if the exercise list is short.\n"
+        if profile.target_muscles
+        else ""
+    )
+
     return (
         f"You are a sports science expert. Create a 1-day workout routine "
         f"based ONLY on the research papers below.\n\n"
         f"User Profile:\n"
         f"- Goals (primary first): {goals_str}\n"
-        f"- Target muscles to emphasize: {muscles_str}\n"
+        f"- Target muscles (ONLY these — no other muscle groups): {muscles_str}\n"
         f"- Body weight: {profile.body_weight}kg\n"
         f"- Fitness level: {profile.fitness_career}"
         f"{exercises_section}"
@@ -425,6 +431,7 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
         f"{name_rule}"
+        f"{target_muscle_rule}"
         f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
         f"{paper_index_rule}"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
@@ -441,6 +448,15 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
             f"Do NOT invent new names — pick the closest match:\n"
             f"{chr(10).join('- ' + ex for ex in profile.available_exercises)}\n\n"
             if profile.available_exercises
+            else ""
+        )
+        + (
+            f"STRICT MUSCLE TARGETING: The exercise list above has been PRE-FILTERED "
+            f"to include ONLY exercises whose PRIMARY muscle is: {muscles_str}. "
+            f"Do NOT add exercises that primarily target other muscle groups "
+            f"(e.g. if target is shoulders, do NOT include chest/back/arm exercises). "
+            f"Every exercise you select MUST directly target the specified muscles.\n\n"
+            if profile.target_muscles and profile.available_exercises
             else ""
         )
         + "Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."

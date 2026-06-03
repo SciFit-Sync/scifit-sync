@@ -54,6 +54,26 @@ def test_build_search_params_filters_oa_and_lang():
     assert "type:article" in params["filter"]
 
 
+def test_build_search_params_adds_date_filter():
+    """from_date/to_date 지정 시 publication_date 범위 필터 추가 (monthly 증분, Fix B)."""
+    params = build_search_params(
+        keywords=["x"],
+        concept_ids=[],
+        per_page=25,
+        mailto="a@b.com",
+        from_date="2026-05-01",
+        to_date="2026-05-31",
+    )
+    assert "from_publication_date:2026-05-01" in params["filter"]
+    assert "to_publication_date:2026-05-31" in params["filter"]
+
+
+def test_build_search_params_omits_date_filter_when_none():
+    """날짜 미지정(initial 전체 적재) 시 date 필터 없음."""
+    params = build_search_params(keywords=["x"], concept_ids=[], per_page=25, mailto="a@b.com")
+    assert "publication_date" not in params["filter"]
+
+
 def test_parse_work_extracts_doi_pmid_pmcid(search_resp):
     work = search_resp["results"][0]
     meta = parse_work(work)
@@ -101,6 +121,40 @@ def test_client_search_returns_paper_metas(search_resp):
 
     assert len(results) == 1
     assert results[0].doi == "10.1519/JSC.0000000000003456"
+
+
+def test_client_search_partial_success_returns_accumulated(search_resp):
+    """첫 페이지 성공 후 둘째 페이지 예외 → 누적분 반환 + CB 미trip (Fix A2).
+
+    마지막 페이지 1회 실패로 그 카테고리 전체를 버리고 CB만 올리던 동작을 차단.
+    부분 성공은 정상 진행으로 간주해 누적 결과를 반환하고 실패 카운터를 reset한다.
+    """
+    import requests
+
+    client = OpenAlexClient(base_url="https://api.openalex.org", mailto="t@e.com", rate_limit=0)
+
+    page1 = dict(search_resp)
+    page1["meta"] = dict(search_resp["meta"])
+    page1["meta"]["next_cursor"] = "page2cursor"
+
+    call = {"n": 0}
+
+    def side_effect(*args, **kwargs):
+        call["n"] += 1
+        if call["n"] == 1:
+            resp = MagicMock()
+            resp.json.return_value = page1
+            resp.raise_for_status = MagicMock()
+            return resp
+        raise requests.exceptions.ConnectionError("boom on page 2")
+
+    with patch("mlops.pipeline.openalex.requests.get", side_effect=side_effect):
+        results = client.search(keywords=["x"], concept_ids=[], max_results=400)
+
+    # 첫 페이지에서 받은 결과는 보존
+    assert len(results) == 1
+    # 부분 성공이므로 circuit breaker는 trip되지 않아야 함
+    assert is_circuit_breaker_tripped() is False
 
 
 def test_client_search_handles_pagination(search_resp):
