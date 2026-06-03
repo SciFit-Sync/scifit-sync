@@ -203,6 +203,9 @@ erDiagram
         jsonb stack_weight "스택 한 블록 무게 (NULL, v2.1 RENAME + decimal→jsonb). 단순:{value:5} / 변동:{pattern:[...]}"
         enum stack_unit "weightunit kg|lb (NULL only when all 3 stack fields NULL, v2.1) — min/max/stack_weight 3필드 단위 동일 강제, CHECK 동기성"
         varchar image_url "기구 이미지 (NULL) (M-6)"
+        varchar movement_label_ko "루틴 카드 표시 동작명 (NULL, 기구-중심 재설계)"
+        varchar movement_label_en "영문 동작명/RAG 라벨 (NULL, 기구-중심 재설계)"
+        boolean is_freeweight "GENERATED STORED: equipment_type IN (barbell,dumbbell,bodyweight) — 프리/머신 분기 단일 진실원천"
         timestamp updated_at "NOT NULL DEFAULT NOW()"
     }
 
@@ -227,6 +230,7 @@ erDiagram
         UUID equipment_id FK "equipments.id CASCADE (API-13)"
         UUID muscle_group_id FK "muscle_groups.id RESTRICT"
         enum involvement "primary | secondary, NOT NULL"
+        int activation_pct "근육 활성도 % (NULL, 기구-중심 재설계)"
     }
 
     %% ========================================
