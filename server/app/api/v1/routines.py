@@ -176,6 +176,19 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
     # 근육 활성화 비율 prefetch
     # activation_pct가 NULL이면 involvement 기반으로 추정값 계산
     # primary끼리 70% 균등 분배, secondary끼리 30% 균등 분배 (primary만 있으면 100%)
+    # 합계가 반드시 100이 되도록 마지막 항목에 나머지 할당 (반올림 오차 제거)
+    def _split_pct(names: list[str], total: int) -> list[MuscleActivationItem]:
+        """total을 names에 균등 분배, 합계가 정확히 total."""
+        if not names:
+            return []
+        n = len(names)
+        base = total // n
+        remainder = total % n
+        return [
+            MuscleActivationItem(muscle=name, activation_pct=base + (1 if i < remainder else 0))
+            for i, name in enumerate(names)
+        ]
+
     muscle_activation_map: dict[str, list[MuscleActivationItem]] = {}
     if ex_ids:
         ma_rows = (
@@ -197,33 +210,39 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             _raw.setdefault(str(eid), []).append((name_ko, pct, involvement))
 
         for eid, muscles in _raw.items():
-            # activation_pct 실제값이 있으면 그대로 사용
+            # activation_pct 실제값이 있으면 합계 100으로 정규화
             if any(pct is not None for _, pct, _ in muscles):
-                muscle_activation_map[eid] = [
-                    MuscleActivationItem(muscle=name, activation_pct=pct) for name, pct, _ in muscles
-                ]
+                raw_pairs = [(name, pct or 0) for name, pct, _ in muscles]
+                total = sum(p for _, p in raw_pairs)
+                if total > 0 and total != 100:
+                    running = 0
+                    normalized: list[MuscleActivationItem] = []
+                    for i, (name, pct) in enumerate(raw_pairs):
+                        if i == len(raw_pairs) - 1:
+                            normalized.append(MuscleActivationItem(muscle=name, activation_pct=100 - running))
+                        else:
+                            scaled = round(pct * 100 / total)
+                            running += scaled
+                            normalized.append(MuscleActivationItem(muscle=name, activation_pct=scaled))
+                    muscle_activation_map[eid] = normalized
+                else:
+                    muscle_activation_map[eid] = [
+                        MuscleActivationItem(muscle=name, activation_pct=pct or 0) for name, pct, _ in muscles
+                    ]
                 continue
 
-            # activation_pct 없으면 involvement 기반 추정
+            # activation_pct 없으면 involvement 기반 추정 (합계 정확히 100)
             primaries = [name for name, _, inv in muscles if inv == "primary"]
             secondaries = [name for name, _, inv in muscles if inv != "primary"]
             n_p, n_s = len(primaries), len(secondaries)
 
-            items: list[MuscleActivationItem] = []
             if n_p > 0 and n_s > 0:
-                p_pct = round(70 / n_p)
-                s_pct = round(30 / n_s)
+                items = _split_pct(primaries, 70) + _split_pct(secondaries, 30)
             elif n_p > 0:
-                p_pct = round(100 / n_p)
-                s_pct = 0
+                items = _split_pct(primaries, 100)
             else:
-                p_pct = 0
-                s_pct = round(100 / n_s) if n_s > 0 else 0
+                items = _split_pct(secondaries, 100)
 
-            for name in primaries:
-                items.append(MuscleActivationItem(muscle=name, activation_pct=p_pct))
-            for name in secondaries:
-                items.append(MuscleActivationItem(muscle=name, activation_pct=s_pct))
             muscle_activation_map[eid] = items
 
     # 논문이 연결된 routine_exercise_id 집합
@@ -864,11 +883,21 @@ async def _build_rag_profile(
         except ValueError:
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
-    # 5. DB exercises name_en 목록 → LLM 프롬프트에 허용 이름 제공 (매칭 실패 방지)
-    exercise_name_rows = (
-        (await db.execute(select(Exercise.name_en).where(Exercise.name_en.isnot(None)))).scalars().all()
-    )
-    available_exercises = sorted({n.strip() for n in exercise_name_rows if n and n.strip()})
+    # gym_id 없거나 gym 필터 결과가 비어 있을 때 → 전체 DB 기준 fallback
+    # (근육 선택이 있으면 fallback에서도 근육 필터 유지)
+    if not available_exercises:
+        fb_stmt = select(Exercise.name_en).where(Exercise.name_en.isnot(None))
+        if target_muscle_ids:
+            fb_stmt = (
+                fb_stmt.join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
+                .where(
+                    ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
+                    ExerciseMuscle.involvement == "primary",
+                )
+                .distinct()
+            )
+        fallback_rows = (await db.execute(fb_stmt)).scalars().all()
+        available_exercises = sorted({n.strip() for n in fallback_rows if n and n.strip()})
 
     return RagUserProfile(
         goals=(req.goals if req else []),

@@ -32,14 +32,29 @@ PAPER_DOI_FILL_RATE_INFO_MIN: float = 0.99
 # 걸린다. 미등재분은 코드 결함이 아니라 데이터 특성이므로 게이트를 85%로 정렬.
 PUBLICATION_TYPES_FILL_RATE_MIN: float = 0.85
 
-# evidence_weight 다양화
+# evidence_weight 게이트 = 차등화 "붕괴" 탐지 (design §3.3.1). 값 불문(value-agnostic).
+# 게이트는 세 신호의 AND (ValidationResult.passed):
+#   (1) distinct >= EVIDENCE_WEIGHT_DISTINCT_MIN           ← 차등화 다양성
+#   (2) max_bucket_share <= EVIDENCE_WEIGHT_MAX_BUCKET_MAX ← 단일값 쏠림(붕괴) 상한
+#   (3) high_share >= EVIDENCE_WEIGHT_HIGH_SHARE_MIN        ← 고근거 청크 실질 질량
+#
+# 배경: 0.5 비율이 높음 ≠ 붕괴다. depth가 깊어질수록 매핑 불가한 일반 저널 논문
+# (baseline 0.5) 비중은 자연 상승하지만(d100 0.86), 고근거 청크(@0.9·@1.0)가 다량
+# 공존하면 차등화는 멀쩡하다. 이전의 "0.5 전용 비율 < 0.92" 단독 상한은 두 허점이
+# 있었다 — (a) 0.5가 아닌 값으로 붕괴하면 0.5만 감시해 무력, (b) 0.5에 91% 몰린
+# 코퍼스를 token decoy 몇 개로 distinct만 채우면 통과. → max_bucket_share(값 불문
+# 쏠림)로 (a)를, high_share(고근거 질량)로 (b)를 잡는다.
 EVIDENCE_WEIGHT_DISTINCT_MIN: int = 5
-# 0.50 → 0.65 완화: 운동과학 코퍼스는 대다수가 일반 저널 논문(baseline 0.5)이다.
-# evidence.py 매핑 보강(Network Meta-Analysis/Guideline/Consensus 추가) 후에도
-# dry_15_v3 실측 0.5 비율은 0.60 — 나머지는 RCT/review가 아닌 순수 저널 논문이라
-# 데이터 특성이다. 게이트를 0.65로 정렬(0.60을 여유로 통과)하되, 0.92 같은
-# "전부 0.5 fallback"(차등화 붕괴) 회귀는 여전히 차단한다.
-EVIDENCE_WEIGHT_05_RATIO_MAX: float = 0.65
+# 단일 evidence_weight 값 최대 점유율 상한. 0.95는 사실상 전부 한 값(붕괴)만
+# 차단 — depth-driven baseline 상승(d100 0.86, 추정 d200 ~0.90)엔 여유를 둔다.
+# 값 불문이라 0.5 외 값으로의 붕괴도 잡는다.
+EVIDENCE_WEIGHT_MAX_BUCKET_MAX: float = 0.95
+# "고근거"로 칠 weight 하한 (Scoping Review/Guideline/RCT/Meta 등 >= 0.85).
+EVIDENCE_WEIGHT_HIGH_CUTOFF: float = 0.85
+# 고근거 청크의 최소 질량 비율. 진짜 차등화는 baseline이 높아도 고근거 청크가
+# 실질적으로 존재한다(d100 실측 0.12). 붕괴/padding(고근거 ~0)을 이 하한으로 차단.
+# 주: 더 깊은 tier가 이 값에 근접하면 재검토 (depth별 고근거 질량 모니터링).
+EVIDENCE_WEIGHT_HIGH_SHARE_MIN: float = 0.05
 
 # 청크 토큰 (CLAUDE.md §10 청크 정책 300~512 토큰과 정합)
 AVG_TOKEN_MIN: int = 300

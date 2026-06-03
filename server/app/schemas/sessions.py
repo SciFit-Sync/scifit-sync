@@ -72,9 +72,14 @@ class SessionDetail(SessionData):
 class SessionCalendarItem(BaseModel):
     date: str  # YYYY-MM-DD
     session_id: str
+    routine_id: str | None = None
     routine_name: str | None = None
+    fitness_goals: list[str] = []
     duration_minutes: int | None = None
     gym_name: str | None = None
+    total_volume_kg: float = 0.0
+    total_weight_kg: float = 0.0
+    total_sets: int = 0
 
 
 class SessionCalendarData(BaseModel):
@@ -105,6 +110,7 @@ class GymStatItem(BaseModel):
 class SessionStatsData(BaseModel):
     total_sessions: int
     total_volume_kg: float
+    total_weight_kg: float = 0.0
     total_duration_minutes: int
     total_sets: int = 0
     weekly_session_count: int = 0
