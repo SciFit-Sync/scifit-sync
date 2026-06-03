@@ -1,7 +1,7 @@
 """fix: seed.py와 alembic 마이그레이션 간 중복 muscle_group 항목 통합
 
 Revision ID: 20260603_fix_duplicate_muscle_groups
-Revises: 20260525_seed_exercises
+Revises: 20260602_null_dead_gif_urls
 Create Date: 2026-06-03
 
 배경:
@@ -33,7 +33,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20260603_fix_duplicate_muscle_groups"
-down_revision = "20260529_fix_panatta_image_url"
+down_revision = "20260602_null_dead_gif_urls"
 branch_labels = None
 depends_on = None
 
