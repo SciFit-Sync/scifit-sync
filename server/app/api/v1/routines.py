@@ -200,7 +200,11 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                     ExerciseMuscle.involvement,
                 )
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
-                .where(ExerciseMuscle.exercise_id.in_(ex_ids))
+                .where(
+                    ExerciseMuscle.exercise_id.in_(ex_ids),
+                    ExerciseMuscle.involvement == "primary",
+                )
+                .distinct()
             )
         ).all()
 
@@ -1018,6 +1022,7 @@ async def _persist_day(
     user_1rms: dict[uuid.UUID, float],
     user_body_weight: float,
     user_gender: str | None,
+    user_career_level: str | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
     """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
@@ -1044,6 +1049,7 @@ async def _persist_day(
             user_1rm_kg=user_1rms.get(exercise_id),
             user_body_weight=user_body_weight,
             user_gender=user_gender,
+            user_career_level=user_career_level,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -1176,6 +1182,7 @@ async def _run_rag_to_sse(
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
                     user_gender=str(profile.gender) if profile.gender else None,
+                    user_career_level=str(profile.career_level) if profile.career_level else None,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
