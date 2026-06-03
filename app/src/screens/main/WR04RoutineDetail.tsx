@@ -36,11 +36,7 @@ import {
   searchExercises,
   type ExerciseItem as ExerciseSearchItem,
 } from "../../services/exercises";
-import {
-  startSession,
-  logSet,
-  finishSession,
-} from "../../services/sessions";
+import { startSession, logSet, finishSession } from "../../services/sessions";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
@@ -57,8 +53,8 @@ interface MuscleActivation {
 }
 
 interface Exercise {
-  id: string;           // = routine_exercise_id
-  exercise_id: string;  // 실제 exercises.id (세트 기록 API 용)
+  id: string; // = routine_exercise_id
+  exercise_id: string; // 실제 exercises.id (세트 기록 API 용)
   name: string;
   equipment_name: string | null;
   sets: Set[];
@@ -145,8 +141,8 @@ export default function WR04RoutineDetail() {
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
 
   // AsyncStorage persist 수화 완료 여부 — 수화 전에 exercises를 초기화하면 복원이 안 됨
-  const [store_ready, set_store_ready] = useState(
-    () => useWorkoutSessionStore.persist.hasHydrated(),
+  const [store_ready, set_store_ready] = useState(() =>
+    useWorkoutSessionStore.persist.hasHydrated(),
   );
   useEffect(() => {
     if (useWorkoutSessionStore.persist.hasHydrated()) {
@@ -228,7 +224,11 @@ export default function WR04RoutineDetail() {
 
   // ws_session_id 가 나중에 도착하면 (ensure_session async 완료) ref / 버튼 동기화
   useEffect(() => {
-    if (ws_session_id && ws_routine_id === routine_id && !session_id_ref.current) {
+    if (
+      ws_session_id &&
+      ws_routine_id === routine_id &&
+      !session_id_ref.current
+    ) {
       session_id_ref.current = ws_session_id;
       set_session_started(true);
     }
@@ -324,7 +324,6 @@ export default function WR04RoutineDetail() {
             query_client.invalidateQueries({ queryKey: ["session-stats"] });
             query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
             query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-
           })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
@@ -637,25 +636,21 @@ export default function WR04RoutineDetail() {
       { label: "2분", seconds: 120 },
       { label: "3분", seconds: 180 },
     ];
-    Alert.alert(
-      "휴식 시간 설정",
-      undefined,
-      [
-        ...presets.map((p) => ({
-          text: p.label,
-          onPress: () => {
-            set_exercises((prev) =>
-              prev.map((ex) =>
-                ex.id === rex_id ? { ...ex, rest_seconds: p.seconds } : ex,
-              ),
-            );
-            set_timer(p.seconds);
-            set_is_timer_running(false);
-          },
-        })),
-        { text: "취소", style: "cancel" as const },
-      ],
-    );
+    Alert.alert("휴식 시간 설정", undefined, [
+      ...presets.map((p) => ({
+        text: p.label,
+        onPress: () => {
+          set_exercises((prev) =>
+            prev.map((ex) =>
+              ex.id === rex_id ? { ...ex, rest_seconds: p.seconds } : ex,
+            ),
+          );
+          set_timer(p.seconds);
+          set_is_timer_running(false);
+        },
+      })),
+      { text: "취소", style: "cancel" as const },
+    ]);
   };
 
   /** 운동 완료 처리 (실제 로직) */
@@ -682,7 +677,10 @@ export default function WR04RoutineDetail() {
   const handle_finish = () => {
     if (is_finishing) return;
     if (!session_id_ref.current) {
-      Alert.alert("잠깐만요", "세션을 준비 중이에요. 잠시 후 다시 시도해 주세요.");
+      Alert.alert(
+        "잠깐만요",
+        "세션을 준비 중이에요. 잠시 후 다시 시도해 주세요.",
+      );
       return;
     }
     Alert.alert("운동 완료", "세션이 초기화됩니다. 완료하시겠어요?", [
@@ -785,7 +783,6 @@ export default function WR04RoutineDetail() {
 
           {/* 운동 목록 */}
           {exercises.map((exercise) => {
-
             const is_editing = editing_exercise_id === exercise.id;
             return (
               <View
@@ -899,10 +896,12 @@ export default function WR04RoutineDetail() {
                     {/* 세트 섹션 */}
                     <View style={styles.sets_section}>
                       {/* 권장 범위 힌트 */}
-                      {(exercise.reps_min != null || exercise.reps_max != null) && (
+                      {(exercise.reps_min != null ||
+                        exercise.reps_max != null) && (
                         <Text style={styles.recommended_hint}>
                           권장{" "}
-                          {exercise.reps_min != null && exercise.reps_max != null
+                          {exercise.reps_min != null &&
+                          exercise.reps_max != null
                             ? `${exercise.reps_min}~${exercise.reps_max}회`
                             : exercise.reps_max != null
                               ? `${exercise.reps_max}회`
@@ -977,7 +976,12 @@ export default function WR04RoutineDetail() {
                                   selectTextOnFocus
                                 />
                               ) : (
-                                <Text style={[styles.set_input_value, !set.weight && styles.set_input_placeholder]}>
+                                <Text
+                                  style={[
+                                    styles.set_input_value,
+                                    !set.weight && styles.set_input_placeholder,
+                                  ]}
+                                >
                                   {set.weight || "-"}
                                 </Text>
                               )}
@@ -1311,7 +1315,9 @@ export default function WR04RoutineDetail() {
               <View style={styles.replace_empty}>
                 <ActivityIndicator color={colors.primary} />
               </View>
-            ) : !is_replace_searching && replace_keyword.trim() !== "" && replace_results.length === 0 ? (
+            ) : !is_replace_searching &&
+              replace_keyword.trim() !== "" &&
+              replace_results.length === 0 ? (
               <View style={styles.replace_empty}>
                 <Octicons name="x-circle" size={28} color={colors.border} />
                 <Text style={styles.replace_empty_text}>
@@ -1545,15 +1551,15 @@ const styles = StyleSheet.create({
   // 그래픽 영상
   exercise_gif: {
     width: "100%",
-    height: 110,
+    height: 135,
     borderRadius: 8,
-    backgroundColor: colors.select,
+    backgroundColor: colors.white,
   },
   image_placeholder: {
     width: "100%",
-    height: 110,
+    height: 135,
     borderRadius: 8,
-    backgroundColor: colors.select,
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2044,6 +2050,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.white,
   },
-
 });
-
