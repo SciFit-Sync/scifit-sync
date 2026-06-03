@@ -1,4 +1,6 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import WC01Chatbot from "../../components/WC01Chatbot";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -71,6 +73,7 @@ function aggregateMuscle(
 
 export default function WH02Analysis() {
   const token = useAuthStore((s) => s.accessToken) ?? "";
+  const [show_chatbot, set_show_chatbot] = useState(false);
   const weekDays = useMemo(() => buildWeekDays(), []);
   const query_client = useQueryClient();
 
@@ -225,6 +228,8 @@ export default function WH02Analysis() {
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
       </SafeAreaView>
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
     </View>
   );
 }

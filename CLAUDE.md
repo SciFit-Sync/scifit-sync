@@ -417,7 +417,7 @@ def calculate_effective_weight(equipment, stack, added, body_weight):
     stack_kg = to_kg(stack, equipment.stack_unit) or 0
     match equipment.equipment_type:
         case "cable" | "machine":
-            return stack_kg * equipment.pulley_ratio + bar_kg
+            return stack_kg / equipment.pulley_ratio + bar_kg
         case "barbell":
             return bar_kg + (added or 0)
         case "dumbbell":
