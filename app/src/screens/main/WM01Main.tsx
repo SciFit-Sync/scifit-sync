@@ -52,10 +52,15 @@ function format_date(date_str: string): string {
 }
 
 function routine_subtitle(item: RoutineSummary): string {
-  if (item.gym_name) return item.gym_name;
+  const parts: string[] = [];
   if (item.fitness_goals && item.fitness_goals.length > 0) {
-    return item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", ");
+    parts.push(item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", "));
   }
+  if (item.target_muscle_names && item.target_muscle_names.length > 0) {
+    parts.push(item.target_muscle_names.join(", "));
+  }
+  if (parts.length > 0) return parts.join(" · ");
+  if (item.gym_name) return item.gym_name;
   return "";
 }
 

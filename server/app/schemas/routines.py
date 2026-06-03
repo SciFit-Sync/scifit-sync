@@ -99,6 +99,7 @@ class RoutineSummary(BaseModel):
     routine_id: str
     name: str
     fitness_goals: list[str] | None = None
+    target_muscle_names: list[str] | None = None
     split_type: str | None = None
     generated_by: str
     status: str
