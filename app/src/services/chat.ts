@@ -24,6 +24,18 @@ export interface SendMessageCallbacks {
 }
 
 /**
+ * 챗봇 히스토리 조회 (GET /api/v1/chat/messages?session_id=...)
+ */
+export async function fetchChatHistory(session_id: string, token: string): Promise<ChatHistoryData> {
+  const res = await fetch(`${API_BASE}/api/v1/chat/messages?session_id=${encodeURIComponent(session_id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('채팅 히스토리를 불러오지 못했습니다.');
+  const json = await res.json() as { data: ChatHistoryData };
+  return json.data;
+}
+
+/**
  * 챗봇 메시지 전송 (SSE 스트리밍).
  * React Native 환경에서 fetch ReadableStream이 지원 안 되는 경우가 있어 XHR 사용.
  */

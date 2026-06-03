@@ -10,11 +10,20 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Octicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
 import { getSessions, getSessionStats } from "../../services/sessions";
+
+const GOAL_LABELS: Record<string, string> = {
+  hypertrophy: "근비대",
+  strength: "근력 향상",
+  endurance: "근지구력",
+  rehabilitation: "재활",
+  weight_loss: "다이어트",
+};
 
 function fmt_duration(minutes: number | null): string {
   if (minutes == null) return "-";
@@ -42,12 +51,17 @@ function to_date_key(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+type MainStackParamList = {
+  WR04RoutineDetail: { routine_id: string };
+} & Record<string, undefined | object>;
+
 export default function WL01Record() {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const today = new Date();
   const [year, set_year] = useState(today.getFullYear());
   const [month, set_month] = useState(today.getMonth() + 1);
-  const [selected_day, set_selected_day] = useState<number | null>(null);
+  const [selected_day, set_selected_day] = useState<number | null>(today.getDate());
   const query_client = useQueryClient();
 
   // 탭 포커스 시 세션 데이터 갱신 — 탭 이동은 컴포넌트를 재마운트하지 않으므로
@@ -110,11 +124,16 @@ export default function WL01Record() {
 
   const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
 
-  // 통계 표시값
+  // 하루 선택 시: 해당 날짜의 세션들을 합산
+  const day_total_volume = day_records.reduce((s, r) => s + (r.total_weight_kg ?? 0), 0);
+  const day_total_sets = day_records.reduce((s, r) => s + (r.total_sets ?? 0), 0);
+
+  // 통계 표시값 (날짜 선택·미선택 모두 총 중량 / 총 세트 / 총 시간 3개 표시)
   const top_stats = selected_day !== null
     ? [
-        { value: fmt_duration(total_duration || null), label: "운동 시간" },
-        { value: `${day_records.length}회`, label: "세션 수" },
+        { value: `${parseFloat(day_total_volume.toFixed(2))}kg`, label: "총 중량" },
+        { value: `${day_total_sets}세트`, label: "총 세트" },
+        { value: fmt_duration(total_duration || null), label: "총 시간" },
       ]
     : [
         { value: `${statsData?.total_calories_kcal ?? 0} kcal`, label: "칼로리" },
@@ -235,6 +254,13 @@ export default function WL01Record() {
                 key={item.session_id}
                 style={styles.routine_item}
                 activeOpacity={0.8}
+                onPress={() => {
+                  if (item.routine_id) {
+                    navigation.navigate("WR04RoutineDetail", {
+                      routine_id: item.routine_id,
+                    });
+                  }
+                }}
               >
                 <View style={styles.routine_info}>
                   <Text style={styles.routine_name}>
@@ -243,14 +269,20 @@ export default function WL01Record() {
                   {item.gym_name != null && (
                     <Text style={styles.routine_sub}>{item.gym_name}</Text>
                   )}
-                  <Text style={styles.routine_sub}>{item.date}</Text>
-                  {item.duration_minutes != null && (
+                  {item.fitness_goals.length > 0 && (
                     <Text style={styles.routine_sub}>
-                      {fmt_duration(item.duration_minutes)}
+                      {item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")}
                     </Text>
                   )}
+                  <Text style={styles.routine_sub}>
+                    {item.date.replace(/-/g, ".")}
+                  </Text>
                 </View>
-                <Octicons name="triangle-right" size={24} color={colors.primary} />
+                <Octicons
+                  name="triangle-right"
+                  size={24}
+                  color={item.routine_id ? colors.primary : colors.border}
+                />
               </TouchableOpacity>
             ))
           ) : (

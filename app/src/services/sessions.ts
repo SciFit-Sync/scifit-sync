@@ -3,9 +3,14 @@ import { apiFetch } from './api';
 export interface SessionCalendarItem {
   date: string;
   session_id: string;
+  routine_id: string | null;
   routine_name: string | null;
+  fitness_goals: string[];
   duration_minutes: number | null;
   gym_name: string | null;
+  total_volume_kg: number;
+  total_weight_kg: number;
+  total_sets: number;
 }
 
 export interface SessionCalendarData {
@@ -24,6 +29,7 @@ export interface RecentSessionItem {
 export interface SessionStatsData {
   total_sessions: number;
   total_volume_kg: number;
+  total_weight_kg: number;
   total_duration_minutes: number;
   total_sets: number;
   weekly_session_count: number;
@@ -82,11 +88,15 @@ export function logSet(token: string, session_id: string, body: LogSetBody): Pro
   });
 }
 
-export function finishSession(token: string, session_id: string): Promise<unknown> {
+export interface FinishSessionBody {
+  finished_at?: string; // ISO 8601 UTC
+}
+
+export function finishSession(token: string, session_id: string, body?: FinishSessionBody): Promise<unknown> {
   return apiFetch<unknown>(`/api/v1/sessions/${session_id}/finish`, {
     token,
     method: 'PATCH',
-    body: JSON.stringify({}),
+    body: JSON.stringify(body ?? {}),
   });
 }
 
