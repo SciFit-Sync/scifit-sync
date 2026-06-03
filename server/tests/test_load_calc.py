@@ -3,6 +3,7 @@ import pytest
 from app.core.exceptions import ValidationError
 from app.services.load_calc import (
     calculate_effective_weight,
+    effective_to_stack_weight,
     estimate_1rm,
     get_recommended_weight_range,
 )
@@ -66,6 +67,41 @@ class TestCalculateEffectiveWeight:
     def test_unknown_category_raises(self):
         with pytest.raises(ValidationError, match="알 수 없는 equipment_type"):
             calculate_effective_weight("unknown_type")
+
+
+class TestEffectiveToStackWeight:
+    """effective_to_stack_weight: 역변환 + round-trip 테스트."""
+
+    def test_cable_round_trip(self):
+        # f(g(stack)) == stack: calculate_effective → effective_to_stack
+        stack = 50.0
+        effective = calculate_effective_weight("cable", stack=stack, pulley_ratio=2.0, bar_weight=5.0)
+        result = effective_to_stack_weight(effective, "cable", pulley_ratio=2.0, bar_weight=5.0)
+        assert result == stack
+
+    def test_machine_round_trip(self):
+        stack = 30.0
+        effective = calculate_effective_weight("machine", stack=stack, pulley_ratio=1.5, bar_weight=10.0)
+        result = effective_to_stack_weight(effective, "machine", pulley_ratio=1.5, bar_weight=10.0)
+        assert abs(result - stack) < 0.001
+
+    def test_pulley_ratio_1_no_change(self):
+        # pulley_ratio=1.0 이면 역변환 값 = effective (bar 제외)
+        result = effective_to_stack_weight(40.0, "cable", pulley_ratio=1.0)
+        assert result == 40.0
+
+    def test_barbell_returns_none(self):
+        assert effective_to_stack_weight(100.0, "barbell") is None
+
+    def test_dumbbell_returns_none(self):
+        assert effective_to_stack_weight(30.0, "dumbbell") is None
+
+    def test_bodyweight_returns_none(self):
+        assert effective_to_stack_weight(80.0, "bodyweight") is None
+
+    def test_negative_effective_clamped_to_zero(self):
+        result = effective_to_stack_weight(0.0, "cable", pulley_ratio=2.0, bar_weight=10.0)
+        assert result == 0.0
 
 
 class TestEstimate1RM:
