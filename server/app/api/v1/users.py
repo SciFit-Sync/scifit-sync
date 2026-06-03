@@ -562,7 +562,7 @@ async def bulk_add_1rm(
     return SuccessResponse(
         data=BulkOneRMData(
             items=[_onerm_to_dto(rec, name) for rec, name in created],
-            count=len(created),
+            created_count=len(created),
         )
     )
 

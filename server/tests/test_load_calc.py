@@ -13,7 +13,7 @@ class TestCalculateEffectiveWeight:
 
     def test_cable_with_pulley_ratio(self):
         result = calculate_effective_weight("cable", stack=50.0, pulley_ratio=2.0, bar_weight=5.0)
-        assert result == 105.0  # 50 * 2.0 + 5.0
+        assert result == 30.0  # 50 / 2.0 + 5.0  (2:1 복합 도르래 → 체감 절반)
 
     def test_cable_default_ratio(self):
         result = calculate_effective_weight("cable", stack=40.0)
@@ -21,7 +21,7 @@ class TestCalculateEffectiveWeight:
 
     def test_machine_with_bar_weight(self):
         result = calculate_effective_weight("machine", stack=30.0, pulley_ratio=1.5, bar_weight=10.0)
-        assert result == 55.0  # 30 * 1.5 + 10
+        assert result == 30.0  # 30 / 1.5 + 10  (1.5:1 도르래 → 체감 2/3)
 
     def test_machine_no_optional(self):
         result = calculate_effective_weight("machine", stack=20.0)
