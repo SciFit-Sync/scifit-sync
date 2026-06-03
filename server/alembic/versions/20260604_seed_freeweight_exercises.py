@@ -1,6 +1,6 @@
 """프리웨이트 큐레이션 운동 시드 — gif_url + exercise_muscles (primary/secondary) + exercise_equipment_map
 
-Revision ID: 20260604_seed_freeweight_exercises
+Revision ID: 20260604_seed_freeweight
 Revises: 20260604_equipment_centric_pr1
 Create Date: 2026-06-04
 
@@ -22,7 +22,7 @@ gif_url 출처: WorkoutX API (wx_all.json 1324개 덤프에서 정확 매칭)
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260604_seed_freeweight_exercises"
+revision = "20260604_seed_freeweight"
 down_revision = "20260604_equipment_centric_pr1"
 branch_labels = None
 depends_on = None

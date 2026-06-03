@@ -1,7 +1,7 @@
 """PR-2: 머신/케이블 movement_template 시드 + exercise_muscles + movement_label 백필
 
-Revision ID: 20260604_seed_machine_movement_templates
-Revises: 20260604_seed_freeweight_exercises
+Revision ID: 20260604_machine_templates
+Revises: 20260604_seed_freeweight
 Create Date: 2026-06-04
 
 변경 사항:
@@ -23,8 +23,8 @@ Create Date: 2026-06-04
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260604_seed_machine_movement_templates"
-down_revision = "20260604_seed_freeweight_exercises"
+revision = "20260604_machine_templates"
+down_revision = "20260604_seed_freeweight"
 branch_labels = None
 depends_on = None
 

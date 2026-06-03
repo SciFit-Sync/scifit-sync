@@ -696,7 +696,10 @@ if __name__ == "__main__":
             goals=["hypertrophy", "strength"],
             body_weight=75.0,
             fitness_career="intermediate",
-            available_exercises=["Bench Press", "Incline Bench Press", "Cable Fly", "Tricep Pushdown", "Dumbbell Fly"],
+            available_equipments=[
+                {"equipment_id": "demo", "label": "Bench Press", "equipment_type": "barbell", "source": "FREE"},
+                {"equipment_id": "demo", "label": "Machine Chest Press", "equipment_type": "machine", "source": "MACHINE"},
+            ],
             target_muscles=["chest", "triceps"],
             session_minutes=75,
         )
@@ -708,7 +711,8 @@ if __name__ == "__main__":
                 print(f"[Day {event['day']}] {event.get('focus', '')}")
                 for ex in event.get("exercises", []):
                     reps = f"{ex.get('reps_min', '?')}-{ex.get('reps_max', '?')}"
-                    print(f"  - {ex['name']}: {ex['sets']}세트 × {reps}회  (휴식 {ex.get('rest_seconds', '?')}초)")
+                    label = ex.get("equipment_label") or ex.get("name", "?")
+                    print(f"  - {label}: {ex['sets']}세트 × {reps}회  (휴식 {ex.get('rest_seconds', '?')}초)")
                     if ex.get("notes"):
                         print(f"    근거: {ex['notes'][:80]}")
                 print()
