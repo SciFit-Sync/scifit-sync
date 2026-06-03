@@ -940,18 +940,18 @@ async def _fetch_exercise_equipment(
     exercise_id: uuid.UUID,
     gym_id: uuid.UUID | None,
     db: AsyncSession,
-) -> tuple[str | None, float, float | None]:
+) -> tuple[uuid.UUID | None, str | None, float, float | None]:
     """exercise_id + gym_id 기준으로 장비 정보를 조회한다.
 
     Returns:
-        (equipment_type, pulley_ratio, bar_weight)
-        gym_id가 없거나 매핑이 없으면 (None, 1.0, None) 반환.
+        (equipment_id, equipment_type, pulley_ratio, bar_weight)
+        gym_id가 없거나 매핑이 없으면 (None, None, 1.0, None) 반환.
     """
     if gym_id is None:
-        return None, 1.0, None
+        return None, None, 1.0, None
     row = (
         await db.execute(
-            select(Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight)
+            select(Equipment.id, Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight)
             .join(ExerciseEquipmentMap, ExerciseEquipmentMap.equipment_id == Equipment.id)
             .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
             .where(
@@ -962,8 +962,8 @@ async def _fetch_exercise_equipment(
         )
     ).first()
     if row is None:
-        return None, 1.0, None
-    return str(row.equipment_type), float(row.pulley_ratio), row.bar_weight
+        return None, None, 1.0, None
+    return row.id, str(row.equipment_type), float(row.pulley_ratio), row.bar_weight
 
 
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
@@ -1073,7 +1073,7 @@ async def _persist_day(
             logger.warning("운동 '%s' 매칭 실패 — 제외", name)
             continue
 
-        eq_type, pulley_ratio, bar_weight = await _fetch_exercise_equipment(exercise_id, gym_id, db)
+        eq_id, eq_type, pulley_ratio, bar_weight = await _fetch_exercise_equipment(exercise_id, gym_id, db)
 
         targets = derive_exercise_targets(
             goal=primary_goal,
@@ -1100,6 +1100,7 @@ async def _persist_day(
         rex = RoutineExercise(
             routine_day_id=day.id,
             exercise_id=exercise_id,
+            equipment_id=eq_id,
             order_index=idx,
             sets=targets["sets"],
             reps_min=targets["reps_min"],
