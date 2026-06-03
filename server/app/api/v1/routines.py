@@ -81,9 +81,9 @@ def _routine_to_summary(r: WorkoutRoutine, gym_name: str | None = None) -> Routi
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
-        split_type=r.split_type.value if r.split_type else None,
-        generated_by=r.generated_by.value if r.generated_by else "user",
-        status=r.status.value if r.status else "active",
+        split_type=str(r.split_type) if r.split_type else None,
+        generated_by=str(r.generated_by) if r.generated_by else "user",
+        status=str(r.status) if r.status else "active",
         gym_id=str(r.gym_id) if r.gym_id else None,
         gym_name=gym_name,
         created_at=r.created_at,
@@ -259,9 +259,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
-        split_type=r.split_type.value if r.split_type else None,
-        generated_by=r.generated_by.value if r.generated_by else "user",
-        status=r.status.value if r.status else "active",
+        split_type=str(r.split_type) if r.split_type else None,
+        generated_by=str(r.generated_by) if r.generated_by else "user",
+        status=str(r.status) if r.status else "active",
         gym_id=str(r.gym_id) if r.gym_id else None,
         gym_name=gym_summary.name if gym_summary else None,
         gym=gym_summary,
@@ -576,7 +576,7 @@ async def get_ai_routine_detail(
                     muscle=mg.name_ko,
                     muscle_en=mg.name,
                     percentage=em.activation_pct,
-                    type=em.involvement.value,
+                    type=str(em.involvement),
                 )
             )
 
@@ -700,7 +700,7 @@ async def get_ai_routine_detail(
             goal=routine.fitness_goals[0] if routine.fitness_goals else None,
             estimated_duration_min=routine.session_minutes,
             default_rest_seconds=default_rest,
-            created_by=routine.generated_by.value,
+            created_by=str(routine.generated_by),
             created_at=routine.created_at,
             exercises=exercise_items,
         )
@@ -828,8 +828,8 @@ async def _build_rag_profile(
     return RagUserProfile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
-        fitness_career=profile.career_level.value,
-        gender=profile.gender.value if profile.gender else None,
+        fitness_career=str(profile.career_level),
+        gender=str(profile.gender) if profile.gender else None,
         available_exercises=available_exercises,
         target_muscles=target_muscle_names,
         session_minutes=(req.session_minutes if req else None),
@@ -922,6 +922,7 @@ async def _persist_day(
     user_1rms: dict[uuid.UUID, float],
     user_body_weight: float,
     user_gender: str | None,
+    user_career_level: str | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
     """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
@@ -948,6 +949,7 @@ async def _persist_day(
             user_1rm_kg=user_1rms.get(exercise_id),
             user_body_weight=user_body_weight,
             user_gender=user_gender,
+            user_career_level=user_career_level,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -1079,7 +1081,8 @@ async def _run_rag_to_sse(
                     primary_goal=primary_goal,
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
-                    user_gender=profile.gender.value if profile.gender else None,
+                    user_gender=str(profile.gender) if profile.gender else None,
+                    user_career_level=str(profile.career_level) if profile.career_level else None,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
@@ -1266,7 +1269,7 @@ async def regenerate_routine(
         goals=list(routine.fitness_goals or []),
         target_muscle_group_ids=list(routine.target_muscle_group_ids or []),
         session_minutes=routine.session_minutes,
-        split_type=routine.split_type.value if routine.split_type else None,
+        split_type=str(routine.split_type) if routine.split_type else None,
         gym_id=str(routine.gym_id) if routine.gym_id else None,
         injury=None,
     )

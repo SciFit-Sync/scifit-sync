@@ -47,14 +47,14 @@ def _to_item(
     primary_muscles: list[str] | None = None,
     image_url_override: str | None = None,
 ) -> EquipmentItem:
-    is_cable_machine = e.equipment_type.value in ("cable", "machine")
-    is_barbell = e.equipment_type.value == "barbell"
+    is_cable_machine = str(e.equipment_type) in ("cable", "machine")
+    is_barbell = str(e.equipment_type) == "barbell"
     return EquipmentItem(
         equipment_id=str(e.id),
         name=e.name,
         brand=brand_name,
-        category=e.category.value if e.category else None,
-        equipment_type=e.equipment_type.value,
+        category=str(e.category) if e.category else None,
+        equipment_type=str(e.equipment_type),
         pulley_ratio=e.pulley_ratio if is_cable_machine else None,
         bar_weight=e.bar_weight if is_barbell else None,
         has_weight_assist=e.has_weight_assist,

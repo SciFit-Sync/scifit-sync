@@ -102,7 +102,7 @@ async def send_chat_message(
         .scalars()
         .all()
     )
-    history = [{"role": m.role.value, "content": m.content} for m in reversed(prev_msgs)]
+    history = [{"role": str(m.role), "content": m.content} for m in reversed(prev_msgs)]
 
     # 사용자 메시지 저장
     user_msg = ChatMessage(
@@ -187,7 +187,7 @@ async def list_chat_messages(
     items = [
         ChatMessageItem(
             message_id=str(m.id),
-            role=m.role.value if m.role else "user",
+            role=str(m.role) if m.role else "user",
             content=m.content,
             paper_ids=[str(pid) for pid in m.paper_ids] if m.paper_ids else None,
             created_at=m.created_at,

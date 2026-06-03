@@ -7,7 +7,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -33,7 +33,7 @@ def _parse_uuid(v: str, name: str) -> uuid.UUID:
 def _to_dto(n: Notification) -> NotificationItem:
     return NotificationItem(
         notification_id=str(n.id),
-        type=n.type.value if n.type else "system",
+        type=str(n.type) if n.type else "system",
         title=n.title,
         body=n.body,
         is_read=n.is_read,
@@ -70,6 +70,38 @@ async def list_notifications(
     ).scalar() or 0
 
     return SuccessResponse(data=NotificationListData(items=[_to_dto(n) for n in rows], unread_count=int(unread)))
+
+
+@router.patch(
+    "/read-all",
+    response_model=SuccessResponse[NotificationListData],
+    summary="모든 알림 읽음 처리",
+)
+@rate_limit("60/minute")
+async def mark_all_read(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        update(Notification)
+        .where(Notification.user_id == current_user.id, Notification.is_read.is_(False))
+        .values(is_read=True)
+    )
+    await db.commit()
+
+    rows = (
+        (
+            await db.execute(
+                select(Notification)
+                .where(Notification.user_id == current_user.id)
+                .order_by(Notification.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return SuccessResponse(data=NotificationListData(items=[_to_dto(n) for n in rows], unread_count=0))
 
 
 @router.patch(
