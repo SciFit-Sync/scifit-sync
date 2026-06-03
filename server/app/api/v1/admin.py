@@ -14,7 +14,7 @@ from pathlib import Path
 import chromadb
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -437,8 +437,33 @@ async def seed_exercises_from_workoutx(
                 mapped += 1
 
     await db.commit()
-    logger.info("seed-workoutx 완료: exercises=%d, equipment_map=%d", upserted, mapped)
-    return {"success": True, "data": {"upserted": upserted, "mapped": mapped}}
+
+    # 2nd pass: gif_url이 NULL인 기존 운동에 WorkoutX gif 퍼지 매칭
+    wx_by_name_lc = {(item.get("name") or "").strip().lower(): item for item in wx_exercises if item.get("name")}
+    null_gif_rows = (
+        await db.execute(
+            select(Exercise.id, Exercise.name_en).where(Exercise.gif_url.is_(None), Exercise.name_en.isnot(None))
+        )
+    ).all()
+
+    gif_updated = 0
+    for ex_id, ex_name_en in null_gif_rows:
+        name_lc = ex_name_en.strip().lower()
+        wx = wx_by_name_lc.get(name_lc)
+        if not wx:
+            for wx_name, wx_item in wx_by_name_lc.items():
+                if name_lc in wx_name or wx_name in name_lc:
+                    wx = wx_item
+                    break
+        if wx and wx.get("gifUrl"):
+            await db.execute(sa_update(Exercise).where(Exercise.id == ex_id).values(gif_url=wx.get("gifUrl")))
+            gif_updated += 1
+
+    if gif_updated:
+        await db.commit()
+
+    logger.info("seed-workoutx 완료: exercises=%d, equipment_map=%d, gif_updated=%d", upserted, mapped, gif_updated)
+    return {"success": True, "data": {"upserted": upserted, "mapped": mapped, "gif_updated": gif_updated}}
 
 
 class CollectionSwapRequest(BaseModel):
