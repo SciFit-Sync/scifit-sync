@@ -843,9 +843,23 @@ async def _build_rag_profile(
 
     req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
 
-    # 3. target_muscle_group_ids(UUID) → 영어 근육 이름으로 해석
+    # 3. target_muscle_group_ids → UUID 또는 body_region 문자열로 해석
+    _REGION_ALIASES: dict[str, str] = {
+        "shoulder": "shoulders",
+        "shoulders": "shoulders",
+        "back": "back",
+        "chest": "chest",
+        "legs": "legs",
+        "leg": "legs",
+        "arms": "arms",
+        "arm": "arms",
+        "abs": "core",
+        "core": "core",
+    }
+
     target_muscle_ids: list[uuid.UUID] = []
     target_muscle_names: list[str] = []
+    body_regions: list[str] = []
     if req and req.target_muscle_group_ids:
         for mid in req.target_muscle_group_ids:
             if not mid:
@@ -853,7 +867,13 @@ async def _build_rag_profile(
             try:
                 target_muscle_ids.append(uuid.UUID(mid))
             except ValueError:
-                logger.warning("잘못된 muscle_group_id 무시: %s", mid)
+                normalized = _REGION_ALIASES.get(mid.lower(), mid.lower())
+                body_regions.append(normalized)
+
+    if body_regions:
+        region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
+        target_muscle_ids.extend([row[0] for row in region_rows])
+
     if target_muscle_ids:
         mg_rows = (
             await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
