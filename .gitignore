@@ -48,6 +48,13 @@ Thumbs.db
 # Claude Code (로컬 설정)
 .claude/
 
+# Serena MCP 서버 로컬 설정 (커밋 금지)
+.serena/
+
+# 로컬 쿼리 결과 / 임시 출력 파일
+server/mg_out.txt
+server/muscle_groups_result.txt
+
 # 로컬 설계 메모 / 브레인스토밍 산출물 (커밋 금지)
 docs/specs/
 
