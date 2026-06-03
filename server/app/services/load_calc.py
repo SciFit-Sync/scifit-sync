@@ -64,7 +64,7 @@ def effective_to_stack_weight(
     """
     if equipment_type in ("cable", "machine"):
         bw = bar_weight or 0.0
-        return max((effective_kg - bw) / max(pulley_ratio, 0.01), 0.0)
+        return max((effective_kg - bw) * max(pulley_ratio, 0.01), 0.0)
     return None
 
 
