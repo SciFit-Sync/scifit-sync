@@ -76,19 +76,25 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/routines", tags=["routines"])
 
+# 루틴 생성 시 프론트에서 전송하는 영어 부위 키 → 한국어 표시명
+_BODY_PART_KO: dict[str, str] = {
+    "chest": "가슴",
+    "back": "등",
+    "shoulder": "어깨",
+    "legs": "하체",
+    "arms": "팔",
+    "abs": "복근",
+}
+
 
 def _routine_to_summary(
     r: WorkoutRoutine,
     gym_name: str | None = None,
-    muscle_name_map: dict[str, str] | None = None,
 ) -> RoutineSummary:
     target_muscle_names: list[str] | None = None
-    if muscle_name_map and r.target_muscle_group_ids:
-        target_muscle_names = [
-            muscle_name_map[mid]
-            for mid in r.target_muscle_group_ids
-            if mid in muscle_name_map
-        ] or None
+    if r.target_muscle_group_ids:
+        names = [_BODY_PART_KO.get(mid, mid) for mid in r.target_muscle_group_ids]
+        target_muscle_names = names or None
     return RoutineSummary(
         routine_id=str(r.id),
         name=r.name,
@@ -375,30 +381,7 @@ async def list_routines(
     stmt = stmt.order_by(WorkoutRoutine.updated_at.desc())
 
     rows = (await db.execute(stmt)).all()
-
-    # target_muscle_group_ids(UUID 문자열) → name_ko 배치 조회
-    all_muscle_ids: set[str] = set()
-    for r, _ in rows:
-        if r.target_muscle_group_ids:
-            all_muscle_ids.update(r.target_muscle_group_ids)
-    muscle_name_map: dict[str, str] = {}
-    if all_muscle_ids:
-        valid_uuids = []
-        for mid in all_muscle_ids:
-            try:
-                valid_uuids.append(uuid.UUID(mid))
-            except (ValueError, AttributeError):
-                pass
-        mg_rows = (
-            await db.execute(
-                select(MuscleGroup.id, MuscleGroup.name_ko).where(
-                    MuscleGroup.id.in_(valid_uuids)
-                )
-            )
-        ).all()
-        muscle_name_map = {str(mg_id): name_ko for mg_id, name_ko in mg_rows}
-
-    items = [_routine_to_summary(r, gym_name, muscle_name_map) for r, gym_name in rows]
+    items = [_routine_to_summary(r, gym_name) for r, gym_name in rows]
     return SuccessResponse(data=RoutineListData(items=items))
 
 
