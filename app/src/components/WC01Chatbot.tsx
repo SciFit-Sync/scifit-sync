@@ -97,8 +97,6 @@ export default function WC01Chatbot({ onClose }: Props) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
-
 
     (async () => {
       // 1. 저장된 대화 이력 로드
