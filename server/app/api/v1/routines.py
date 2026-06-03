@@ -871,9 +871,7 @@ async def _build_rag_profile(
                 body_regions.append(normalized)
 
     if body_regions:
-        region_rows = (
-            await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))
-        ).all()
+        region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
         target_muscle_ids.extend([row[0] for row in region_rows])
 
     if target_muscle_ids:
