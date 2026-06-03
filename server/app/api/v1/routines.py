@@ -843,9 +843,23 @@ async def _build_rag_profile(
 
     req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
 
-    # 3. target_muscle_group_ids(UUID) → 영어 근육 이름으로 해석
+    # 3. target_muscle_group_ids → UUID 또는 body_region 문자열로 해석
+    _REGION_ALIASES: dict[str, str] = {
+        "shoulder": "shoulders",
+        "shoulders": "shoulders",
+        "back": "back",
+        "chest": "chest",
+        "legs": "legs",
+        "leg": "legs",
+        "arms": "arms",
+        "arm": "arms",
+        "abs": "core",
+        "core": "core",
+    }
+
     target_muscle_ids: list[uuid.UUID] = []
     target_muscle_names: list[str] = []
+    body_regions: list[str] = []
     if req and req.target_muscle_group_ids:
         for mid in req.target_muscle_group_ids:
             if not mid:
@@ -853,7 +867,13 @@ async def _build_rag_profile(
             try:
                 target_muscle_ids.append(uuid.UUID(mid))
             except ValueError:
-                logger.warning("잘못된 muscle_group_id 무시: %s", mid)
+                normalized = _REGION_ALIASES.get(mid.lower(), mid.lower())
+                body_regions.append(normalized)
+
+    if body_regions:
+        region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
+        target_muscle_ids.extend([row[0] for row in region_rows])
+
     if target_muscle_ids:
         mg_rows = (
             await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
@@ -914,6 +934,36 @@ async def _build_rag_profile(
         injury=(req.injury if req else None),
         feedback=feedback,
     )
+
+
+async def _fetch_exercise_equipment(
+    exercise_id: uuid.UUID,
+    gym_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> tuple[uuid.UUID | None, str | None, float, float | None]:
+    """exercise_id + gym_id 기준으로 장비 정보를 조회한다.
+
+    Returns:
+        (equipment_id, equipment_type, pulley_ratio, bar_weight)
+        gym_id가 없거나 매핑이 없으면 (None, None, 1.0, None) 반환.
+    """
+    if gym_id is None:
+        return None, None, 1.0, None
+    row = (
+        await db.execute(
+            select(Equipment.id, Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight)
+            .join(ExerciseEquipmentMap, ExerciseEquipmentMap.equipment_id == Equipment.id)
+            .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
+            .where(
+                ExerciseEquipmentMap.exercise_id == exercise_id,
+                GymEquipment.gym_id == gym_id,
+            )
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None, None, 1.0, None
+    return row.id, str(row.equipment_type), float(row.pulley_ratio), row.bar_weight
 
 
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
@@ -1000,6 +1050,8 @@ async def _persist_day(
     user_1rms: dict[uuid.UUID, float],
     user_body_weight: float,
     user_gender: str | None,
+    user_career_level: str | None,
+    gym_id: uuid.UUID | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
     """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
@@ -1021,11 +1073,17 @@ async def _persist_day(
             logger.warning("운동 '%s' 매칭 실패 — 제외", name)
             continue
 
+        eq_id, eq_type, pulley_ratio, bar_weight = await _fetch_exercise_equipment(exercise_id, gym_id, db)
+
         targets = derive_exercise_targets(
             goal=primary_goal,
             user_1rm_kg=user_1rms.get(exercise_id),
             user_body_weight=user_body_weight,
             user_gender=user_gender,
+            user_career_level=user_career_level,
+            equipment_type=eq_type,
+            pulley_ratio=pulley_ratio,
+            bar_weight=bar_weight,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -1042,6 +1100,7 @@ async def _persist_day(
         rex = RoutineExercise(
             routine_day_id=day.id,
             exercise_id=exercise_id,
+            equipment_id=eq_id,
             order_index=idx,
             sets=targets["sets"],
             reps_min=targets["reps_min"],
@@ -1158,6 +1217,8 @@ async def _run_rag_to_sse(
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
                     user_gender=str(profile.gender) if profile.gender else None,
+                    user_career_level=str(profile.career_level) if profile.career_level else None,
+                    gym_id=routine.gym_id,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집

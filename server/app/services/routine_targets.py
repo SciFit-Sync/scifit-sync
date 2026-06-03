@@ -9,7 +9,7 @@ load_calc.py는 100% 커버리지 대상(CLAUDE.md §13)이므로 이 모듈에 
 
 from __future__ import annotations
 
-from app.services.load_calc import RANGES, get_recommended_weight_range
+from app.services.load_calc import RANGES, effective_to_stack_weight, get_recommended_weight_range
 
 # CLAUDE.md §11 목표별 권장 반복 범위
 _REPS_BY_GOAL: dict[str, tuple[int, int]] = {
@@ -76,30 +76,56 @@ _DEFAULT_1RM_RATIO: dict[str, float] = {
     "female": 0.55,
 }
 
+# 경력 수준별 추정 1RM 보정 배수 (beginner=기준, 운동 경험에 따른 상대 강도 증가)
+_CAREER_LEVEL_MULTIPLIER: dict[str, float] = {
+    "beginner": 1.00,
+    "novice": 1.10,
+    "intermediate": 1.20,
+    "advanced": 1.35,
+}
 
-def _estimate_1rm_from_body_weight(body_weight: float, gender: str | None) -> float:
+
+def _estimate_1rm_from_body_weight(
+    body_weight: float,
+    gender: str | None,
+    career_level: str | None = None,
+) -> float:
     ratio = _DEFAULT_1RM_RATIO.get(gender or "", 0.65)  # 성별 미입력 시 중간값
-    return body_weight * ratio
+    career_mult = _CAREER_LEVEL_MULTIPLIER.get(career_level or "", 1.00)
+    return body_weight * ratio * career_mult
 
 
-def recommended_weight_kg(goal, user_1rm_kg, user_body_weight=None, user_gender=None):
+def recommended_weight_kg(
+    goal,
+    user_1rm_kg,
+    user_body_weight=None,
+    user_gender=None,
+    user_career_level=None,
+    equipment_type=None,
+    pulley_ratio=1.0,
+    bar_weight=None,
+):
     """목표별 권장 중량 중간값 반환.
 
-    1RM이 있으면 우선 사용. 없으면 성별·체중 기반 추정 1RM으로 기본값 계산.
+    1RM이 있으면 우선 사용. 없으면 성별·경력·체중 기반 추정 1RM으로 기본값 계산.
     체중도 없으면 None 반환 (사용자가 첫 세션에 직접 입력).
+    cable/machine 장비는 실효 부하를 스택 설정값으로 역변환해 반환한다.
     """
     if user_1rm_kg is None or user_1rm_kg <= 0:
         if user_body_weight and user_body_weight > 0:
-            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender)
+            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender, user_career_level)
         else:
             return None
     range_key = _GOAL_TO_RANGE_KEY.get(_normalize_goal(goal))
     if range_key is None or range_key not in RANGES:
         return None
     low, high = get_recommended_weight_range(user_1rm_kg, range_key)
-    # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
     mid = (low + high) / 2.0
-    return round(mid / 2.5) * 2.5
+    # cable/machine은 스택 설정값으로 역변환, 나머지는 실효 부하 그대로 사용
+    stack = effective_to_stack_weight(mid, equipment_type or "", pulley_ratio, bar_weight)
+    display = stack if stack is not None else mid
+    # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
+    return round(display / 2.5) * 2.5
 
 
 def derive_exercise_targets(
@@ -108,6 +134,10 @@ def derive_exercise_targets(
     user_1rm_kg=None,
     user_body_weight=None,
     user_gender=None,
+    user_career_level=None,
+    equipment_type=None,
+    pulley_ratio=1.0,
+    bar_weight=None,
     llm_sets=None,
     llm_reps_min=None,
     llm_reps_max=None,
@@ -156,5 +186,7 @@ def derive_exercise_targets(
         "reps_min": reps_min,
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
-        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender),
+        "weight_kg": recommended_weight_kg(
+            g, user_1rm_kg, user_body_weight, user_gender, user_career_level, equipment_type, pulley_ratio, bar_weight
+        ),
     }
