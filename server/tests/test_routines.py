@@ -247,12 +247,14 @@ class TestGetRoutine:
         day.exercises = [rex]
 
         # _get_my_routine, RoutineDay+exercises, Exercise names(4cols), muscle_activation, RoutinePaper
+        # + WorkoutX sentinel("") write-back UPDATE (name_en 있고 WorkoutX 결과 없음)
         db = _make_db(
             _exec_scalar(r),
             _exec_scalars_unique_all([day]),
             _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press", None)]),
             _exec_all([]),  # muscle_activation
             _exec_all([]),  # RoutinePaper
+            MagicMock(),  # sentinel write-back UPDATE
         )
 
         app.dependency_overrides[get_db] = _db_override(db)
@@ -266,6 +268,41 @@ class TestGetRoutine:
         assert len(exercises) == 1
         assert exercises[0]["exercise_name"] == "벤치프레스"
         assert exercises[0]["sets"] == 3
+        assert exercises[0]["gif_url"] is None
+
+    @pytest.mark.asyncio
+    async def test_gif_writeback_saves_url(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.routines.get_exercise_by_name",
+            AsyncMock(return_value={"gifUrl": "https://api.workoutxapp.com/v1/gifs/0025.gif"}),
+        )
+        r = _routine()
+        rex = _routine_exercise()
+
+        day = MagicMock()
+        day.id = uuid.uuid4()
+        day.day_number = 1
+        day.label = "가슴"
+        day.exercises = [rex]
+
+        # + WorkoutX URL write-back UPDATE
+        db = _make_db(
+            _exec_scalar(r),
+            _exec_scalars_unique_all([day]),
+            _exec_all([(_EXERCISE_ID, "벤치프레스", "Bench Press", None)]),
+            _exec_all([]),  # muscle_activation
+            _exec_all([]),  # RoutinePaper
+            MagicMock(),  # URL write-back UPDATE
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get(f"/api/v1/routines/{_ROUTINE_ID}")
+
+        assert resp.status_code == 200
+        exercises = resp.json()["data"]["days"][0]["exercises"]
+        # 응답은 WorkoutX 직링크가 아니라 키 불필요 백엔드 프록시 URL (gif id 0025 추출)
+        assert exercises[0]["gif_url"] == "https://scifit-sync.com/api/v1/exercises/gif/0025"
+        db.commit.assert_awaited_once()
 
 
 # ── PATCH /routines/{id}/name ─────────────────────────────────────────────────
@@ -552,7 +589,7 @@ class TestGetAIRoutineDetail:
     async def test_success_with_exercises(self, client, monkeypatch):
         monkeypatch.setattr(
             "app.api.v1.routines.get_exercise_by_name",
-            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+            AsyncMock(return_value={"gifUrl": "https://api.workoutxapp.com/v1/gifs/0025.gif", "equipment": "barbell"}),
         )
         db = _make_db(
             _exec_scalar(_routine()),
@@ -560,6 +597,7 @@ class TestGetAIRoutineDetail:
             _exec_scalars_all([_exercise_mock()]),
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(None),  # no active WorkoutLog
+            MagicMock(),  # URL write-back UPDATE (WorkoutX 호출 후, RoutinePaper 전)
             _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)
@@ -575,7 +613,7 @@ class TestGetAIRoutineDetail:
 
         ex = data["exercises"][0]
         assert ex["name"] == "벤치프레스"
-        assert ex["gif_url"] == "https://example.com/bench.gif"
+        assert ex["gif_url"] == "https://scifit-sync.com/api/v1/exercises/gif/0025"
         assert len(ex["sets"]) == 3
         assert ex["sets"][0]["set_number"] == 1
         assert ex["sets"][0]["completed"] is False
@@ -588,7 +626,7 @@ class TestGetAIRoutineDetail:
     async def test_success_with_papers(self, client, monkeypatch):
         monkeypatch.setattr(
             "app.api.v1.routines.get_exercise_by_name",
-            AsyncMock(return_value={"gifUrl": "https://example.com/bench.gif", "equipment": "barbell"}),
+            AsyncMock(return_value={"gifUrl": "https://api.workoutxapp.com/v1/gifs/0025.gif", "equipment": "barbell"}),
         )
         db = _make_db(
             _exec_scalar(_routine()),
@@ -596,6 +634,7 @@ class TestGetAIRoutineDetail:
             _exec_scalars_all([_exercise_mock()]),
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(None),  # no active WorkoutLog
+            MagicMock(),  # URL write-back UPDATE (WorkoutX 호출 후, RoutinePaper 전)
             _exec_all([(_REX_ID, 3)]),  # paper 3건 연결
         )
         app.dependency_overrides[get_db] = _db_override(db)
@@ -628,6 +667,7 @@ class TestGetAIRoutineDetail:
             _exec_all([(_exercise_muscle_mock(), _muscle_group_mock())]),
             _exec_scalar(active_log),
             _exec_scalars_all([completed_set]),
+            MagicMock(),  # sentinel write-back UPDATE (WorkoutX None, name_en 있음, RoutinePaper 전)
             _exec_all([]),  # RoutinePaper counts (no papers)
         )
         app.dependency_overrides[get_db] = _db_override(db)

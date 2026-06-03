@@ -3,8 +3,14 @@ import { apiFetch } from './api';
 export interface SessionCalendarItem {
   date: string;
   session_id: string;
+  routine_id: string | null;
   routine_name: string | null;
+  fitness_goals: string[];
   duration_minutes: number | null;
+  gym_name: string | null;
+  total_volume_kg: number;
+  total_weight_kg: number;
+  total_sets: number;
 }
 
 export interface SessionCalendarData {
@@ -23,10 +29,12 @@ export interface RecentSessionItem {
 export interface SessionStatsData {
   total_sessions: number;
   total_volume_kg: number;
+  total_weight_kg: number;
   total_duration_minutes: number;
   total_sets: number;
   weekly_session_count: number;
   streak_days: number;
+  total_calories_kcal: number;
   recent_session: RecentSessionItem | null;
 }
 
@@ -80,10 +88,47 @@ export function logSet(token: string, session_id: string, body: LogSetBody): Pro
   });
 }
 
-export function finishSession(token: string, session_id: string): Promise<unknown> {
+export interface FinishSessionBody {
+  finished_at?: string; // ISO 8601 UTC
+}
+
+export function finishSession(token: string, session_id: string, body?: FinishSessionBody): Promise<unknown> {
   return apiFetch<unknown>(`/api/v1/sessions/${session_id}/finish`, {
     token,
     method: 'PATCH',
-    body: JSON.stringify({}),
+    body: JSON.stringify(body ?? {}),
   });
+}
+
+// ── 볼륨 분석 / 근육 부위별 분석 ─────────────────────────────────────────────
+
+export interface VolumeAnalysisItem {
+  date: string;       // YYYY-MM-DD
+  volume_kg: number;
+}
+
+export interface VolumeAnalysisData {
+  items: VolumeAnalysisItem[];
+}
+
+export interface MuscleVolumeItem {
+  muscle: string;         // MuscleGroup.name_ko (예: "가슴", "광배근")
+  weekly_volume: number;
+  optimal_min: number;
+  optimal_max: number;
+  status: 'OPTIMAL' | 'LOW' | 'HIGH';
+}
+
+export interface MuscleVolumeData {
+  period: string;
+  volume_by_muscle: MuscleVolumeItem[];
+  ai_coach_message: string;
+}
+
+export function getVolumeAnalysis(token: string, days: number): Promise<VolumeAnalysisData> {
+  return apiFetch<VolumeAnalysisData>(`/api/v1/sessions/analysis/volume?days=${days}`, { token });
+}
+
+export function getMuscleVolumeAnalysis(token: string, period: 'WEEK' | 'MONTH'): Promise<MuscleVolumeData> {
+  return apiFetch<MuscleVolumeData>(`/api/v1/sessions/analysis/muscle-volume?period=${period}`, { token });
 }

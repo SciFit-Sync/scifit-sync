@@ -4,7 +4,6 @@ import {
   Animated,
   Alert,
   FlatList,
-  Image,
   Linking,
   Modal,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
   View,
   ScrollView,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
@@ -42,6 +42,7 @@ import {
   finishSession,
 } from "../../services/sessions";
 import WC01Chatbot from "../../components/WC01Chatbot";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
 interface Set {
   id: string;
@@ -98,7 +99,11 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
     reps_min: item.reps_min ?? null,
     reps_max: item.reps_max ?? null,
     has_paper: item.has_paper ?? false,
-    gif_url: item.gif_url ?? null,
+    gif_url: item.gif_url
+      ? item.gif_url.startsWith("/")
+        ? `${process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000"}${item.gif_url}`
+        : item.gif_url
+      : null,
   };
 }
 
@@ -137,6 +142,20 @@ export default function WR04RoutineDetail() {
   const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
 
+  // AsyncStorage persist 수화 완료 여부 — 수화 전에 exercises를 초기화하면 복원이 안 됨
+  const [store_ready, set_store_ready] = useState(
+    () => useWorkoutSessionStore.persist.hasHydrated(),
+  );
+  useEffect(() => {
+    if (useWorkoutSessionStore.persist.hasHydrated()) {
+      set_store_ready(true);
+      return;
+    }
+    return useWorkoutSessionStore.persist.onFinishHydration(() => {
+      set_store_ready(true);
+    });
+  }, []);
+
   // 바텀시트 애니메이션 (backdrop opacity + sheet translateY)
   const MODAL_DUR = 250;
   const tips_overlay_anim = useRef(new Animated.Value(0)).current;
@@ -168,8 +187,9 @@ export default function WR04RoutineDetail() {
   });
 
   // API 데이터 → 로컬 exercises 변환 (day 인덱스 변경 시 재초기화)
+  // store_ready: AsyncStorage 수화가 완료된 뒤에만 실행해야 체크 상태가 올바르게 복원됨
   useEffect(() => {
-    if (!detail) return;
+    if (!detail || !store_ready) return;
     const day = detail.days[selected_day_idx];
     if (!day) {
       set_exercises([]);
@@ -181,9 +201,16 @@ export default function WR04RoutineDetail() {
     const base = sorted.map(api_to_exercise);
 
     // 이 루틴의 진행 중 세션이 스토어에 있으면 체크 상태 복원
-    if (ws_routine_id === routine_id && ws_session_id) {
-      session_id_ref.current = ws_session_id;
-      set_session_started(true);
+    // ws_session_id 가 아직 null 이어도 (세트 체크 직후 화면 이탈 → API 응답 대기 중)
+    // checked_sets 는 이미 저장돼 있으므로 session_id 를 요구하지 않고 복원
+    if (ws_routine_id === routine_id) {
+      if (ws_session_id) {
+        session_id_ref.current = ws_session_id;
+        set_session_started(true);
+      } else if (Object.values(ws_checked_sets).some(Boolean)) {
+        // session_id 응답 대기 중이지만 체크된 세트가 존재 → 세션 시작 상태 유지
+        set_session_started(true);
+      }
       const restored = base.map((ex) => ({
         ...ex,
         sets: ex.sets.map((s) => ({
@@ -195,7 +222,15 @@ export default function WR04RoutineDetail() {
     } else {
       set_exercises(base);
     }
-  }, [detail, selected_day_idx]);
+  }, [detail, selected_day_idx, store_ready]);
+
+  // ws_session_id 가 나중에 도착하면 (ensure_session async 완료) ref / 버튼 동기화
+  useEffect(() => {
+    if (ws_session_id && ws_routine_id === routine_id && !session_id_ref.current) {
+      session_id_ref.current = ws_session_id;
+      set_session_started(true);
+    }
+  }, [ws_session_id]);
 
   useEffect(() => {
     if (is_timer_running) {
@@ -268,8 +303,10 @@ export default function WR04RoutineDetail() {
       set_is_timer_running(true);
       if (ex && current_set) {
         ensure_session()
-          .then((sid) =>
-            logSet(token, sid, {
+          .then((sid) => {
+            // 세션 생성 완료 → 기록 탭이 세션을 즉시 인식하도록 캐시 무효화
+            query_client.invalidateQueries({ queryKey: ["sessions"] });
+            return logSet(token, sid, {
               exercise_id: ex.exercise_id,
               routine_exercise_id: ex.id,
               set_number: set_index + 1,
@@ -278,8 +315,15 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
-            }),
-          )
+            });
+          })
+          .then(() => {
+            query_client.invalidateQueries({ queryKey: ["sessions"] });
+            query_client.invalidateQueries({ queryKey: ["session-stats"] });
+            query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+            query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+
+          })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
             Alert.alert(
@@ -612,14 +656,17 @@ export default function WR04RoutineDetail() {
     );
   };
 
-  /** 운동 완료 처리 */
-  const handle_finish = async () => {
+  /** 운동 완료 처리 (실제 로직) */
+  const do_finish = async () => {
     if (!session_id_ref.current || is_finishing) return;
     try {
       set_is_finishing(true);
       await finishSession(token, session_id_ref.current);
       ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
+      query_client.invalidateQueries({ queryKey: ["session-stats"] });
+      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
       navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);
@@ -627,6 +674,19 @@ export default function WR04RoutineDetail() {
         e instanceof Error ? e.message : "운동 완료 처리에 실패했습니다.";
       Alert.alert("오류", msg);
     }
+  };
+
+  /** 운동 완료 버튼 — 확인 다이얼로그 표시 */
+  const handle_finish = () => {
+    if (is_finishing) return;
+    if (!session_id_ref.current) {
+      Alert.alert("잠깐만요", "세션을 준비 중이에요. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    Alert.alert("운동 완료", "세션이 초기화됩니다. 완료하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      { text: "확인", onPress: do_finish },
+    ]);
   };
 
   // 로딩 상태
@@ -786,22 +846,25 @@ export default function WR04RoutineDetail() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* 그래픽 영상 placeholder */}
-                    {exercise.gif_url ? (
-                      <Image
-                        source={{ uri: exercise.gif_url }}
-                        style={styles.exercise_gif}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <View style={styles.image_placeholder}>
-                        <Octicons
-                          name="play"
-                          size={32}
-                          color={colors.bluegray}
+                    {/* 그래픽 영상 */}
+                    {(() => {
+                      // gif_url은 백엔드 프록시 URL(키 불필요). expo-image로 release GIF 디코딩.
+                      return exercise.gif_url ? (
+                        <ExpoImage
+                          source={{ uri: exercise.gif_url }}
+                          style={styles.exercise_gif}
+                          contentFit="contain"
                         />
-                      </View>
-                    )}
+                      ) : (
+                        <View style={styles.image_placeholder}>
+                          <Octicons
+                            name="play"
+                            size={32}
+                            color={colors.bluegray}
+                          />
+                        </View>
+                      );
+                    })()}
 
                     {/* 근육 활성화 */}
                     <View style={styles.muscle_section}>
@@ -1292,16 +1355,8 @@ export default function WR04RoutineDetail() {
         </View>
       </Modal>
 
-      {/* 챗봇 FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => set_show_chatbot(true)}
-        activeOpacity={0.8}
-      >
-        <Octicons name="comment" size={24} color={colors.white} />
-      </TouchableOpacity>
-
-      {/* 챗봇 오버레이 — WM01Main과 동일한 패턴 */}
+      {/* 챗봇 FAB — WM01Main과 동일한 컴포넌트 */}
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
       {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
 
       {/* 하단 네브바 */}
@@ -1980,21 +2035,5 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
 
-  // FAB
-  fab: {
-    position: "absolute",
-    right: 24,
-    bottom: 104,
-    width: 55,
-    height: 55,
-    borderRadius: 1000,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
-  },
 });
+

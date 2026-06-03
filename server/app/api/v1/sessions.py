@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_required_profile
@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.schemas.common import SuccessResponse
 from app.schemas.sessions import (
+    ActiveSessionData,
     FinishSessionRequest,
     GymStatItem,
     LogSetRequest,
@@ -57,6 +58,9 @@ from app.services import po
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+# 한국 표준시 오프셋 — started_at 은 UTC 나이브로 저장되므로 KST 날짜 계산 시 보정
+_KST = timedelta(hours=9)
 
 _REST_GOAL_DEFAULTS: dict[str, tuple[int, int, int]] = {
     "hypertrophy": (90, 60, 120),
@@ -100,7 +104,7 @@ def _session_to_dto(
         gym_id=str(s.gym_id) if s.gym_id else None,
         started_at=s.started_at,
         finished_at=s.finished_at,
-        status=s.status.value if s.status else "in_progress",
+        status=str(s.status) if s.status else "in_progress",
         routine_name=routine_name,
         duration_minutes=duration_minutes,
     )
@@ -122,14 +126,19 @@ async def _get_my_session(session_id: str, user: User, db: AsyncSession) -> Work
 
 
 async def _compute_streak(user_id: uuid.UUID, db: AsyncSession) -> int:
+    # started_at은 UTC 저장 → KST 날짜 기준으로 연속 운동 계산
     rows = (
-        await db.execute(select(func.date(WorkoutLog.started_at)).where(WorkoutLog.user_id == user_id).distinct())
+        await db.execute(
+            select(func.date(WorkoutLog.started_at + text("interval '9 hours'")).label("kst_date"))
+            .where(WorkoutLog.user_id == user_id)
+            .distinct()
+        )
     ).all()
     dates = sorted({r[0] for r in rows}, reverse=True)
     if not dates:
         return 0
 
-    today = datetime.now(timezone.utc).date()
+    today = (datetime.now(timezone.utc) + _KST).date()  # KST 오늘 날짜
     if dates[0] != today and dates[0] != today - timedelta(days=1):
         return 0
 
@@ -213,7 +222,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         if equipment_id:
             equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
 
-        eq_type = equipment.equipment_type.value if equipment else "machine"
+        eq_type = str(equipment.equipment_type) if equipment else "machine"
         max_stack = equipment.max_stack if equipment else None
 
         stats = (
@@ -304,15 +313,20 @@ async def start_session(
         # gym_id 미지정 시 루틴의 gym_id 자동 복사 (D-M9)
         if session_gym_id is None and routine.gym_id:
             session_gym_id = routine.gym_id
-
-        first_day = (
-            await db.execute(
-                select(RoutineDay).where(RoutineDay.routine_id == routine_id).order_by(RoutineDay.day_number).limit(1)
-            )
-        ).scalar_one_or_none()
-
-        session_routine_day_id = first_day.id if first_day else None
-
+        # routine_day_id가 명시적으로 전달된 경우 우선 사용 (멀티 day 루틴 대응)
+        # 그렇지 않으면 첫 번째 day 자동 선택
+        if body.routine_day_id:
+            session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
+        else:
+            first_day = (
+                await db.execute(
+                    select(RoutineDay)
+                    .where(RoutineDay.routine_id == routine_id)
+                    .order_by(RoutineDay.day_number)
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            session_routine_day_id = first_day.id if first_day else None
     elif body.routine_day_id:
         session_routine_day_id = _parse_uuid(body.routine_day_id, "routine_day_id")
 
@@ -511,7 +525,7 @@ async def _check_and_create_po_notifications(
         if rex.equipment_id:
             equip = equip_map.get(rex.equipment_id)
             if equip:
-                equipment_type = equip.equipment_type.value
+                equipment_type = str(equip.equipment_type)
                 max_stack = equip.max_stack
 
         result = po.calculate_increase(
@@ -630,12 +644,16 @@ async def list_sessions(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    q_year = year or now.year
-    q_month = month or now.month
+    now_kst = datetime.now(timezone.utc) + _KST
+    q_year = year or now_kst.year
+    q_month = month or now_kst.month
 
-    start = datetime(q_year, q_month, 1)
-    end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
+    # KST 월 경계를 UTC 나이브 datetime 으로 변환
+    # 예) KST 6월 1일 00:00 = UTC 5월 31일 15:00 → -9h 보정
+    kst_start = datetime(q_year, q_month, 1)
+    kst_end = datetime(q_year + 1, 1, 1) if q_month == 12 else datetime(q_year, q_month + 1, 1)
+    start = kst_start - _KST
+    end = kst_end - _KST
 
     rows = (
         (
@@ -654,31 +672,94 @@ async def list_sessions(
     )
 
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
-    routine_name_by_day: dict[str, str] = {}
+    # day_id → (routine_id, routine_name, fitness_goals)
+    routine_info_by_day: dict[str, tuple[str, str, list[str]]] = {}
 
     if day_ids:
         name_rows = (
             await db.execute(
-                select(RoutineDay.id, WorkoutRoutine.name)
+                select(RoutineDay.id, WorkoutRoutine.id, WorkoutRoutine.name, WorkoutRoutine.fitness_goals)
                 .join(WorkoutRoutine, RoutineDay.routine_id == WorkoutRoutine.id)
                 .where(RoutineDay.id.in_(day_ids))
             )
         ).all()
-        routine_name_by_day = {str(did): name for did, name in name_rows}
+        routine_info_by_day = {str(did): (str(rid), rname, goals or []) for did, rid, rname, goals in name_rows}
 
-    records = [
-        SessionCalendarItem(
-            date=s.started_at.date().isoformat(),
-            session_id=str(s.id),
-            routine_name=routine_name_by_day.get(str(s.routine_day_id)),
-            duration_minutes=(
-                max(0, int((s.finished_at - s.started_at).total_seconds() // 60))
-                if s.finished_at and s.started_at
-                else None
-            ),
+    gym_ids = [r.gym_id for r in rows if r.gym_id]
+    gym_name_by_id: dict[str, str] = {}
+    if gym_ids:
+        gym_rows_q = (await db.execute(select(Gym.id, Gym.name).where(Gym.id.in_(gym_ids)))).all()
+        gym_name_by_id = {str(gid): gname for gid, gname in gym_rows_q}
+
+    # 세션별 총 중량 / 총 세트 집계 (완료된 세트만)
+    session_ids = [r.id for r in rows]
+    session_agg: dict[str, tuple[float, int, float]] = {}
+    if session_ids:
+        agg_rows = (
+            await db.execute(
+                select(
+                    WorkoutLogSet.workout_log_id,
+                    func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0).label("volume"),
+                    func.count(WorkoutLogSet.id).label("sets"),
+                    func.coalesce(func.sum(WorkoutLogSet.weight_kg), 0.0).label("weight"),
+                )
+                .where(
+                    WorkoutLogSet.workout_log_id.in_(session_ids),
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+                .group_by(WorkoutLogSet.workout_log_id)
+            )
+        ).all()
+        session_agg = {str(sid): (float(vol), int(sets), float(weight)) for sid, vol, sets, weight in agg_rows}
+
+    _no_info: tuple[str | None, str | None, list[str]] = (None, None, [])
+
+    # 완료된 세트가 있는 세션만 표시 + 같은 날 같은 루틴은 1건으로 합산
+    merged: dict[str, SessionCalendarItem] = {}
+    for s in rows:
+        if str(s.id) not in session_agg:
+            continue  # 세트 기록이 없는 빈 세션 제외
+
+        kst_date = (s.started_at + _KST).date().isoformat()
+        info = routine_info_by_day.get(str(s.routine_day_id), _no_info) if s.routine_day_id else _no_info
+        routine_id_val = info[0]
+        # routine_id가 없는 자유 운동 세션은 세션별로 독립 표시 (합산 대상 아님)
+        key = f"{kst_date}_{routine_id_val}" if routine_id_val else f"{kst_date}_{s.id}"
+
+        vol, sets, weight = session_agg.get(str(s.id), (0.0, 0, 0.0))
+        duration = (
+            max(0, int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60))
+            if s.finished_at and s.started_at
+            else max(
+                0,
+                int((datetime.now(timezone.utc).replace(tzinfo=None) - _strip_tz(s.started_at)).total_seconds() // 60),
+            )
+            if s.started_at
+            else None
         )
-        for s in rows
-    ]
+
+        if key not in merged:
+            merged[key] = SessionCalendarItem(
+                date=kst_date,
+                session_id=str(s.id),
+                routine_id=routine_id_val,
+                routine_name=info[1],
+                fitness_goals=info[2],
+                duration_minutes=duration or 0,
+                gym_name=gym_name_by_id.get(str(s.gym_id)) if s.gym_id else None,
+                total_volume_kg=vol,
+                total_sets=sets,
+                total_weight_kg=weight,
+            )
+        else:
+            item = merged[key]
+            item.total_volume_kg += vol
+            item.total_sets += sets
+            item.total_weight_kg += weight
+            if duration is not None:
+                item.duration_minutes = (item.duration_minutes or 0) + duration
+
+    records = list(merged.values())
 
     return SuccessResponse(
         data=SessionCalendarData(
@@ -698,16 +779,44 @@ async def session_stats(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    # 총 세션 수
-    total_sessions = int(
-        (await db.execute(select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == current_user.id))).scalar() or 0
-    )
+    # 총 세션 수 — 완료된 세트가 있는 세션만, 같은 날 같은 루틴은 1개로 카운트
+    all_session_rows = (
+        await db.execute(
+            select(WorkoutLog.started_at, WorkoutLog.routine_day_id)
+            .join(WorkoutLogSet, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+            .where(
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLogSet.is_completed.is_(True),
+            )
+            .distinct()
+        )
+    ).all()
+    seen_session_keys: set[str] = set()
+    for started_at, routine_day_id in all_session_rows:
+        kst_date = (started_at + _KST).date().isoformat()
+        seen_session_keys.add(f"{kst_date}_{routine_day_id}")
+    total_sessions = len(seen_session_keys)
 
-    # 총 볼륨
+    # 총 볼륨 (weight × reps)
     total_volume = float(
         (
             await db.execute(
                 select(func.coalesce(func.sum(WorkoutLogSet.weight_kg * WorkoutLogSet.reps), 0.0))
+                .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+                .where(
+                    WorkoutLog.user_id == current_user.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+            )
+        ).scalar()
+        or 0.0
+    )
+
+    # 총 중량 (세트 무게 단순 합산 — weight × reps 아님)
+    total_weight = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(WorkoutLogSet.weight_kg), 0.0))
                 .join(WorkoutLog, WorkoutLogSet.workout_log_id == WorkoutLog.id)
                 .where(
                     WorkoutLog.user_id == current_user.id,
@@ -746,19 +855,40 @@ async def session_stats(
 
     total_minutes = sum(int((f - s).total_seconds() // 60) for s, f in finished_rows if f and s)
 
-    # 주간 세션 수 (최근 7일)
-    week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
-    weekly_session_count = int(
-        (
-            await db.execute(
-                select(func.count(WorkoutLog.id)).where(
-                    WorkoutLog.user_id == current_user.id,
-                    WorkoutLog.started_at >= week_ago,
-                )
+    # 총 칼로리 (최근 체중 기준, MET 5.0 공식)
+    latest_measurement = (
+        await db.execute(
+            select(UserBodyMeasurement)
+            .where(UserBodyMeasurement.user_id == current_user.id)
+            .order_by(UserBodyMeasurement.measured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    body_weight_kg = float(latest_measurement.weight_kg) if latest_measurement else 70.0
+    total_calories_kcal = round(5.0 * body_weight_kg * total_minutes / 60)
+
+    # 주간 세션 수 (최근 7일) — 완료된 세트가 있는 세션만, 같은 날 같은 루틴은 1개로 카운트
+    # KST 기준 7일 전 자정 → UTC 변환 (list_sessions의 KST 날짜 경계 정책과 일관성 유지)
+    today_kst_date = (datetime.now(timezone.utc) + _KST).date()
+    week_ago_kst_date = today_kst_date - timedelta(days=7)
+    week_ago = datetime(week_ago_kst_date.year, week_ago_kst_date.month, week_ago_kst_date.day) - _KST
+    weekly_rows = (
+        await db.execute(
+            select(WorkoutLog.started_at, WorkoutLog.routine_day_id)
+            .join(WorkoutLogSet, WorkoutLogSet.workout_log_id == WorkoutLog.id)
+            .where(
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLog.started_at >= week_ago,
+                WorkoutLogSet.is_completed.is_(True),
             )
-        ).scalar()
-        or 0
-    )
+            .distinct()
+        )
+    ).all()
+    seen_weekly_keys: set[str] = set()
+    for started_at, routine_day_id in weekly_rows:
+        kst_date = (started_at + _KST).date().isoformat()
+        seen_weekly_keys.add(f"{kst_date}_{routine_day_id}")
+    weekly_session_count = len(seen_weekly_keys)
 
     # 최근 완료 세션
     recent_row = (
@@ -828,10 +958,12 @@ async def session_stats(
         data=SessionStatsData(
             total_sessions=total_sessions,
             total_volume_kg=round(total_volume, 2),
+            total_weight_kg=round(total_weight, 2),
             total_duration_minutes=total_minutes,
             total_sets=total_sets,
             weekly_session_count=weekly_session_count,
             streak_days=streak_days,
+            total_calories_kcal=total_calories_kcal,
             recent_session=recent_session,
             by_gym=by_gym,
         )
@@ -847,8 +979,8 @@ async def volume_analysis(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.now(timezone.utc) - timedelta(days=days)
-
+    # WorkoutLog.started_at은 timezone-naive로 저장되므로 replace(tzinfo=None) 필수
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
     rows = (
         await db.execute(
             select(
@@ -879,22 +1011,23 @@ async def volume_analysis(
 
 # ── GET /sessions/analysis/muscle-volume ─────────────────────────────────────
 # 근육 부위별 주간/월간 볼륨 조회 + 근비대 최적 범위 비교
+# 키는 muscle_groups.name_ko 값과 정확히 일치해야 함 (seed: 20260525_seed_muscle_groups_exercises.py)
 _OPTIMAL_RANGES: dict[str, tuple[float, float]] = {
-    "가슴": (4000, 6000),
-    "광배근": (4000, 6000),
-    "상부 등": (3000, 5000),
-    "승모근": (2000, 4000),
-    "어깨 전면": (2000, 4000),
-    "어깨 측면": (2000, 4000),
-    "어깨 후면": (2000, 4000),
-    "이두근": (2000, 4000),
-    "삼두근": (2000, 4000),
-    "전완근": (1000, 3000),
-    "복근": (2000, 4000),
-    "대퇴사두근": (6000, 10000),
-    "햄스트링": (4000, 8000),
-    "둔근": (4000, 8000),
-    "종아리": (2000, 4000),
+    "대흉근": (4000, 6000),  # pectoralis_major  ← 벤치프레스
+    "광배근": (4000, 6000),  # latissimus_dorsi  ← 바벨로우, 풀업
+    "능형근": (3000, 5000),  # rhomboids         ← 바벨로우
+    "승모근": (2000, 4000),  # trapezius
+    "전면 삼각근": (2000, 4000),  # anterior_deltoid  ← 오버헤드프레스
+    "측면 삼각근": (2000, 4000),  # lateral_deltoid
+    "후면 삼각근": (2000, 4000),  # posterior_deltoid
+    "이두근": (2000, 4000),  # biceps_brachii
+    "삼두근": (2000, 4000),  # triceps_brachii
+    "전완근": (1000, 3000),  # forearms
+    "복직근": (2000, 4000),  # rectus_abdominis  ← 플랭크
+    "대퇴사두근": (6000, 10000),  # quadriceps        ← 백 스쿼트
+    "햄스트링": (4000, 8000),  # hamstrings
+    "대둔근": (4000, 8000),  # gluteus_maximus
+    "종아리": (2000, 4000),  # calves
 }
 
 
@@ -911,7 +1044,8 @@ async def muscle_volume_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     days = 7 if period == "WEEK" else 30
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    # WorkoutLog.started_at은 timezone-naive로 저장되므로 replace(tzinfo=None) 필수
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
     rows = (
         await db.execute(
@@ -981,6 +1115,56 @@ async def muscle_volume_analysis(
     )
 
 
+# ── GET /sessions/active ─────────────────────────────────────────────────────
+# NOTE: /active must precede /{session_id} — FastAPI matches routes in
+# declaration order; placing it after would capture "active" as session_id.
+@router.get(
+    "/active",
+    response_model=SuccessResponse[ActiveSessionData | None],
+    summary="진행 중인 세션 조회",
+)
+@rate_limit("60/minute")
+async def get_active_session(
+    request: Request,
+    routine_id: str | None = Query(None, description="루틴 ID — 지정 시 해당 루틴의 진행 중 세션만 반환"),
+    current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(WorkoutLog, RoutineDay.routine_id)
+        .outerjoin(RoutineDay, WorkoutLog.routine_day_id == RoutineDay.id)
+        .where(
+            WorkoutLog.user_id == current_user.id,
+            WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
+        )
+        .order_by(WorkoutLog.started_at.desc())
+        .limit(1)
+    )
+
+    if routine_id:
+        routine_uuid = _parse_uuid(routine_id, "routine_id")
+        stmt = stmt.where(RoutineDay.routine_id == routine_uuid)
+
+    row = (await db.execute(stmt)).first()
+    if row is None:
+        return SuccessResponse(data=None)
+
+    s, resolved_routine_id = row
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    elapsed = max(0, int((now - _strip_tz(s.started_at)).total_seconds()))
+
+    return SuccessResponse(
+        data=ActiveSessionData(
+            session_id=str(s.id),
+            routine_id=str(resolved_routine_id) if resolved_routine_id else None,
+            routine_day_id=str(s.routine_day_id) if s.routine_day_id else None,
+            gym_id=str(s.gym_id) if s.gym_id else None,
+            started_at=s.started_at,
+            elapsed_seconds=elapsed,
+        )
+    )
+
+
 # ── GET /sessions/{id} ────────────────────────────────────────────────────────
 @router.get("/{session_id}", response_model=SuccessResponse[SessionDetail], summary="세션 상세")
 @rate_limit("60/minute")
@@ -1036,7 +1220,7 @@ async def session_detail(
             gym_id=str(s.gym_id) if s.gym_id else None,
             started_at=s.started_at,
             finished_at=s.finished_at,
-            status=s.status.value if s.status else "in_progress",
+            status=str(s.status) if s.status else "in_progress",
             routine_name=routine_name,
             sets=set_dtos,
             total_volume_kg=round(total_volume, 2),

@@ -1,11 +1,17 @@
 /**
- * 진행 중인 운동 세션 상태를 앱 메모리에 보존하는 스토어.
- * 루틴 상세 화면을 나갔다 돌아와도 체크 상태와 세션 ID가 유지된다.
- * 세션 완료(finishSession) 또는 앱 재시작 시 초기화된다.
+ * 진행 중인 운동 세션 상태를 AsyncStorage에 영속화하는 스토어.
+ * 루틴 상세 화면을 나갔다 돌아오거나 앱을 재시작해도 체크 상태와 세션 ID가 유지된다.
+ * 세션 완료(finishSession) 시 clear()로 초기화한다.
+ * 로그아웃 후 같은 계정으로 재로그인하면 체크 상태가 복원된다.
+ * 다른 계정으로 로그인하면 authStore.setAuth()에서 clear()를 호출한다.
  */
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface WorkoutSessionState {
+  /** 세션 소유자 user_id (JWT sub) — 다른 계정 로그인 시 clear 판단에 사용 */
+  owner_user_id: string | null;
   /** 현재 진행 중인 루틴 ID */
   routine_id: string | null;
   /** 백엔드 세션 ID */
@@ -13,24 +19,36 @@ interface WorkoutSessionState {
   /** set_id → 체크 여부 */
   checked_sets: Record<string, boolean>;
 
+  set_owner: (user_id: string) => void;
   set_session: (routine_id: string, session_id: string) => void;
   toggle_set: (set_id: string, is_done: boolean) => void;
   clear: () => void;
 }
 
-export const useWorkoutSessionStore = create<WorkoutSessionState>((set) => ({
-  routine_id: null,
-  session_id: null,
-  checked_sets: {},
+export const useWorkoutSessionStore = create<WorkoutSessionState>()(
+  persist(
+    (set) => ({
+      owner_user_id: null,
+      routine_id: null,
+      session_id: null,
+      checked_sets: {},
 
-  set_session: (routine_id, session_id) =>
-    set({ routine_id, session_id }),
+      set_owner: (user_id) => set({ owner_user_id: user_id }),
 
-  toggle_set: (set_id, is_done) =>
-    set((state) => ({
-      checked_sets: { ...state.checked_sets, [set_id]: is_done },
-    })),
+      set_session: (routine_id, session_id) =>
+        set({ routine_id, session_id }),
 
-  clear: () =>
-    set({ routine_id: null, session_id: null, checked_sets: {} }),
-}));
+      toggle_set: (set_id, is_done) =>
+        set((state) => ({
+          checked_sets: { ...state.checked_sets, [set_id]: is_done },
+        })),
+
+      clear: () =>
+        set({ owner_user_id: null, routine_id: null, session_id: null, checked_sets: {} }),
+    }),
+    {
+      name: 'workout-session',
+      storage: createJSONStorage(() => AsyncStorage),
+    },
+  ),
+);

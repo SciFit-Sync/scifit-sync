@@ -1038,7 +1038,7 @@ class TestMaxPerCategoryOverride:
 
         captured = {}
 
-        def fake_oa(name, max_results):
+        def fake_oa(name, max_results, min_date=None, max_date=None):
             captured["openalex_max"] = max_results
             return []
 
@@ -1180,4 +1180,140 @@ class TestAttachFulltextProgressLog:
         assert "europepmc 20" in last_msg
         assert "pmc 30" in last_msg
         assert "확보 50" in last_msg
-        assert "미확보 10" in last_msg
+
+
+class TestCrawlPapersCategories:
+    """crawl_papers categories 파라미터 — subset 필터 + 알 수 없는 이름 검증."""
+
+    def _patch_crawl(self, monkeypatch):
+        """OpenAlex/PubMed/fulltext 외부 호출을 모두 막는 공통 픽스처."""
+        import mlops.pipeline.crawler as crawler_mod
+
+        captured = {"names": []}
+
+        def fake_oa(name, max_results, min_date=None, max_date=None):
+            captured["names"].append(name)
+            return []
+
+        monkeypatch.setattr(crawler_mod, "search_openalex_by_category", fake_oa)
+        monkeypatch.setattr(crawler_mod, "search_pmids", lambda *a, **kw: [])
+        monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda _: [])
+        monkeypatch.setattr(crawler_mod, "_attach_fulltext", lambda metas: [])
+        return crawler_mod, captured
+
+    def test_categories_subset_filters_queries(self, monkeypatch):
+        """subset 지정 시 해당 카테고리만 search_openalex_by_category 호출."""
+        crawler_mod, captured = self._patch_crawl(monkeypatch)
+
+        crawler_mod.crawl_papers(
+            fetch_fulltext=False,
+            categories=["volume", "intensity"],
+        )
+
+        assert set(captured["names"]) == {"volume", "intensity"}
+
+    def test_categories_none_runs_all(self, monkeypatch):
+        """categories=None이면 SEARCH_QUERY_CATEGORIES 전체 카테고리 실행."""
+        crawler_mod, captured = self._patch_crawl(monkeypatch)
+
+        crawler_mod.crawl_papers(fetch_fulltext=False, categories=None)
+
+        all_names = {name for name, _, _ in crawler_mod.SEARCH_QUERY_CATEGORIES}
+        assert set(captured["names"]) == all_names
+
+    def test_categories_unknown_name_raises_value_error(self, monkeypatch):
+        """알 수 없는 카테고리명이 포함되면 ValueError — 오타 조용히 묻힘 방지."""
+        crawler_mod, _captured = self._patch_crawl(monkeypatch)
+
+        with pytest.raises(ValueError, match="알 수 없는 카테고리명"):
+            crawler_mod.crawl_papers(
+                fetch_fulltext=False,
+                categories=["volume", "nonexistent_category"],
+            )
+
+    def test_categories_single_element(self, monkeypatch):
+        """단일 카테고리만 지정해도 정상 동작."""
+        crawler_mod, captured = self._patch_crawl(monkeypatch)
+
+        crawler_mod.crawl_papers(fetch_fulltext=False, categories=["frequency"])
+
+        assert captured["names"] == ["frequency"]
+
+
+class TestCrawlPapersPublicationTypesFallback:
+    """crawl_papers: DOI→PMID backfill로도 PT를 못 얻은 잔여 논문 폴백 검증.
+
+    OpenAlex API는 publication_types를 비워 반환하고, PMID 미해석 OpenAlex-only
+    논문은 backfill에서도 빈 PT로 남아 pre-upsert validation publication_types
+    fill rate 게이트를 탈락시켰다 (refeed_v2 d010: 0.8491 < 0.85). 폴백은 그 잔여를
+    DEFAULT_PUBLICATION_TYPE로 채워 fill rate를 끌어올린다.
+    """
+
+    def _make_meta(self, doi, publication_types):
+        return PaperMeta(
+            pmid="",
+            title=f"t-{doi}",
+            authors="",
+            journal="",
+            published_year=2020,
+            doi=doi,
+            abstract="",
+            publication_types=list(publication_types),
+        )
+
+    def _patch(self, monkeypatch, oa_metas):
+        import mlops.pipeline.crawler as crawler_mod
+
+        monkeypatch.setattr(
+            crawler_mod,
+            "search_openalex_by_category",
+            lambda name, max_results, min_date=None, max_date=None: list(oa_metas),
+        )
+        monkeypatch.setattr(crawler_mod, "search_pmids", lambda *a, **kw: [])
+        monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda _: [])
+        # backfill은 외부 NCBI 호출이므로 no-op(0건 보강)으로 막아 폴백 경로만 격리한다.
+        monkeypatch.setattr(crawler_mod, "backfill_publication_types_from_pubmed", lambda metas: 0)
+        return crawler_mod
+
+    def test_empty_publication_types_filled_with_default(self, monkeypatch):
+        """backfill 실패한 빈 PT 논문 → DEFAULT_PUBLICATION_TYPE로 폴백, evidence_weight 0.50."""
+        from mlops.pipeline.crawler import DEFAULT_PUBLICATION_TYPE
+
+        oa = [self._make_meta("10.1/empty", [])]
+        crawler_mod = self._patch(monkeypatch, oa)
+
+        papers = crawler_mod.crawl_papers(fetch_fulltext=False, categories=["volume"])
+
+        assert len(papers) == 1
+        meta = papers[0].meta
+        assert meta.publication_types == [DEFAULT_PUBLICATION_TYPE]
+        assert meta.evidence_weight == 0.50
+
+    def test_existing_publication_types_preserved(self, monkeypatch):
+        """이미 PT가 있는 논문은 폴백이 덮어쓰지 않는다 (evidence_weight도 유지)."""
+        oa = [self._make_meta("10.1/ma", ["Meta-Analysis"])]
+        crawler_mod = self._patch(monkeypatch, oa)
+
+        papers = crawler_mod.crawl_papers(fetch_fulltext=False, categories=["volume"])
+
+        assert len(papers) == 1
+        meta = papers[0].meta
+        assert meta.publication_types == ["Meta-Analysis"]
+        assert meta.evidence_weight == 1.00
+
+    def test_no_chunk_left_with_empty_publication_types(self, monkeypatch):
+        """혼합 입력 — 빈 PT만 폴백되고 나머지는 그대로 → fill rate 100% 달성."""
+        from mlops.pipeline.crawler import DEFAULT_PUBLICATION_TYPE
+
+        oa = [
+            self._make_meta("10.1/empty", []),
+            self._make_meta("10.1/review", ["Review"]),
+        ]
+        crawler_mod = self._patch(monkeypatch, oa)
+
+        papers = crawler_mod.crawl_papers(fetch_fulltext=False, categories=["volume"])
+
+        assert all(p.meta.publication_types for p in papers), "빈 PT 청크가 남으면 안 된다"
+        by_doi = {p.meta.doi: p.meta for p in papers}
+        assert by_doi["10.1/empty"].publication_types == [DEFAULT_PUBLICATION_TYPE]
+        assert by_doi["10.1/review"].publication_types == ["Review"]

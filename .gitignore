@@ -48,8 +48,18 @@ Thumbs.db
 # Claude Code (로컬 설정)
 .claude/
 
+# Serena MCP 서버 로컬 설정 (커밋 금지)
+.serena/
+
+# 로컬 쿼리 결과 / 임시 출력 파일
+server/mg_out.txt
+server/muscle_groups_result.txt
+
 # 로컬 설계 메모 / 브레인스토밍 산출물 (커밋 금지)
 docs/specs/
+
+# 운동 GIF 정적 파일 (download_gifs_static.py로 재생성 가능)
+server/static/gifs/
 
 # mlops 파이프라인 로컬 산출물 (재생성 가능 — A/B test 산출물 포함)
 mlops/data/chroma-data/

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     KAKAO_REST_API_KEY: str = ""
     WORKOUTX_API_KEY: str = ""
 
+    # 서버 자기 공개 base URL (gif 프록시 등 self-referential 절대 URL 생성용)
+    # 환경별 override: dev=http://localhost:8000, prod=https://scifit-sync.com
+    PUBLIC_BASE_URL: str = "https://scifit-sync.com"
+
     # ChromaDB
     CHROMA_PERSIST_PATH: str = "/chroma-data"
     CHROMA_COLLECTION_NAME: str = "paper_chunks"

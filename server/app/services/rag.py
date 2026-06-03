@@ -443,6 +443,15 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
             if profile.available_exercises
             else ""
         )
+        + (
+            f"STRICT MUSCLE TARGETING: The exercise list above has been PRE-FILTERED "
+            f"to include ONLY exercises whose PRIMARY muscle is: {muscles_str}. "
+            f"Do NOT add exercises that primarily target other muscle groups "
+            f"(e.g. if target is shoulders, do NOT include chest/back/arm exercises). "
+            f"Every exercise you select MUST directly target the specified muscles.\n\n"
+            if profile.target_muscles and profile.available_exercises
+            else ""
+        )
         + "Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
     )
 

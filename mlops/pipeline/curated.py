@@ -238,7 +238,34 @@ def openalex_oa_url(doi: str, timeout: int = 30) -> dict | None:
     }
 
 
-def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
+# pypdf가 손상·linearized PDF에서 텍스트 레이어 대신 raw content stream 바이트를
+# 반환하는 경우를 차단하기 위한 임계값 (head 표본 중 비인쇄 문자 비율 상한).
+_GARBAGE_SAMPLE_SIZE = 2000
+_GARBAGE_CONTROL_RATIO_MAX = 0.05
+
+
+def _is_extraction_garbage(text: str) -> bool:
+    """pypdf 추출 결과가 실제 텍스트가 아니라 raw PDF 바이너리/깨진 인코딩인지 판별.
+
+    손상·linearized PDF에서 ``pypdf.extract_text()``가 텍스트 대신 raw content
+    stream 바이트를 뱉으면 본문에 ``%PDF-`` 헤더나 다량의 NUL·제어문자·replacement
+    문자(U+FFFD)가 섞인다 (실측: 14MB PDF → ``%PDF-1.2``로 시작하는 19,758개 garbage
+    청크가 pre-upsert 게이트를 막음). 정상 논문 본문은 깨끗한 UTF-8 텍스트이므로
+    길이와 무관하게 이 검사에 걸리지 않는다 — '청크 수 상한' 같은 blunt 컷오프와
+    달리 긴 정상 논문(메타분석/리뷰)을 오차단하지 않고 추출 실패만 정확히 거른다.
+    """
+    if not text:
+        return False
+    # 1) 본문 앞부분에 PDF 파일 시그니처가 있으면 raw 바이트 누수 확정
+    if "%PDF-" in text[:200]:
+        return True
+    # 2) 표본 내 비인쇄 제어문자 / replacement char 비율 과다
+    sample = text[:_GARBAGE_SAMPLE_SIZE]
+    bad = sum(1 for c in sample if c == "\x00" or c == "�" or (ord(c) < 32 and c not in "\t\n\r\f"))
+    return bad / len(sample) > _GARBAGE_CONTROL_RATIO_MAX
+
+
+def fetch_pdf_sections(url: str, timeout: int = 20) -> list:
     """OA PDF URL에서 sections 추출.
 
     Returns: list[PaperSection]. 실패(non-PDF / parse error / 50MB 초과 / timeout) 시 [].
@@ -303,6 +330,10 @@ def fetch_pdf_sections(url: str, timeout: int = 60) -> list:
     if not full_text:
         return []
 
+    if _is_extraction_garbage(full_text):
+        logger.warning("fetch_pdf_sections: 추출 결과가 raw PDF 바이너리/garbage — 폐기 %s", url)
+        return []
+
     return [PaperSection(name="Full Text", content=full_text)]
 
 
@@ -356,7 +387,7 @@ def unpaywall_oa_locations(doi: str, email: str = "research@example.com", timeou
     return locations
 
 
-def fetch_html_sections(url: str, timeout: int = 60) -> list:
+def fetch_html_sections(url: str, timeout: int = 20) -> list:
     """OA HTML landing page에서 본문 추출.
 
     Returns: list[PaperSection]. 실패 또는 본문 < 500자 시 [].

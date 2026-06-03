@@ -225,11 +225,22 @@ def build_search_params(
     per_page: int = DEFAULT_PER_PAGE,
     mailto: str,
     cursor: str = "*",
+    from_date: str | None = None,
+    to_date: str | None = None,
 ) -> dict:
-    """OpenAlex search 파라미터 빌더."""
+    """OpenAlex search 파라미터 빌더.
+
+    from_date/to_date는 YYYY-MM-DD (OpenAlex 형식). 지정 시 publication_date
+    범위 필터를 추가한다 — monthly 증분에서 OpenAlex가 매번 전(全)기간 동일
+    상위 결과를 반환해 dedup으로 전량 폐기되던 문제를 해소.
+    """
     filter_parts = ["type:article", "open_access.is_oa:true", "language:en"]
     if concept_ids:
         filter_parts.append("concepts.id:" + "|".join(concept_ids))
+    if from_date:
+        filter_parts.append(f"from_publication_date:{from_date}")
+    if to_date:
+        filter_parts.append(f"to_publication_date:{to_date}")
 
     params: dict = {
         "search": " ".join(keywords) if keywords else "",
@@ -261,8 +272,13 @@ class OpenAlexClient:
         concept_ids: list[str],
         max_results: int,
         per_page: int = DEFAULT_PER_PAGE,
+        min_date: str | None = None,
+        max_date: str | None = None,
     ) -> list[PaperMeta]:
-        """keyword/concept 검색, 최대 max_results까지 누적. CB trip 시 빈 리스트."""
+        """keyword/concept 검색, 최대 max_results까지 누적. CB trip 시 빈 리스트.
+
+        min_date/max_date(YYYY-MM-DD)는 publication_date 범위 필터 — monthly 증분용.
+        """
         if _circuit_breaker_tripped:
             return []
 
@@ -290,6 +306,8 @@ class OpenAlexClient:
                     per_page=min(per_page, max_results - len(results)),
                     mailto=self.mailto,
                     cursor=cursor,
+                    from_date=min_date,
+                    to_date=max_date,
                 )
 
                 resp = _request_with_retries(url, params, self.rate_limit, max_retries=self.max_retries)
@@ -307,7 +325,21 @@ class OpenAlexClient:
                 page += 1
                 if not works:
                     break
-        except Exception:
+        except Exception as exc:
+            # 부분 성공이면 누적분을 반환하고 연속 실패 카운터를 reset한다.
+            # Why: 마지막 페이지 1회 429/5xx로 그 카테고리에서 이미 받은 수백 편을
+            # 통째로 버리고 CB 카운터만 올리면, 긴 런에서 OpenAlex가 조용히 영구
+            # 차단(trip)되는 주원인이 된다. 일부라도 받았으면 정상 진행으로 간주.
+            if results:
+                logger.warning(
+                    "OpenAlex search 부분 실패 — 누적 %d papers 반환 (keywords=%s): %s",
+                    len(results),
+                    keywords,
+                    exc,
+                )
+                _record_success()
+                return results
+            # 0건이면 기존대로 실패 기록 후 raise (호출측 crawl_papers가 [] 처리)
             _record_failure(self.circuit_breaker_threshold)
             raise
 

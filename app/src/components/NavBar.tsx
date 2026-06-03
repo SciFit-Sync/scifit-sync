@@ -7,7 +7,7 @@ type TabName =
   | "WM01Main"
   | "WH02Analysis"
   | "WL01Record"
-  | "WC01Chat"
+  | "WN01Notifications"
   | "WP01MyPage";
 
 interface TabItem {
@@ -16,7 +16,7 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
-  { name: "WC01Chat", icon: "comment-discussion" },
+  { name: "WN01Notifications", icon: "bell" },
   { name: "WH02Analysis", icon: "graph" },
   { name: "WM01Main", icon: "home" },
   { name: "WL01Record", icon: "pencil" },

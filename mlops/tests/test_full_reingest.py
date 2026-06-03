@@ -433,3 +433,154 @@ def test_phase2_full_backfills_local_pdf_publication_types(monkeypatch, tmp_path
     assert captured["pub_types"]["10.1/pdf"] == ["Randomized Controlled Trial"]
     # 이미 보유한 JATS는 그대로 (멱등)
     assert captured["pub_types"]["10.1/jats"] == ["Review"]
+
+
+# --------------------------------------------------------------------------- #
+# --categories wiring — main → stage1_fetch → crawl_papers 전달 검증.
+# --------------------------------------------------------------------------- #
+
+
+class TestCategoriesWiring:
+    """--categories 인자가 stage1_fetch까지 올바르게 전달되는지 검증."""
+
+    def _common_patches(self, monkeypatch, tmp_path, captured: dict):
+        """main 실행에 필요한 모든 stage를 stub으로 교체."""
+        import mlops.scripts.full_reingest as fr
+
+        # stage1_fetch를 가짜로 교체해 categories 수신 여부 확인
+        def fake_stage1(
+            batch_tag,
+            mode,
+            max_per_category,
+            categories=None,
+            skip_local_pdf=False,
+            resume_from_manifest=False,
+        ):
+            captured["categories"] = categories
+            captured["skip_local_pdf"] = skip_local_pdf
+            captured["resume_from_manifest"] = resume_from_manifest
+            return tmp_path / "manifest.json"
+
+        monkeypatch.setattr(fr, "stage1_fetch", fake_stage1)
+        monkeypatch.setattr(fr, "stage1_5_manifest_sanity", lambda p: True)
+        monkeypatch.setattr(fr, "stage2_3_chunk_embed", lambda tag: tmp_path / "emb.jsonl.gz")
+        monkeypatch.setattr(fr, "stage3_5_validate", lambda p: True)
+        monkeypatch.setattr(fr, "stage4_upsert", lambda *a, **kw: 0)
+
+    def test_categories_passed_to_stage1(self, monkeypatch, tmp_path):
+        """--categories volume,intensity → stage1_fetch(categories=['volume','intensity'])."""
+        import mlops.scripts.full_reingest as fr
+
+        captured: dict = {}
+        self._common_patches(monkeypatch, tmp_path, captured)
+
+        fr.main(
+            [
+                "--mode",
+                "phase2_full",
+                "--batch-tag",
+                "test-batch",
+                "--categories",
+                "volume,intensity",
+                "--skip-stages",
+                "chunk_embed",
+                "validate",
+                "upsert",
+            ]
+        )
+
+        assert captured["categories"] == ["volume", "intensity"]
+
+    def test_no_categories_passes_none(self, monkeypatch, tmp_path):
+        """--categories 미지정 시 stage1_fetch에 categories=None 전달."""
+        import mlops.scripts.full_reingest as fr
+
+        captured: dict = {}
+        self._common_patches(monkeypatch, tmp_path, captured)
+
+        fr.main(
+            [
+                "--mode",
+                "phase2_full",
+                "--batch-tag",
+                "test-batch",
+                "--skip-stages",
+                "chunk_embed",
+                "validate",
+                "upsert",
+            ]
+        )
+
+        assert captured["categories"] is None
+        # --skip-local-pdf 미지정 시 기본 False
+        assert captured["skip_local_pdf"] is False
+
+    def test_skip_local_pdf_passed_to_stage1(self, monkeypatch, tmp_path):
+        """--skip-local-pdf 지정 시 stage1_fetch에 skip_local_pdf=True 전달."""
+        import mlops.scripts.full_reingest as fr
+
+        captured: dict = {}
+        self._common_patches(monkeypatch, tmp_path, captured)
+
+        fr.main(
+            [
+                "--mode",
+                "phase2_full",
+                "--batch-tag",
+                "test-batch",
+                "--skip-local-pdf",
+                "--skip-stages",
+                "chunk_embed",
+                "validate",
+                "upsert",
+            ]
+        )
+
+        assert captured["skip_local_pdf"] is True
+
+    def test_resume_from_manifest_passed_to_stage1(self, monkeypatch, tmp_path):
+        """--resume-from-manifest 지정 시 stage1_fetch에 resume_from_manifest=True 전달."""
+        import mlops.scripts.full_reingest as fr
+
+        captured: dict = {}
+        self._common_patches(monkeypatch, tmp_path, captured)
+
+        fr.main(
+            [
+                "--mode",
+                "phase2_full",
+                "--batch-tag",
+                "test-batch",
+                "--resume-from-manifest",
+                "--skip-stages",
+                "chunk_embed",
+                "validate",
+                "upsert",
+            ]
+        )
+
+        assert captured["resume_from_manifest"] is True
+
+    def test_categories_strips_whitespace(self, monkeypatch, tmp_path):
+        """콤마 구분 값의 앞뒤 공백이 제거되어 전달됨."""
+        import mlops.scripts.full_reingest as fr
+
+        captured: dict = {}
+        self._common_patches(monkeypatch, tmp_path, captured)
+
+        fr.main(
+            [
+                "--mode",
+                "phase2_full",
+                "--batch-tag",
+                "test-batch",
+                "--categories",
+                " volume , intensity , frequency ",
+                "--skip-stages",
+                "chunk_embed",
+                "validate",
+                "upsert",
+            ]
+        )
+
+        assert captured["categories"] == ["volume", "intensity", "frequency"]
