@@ -39,12 +39,12 @@ depends_on = None
 
 # (seed_py_name_ko, alembic_slug, new_name_ko)
 _PAIRS = [
-    ("가슴",     "pectoralis_major",  "가슴"),
-    ("어깨 전면", "anterior_deltoid",  "어깨 전면"),
-    ("어깨 측면", "lateral_deltoid",   "어깨 측면"),
+    ("가슴", "pectoralis_major", "가슴"),
+    ("어깨 전면", "anterior_deltoid", "어깨 전면"),
+    ("어깨 측면", "lateral_deltoid", "어깨 측면"),
     ("어깨 후면", "posterior_deltoid", "어깨 후면"),
-    ("둔근",     "gluteus_maximus",   "둔근"),
-    ("복근",     "rectus_abdominis",  "복근"),
+    ("둔근", "gluteus_maximus", "둔근"),
+    ("복근", "rectus_abdominis", "복근"),
 ]
 
 
@@ -54,9 +54,7 @@ def upgrade() -> None:
     for seed_name_ko, alembic_slug, new_name_ko in _PAIRS:
         # seed.py 그룹: name_ko = seed_name_ko, name ≠ alembic_slug
         seed_row = conn.execute(
-            sa.text(
-                "SELECT id FROM muscle_groups WHERE name_ko = :nko AND name != :slug"
-            ),
+            sa.text("SELECT id FROM muscle_groups WHERE name_ko = :nko AND name != :slug"),
             {"nko": seed_name_ko, "slug": alembic_slug},
         ).fetchone()
 
