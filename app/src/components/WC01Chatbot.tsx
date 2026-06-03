@@ -364,9 +364,9 @@ export default function WC01Chatbot({ onClose }: Props) {
                         {message.chips && (
                           <View style={styles.chips_container}>
                             <View style={styles.chips_row}>
-                              {message.chips.slice(0, 3).map((chip) => (
+                              {message.chips.slice(0, 3).map((chip, i) => (
                                 <TouchableOpacity
-                                  key={chip}
+                                  key={`chip_${i}_${chip}`}
                                   style={styles.chip}
                                   onPress={() => handle_chip_press(chip)}
                                   activeOpacity={0.8}
@@ -377,9 +377,9 @@ export default function WC01Chatbot({ onClose }: Props) {
                             </View>
                             {message.chips.length > 3 && (
                               <View style={styles.chips_row}>
-                                {message.chips.slice(3).map((chip) => (
+                                {message.chips.slice(3).map((chip, i) => (
                                   <TouchableOpacity
-                                    key={chip}
+                                    key={`chip_${i + 3}_${chip}`}
                                     style={styles.chip}
                                     onPress={() => handle_chip_press(chip)}
                                     activeOpacity={0.8}
