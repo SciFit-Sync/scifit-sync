@@ -207,7 +207,11 @@ class TestCrawlPapersWiring:
         import mlops.pipeline.crawler as crawler_mod
 
         oa_only = PaperMeta(pmid="", title="oa-only", doi="10.1/oaonly")  # 빈 publication_types
-        monkeypatch.setattr(crawler_mod, "search_openalex_by_category", lambda name, max_results: [oa_only])
+        monkeypatch.setattr(
+            crawler_mod,
+            "search_openalex_by_category",
+            lambda name, max_results, min_date=None, max_date=None: [oa_only],
+        )
         monkeypatch.setattr(crawler_mod, "search_pmids", lambda *a, **k: [])  # PubMed 무매칭
         monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda pmids: [])
 
