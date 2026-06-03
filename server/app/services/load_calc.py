@@ -22,7 +22,7 @@ def calculate_effective_weight(
     match equipment_type:
         case "cable" | "machine":
             s = stack or 0.0
-            return s / pulley_ratio + (bar_weight or 0.0)
+            return s * pulley_ratio + (bar_weight or 0.0)
         case "barbell":
             return (bar_weight or 0.0) + (added or 0.0)
         case "dumbbell":
