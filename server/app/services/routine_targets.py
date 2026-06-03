@@ -76,21 +76,40 @@ _DEFAULT_1RM_RATIO: dict[str, float] = {
     "female": 0.55,
 }
 
+# 경력 수준별 추정 1RM 보정 배수 (beginner=기준, 운동 경험에 따른 상대 강도 증가)
+_CAREER_LEVEL_MULTIPLIER: dict[str, float] = {
+    "beginner": 1.00,
+    "novice": 1.10,
+    "intermediate": 1.20,
+    "advanced": 1.35,
+}
 
-def _estimate_1rm_from_body_weight(body_weight: float, gender: str | None) -> float:
+
+def _estimate_1rm_from_body_weight(
+    body_weight: float,
+    gender: str | None,
+    career_level: str | None = None,
+) -> float:
     ratio = _DEFAULT_1RM_RATIO.get(gender or "", 0.65)  # 성별 미입력 시 중간값
-    return body_weight * ratio
+    career_mult = _CAREER_LEVEL_MULTIPLIER.get(career_level or "", 1.00)
+    return body_weight * ratio * career_mult
 
 
-def recommended_weight_kg(goal, user_1rm_kg, user_body_weight=None, user_gender=None):
+def recommended_weight_kg(
+    goal,
+    user_1rm_kg,
+    user_body_weight=None,
+    user_gender=None,
+    user_career_level=None,
+):
     """목표별 권장 중량 중간값 반환.
 
-    1RM이 있으면 우선 사용. 없으면 성별·체중 기반 추정 1RM으로 기본값 계산.
+    1RM이 있으면 우선 사용. 없으면 성별·경력·체중 기반 추정 1RM으로 기본값 계산.
     체중도 없으면 None 반환 (사용자가 첫 세션에 직접 입력).
     """
     if user_1rm_kg is None or user_1rm_kg <= 0:
         if user_body_weight and user_body_weight > 0:
-            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender)
+            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender, user_career_level)
         else:
             return None
     range_key = _GOAL_TO_RANGE_KEY.get(_normalize_goal(goal))
@@ -108,6 +127,7 @@ def derive_exercise_targets(
     user_1rm_kg=None,
     user_body_weight=None,
     user_gender=None,
+    user_career_level=None,
     llm_sets=None,
     llm_reps_min=None,
     llm_reps_max=None,
@@ -156,5 +176,5 @@ def derive_exercise_targets(
         "reps_min": reps_min,
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
-        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender),
+        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender, user_career_level),
     }

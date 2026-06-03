@@ -10,6 +10,7 @@ load_calc.py 자체의 100% 커버리지는 tests/test_load_calc.py에서 유지
 import pytest
 
 from app.services.routine_targets import (
+    _CAREER_LEVEL_MULTIPLIER,
     _REST_BY_GOAL,
     DEFAULT_SETS,
     derive_exercise_targets,
@@ -229,3 +230,87 @@ class TestDeriveExerciseTargets:
         # llm_rest_seconds는 무시되고 목표별 고정값이 항상 반환됨
         result = derive_exercise_targets(goal=goal, llm_rest_seconds=999)
         assert result["rest_seconds"] == expected_rest
+
+
+class TestCareerLevelMultiplier:
+    """경력 수준(career_level)이 체중 기반 추정 1RM에 적용되는지 검증."""
+
+    def test_multiplier_table_keys(self):
+        assert set(_CAREER_LEVEL_MULTIPLIER.keys()) == {"beginner", "novice", "intermediate", "advanced"}
+
+    def test_beginner_is_base(self):
+        assert _CAREER_LEVEL_MULTIPLIER["beginner"] == 1.00
+
+    def test_advanced_is_highest(self):
+        assert _CAREER_LEVEL_MULTIPLIER["advanced"] > _CAREER_LEVEL_MULTIPLIER["intermediate"]
+        assert _CAREER_LEVEL_MULTIPLIER["intermediate"] > _CAREER_LEVEL_MULTIPLIER["novice"]
+        assert _CAREER_LEVEL_MULTIPLIER["novice"] > _CAREER_LEVEL_MULTIPLIER["beginner"]
+
+    @pytest.mark.parametrize(
+        "career_level,expected_weight_kg",
+        [
+            # 80kg male, hypertrophy (67~77%, mid=72%)
+            # beginner: 1RM=80*0.75*1.00=60 → mid=43.2 → round(43.2/2.5)*2.5=42.5
+            ("beginner", 42.5),
+            # novice:    1RM=80*0.75*1.10=66 → mid=47.52 → round(47.52/2.5)*2.5=47.5
+            ("novice", 47.5),
+            # intermediate: 1RM=72 → mid=51.84 → round(51.84/2.5)*2.5=52.5
+            ("intermediate", 52.5),
+            # advanced:  1RM=81 → mid=58.32 → round(58.32/2.5)*2.5=57.5
+            ("advanced", 57.5),
+        ],
+    )
+    def test_career_level_scales_estimated_1rm(self, career_level, expected_weight_kg):
+        result = recommended_weight_kg(
+            "hypertrophy",
+            user_1rm_kg=None,
+            user_body_weight=80.0,
+            user_gender="male",
+            user_career_level=career_level,
+        )
+        assert result == expected_weight_kg
+
+    def test_unknown_career_level_defaults_to_beginner(self):
+        # 알 수 없는 경력 값 → 배수 1.00 적용 (beginner와 동일)
+        result = recommended_weight_kg(
+            "hypertrophy",
+            user_1rm_kg=None,
+            user_body_weight=80.0,
+            user_gender="male",
+            user_career_level="expert",  # 허용 목록 외
+        )
+        assert result == 42.5
+
+    def test_none_career_level_defaults_to_beginner(self):
+        result = recommended_weight_kg(
+            "hypertrophy",
+            user_1rm_kg=None,
+            user_body_weight=80.0,
+            user_gender="male",
+            user_career_level=None,
+        )
+        assert result == 42.5
+
+    def test_real_1rm_ignores_career_level(self):
+        # 실측 1RM이 있으면 career_level 배수는 적용되지 않아야 함
+        base = recommended_weight_kg("hypertrophy", user_1rm_kg=100.0)
+        with_career = recommended_weight_kg("hypertrophy", user_1rm_kg=100.0, user_career_level="advanced")
+        assert base == with_career == 72.5
+
+    def test_derive_exercise_targets_passes_career_level(self):
+        # derive_exercise_targets가 career_level을 recommended_weight_kg까지 전달하는지 검증
+        beginner = derive_exercise_targets(
+            goal="hypertrophy",
+            user_body_weight=80.0,
+            user_gender="male",
+            user_career_level="beginner",
+        )
+        advanced = derive_exercise_targets(
+            goal="hypertrophy",
+            user_body_weight=80.0,
+            user_gender="male",
+            user_career_level="advanced",
+        )
+        assert beginner["weight_kg"] == 42.5
+        assert advanced["weight_kg"] == 57.5
+        assert advanced["weight_kg"] > beginner["weight_kg"]
