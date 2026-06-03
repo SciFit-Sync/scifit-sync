@@ -75,16 +75,16 @@ def upgrade() -> None:
             sa.text(
                 """
                 INSERT INTO exercise_muscles (exercise_id, muscle_group_id, involvement, activation_pct)
-                SELECT exercise_id, :alembic_id::uuid, involvement, activation_pct
+                SELECT exercise_id, CAST(:alembic_id AS uuid), involvement, activation_pct
                 FROM exercise_muscles
-                WHERE muscle_group_id = :seed_id::uuid
+                WHERE muscle_group_id = CAST(:seed_id AS uuid)
                 ON CONFLICT DO NOTHING
                 """
             ),
             {"alembic_id": alembic_id, "seed_id": seed_id},
         )
         conn.execute(
-            sa.text("DELETE FROM exercise_muscles WHERE muscle_group_id = :seed_id::uuid"),
+            sa.text("DELETE FROM exercise_muscles WHERE muscle_group_id = CAST(:seed_id AS uuid)"),
             {"seed_id": seed_id},
         )
 
@@ -93,16 +93,16 @@ def upgrade() -> None:
             sa.text(
                 """
                 INSERT INTO equipment_muscles (equipment_id, muscle_group_id, involvement)
-                SELECT equipment_id, :alembic_id::uuid, involvement
+                SELECT equipment_id, CAST(:alembic_id AS uuid), involvement
                 FROM equipment_muscles
-                WHERE muscle_group_id = :seed_id::uuid
+                WHERE muscle_group_id = CAST(:seed_id AS uuid)
                 ON CONFLICT DO NOTHING
                 """
             ),
             {"alembic_id": alembic_id, "seed_id": seed_id},
         )
         conn.execute(
-            sa.text("DELETE FROM equipment_muscles WHERE muscle_group_id = :seed_id::uuid"),
+            sa.text("DELETE FROM equipment_muscles WHERE muscle_group_id = CAST(:seed_id AS uuid)"),
             {"seed_id": seed_id},
         )
 
@@ -130,7 +130,7 @@ def upgrade() -> None:
 
         # ── 4. seed.py 중복 그룹 삭제 ────────────────────────────────────────
         conn.execute(
-            sa.text("DELETE FROM muscle_groups WHERE id = :seed_id::uuid"),
+            sa.text("DELETE FROM muscle_groups WHERE id = CAST(:seed_id AS uuid)"),
             {"seed_id": seed_id},
         )
 
