@@ -2,6 +2,17 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { useWorkoutSessionStore } from './workoutSessionStore';
 
+/** JWT payload의 sub(user_id)를 디코딩. 파싱 실패 시 null 반환. */
+function _decode_jwt_sub(token: string): string | null {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64));
+    return typeof payload.sub === 'string' ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 const KEYS = {
   ACCESS_TOKEN: 'scifiit_access_token',
   REFRESH_TOKEN: 'scifiit_refresh_token',
@@ -34,6 +45,16 @@ export const useAuthStore = create<AuthState>((set) => ({
         SecureStore.getItemAsync(KEYS.REFRESH_TOKEN),
         SecureStore.getItemAsync(KEYS.ONBOARDING_COMPLETE),
       ]);
+      if (accessToken) {
+        const sub = _decode_jwt_sub(accessToken);
+        if (sub) {
+          const ws = useWorkoutSessionStore.getState();
+          if (ws.owner_user_id && ws.owner_user_id !== sub) {
+            ws.clear();
+          }
+          ws.set_owner(sub);
+        }
+      }
       set({
         accessToken,
         refreshToken,
@@ -52,6 +73,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refresh_token),
       SecureStore.setItemAsync(KEYS.ONBOARDING_COMPLETE, is_new_user ? 'false' : 'true'),
     ]);
+    const sub = _decode_jwt_sub(access_token);
+    if (sub) {
+      const ws = useWorkoutSessionStore.getState();
+      if (ws.owner_user_id && ws.owner_user_id !== sub) {
+        // 다른 계정으로 로그인 → 이전 운동 세션 초기화
+        ws.clear();
+      }
+      ws.set_owner(sub);
+    }
     set({ accessToken: access_token, refreshToken: refresh_token, isLoggedIn: true, isNewUser: is_new_user });
   },
 
@@ -66,8 +96,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN),
       SecureStore.deleteItemAsync(KEYS.ONBOARDING_COMPLETE),
     ]);
-    // 로그아웃 시 진행 중인 운동 세션 상태도 함께 초기화
-    useWorkoutSessionStore.getState().clear();
+    // 운동 세션 상태는 유지 — 같은 계정으로 재로그인 시 체크 상태 복원을 위해
+    // 다른 계정 로그인 시에는 setAuth()에서 clear() 처리
     set({ accessToken: null, refreshToken: null, isLoggedIn: false, isNewUser: false });
   },
 }));
