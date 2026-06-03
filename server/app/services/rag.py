@@ -698,7 +698,12 @@ if __name__ == "__main__":
             fitness_career="intermediate",
             available_equipments=[
                 {"equipment_id": "demo", "label": "Bench Press", "equipment_type": "barbell", "source": "FREE"},
-                {"equipment_id": "demo", "label": "Machine Chest Press", "equipment_type": "machine", "source": "MACHINE"},
+                {
+                    "equipment_id": "demo",
+                    "label": "Machine Chest Press",
+                    "equipment_type": "machine",
+                    "source": "MACHINE",
+                },
             ],
             target_muscles=["chest", "triceps"],
             session_minutes=75,

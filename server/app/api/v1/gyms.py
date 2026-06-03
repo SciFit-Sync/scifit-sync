@@ -647,8 +647,7 @@ async def list_equipments_by_muscle(
     ]
 
     logger.debug(
-        "list_equipments_by_muscle: gym_id=%s muscle_group_id=%s involvement=%s "
-        "machines=%d free_weights=%d",
+        "list_equipments_by_muscle: gym_id=%s muscle_group_id=%s involvement=%s machines=%d free_weights=%d",
         gym_id,
         muscle_group_id,
         involvement,
