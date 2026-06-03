@@ -114,15 +114,15 @@ def upgrade() -> None:
                 UPDATE workout_routines
                 SET target_muscle_group_ids = (
                     SELECT jsonb_agg(
-                        CASE WHEN elem = to_jsonb(:seed_id)
-                             THEN to_jsonb(:alembic_id)
+                        CASE WHEN elem = to_jsonb(CAST(:seed_id AS text))
+                             THEN to_jsonb(CAST(:alembic_id AS text))
                              ELSE elem
                         END
                     )
                     FROM jsonb_array_elements(target_muscle_group_ids) AS elem
                 )
                 WHERE target_muscle_group_ids IS NOT NULL
-                  AND target_muscle_group_ids @> to_jsonb(:seed_id)
+                  AND target_muscle_group_ids @> to_jsonb(CAST(:seed_id AS text))
                 """
             ),
             {"seed_id": seed_id, "alembic_id": alembic_id},
