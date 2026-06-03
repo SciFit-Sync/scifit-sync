@@ -76,12 +76,30 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/routines", tags=["routines"])
 
+# 루틴 생성 시 프론트에서 전송하는 영어 부위 키 → 한국어 표시명
+_BODY_PART_KO: dict[str, str] = {
+    "chest": "가슴",
+    "back": "등",
+    "shoulder": "어깨",
+    "legs": "하체",
+    "arms": "팔",
+    "abs": "복근",
+}
 
-def _routine_to_summary(r: WorkoutRoutine, gym_name: str | None = None) -> RoutineSummary:
+
+def _routine_to_summary(
+    r: WorkoutRoutine,
+    gym_name: str | None = None,
+) -> RoutineSummary:
+    target_muscle_names: list[str] | None = None
+    if r.target_muscle_group_ids:
+        names = [_BODY_PART_KO.get(mid, mid) for mid in r.target_muscle_group_ids]
+        target_muscle_names = names or None
     return RoutineSummary(
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
+        target_muscle_names=target_muscle_names,
         split_type=str(r.split_type) if r.split_type else None,
         generated_by=str(r.generated_by) if r.generated_by else "user",
         status=str(r.status) if r.status else "active",

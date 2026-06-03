@@ -1,4 +1,6 @@
 import { useState } from "react";
+import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import WC01Chatbot from "../../components/WC01Chatbot";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +16,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
-import { getNotifications, markNotificationRead, markAllNotificationsRead } from "../../services/notifications";
+import {
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "../../services/notifications";
 
 function fmt_relative_time(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -31,13 +37,20 @@ function fmt_relative_time(iso: string): string {
 
 function get_icon(type: string): string {
   if (type.includes("routine") || type.includes("ROUTINE")) return "calendar";
-  if (type.includes("ai") || type.includes("AI") || type.includes("po") || type.includes("PO")) return "light-bulb";
+  if (
+    type.includes("ai") ||
+    type.includes("AI") ||
+    type.includes("po") ||
+    type.includes("PO")
+  )
+    return "light-bulb";
   return "bell";
 }
 
 export default function WN01Notifications() {
   const token = useAuthStore((s) => s.accessToken) ?? "";
   const queryClient = useQueryClient();
+  const [show_chatbot, set_show_chatbot] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["notifications", token],
@@ -60,7 +73,9 @@ export default function WN01Notifications() {
     try {
       await markAllNotificationsRead(token);
       queryClient.invalidateQueries({ queryKey: ["notifications", token] });
-      queryClient.invalidateQueries({ queryKey: ["notifications_unread", token] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications_unread", token],
+      });
     } catch {
       Alert.alert("오류", "읽음 처리에 실패했습니다. 다시 시도해주세요.");
     }
@@ -91,7 +106,10 @@ export default function WN01Notifications() {
           </View>
 
           {isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ paddingVertical: 40 }} />
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ paddingVertical: 40 }}
+            />
           ) : notifications.length > 0 ? (
             <View style={styles.notification_list}>
               {notifications.map((item, index) => (
@@ -101,10 +119,17 @@ export default function WN01Notifications() {
                       styles.notification_item,
                       !item.is_read && styles.notification_item_unread,
                     ]}
-                    onPress={() => !item.is_read && mark_read(item.notification_id)}
+                    onPress={() =>
+                      !item.is_read && mark_read(item.notification_id)
+                    }
                     activeOpacity={0.8}
                   >
-                    <View style={[styles.icon_box, !item.is_read && styles.icon_box_unread]}>
+                    <View
+                      style={[
+                        styles.icon_box,
+                        !item.is_read && styles.icon_box_unread,
+                      ]}
+                    >
                       <Octicons
                         name={get_icon(item.type) as any}
                         size={18}
@@ -114,13 +139,18 @@ export default function WN01Notifications() {
 
                     <View style={styles.notification_content}>
                       <View style={styles.notification_header}>
-                        <Text style={styles.notification_title}>{item.title}</Text>
+                        <Text style={styles.notification_title}>
+                          {item.title}
+                        </Text>
                         <Text style={styles.notification_time}>
                           {fmt_relative_time(item.created_at)}
                         </Text>
                       </View>
                       <Text
-                        style={[styles.notification_body, item.is_read && styles.notification_body_read]}
+                        style={[
+                          styles.notification_body,
+                          item.is_read && styles.notification_body_read,
+                        ]}
                         numberOfLines={2}
                       >
                         {item.body}
@@ -130,7 +160,9 @@ export default function WN01Notifications() {
                     {!item.is_read && <View style={styles.unread_dot} />}
                   </TouchableOpacity>
 
-                  {index < notifications.length - 1 && <View style={styles.divider} />}
+                  {index < notifications.length - 1 && (
+                    <View style={styles.divider} />
+                  )}
                 </View>
               ))}
             </View>
@@ -146,6 +178,8 @@ export default function WN01Notifications() {
       <SafeAreaView edges={["bottom"]} style={styles.safe_bottom}>
         <BottomNavBar />
       </SafeAreaView>
+      <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
+      {show_chatbot && <WC01Chatbot onClose={() => set_show_chatbot(false)} />}
     </View>
   );
 }
@@ -267,7 +301,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   placeholder: {
-    width: 60,
+    width: 44,
   },
   empty_text: {
     fontFamily: "regular",
