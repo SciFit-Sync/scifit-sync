@@ -48,11 +48,7 @@ from mlops.pipeline.europepmc import EuropePMCClient
 from mlops.pipeline.evidence import calculate_evidence_weight
 from mlops.pipeline.models import PaperFull, PaperMeta, PaperSection
 from mlops.pipeline.oa_fetcher import PaperRef, build_default_chain, fetch_chain
-from mlops.pipeline.openalex import (
-    OpenAlexClient,
-    is_circuit_breaker_tripped,
-    reset_circuit_breaker,
-)
+from mlops.pipeline.openalex import OpenAlexClient
 from mlops.pipeline.pmc import PMCClient
 
 logger = logging.getLogger(__name__)
@@ -1234,16 +1230,10 @@ def _get_openalex_client() -> OpenAlexClient:
     )
 
 
-def search_openalex_by_category(
-    category: str,
-    max_results: int,
-    min_date: str | None = None,
-    max_date: str | None = None,
-) -> list[PaperMeta]:
+def search_openalex_by_category(category: str, max_results: int) -> list[PaperMeta]:
     """카테고리명을 CATEGORY_OPENALEX_MAPPING으로 변환해 OpenAlex 검색.
 
     매핑에 없는 카테고리는 카테고리명을 그대로 keyword로 사용한다 (fallback).
-    min_date/max_date(YYYY-MM-DD)는 publication_date 범위 필터로 전달된다.
     """
     cfg = CATEGORY_OPENALEX_MAPPING.get(
         category,
@@ -1254,8 +1244,6 @@ def search_openalex_by_category(
         keywords=cfg["keywords"],
         concept_ids=cfg["concept_ids"],
         max_results=max_results,
-        min_date=min_date,
-        max_date=max_date,
     )
 
 
@@ -1532,10 +1520,6 @@ def crawl_papers(
     Returns:
         PaperFull 리스트. 각 PaperMeta는 search_categories + evidence_weight + fulltext_source 부여됨.
     """
-    # 런 시작 시 OpenAlex circuit breaker 초기화 — 이전 런/프로세스의 trip 잔여 상태 제거.
-    # crawl_papers는 initial/monthly/full_reingest 모든 진입점이 호출하므로 여기서 1회 reset.
-    reset_circuit_breaker()
-
     if queries is None:
         # 3-튜플 (name, query, filter_level) → 2-튜플 + strict bool 변환.
         # 기존 SEARCH_QUERY_CATEGORIES의 filter_level은 strict/semi/loose가 있지만,
@@ -1558,21 +1542,13 @@ def crawl_papers(
 
     publication_filter = get_publication_filter()
 
-    # OpenAlex publication_date 필터는 YYYY-MM-DD, PubMed pdat는 YYYY/MM/DD.
-    # monthly 증분(min_date/max_date 지정)에서 OpenAlex에도 동일 윈도우를 적용해,
-    # 매번 전(全)기간 동일 상위 결과를 받아 dedup으로 전량 폐기되던 문제를 막는다.
-    oa_min_date = min_date.replace("/", "-") if min_date else None
-    oa_max_date = max_date.replace("/", "-") if max_date else None
-
     per_category: list[tuple[str, list[PaperMeta]]] = []
     for name, pubmed_query, strict in queries:
-        # OpenAlex 메인 검색 (monthly면 날짜 범위 필터 적용)
+        # OpenAlex 메인 검색
         try:
             openalex_results = search_openalex_by_category(
                 name,
                 max_results=openalex_max,
-                min_date=oa_min_date,
-                max_date=oa_max_date,
             )
         except Exception as e:
             logger.warning("OpenAlex 카테고리 '%s' 검색 실패: %s", name, e)
@@ -1596,12 +1572,6 @@ def crawl_papers(
             len(openalex_results),
             len(pubmed_metas),
             len(cat_metas),
-        )
-
-    if is_circuit_breaker_tripped():
-        logger.error(
-            "OpenAlex circuit breaker가 trip된 상태로 카테고리 순회 종료 — 일부 카테고리가 "
-            "PubMed 보조만으로 수집됐을 수 있음. OPENALEX_MAILTO 설정 후 재실행을 권장."
         )
 
     # round-robin dedup + cap (DOI primary key)

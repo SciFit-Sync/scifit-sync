@@ -1038,7 +1038,7 @@ class TestMaxPerCategoryOverride:
 
         captured = {}
 
-        def fake_oa(name, max_results, min_date=None, max_date=None):
+        def fake_oa(name, max_results):
             captured["openalex_max"] = max_results
             return []
 
@@ -1191,7 +1191,7 @@ class TestCrawlPapersCategories:
 
         captured = {"names": []}
 
-        def fake_oa(name, max_results, min_date=None, max_date=None):
+        def fake_oa(name, max_results):
             captured["names"].append(name)
             return []
 
@@ -1264,11 +1264,7 @@ class TestCrawlPapersPublicationTypesFallback:
     def _patch(self, monkeypatch, oa_metas):
         import mlops.pipeline.crawler as crawler_mod
 
-        monkeypatch.setattr(
-            crawler_mod,
-            "search_openalex_by_category",
-            lambda name, max_results, min_date=None, max_date=None: list(oa_metas),
-        )
+        monkeypatch.setattr(crawler_mod, "search_openalex_by_category", lambda name, max_results: list(oa_metas))
         monkeypatch.setattr(crawler_mod, "search_pmids", lambda *a, **kw: [])
         monkeypatch.setattr(crawler_mod, "fetch_paper_metadata", lambda _: [])
         # backfill은 외부 NCBI 호출이므로 no-op(0건 보강)으로 막아 폴백 경로만 격리한다.
