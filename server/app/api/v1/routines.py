@@ -916,6 +916,36 @@ async def _build_rag_profile(
     )
 
 
+async def _fetch_exercise_equipment(
+    exercise_id: uuid.UUID,
+    gym_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> tuple[str | None, float, float | None]:
+    """exercise_id + gym_id 기준으로 장비 정보를 조회한다.
+
+    Returns:
+        (equipment_type, pulley_ratio, bar_weight)
+        gym_id가 없거나 매핑이 없으면 (None, 1.0, None) 반환.
+    """
+    if gym_id is None:
+        return None, 1.0, None
+    row = (
+        await db.execute(
+            select(Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight)
+            .join(ExerciseEquipmentMap, ExerciseEquipmentMap.equipment_id == Equipment.id)
+            .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
+            .where(
+                ExerciseEquipmentMap.exercise_id == exercise_id,
+                GymEquipment.gym_id == gym_id,
+            )
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None, 1.0, None
+    return str(row.equipment_type), float(row.pulley_ratio), row.bar_weight
+
+
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
     """LLM이 출력한 운동 이름 → exercises.id.
 
@@ -1001,6 +1031,7 @@ async def _persist_day(
     user_body_weight: float,
     user_gender: str | None,
     user_career_level: str | None,
+    gym_id: uuid.UUID | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
     """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
@@ -1022,12 +1053,17 @@ async def _persist_day(
             logger.warning("운동 '%s' 매칭 실패 — 제외", name)
             continue
 
+        eq_type, pulley_ratio, bar_weight = await _fetch_exercise_equipment(exercise_id, gym_id, db)
+
         targets = derive_exercise_targets(
             goal=primary_goal,
             user_1rm_kg=user_1rms.get(exercise_id),
             user_body_weight=user_body_weight,
             user_gender=user_gender,
             user_career_level=user_career_level,
+            equipment_type=eq_type,
+            pulley_ratio=pulley_ratio,
+            bar_weight=bar_weight,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -1161,6 +1197,7 @@ async def _run_rag_to_sse(
                     user_body_weight=profile.body_weight,
                     user_gender=str(profile.gender) if profile.gender else None,
                     user_career_level=str(profile.career_level) if profile.career_level else None,
+                    gym_id=routine.gym_id,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집

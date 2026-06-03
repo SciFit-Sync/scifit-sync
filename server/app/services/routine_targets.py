@@ -9,7 +9,7 @@ load_calc.py는 100% 커버리지 대상(CLAUDE.md §13)이므로 이 모듈에 
 
 from __future__ import annotations
 
-from app.services.load_calc import RANGES, get_recommended_weight_range
+from app.services.load_calc import RANGES, effective_to_stack_weight, get_recommended_weight_range
 
 # CLAUDE.md §11 목표별 권장 반복 범위
 _REPS_BY_GOAL: dict[str, tuple[int, int]] = {
@@ -101,11 +101,15 @@ def recommended_weight_kg(
     user_body_weight=None,
     user_gender=None,
     user_career_level=None,
+    equipment_type=None,
+    pulley_ratio=1.0,
+    bar_weight=None,
 ):
     """목표별 권장 중량 중간값 반환.
 
     1RM이 있으면 우선 사용. 없으면 성별·경력·체중 기반 추정 1RM으로 기본값 계산.
     체중도 없으면 None 반환 (사용자가 첫 세션에 직접 입력).
+    cable/machine 장비는 실효 부하를 스택 설정값으로 역변환해 반환한다.
     """
     if user_1rm_kg is None or user_1rm_kg <= 0:
         if user_body_weight and user_body_weight > 0:
@@ -116,9 +120,12 @@ def recommended_weight_kg(
     if range_key is None or range_key not in RANGES:
         return None
     low, high = get_recommended_weight_range(user_1rm_kg, range_key)
-    # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
     mid = (low + high) / 2.0
-    return round(mid / 2.5) * 2.5
+    # cable/machine은 스택 설정값으로 역변환, 나머지는 실효 부하 그대로 사용
+    stack = effective_to_stack_weight(mid, equipment_type or "", pulley_ratio, bar_weight)
+    display = stack if stack is not None else mid
+    # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
+    return round(display / 2.5) * 2.5
 
 
 def derive_exercise_targets(
@@ -128,6 +135,9 @@ def derive_exercise_targets(
     user_body_weight=None,
     user_gender=None,
     user_career_level=None,
+    equipment_type=None,
+    pulley_ratio=1.0,
+    bar_weight=None,
     llm_sets=None,
     llm_reps_min=None,
     llm_reps_max=None,
@@ -176,5 +186,5 @@ def derive_exercise_targets(
         "reps_min": reps_min,
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
-        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender, user_career_level),
+        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender, user_career_level, equipment_type, pulley_ratio, bar_weight),
     }
