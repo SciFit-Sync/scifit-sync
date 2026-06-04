@@ -326,12 +326,18 @@ def chat_rag(question: str) -> dict:
 
 @dataclass
 class UserProfile:
-    """루틴 생성용 사용자 프로필 (goals 첫 번째가 검색 기준, 나머지는 프롬프트 보조)."""
+    """루틴 생성용 사용자 프로필 (goals 첫 번째가 검색 기준, 나머지는 프롬프트 보조).
+
+    available_equipments: 헬스장 기구 목록 (기구 중심 재설계 PR-3).
+        각 항목: {"label": str, "equipment_type": str, "source": "MACHINE" | "FREE"}
+        - MACHINE: gym_equipments + equipments(is_freeweight=false) 기반, 헬스장별
+        - FREE: exercise_muscles + exercises + equipments(is_freeweight=true) 기반, 전 헬스장 공통
+    """
 
     goals: list[str]  # hypertrophy | strength | endurance | rehabilitation | weight_loss
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
-    available_exercises: list[str] = field(default_factory=list)  # gym에서 할 수 있는 운동 name_en 목록
+    available_equipments: list[dict] = field(default_factory=list)  # {"label", "equipment_type", "source"} 목록
     target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
@@ -356,18 +362,27 @@ _GOAL_QUERIES = {
 
 
 def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
-    """루틴 생성 프롬프트를 조합한다."""
+    """루틴 생성 프롬프트를 조합한다. (PR-3: 기구 중심 재설계)
+
+    available_equipments 기반으로 LLM에게 헬스장 실재 기구 목록을 제공.
+    LLM은 equipment_label을 그대로 출력해야 하며, 서버가 label→(equipment_id, exercise_id)로 변환.
+    """
     goals_str = ", ".join(g.lower() for g in profile.goals) if profile.goals else "hypertrophy"
     muscles_str = ", ".join(profile.target_muscles) if profile.target_muscles else "balanced full-body"
 
-    if profile.available_exercises:
-        exercise_list_str = "\n".join(f"- {name}" for name in profile.available_exercises)
-        exercises_section = (
-            f"\nAvailable exercises at this gym (use ONLY these exact names — do not invent other names):\n"
-            f"{exercise_list_str}\n"
+    # 기구 목록 섹션 구성 (available_equipments 우선, 없으면 기본 문구)
+    if profile.available_equipments:
+        equip_lines = []
+        for eq in profile.available_equipments:
+            tag = "[MACHINE]" if eq.get("source") == "MACHINE" else "[FREE]"
+            equip_lines.append(f"- {eq['label']} {tag} ({eq.get('equipment_type', '')})")
+        equip_list_str = "\n".join(equip_lines)
+        equipments_section = (
+            f"\nAvailable equipment at this gym (use ONLY these exact labels — do not invent other labels):\n"
+            f"{equip_list_str}\n"
         )
     else:
-        exercises_section = "\nAvailable equipment: barbell, dumbbell, bodyweight (standard exercises allowed)\n"
+        equipments_section = "\nAvailable equipment: barbell, dumbbell, bodyweight (standard exercises allowed)\n"
 
     extras = []
     if profile.session_minutes:
@@ -396,10 +411,33 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         context = "No research papers available. Use your sports science knowledge."
         paper_index_rule = ""
 
-    name_rule = (
-        '- "name" must be chosen EXACTLY from the Available exercises list above. Do not invent or paraphrase names.\n'
-        if profile.available_exercises
+    # equipment_label 선택 규칙
+    label_rule = (
+        '- "equipment_label" must be chosen EXACTLY from the Available equipment list above (the label before [MACHINE]/[FREE]). '
+        "Do not invent or paraphrase labels.\n"
+        if profile.available_equipments
         else ""
+    )
+
+    target_muscle_rule = (
+        f"- Include ONLY exercises that target {muscles_str}. Do NOT add exercises for any other muscle group, even if the equipment list is short.\n"
+        if profile.target_muscles
+        else ""
+    )
+
+    # 세션 시간 기반 최소 운동 개수 (단일 근육 부위도 다양한 각도/변형으로 채울 것)
+    _mins = profile.session_minutes or 60
+    if _mins <= 30:
+        _min_ex, _max_ex = 3, 4
+    elif _mins <= 60:
+        _min_ex, _max_ex = 4, 6
+    elif _mins <= 90:
+        _min_ex, _max_ex = 6, 8
+    else:
+        _min_ex, _max_ex = 7, 10
+    exercise_count_rule = (
+        f"- Include {_min_ex}–{_max_ex} exercises. "
+        f"Even when targeting a single muscle group, fill the count using different angles, grips, or movement variations.\n"
     )
 
     return (
@@ -407,24 +445,28 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"based ONLY on the research papers below.\n\n"
         f"User Profile:\n"
         f"- Goals (primary first): {goals_str}\n"
-        f"- Target muscles to emphasize: {muscles_str}\n"
+        f"- Target muscles (ONLY these — no other muscle groups): {muscles_str}\n"
         f"- Body weight: {profile.body_weight}kg\n"
         f"- Fitness level: {profile.fitness_career}"
-        f"{exercises_section}"
+        f"{equipments_section}"
         f"{extras_str}\n\n"
         f"Research papers:\n{context}\n\n"
         f"Output a JSON array of exactly 1 day object.\n"
         f"Each object format:\n"
         f'{{"day": <number>, "focus": "<muscle group>", "exercises": ['
-        f'{{"name": "<exercise name>", "sets": <number>, '
+        f'{{"equipment_label": "<exact label from the Available equipment list>", '
+        f'"equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
+        f'"sets": <number>, '
         f'"reps_min": <number>, "reps_max": <number>, '
-        f'"rest_seconds": <number>, "equipment_type": "<cable|machine|barbell|dumbbell|bodyweight>", '
+        f'"rest_seconds": <number>, '
         f'"notes": "<Korean sentence explaining WHY this exercise was chosen based on the paper evidence. '
         f"Do NOT include [Paper N] citations — write the finding naturally. "
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
-        f"{name_rule}"
+        f"{exercise_count_rule}"
+        f"{label_rule}"
+        f"{target_muscle_rule}"
         f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
         f"{paper_index_rule}"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
@@ -437,10 +479,19 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"  * rehabilitation: 60-120\n"
         f"  * weight_loss: 30-45\n"
         + (
-            f"IMPORTANT: You MUST use ONLY exercise names from this exact list. "
-            f"Do NOT invent new names — pick the closest match:\n"
-            f"{chr(10).join('- ' + ex for ex in profile.available_exercises)}\n\n"
-            if profile.available_exercises
+            f"IMPORTANT: You MUST use ONLY equipment labels from this exact list. "
+            f"Do NOT invent new labels — pick the closest match:\n"
+            f"{chr(10).join('- ' + eq['label'] for eq in profile.available_equipments)}\n\n"
+            if profile.available_equipments
+            else ""
+        )
+        + (
+            f"STRICT MUSCLE TARGETING: The equipment list above has been PRE-FILTERED "
+            f"to include ONLY equipment whose PRIMARY muscle is: {muscles_str}. "
+            f"Do NOT add exercises that primarily target other muscle groups "
+            f"(e.g. if target is shoulders, do NOT include chest/back/arm exercises). "
+            f"Every exercise you select MUST directly target the specified muscles.\n\n"
+            if profile.target_muscles and profile.available_equipments
             else ""
         )
         + "Output ONLY valid JSON array. No markdown, no explanation, no surrounding text."
@@ -661,7 +712,15 @@ if __name__ == "__main__":
             goals=["hypertrophy", "strength"],
             body_weight=75.0,
             fitness_career="intermediate",
-            available_exercises=["Bench Press", "Incline Bench Press", "Cable Fly", "Tricep Pushdown", "Dumbbell Fly"],
+            available_equipments=[
+                {"equipment_id": "demo", "label": "Bench Press", "equipment_type": "barbell", "source": "FREE"},
+                {
+                    "equipment_id": "demo",
+                    "label": "Machine Chest Press",
+                    "equipment_type": "machine",
+                    "source": "MACHINE",
+                },
+            ],
             target_muscles=["chest", "triceps"],
             session_minutes=75,
         )
@@ -673,7 +732,8 @@ if __name__ == "__main__":
                 print(f"[Day {event['day']}] {event.get('focus', '')}")
                 for ex in event.get("exercises", []):
                     reps = f"{ex.get('reps_min', '?')}-{ex.get('reps_max', '?')}"
-                    print(f"  - {ex['name']}: {ex['sets']}세트 × {reps}회  (휴식 {ex.get('rest_seconds', '?')}초)")
+                    label = ex.get("equipment_label") or ex.get("name", "?")
+                    print(f"  - {label}: {ex['sets']}세트 × {reps}회  (휴식 {ex.get('rest_seconds', '?')}초)")
                     if ex.get("notes"):
                         print(f"    근거: {ex['notes'][:80]}")
                 print()
