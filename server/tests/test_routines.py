@@ -821,6 +821,15 @@ def _stub_rag_stream(events: list[dict]):
 
 
 class TestGenerateRoutine:
+    @pytest.fixture(autouse=True)
+    def _no_primary_gym(self, monkeypatch):
+        # gym_id 미지정 요청 시 user 기본 gym fallback DB 조회를 막아 mock 순서 유지.
+        # fallback 동작 자체는 TestResolvePrimaryGym에서 별도 검증.
+        monkeypatch.setattr(
+            "app.api.v1.routines._resolve_primary_gym_id",
+            AsyncMock(return_value=None),
+        )
+
     @pytest.mark.asyncio
     async def test_returns_sse_content_type(self, client, monkeypatch):
         monkeypatch.setattr(
@@ -1004,6 +1013,14 @@ def _regenerate_db(routine):
 
 
 class TestRegenerateRoutine:
+    @pytest.fixture(autouse=True)
+    def _no_primary_gym(self, monkeypatch):
+        # routine.gym_id 가 None 인 mock 루틴 재생성 시 fallback DB 조회를 막아 mock 순서 유지.
+        monkeypatch.setattr(
+            "app.api.v1.routines._resolve_primary_gym_id",
+            AsyncMock(return_value=None),
+        )
+
     @pytest.mark.asyncio
     async def test_returns_sse_content_type(self, client, monkeypatch):
         monkeypatch.setattr(
@@ -1048,3 +1065,25 @@ class TestRegenerateRoutine:
         )
 
         assert resp.status_code == 404
+
+
+# ── _resolve_primary_gym_id (D-M9 fallback) ──────────────────────────────────
+class TestResolvePrimaryGym:
+    """gym_id 미지정 루틴 생성 시 user 기본 gym 으로 fallback (D-M9)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_primary_gym_id_as_str(self):
+        from app.api.v1.routines import _resolve_primary_gym_id
+
+        gym = uuid.uuid4()
+        db = _make_db(_exec_scalar(gym))
+        result = await _resolve_primary_gym_id(uuid.uuid4(), db)
+        assert result == str(gym)
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_user_has_no_gym(self):
+        from app.api.v1.routines import _resolve_primary_gym_id
+
+        db = _make_db(_exec_scalar(None))
+        result = await _resolve_primary_gym_id(uuid.uuid4(), db)
+        assert result is None
