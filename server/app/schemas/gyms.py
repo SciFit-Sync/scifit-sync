@@ -131,3 +131,31 @@ class ExerciseListData(BaseModel):
     total_count: int
     page: int
     total_pages: int
+
+
+# ── 근육별 기구 목록 (GET /gyms/{gym_id}/equipments) ─────────────────────────
+class MachineItem(BaseModel):
+    """헬스장 보유 머신/케이블 기구 항목."""
+
+    equipment_id: str
+    label: str  # COALESCE(movement_label_ko, name)
+    equipment_type: str
+    image_url: str | None = None
+    brand: str | None = None
+
+
+class FreeWeightItem(BaseModel):
+    """전 헬스장 공통 프리웨이트 운동 항목."""
+
+    exercise_id: str
+    name: str
+    name_en: str | None = None
+    equipment_id: str | None = None  # 바벨/덤벨 기구 ID (exercise_equipment_map 출처)
+    equipment_type: str | None = None  # 'barbell' | 'dumbbell' | 'bodyweight'
+
+
+class MuscleEquipmentData(BaseModel):
+    """근육별 기구 목록 응답 컨테이너."""
+
+    free_weights: list[FreeWeightItem] = Field(default_factory=list)
+    machines: list[MachineItem] = Field(default_factory=list)
