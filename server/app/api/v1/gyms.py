@@ -19,6 +19,7 @@ from app.core.exceptions import ConflictError, ExternalServiceError, NotFoundErr
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
+    EquipmentMuscle,
     EquipmentReport,
     EquipmentReportStatus,
     EquipmentSuggestion,
@@ -27,6 +28,7 @@ from app.models import (
     User,
     UserGym,
 )
+from app.models.exercise import Exercise, ExerciseEquipmentMap, ExerciseMuscle
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
@@ -34,10 +36,13 @@ from app.schemas.gyms import (
     BulkLinkData,
     CreateGymRequest,
     EquipmentItem,
+    FreeWeightItem,
     GymEquipmentItem,
     GymEquipmentListData,
     GymItem,
     GymSearchData,
+    MachineItem,
+    MuscleEquipmentData,
     ReportData,
     ReportEquipmentRequest,
     SuggestEquipmentData,
@@ -520,3 +525,139 @@ async def suggest_gym_equipment(
     await db.commit()
 
     return SuccessResponse(data=SuggestEquipmentData(message="기구 제보가 접수되었습니다. 검토 후 반영됩니다."))
+
+
+# ── GET /gyms/{gym_id}/equipments?muscle_group_id=&involvement= ───────────────
+@router.get(
+    "/{gym_id}/equipments",
+    response_model=SuccessResponse[MuscleEquipmentData],
+    summary="근육별 기구 목록 (머신 + 프리웨이트)",
+)
+@rate_limit("60/minute")
+async def list_equipments_by_muscle(
+    request: Request,
+    gym_id: str,
+    muscle_group_id: str | None = Query(None, description="근육군 UUID. 미지정 시 400 반환"),
+    involvement: str = Query("primary", description="primary | secondary | stabilizer"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """특정 근육군을 타깃으로 하는 기구 목록을 머신(헬스장별)과 프리웨이트(공통)로 분리하여 반환한다.
+
+    - machines[]: 해당 헬스장(gym_id)이 보유한 머신/케이블만. equipment_muscles 백필 기반.
+    - free_weights[]: 전 헬스장 공통. exercise_muscles의 primary 운동 중 프리웨이트 기구에 연결된 운동.
+    """
+    # muscle_group_id 필수 검증
+    if not muscle_group_id:
+        raise ValidationError(message="muscle_group_id 파라미터는 필수입니다.")
+
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
+
+    try:
+        mg_uuid = uuid.UUID(muscle_group_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 muscle_group_id 형식입니다.") from e
+
+    # 헬스장 존재 확인
+    gym = (await db.execute(select(Gym).where(Gym.id == gym_uuid))).scalar_one_or_none()
+    if gym is None:
+        raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
+
+    # ── 머신 목록 ─────────────────────────────────────────────────────────────
+    # equipment_muscles em JOIN equipments e(is_freeweight=false)
+    # JOIN gym_equipments ge(ge.gym_id=path) WHERE em.muscle_group_id=q AND em.involvement=q
+    machine_rows = (
+        await db.execute(
+            select(
+                Equipment.id,
+                Equipment.movement_label_ko,
+                Equipment.name,
+                Equipment.equipment_type,
+                Equipment.image_url,
+            )
+            .join(EquipmentMuscle, EquipmentMuscle.equipment_id == Equipment.id)
+            .join(
+                GymEquipment,
+                (GymEquipment.equipment_id == Equipment.id) & (GymEquipment.gym_id == gym_uuid),
+            )
+            .where(
+                EquipmentMuscle.muscle_group_id == mg_uuid,
+                EquipmentMuscle.involvement == involvement,
+                Equipment.equipment_type.notin_(["barbell", "dumbbell", "bodyweight"]),
+            )
+            .order_by(Equipment.name)
+        )
+    ).all()
+
+    # 브랜드명은 별도 조회 없이 equipment.brand 관계 활용 시 N+1 발생.
+    # 여기서는 equipment_id로 brand JOIN을 추가한 subquery 대신
+    # 단순 selectinload 없이 brand_id 조인으로 처리한다 (brand_name 필요 시 join 확장 가능).
+    # PR-1 범위에서는 brand 없이 반환 (필요 시 후속 PR에서 JOIN 추가).
+    machines: list[MachineItem] = [
+        MachineItem(
+            equipment_id=str(row.id),
+            label=row.movement_label_ko or row.name,
+            equipment_type=str(row.equipment_type),
+            image_url=row.image_url,
+            brand=None,
+        )
+        for row in machine_rows
+    ]
+
+    # ── 프리웨이트 목록 ───────────────────────────────────────────────────────
+    # exercise_muscles xm JOIN exercises x JOIN exercise_equipment_map eem
+    # JOIN equipments e(is_freeweight=true)
+    # WHERE xm.muscle_group_id=q AND xm.involvement='primary'
+    # 프리웨이트는 항상 involvement='primary' 기준으로 운동 선택
+    # (involvement 쿼리 파라미터는 머신에만 적용; 프리웨이트는 primary 고정)
+    fw_rows = (
+        await db.execute(
+            select(
+                Exercise.id,
+                Exercise.name,
+                Exercise.name_en,
+                Equipment.id.label("equipment_id"),
+                Equipment.equipment_type,
+            )
+            .join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
+            .join(ExerciseEquipmentMap, ExerciseEquipmentMap.exercise_id == Exercise.id)
+            .join(Equipment, Equipment.id == ExerciseEquipmentMap.equipment_id)
+            .where(
+                ExerciseMuscle.muscle_group_id == mg_uuid,
+                ExerciseMuscle.involvement == "primary",
+                Equipment.equipment_type.in_(["barbell", "dumbbell", "bodyweight"]),
+            )
+            .distinct()
+            .order_by(Exercise.name)
+        )
+    ).all()
+
+    free_weights: list[FreeWeightItem] = [
+        FreeWeightItem(
+            exercise_id=str(row.id),
+            name=row.name,
+            name_en=row.name_en,
+            equipment_id=str(row.equipment_id) if row.equipment_id else None,
+            equipment_type=str(row.equipment_type) if row.equipment_type else None,
+        )
+        for row in fw_rows
+    ]
+
+    logger.debug(
+        "list_equipments_by_muscle: gym_id=%s muscle_group_id=%s involvement=%s machines=%d free_weights=%d",
+        gym_id,
+        muscle_group_id,
+        involvement,
+        len(machines),
+        len(free_weights),
+    )
+
+    return SuccessResponse(
+        data=MuscleEquipmentData(
+            free_weights=free_weights,
+            machines=machines,
+        )
+    )

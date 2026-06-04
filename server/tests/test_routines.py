@@ -429,6 +429,80 @@ class TestUpdateRoutineExercise:
 
         assert resp.status_code == 400
 
+    @pytest.mark.asyncio
+    async def test_swap_exercise_auto_picks_equipment(self, client):
+        """PR-4: 종목 교체 시 equipment_id 미동봉이면 결정론적으로 기구를 재선택한다 (equipment_id NOT NULL)."""
+        new_ex_uuid = uuid.uuid4()
+        free_eq_id = uuid.uuid4()
+
+        r = _routine()  # gym_id=None
+        rex = _routine_exercise()
+        new_ex = MagicMock()
+        new_ex.id = new_ex_uuid
+        # _pick_equipment_for_exercise 후보 행 (gym None → 프리웨이트 선택)
+        cand_row = MagicMock()
+        cand_row.id = free_eq_id
+        cand_row.is_freeweight = True
+        exercise_resp = MagicMock()
+        exercise_resp.name = "데드리프트"
+        equipment_resp = MagicMock()
+        equipment_resp.name = "바벨"
+
+        db = _make_db(
+            _exec_scalar(r),  # _get_my_routine
+            _exec_scalar(rex),  # RoutineExercise 조회
+            _exec_scalar(new_ex),  # 신규 Exercise 조회
+            _exec_all([cand_row]),  # _pick: 후보 기구 (gym None → gym 쿼리 없음)
+            _exec_scalar(exercise_resp),  # 응답용 Exercise
+            _exec_scalar(equipment_resp),  # 응답용 Equipment
+        )
+        db.refresh = AsyncMock(side_effect=lambda obj: None)
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch(
+            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
+            json={"exercise_id": str(new_ex_uuid)},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["exercise_id"] == str(new_ex_uuid)
+        assert data["equipment_id"] == str(free_eq_id)
+        assert rex.equipment_id == free_eq_id
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_swap_exercise_no_usable_equipment_returns_409(self, client):
+        """PR-4: 종목 교체 시 헬스장에서 쓸 수 있는 기구가 없으면 409 ConflictError (NULL 저장 방지)."""
+        new_ex_uuid = uuid.uuid4()
+
+        r = _routine()
+        r.gym_id = uuid.uuid4()  # 헬스장 지정
+        rex = _routine_exercise()
+        new_ex = MagicMock()
+        new_ex.id = new_ex_uuid
+        # 후보는 머신 1개지만 헬스장 미보유 + 프리웨이트 아님 → 선택 불가
+        cand_row = MagicMock()
+        cand_row.id = uuid.uuid4()
+        cand_row.is_freeweight = False
+
+        db = _make_db(
+            _exec_scalar(r),  # _get_my_routine
+            _exec_scalar(rex),  # RoutineExercise 조회
+            _exec_scalar(new_ex),  # 신규 Exercise 조회
+            _exec_all([cand_row]),  # _pick: 후보 기구
+            _exec_all([]),  # _pick: 헬스장 기구 목록 (없음)
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch(
+            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
+            json={"exercise_id": str(new_ex_uuid)},
+        )
+
+        assert resp.status_code == 409
+        db.commit.assert_not_awaited()
+
 
 # ── DELETE /routines/{id} ─────────────────────────────────────────────────────
 
