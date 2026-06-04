@@ -32,3 +32,5 @@ Newtech,Cable,back,upper_back,cable,2,5,100,kg,5,null,kg,FALSE
 ,Barbell,legs,quads,barbell,1,0,200,kg,5,20,kg,FALSE
 ,dumbbell,arms,,dumbbell,1,2,40,kg,"{""pattern"": [{""from"": 1, ""to"": 10, ""value"": 2.0}, {""from"": 11, ""to"": 14, ""value"": 2.5}, {""from"": 15, ""to"": 16, ""value"": 5.0}]}",null,kg,FALSE
 ,Smith machine,legs,quads,barbell,1,0,200,kg,5,15,kg,FALSE
+Salus,SAF012 Standing Shoulder Press,shoulders,front_delt,machine,1,0,120,kg,5,null,kg,FALSE
+Salus,Multi Linear Row,back,upper_back,machine,1,0,120,kg,5,null,kg,FALSE
