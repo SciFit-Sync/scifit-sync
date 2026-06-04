@@ -22,17 +22,9 @@ depends_on = None
 
 def upgrade() -> None:
     conn = op.get_bind()
-    conn.execute(
-        sa.text(
-            "UPDATE muscle_groups SET name_ko = '대흉근' WHERE name = 'pectoralis_major'"
-        )
-    )
+    conn.execute(sa.text("UPDATE muscle_groups SET name_ko = '대흉근' WHERE name = 'pectoralis_major'"))
 
 
 def downgrade() -> None:
     conn = op.get_bind()
-    conn.execute(
-        sa.text(
-            "UPDATE muscle_groups SET name_ko = '가슴' WHERE name = 'pectoralis_major'"
-        )
-    )
+    conn.execute(sa.text("UPDATE muscle_groups SET name_ko = '가슴' WHERE name = 'pectoralis_major'"))
