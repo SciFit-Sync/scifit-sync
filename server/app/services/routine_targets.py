@@ -41,6 +41,18 @@ _REST_BY_GOAL: dict[str, int] = {
     "rehabilitation": 60,
 }
 
+# 목표별 권장 세트 수. _REST_BY_GOAL과 동일 철학 — LLM은 세트 수에 변별력이 없어
+# (프롬프트에 세트 지침이 없어 거의 항상 3을 반복 제안) llm_sets를 무시하고 목표 기준값을 사용한다.
+# 운동생리학 기준: strength=고중량 저반복→세트↑, hypertrophy=볼륨 중심, endurance/weight_loss=고반복→세트↓, rehab=저강도 회복.
+_SETS_BY_GOAL: dict[str, int] = {
+    "strength": 5,
+    "hypertrophy": 4,
+    "endurance": 3,
+    "weight_loss": 3,
+    "rehabilitation": 2,
+}
+
+# 알 수 없는 goal이 _normalize_goal을 우회해 들어올 때의 최종 안전망 (정상 경로에선 도달하지 않음).
 DEFAULT_SETS = 3
 
 
@@ -138,7 +150,7 @@ def derive_exercise_targets(
     equipment_type=None,
     pulley_ratio=1.0,
     bar_weight=None,
-    llm_sets=None,
+    llm_sets=None,  # 수신은 하되 사용하지 않음 (LLM 값 신뢰 불가, _SETS_BY_GOAL 사용)
     llm_reps_min=None,
     llm_reps_max=None,
     llm_rest_seconds=None,  # 수신은 하되 사용하지 않음 (LLM 값 신뢰 불가)
@@ -148,9 +160,9 @@ def derive_exercise_targets(
     Args:
         goal: 1차 운동 목표 (대소문자 무관)
         user_1rm_kg: 해당 운동에 대한 사용자 1RM (없으면 None → weight_kg=None)
-        llm_*: LLM 응답의 sets/reps_min/reps_max (str/int/None 모두 허용)
-               llm_rest_seconds는 LLM이 모든 운동에 동일한 값을 반복 제안하므로 무시하고
-               _REST_BY_GOAL 기반으로 목표별 고정값을 사용한다.
+        llm_*: LLM 응답의 reps_min/reps_max (str/int/None 모두 허용)
+               llm_sets / llm_rest_seconds는 LLM이 모든 운동에 동일한 값을 반복 제안하므로 무시하고
+               각각 _SETS_BY_GOAL / _REST_BY_GOAL 기반 목표별 고정값을 사용한다.
 
     Returns:
         {
@@ -166,18 +178,17 @@ def derive_exercise_targets(
 
     # _coerce_int가 이미 default를 반환하므로 `or`로 falsy-fallback 하지 않는다.
     # (0 같은 falsy이지만 유효한 값을 default로 덮어쓰지 않기 위함)
-    sets = _coerce_int(llm_sets, DEFAULT_SETS)
     reps_min = _coerce_int(llm_reps_min, default_reps_min)
     reps_max = _coerce_int(llm_reps_max, default_reps_max)
-    # LLM 값 무시 — 목표별 운동생리학 기준값 사용
+    # LLM 값 무시 — 목표별 운동생리학 기준값 사용 (sets / rest_seconds 동일 정책)
+    sets = _SETS_BY_GOAL.get(g, DEFAULT_SETS)
     rest_seconds = _REST_BY_GOAL[g]
 
     # 반복 범위 정합성: min > max인 경우 swap
     if reps_min > reps_max:
         reps_min, reps_max = reps_max, reps_min
 
-    # 음수/0 방어
-    sets = max(1, sets)
+    # 음수/0 방어 (reps만 — sets는 _SETS_BY_GOAL 고정 양수)
     reps_min = max(1, reps_min)
     reps_max = max(reps_min, reps_max)
 

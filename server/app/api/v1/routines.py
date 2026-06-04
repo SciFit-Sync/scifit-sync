@@ -43,7 +43,7 @@ from app.models import (
 from app.models import (
     UserProfile as DBUserProfile,
 )
-from app.models.gym import GymEquipment
+from app.models.gym import GymEquipment, UserGym
 from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
@@ -821,6 +821,21 @@ async def _async_iter_sync_gen(make_gen):
         yield item
 
 
+async def _resolve_primary_gym_id(user_id: uuid.UUID, db: AsyncSession) -> str | None:
+    """user의 기본 헬스장 gym_id(is_primary 우선). gym_id 미지정 루틴 생성 시 fallback (D-M9).
+
+    프론트가 routine 생성 요청에 gym_id를 보내지 않아도, 서버가 user_gyms의 기본 헬스장을
+    채워 머신 후보(gym_equipments 기반)가 _build_rag_profile에서 정상 생성되도록 한다.
+    user_gyms가 없으면 None(전 헬스장 공통 프리/맨몸만 — else fallback).
+    """
+    row = (
+        await db.execute(
+            select(UserGym.gym_id).where(UserGym.user_id == user_id).order_by(UserGym.is_primary.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    return str(row) if row else None
+
+
 async def _build_rag_profile(
     user: User,
     body: GenerateRoutineRequest | RegenerateRoutineRequest,
@@ -865,25 +880,39 @@ async def _build_rag_profile(
     target_muscle_ids: list[uuid.UUID] = []
     target_muscle_names: list[str] = []
     body_regions: list[str] = []
+    # 선택 순서 보존(복수 부위 비중 배분용): ("uuid", UUID) | ("region", str)
+    priority_specs: list[tuple[str, object]] = []
     if req and req.target_muscle_group_ids:
         for mid in req.target_muscle_group_ids:
             if not mid:
                 continue
             try:
-                target_muscle_ids.append(uuid.UUID(mid))
+                uid = uuid.UUID(mid)
+                target_muscle_ids.append(uid)
+                priority_specs.append(("uuid", uid))
             except ValueError:
                 normalized = _REGION_ALIASES.get(mid.lower(), mid.lower())
                 body_regions.append(normalized)
+                priority_specs.append(("region", normalized))
 
     if body_regions:
         region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
         target_muscle_ids.extend([row[0] for row in region_rows])
 
+    target_priority: list[str] = []
     if target_muscle_ids:
         mg_rows = (
             await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
         ).all()
         target_muscle_names = [name for _, name in mg_rows]
+        # 선택 순서대로 우선순위 라벨 구성 (region은 라벨 그대로, uuid는 근육명) + 중복 제거
+        id_to_name = {str(mid): name for mid, name in mg_rows}
+        seen_pri: set[str] = set()
+        for kind, val in priority_specs:
+            label = val if kind == "region" else id_to_name.get(str(val))
+            if label and label not in seen_pri:
+                seen_pri.add(label)
+                target_priority.append(label)
 
     # 5. gym 기구 × 선택 근육 필터링 → LLM에게 전달할 기구 목록 (PR-3: 기구 중심 재설계)
     #    머신(is_freeweight=false): gym_equipments(gym_id) × equipment_muscles(근육 필터, optional)
@@ -1033,6 +1062,7 @@ async def _build_rag_profile(
         gender=str(profile.gender) if profile.gender else None,
         available_equipments=available_equipments,
         target_muscles=target_muscle_names,
+        target_priority=target_priority,
         session_minutes=(req.session_minutes if req else None),
         injury=(req.injury if req else None),
         feedback=feedback,
@@ -1551,6 +1581,10 @@ async def generate_routine(
         except ValueError as e:
             valid = [e.value for e in SplitType]
             raise ValidationError(message=f"split_type 값이 올바르지 않습니다. 가능한 값: {valid}") from e
+    # gym_id 미지정 시 user 기본 헬스장 자동 사용 (D-M9: 루틴은 gym 종속).
+    # 프론트가 gym_id를 안 보내도 머신 후보가 나오도록 서버가 기본 gym을 채운다.
+    if not body.gym_id:
+        body.gym_id = await _resolve_primary_gym_id(current_user.id, db)
     gym_uuid = None
     if body.gym_id:
         try:
@@ -1621,7 +1655,7 @@ async def regenerate_routine(
         target_muscle_group_ids=list(routine.target_muscle_group_ids or []),
         session_minutes=routine.session_minutes,
         split_type=str(routine.split_type) if routine.split_type else None,
-        gym_id=str(routine.gym_id) if routine.gym_id else None,
+        gym_id=(str(routine.gym_id) if routine.gym_id else None) or await _resolve_primary_gym_id(current_user.id, db),
         injury=None,
     )
     profile = await _build_rag_profile(current_user, body, db, feedback=body.feedback, overrides=pseudo_req)
