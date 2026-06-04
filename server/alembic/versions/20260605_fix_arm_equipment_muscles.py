@@ -1,6 +1,6 @@
 """equipment_muscles 팔 교정 — Cable garbage 제거 + Assisted Dip/Chin triceps 복구
 
-Revision ID: 20260605_fix_arm_equipment_muscles
+Revision ID: 20260605_fix_arm_eqmuscle
 Revises: 20260605_recover_default_equip
 Create Date: 2026-06-05
 
@@ -46,7 +46,7 @@ asyncpg 안전: equipment id 는 리터럴 IN (chancegym_salus2 패턴). muscle 
 
 from alembic import op
 
-revision = "20260605_fix_arm_equipment_muscles"
+revision = "20260605_fix_arm_eqmuscle"
 down_revision = "20260605_recover_default_equip"
 branch_labels = None
 depends_on = None
