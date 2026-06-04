@@ -28,7 +28,7 @@ from app.models import (
     User,
     UserGym,
 )
-from app.models.exercise import Exercise, ExerciseEquipmentMap, ExerciseMuscle
+from app.models.exercise import Exercise, ExerciseMuscle
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
@@ -608,11 +608,11 @@ async def list_equipments_by_muscle(
     ]
 
     # ── 프리웨이트 목록 ───────────────────────────────────────────────────────
-    # exercise_muscles xm JOIN exercises x JOIN exercise_equipment_map eem
-    # JOIN equipments e(is_freeweight=true)
+    # exercise_muscles xm JOIN exercises x JOIN equipments e ON e.id = x.default_equipment_id
     # WHERE xm.muscle_group_id=q AND xm.involvement='primary'
     # 프리웨이트는 항상 involvement='primary' 기준으로 운동 선택
     # (involvement 쿼리 파라미터는 머신에만 적용; 프리웨이트는 primary 고정)
+    # PR-4.5: exercise_equipment_map → exercises.default_equipment_id (default 기구 미지정 운동은 INNER JOIN으로 제외)
     fw_rows = (
         await db.execute(
             select(
@@ -623,8 +623,7 @@ async def list_equipments_by_muscle(
                 Equipment.equipment_type,
             )
             .join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
-            .join(ExerciseEquipmentMap, ExerciseEquipmentMap.exercise_id == Exercise.id)
-            .join(Equipment, Equipment.id == ExerciseEquipmentMap.equipment_id)
+            .join(Equipment, Equipment.id == Exercise.default_equipment_id)
             .where(
                 ExerciseMuscle.muscle_group_id == mg_uuid,
                 ExerciseMuscle.involvement == "primary",
