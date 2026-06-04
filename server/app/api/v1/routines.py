@@ -43,7 +43,7 @@ from app.models import (
 from app.models import (
     UserProfile as DBUserProfile,
 )
-from app.models.gym import GymEquipment
+from app.models.gym import GymEquipment, UserGym
 from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
@@ -219,7 +219,6 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
                 .where(
                     ExerciseMuscle.exercise_id.in_(ex_ids),
-                    ExerciseMuscle.involvement == "primary",
                 )
                 .distinct()
             )
@@ -231,8 +230,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             _raw.setdefault(str(eid), []).append((name_ko, pct, involvement))
 
         for eid, muscles in _raw.items():
-            # activation_pct 실제값이 있으면 합계 100으로 정규화
-            if any(pct is not None for _, pct, _ in muscles):
+            # 모든 근육에 실제 activation_pct가 있을 때만 합계 100으로 정규화
+            # 하나라도 NULL이면 involvement 기반 추정으로 fallback (NULL 근육이 0%로 묻히는 것 방지)
+            if all(pct is not None for _, pct, _ in muscles):
                 raw_pairs = [(name, pct or 0) for name, pct, _ in muscles]
                 total = sum(p for _, p in raw_pairs)
                 if total > 0 and total != 100:
@@ -819,6 +819,21 @@ async def _async_iter_sync_gen(make_gen):
         if item is sentinel:
             return
         yield item
+
+
+async def _resolve_primary_gym_id(user_id: uuid.UUID, db: AsyncSession) -> str | None:
+    """user의 기본 헬스장 gym_id(is_primary 우선). gym_id 미지정 루틴 생성 시 fallback (D-M9).
+
+    프론트가 routine 생성 요청에 gym_id를 보내지 않아도, 서버가 user_gyms의 기본 헬스장을
+    채워 머신 후보(gym_equipments 기반)가 _build_rag_profile에서 정상 생성되도록 한다.
+    user_gyms가 없으면 None(전 헬스장 공통 프리/맨몸만 — else fallback).
+    """
+    row = (
+        await db.execute(
+            select(UserGym.gym_id).where(UserGym.user_id == user_id).order_by(UserGym.is_primary.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    return str(row) if row else None
 
 
 async def _build_rag_profile(
@@ -1551,6 +1566,10 @@ async def generate_routine(
         except ValueError as e:
             valid = [e.value for e in SplitType]
             raise ValidationError(message=f"split_type 값이 올바르지 않습니다. 가능한 값: {valid}") from e
+    # gym_id 미지정 시 user 기본 헬스장 자동 사용 (D-M9: 루틴은 gym 종속).
+    # 프론트가 gym_id를 안 보내도 머신 후보가 나오도록 서버가 기본 gym을 채운다.
+    if not body.gym_id:
+        body.gym_id = await _resolve_primary_gym_id(current_user.id, db)
     gym_uuid = None
     if body.gym_id:
         try:
@@ -1621,7 +1640,7 @@ async def regenerate_routine(
         target_muscle_group_ids=list(routine.target_muscle_group_ids or []),
         session_minutes=routine.session_minutes,
         split_type=str(routine.split_type) if routine.split_type else None,
-        gym_id=str(routine.gym_id) if routine.gym_id else None,
+        gym_id=(str(routine.gym_id) if routine.gym_id else None) or await _resolve_primary_gym_id(current_user.id, db),
         injury=None,
     )
     profile = await _build_rag_profile(current_user, body, db, feedback=body.feedback, overrides=pseudo_req)

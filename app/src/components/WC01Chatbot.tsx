@@ -1,4 +1,5 @@
 import {
+  Linking,
   Modal,
   StyleSheet,
   Text,
@@ -29,12 +30,24 @@ function decode_jwt_sub(token: string): string {
   }
 }
 
+interface PaperSource {
+  doi: string;
+  pmid?: string;
+  title?: string;
+}
+
 interface Message {
   id: string;
   type: "bot" | "user";
   text: string;
   chips?: string[];
+  sources?: PaperSource[];
   timestamp: number;
+}
+
+/** 봇 답변에서 [논문 N] 표기 제거 */
+function strip_citations(text: string): string {
+  return text.replace(/\[논문\s*\d+\]/g, "").replace(/  +/g, " ").trim();
 }
 
 interface Props {
@@ -60,6 +73,7 @@ export default function WC01Chatbot({ onClose }: Props) {
   const [input, set_input] = useState("");
   const [is_sending, set_is_sending] = useState(false);
   const [session_id, set_session_id] = useState<string | undefined>(undefined);
+  const [expanded_sources, set_expanded_sources] = useState<Record<string, boolean>>({});
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
@@ -238,6 +252,12 @@ export default function WC01Chatbot({ onClose }: Props) {
             );
             setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 50);
           },
+          on_sources: (sources) => {
+            if (!is_mounted_ref.current) return;
+            set_messages((prev) =>
+              prev.map((m) => (m.id === bot_id ? { ...m, sources } : m))
+            );
+          },
           on_done: () => {
             if (is_mounted_ref.current) set_is_sending(false);
           },
@@ -359,8 +379,57 @@ export default function WC01Chatbot({ onClose }: Props) {
                     {message.type === "bot" ? (
                       <View style={styles.bot_message_group}>
                         <View style={styles.bot_bubble}>
-                          <Text style={styles.bot_text}>{message.text}</Text>
+                          <Text style={styles.bot_text}>
+                            {strip_citations(message.text)}
+                          </Text>
                         </View>
+                        {message.sources && message.sources.length > 0 && (
+                          <View style={styles.sources_section}>
+                            <TouchableOpacity
+                              style={styles.sources_btn}
+                              onPress={() =>
+                                set_expanded_sources((prev) => ({
+                                  ...prev,
+                                  [message.id]: !prev[message.id],
+                                }))
+                              }
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.sources_btn_text}>
+                                논문 근거 확인하기
+                              </Text>
+                            </TouchableOpacity>
+                            {expanded_sources[message.id] && (
+                              <View style={styles.papers_list}>
+                                {message.sources.map((s, i) => (
+                                  <View key={i} style={styles.paper_card}>
+                                    <Text style={styles.paper_title} numberOfLines={3}>
+                                      {s.title ?? `논문 ${i + 1}`}
+                                    </Text>
+                                    {s.doi ? (
+                                      <TouchableOpacity
+                                        style={styles.paper_link_btn}
+                                        onPress={() =>
+                                          Linking.openURL(`https://doi.org/${s.doi}`)
+                                        }
+                                        activeOpacity={0.8}
+                                      >
+                                        <Text style={styles.paper_link_text}>
+                                          논문 링크
+                                        </Text>
+                                        <Octicons
+                                          name="arrow-right"
+                                          size={12}
+                                          color={colors.primary}
+                                        />
+                                      </TouchableOpacity>
+                                    ) : null}
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        )}
                         {message.chips && (
                           <View style={styles.chips_container}>
                             <View style={styles.chips_row}>
@@ -591,5 +660,50 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sources_section: {
+    gap: 8,
+    alignSelf: "flex-start",
+    maxWidth: "80%",
+  },
+  sources_btn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: colors.white,
+  },
+  sources_btn_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.primary,
+  },
+  papers_list: {
+    gap: 8,
+  },
+  paper_card: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
+    backgroundColor: colors.white,
+  },
+  paper_title: {
+    fontFamily: "medium",
+    fontSize: 13,
+    color: colors.primary,
+    lineHeight: 18,
+  },
+  paper_link_btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  paper_link_text: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.primary,
   },
 });

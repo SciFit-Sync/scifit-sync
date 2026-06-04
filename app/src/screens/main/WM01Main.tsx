@@ -35,6 +35,7 @@ import {
   type ProgramItem,
 } from "../../services/programs";
 import { getNotifications } from "../../services/notifications";
+import { getMe } from "../../services/users";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 import WC01Chatbot from "../../components/WC01Chatbot";
 
@@ -141,6 +142,19 @@ export default function WM01Main() {
     queryFn: () => getProgramList(token),
     enabled: !!token,
   });
+
+  const { data: me_data } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => getMe(token),
+    enabled: !!token,
+  });
+
+  // 회원가입 시 선택한 기본 헬스장 → 루틴 생성에 전달 (머신 후보 포함).
+  // 미전달 시 서버가 기본 gym 으로 fallback (D-M9).
+  const primary_gym_id =
+    me_data?.gyms?.find((g) => g.is_primary)?.gym_id ??
+    me_data?.gyms?.[0]?.gym_id ??
+    null;
 
   const real_routines = routines_data?.items ?? [];
   const real_programs = programs_data?.items ?? [];
@@ -480,7 +494,7 @@ export default function WM01Main() {
             set_is_generating(true);
             set_generate_message("AI가 루틴을 생성하는 중...");
 
-            const cleanup = generateRoutineSSE(token, data, {
+            const cleanup = generateRoutineSSE(token, { ...data, gym_id: primary_gym_id }, {
               on_started: () => {
                 set_generate_message("논문 데이터를 검색하는 중...");
               },
