@@ -39,8 +39,8 @@ class EmailDuplicateError(AppError):
 
 
 class NotFoundError(AppError):
-    def __init__(self, message: str = "리소스를 찾을 수 없습니다"):
-        super().__init__("NOT_FOUND", message, 404)
+    def __init__(self, message: str = "리소스를 찾을 수 없습니다", details: dict | None = None):
+        super().__init__("NOT_FOUND", message, 404, details)
 
 
 class ConflictError(AppError):

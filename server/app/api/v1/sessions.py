@@ -727,15 +727,11 @@ async def list_sessions(
         key = f"{kst_date}_{routine_id_val}" if routine_id_val else f"{kst_date}_{s.id}"
 
         vol, sets, weight = session_agg.get(str(s.id), (0.0, 0, 0.0))
+        # 완료된 세션만 시간 집계 — IN_PROGRESS 세션은 now - started_at이 계속 늘어나므로 0 처리
         duration = (
             max(0, int((_strip_tz(s.finished_at) - _strip_tz(s.started_at)).total_seconds() // 60))
-            if s.finished_at and s.started_at
-            else max(
-                0,
-                int((datetime.now(timezone.utc).replace(tzinfo=None) - _strip_tz(s.started_at)).total_seconds() // 60),
-            )
-            if s.started_at
-            else None
+            if s.finished_at and s.started_at and s.status == WorkoutStatus.COMPLETED
+            else 0
         )
 
         if key not in merged:
