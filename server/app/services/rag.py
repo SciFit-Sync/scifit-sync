@@ -338,7 +338,8 @@ class UserProfile:
     body_weight: float  # kg
     fitness_career: str  # beginner / novice / intermediate / advanced
     available_equipments: list[dict] = field(default_factory=list)  # {"label", "equipment_type", "source"} 목록
-    target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위
+    target_muscles: list[str] = field(default_factory=list)  # 집중하고 싶은 근육 부위 (전체, 순서 무관)
+    target_priority: list[str] = field(default_factory=list)  # 선택 순서 우선순위 라벨 (첫=메인). 복수 부위 비중 배분용
     session_minutes: int | None = None  # 1회 세션 목표 시간
     injury: str | None = None  # 부상/제외 부위 (자유 텍스트)
     feedback: str | None = None  # 재생성 시 이전 루틴 대비 변경 요청
@@ -359,6 +360,42 @@ _GOAL_QUERIES = {
     "rehabilitation": "rehabilitation exercise low intensity recovery injury",
     "weight_loss": "fat loss body composition energy expenditure resistance training",
 }
+
+
+def _allocate_priority_slots(priorities: list[str], total: int) -> list[tuple[str, int]]:
+    """선택 순서를 우선순위로 보고 total개 운동 슬롯을 부위별로 배분한다.
+
+    첫 부위(메인)에 가중치 2배, 나머지는 1배. 각 부위 최소 1개 보장.
+    프롬프트 가이드용이며 서버가 개수를 엄격 강제하지는 않는다(LLM이 근사).
+
+    예) (["arms","chest"], 6) → [("arms",4),("chest",2)]
+        (["arms","chest","shoulders"], 6) → [("arms",4),("chest",1),("shoulders",1)]
+    """
+    n = len(priorities)
+    if n == 0:
+        return []
+    if n == 1:
+        return [(priorities[0], total)]
+    # 부위 수가 total 이상이면 각 부위 최소 1개씩만 (메인 가중 의미 없음)
+    if total <= n:
+        return [(p, 1) for p in priorities]
+
+    weights = [2] + [1] * (n - 1)  # 메인 2배
+    wsum = sum(weights)
+    counts = [max(1, (total * w) // wsum) for w in weights]
+    # 잔여를 우선순위 높은 순으로 +1
+    i = 0
+    while sum(counts) < total:
+        counts[i % n] += 1
+        i += 1
+    # 초과분은 우선순위 낮은 순으로 -1 (최소 1 유지)
+    j = n - 1
+    while sum(counts) > total and j >= 0:
+        if counts[j] > 1:
+            counts[j] -= 1
+        else:
+            j -= 1
+    return list(zip(priorities, counts, strict=True))
 
 
 def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
@@ -440,6 +477,20 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"Even when targeting a single muscle group, fill the count using different angles, grips, or movement variations.\n"
     )
 
+    # 복수 부위 선택 시: 선택 순서를 우선순위로 보고 부위별 운동 개수를 명시 (첫 부위가 메인)
+    priority_alloc_rule = ""
+    if len(profile.target_priority) >= 2:
+        alloc = _allocate_priority_slots(profile.target_priority, _max_ex)
+        alloc_lines = "\n".join(
+            f"  * {label}: ~{cnt} exercise(s){' (MAIN focus — give it the most)' if i == 0 else ''}"
+            for i, (label, cnt) in enumerate(alloc)
+        )
+        priority_alloc_rule = (
+            f"- PRIORITY ALLOCATION (selection order = importance; the FIRST is the main focus):\n"
+            f"{alloc_lines}\n"
+            f"  Allocate exercises by this priority — the main focus MUST clearly have the most exercises.\n"
+        )
+
     return (
         f"You are a sports science expert. Create a 1-day workout routine "
         f"based ONLY on the research papers below.\n\n"
@@ -467,6 +518,7 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"{exercise_count_rule}"
         f"{label_rule}"
         f"{target_muscle_rule}"
+        f"{priority_alloc_rule}"
         f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
         f"{paper_index_rule}"
         f"- Use rep ranges that match the primary goal (hypertrophy 8-12, strength 1-5, "
