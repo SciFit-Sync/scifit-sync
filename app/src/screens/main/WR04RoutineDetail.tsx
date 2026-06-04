@@ -136,9 +136,22 @@ export default function WR04RoutineDetail() {
   const ws_set_session = useWorkoutSessionStore((s) => s.set_session);
   const ws_toggle_set = useWorkoutSessionStore((s) => s.toggle_set);
   const ws_clear = useWorkoutSessionStore((s) => s.clear);
+  const ws_add_page_elapsed = useWorkoutSessionStore((s) => s.add_page_elapsed);
   const ws_routine_id = useWorkoutSessionStore((s) => s.routine_id);
   const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
+  const ws_session_started_at = useWorkoutSessionStore((s) => s.session_started_at);
+  const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
+
+  // 이번 마운트의 진입 시각 — 언마운트 시 누적 체류 시간에 합산
+  const mount_time_ref = useRef<number>(Date.now());
+
+  // 언마운트 시 이번 방문 체류 시간 저장 (탭 이탈 등)
+  useEffect(() => {
+    return () => {
+      ws_add_page_elapsed(Date.now() - mount_time_ref.current);
+    };
+  }, []);
 
   // AsyncStorage persist 수화 완료 여부 — 수화 전에 exercises를 초기화하면 복원이 안 됨
   const [store_ready, set_store_ready] = useState(() =>
@@ -616,7 +629,7 @@ export default function WR04RoutineDetail() {
         session_id_ref.current = data.session_id;
         session_promise_ref.current = null;
         set_session_started(true);
-        if (routine_id) ws_set_session(routine_id, data.session_id);
+        if (routine_id) ws_set_session(routine_id, data.session_id, data.started_at);
         return data.session_id;
       })
       .catch((e) => {
@@ -658,7 +671,18 @@ export default function WR04RoutineDetail() {
     if (!session_id_ref.current || is_finishing) return;
     try {
       set_is_finishing(true);
-      await finishSession(token, session_id_ref.current);
+
+      // 완료 시각 = 세션 시작 시각 + (이전 방문 누적 시간 + 이번 방문 체류 시간)
+      // ws_page_elapsed_ms: 이전 탭 이탈들의 합산, mount_time_ref: 이번 진입 시각
+      let finished_at: string | undefined;
+      if (ws_session_started_at) {
+        const total_ms =
+          ws_page_elapsed_ms + (Date.now() - mount_time_ref.current);
+        const started = new Date(ws_session_started_at).getTime();
+        finished_at = new Date(started + total_ms).toISOString();
+      }
+
+      await finishSession(token, session_id_ref.current, finished_at ? { finished_at } : undefined);
       ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
       query_client.invalidateQueries({ queryKey: ["session-stats"] });
