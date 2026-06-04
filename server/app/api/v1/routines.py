@@ -220,7 +220,6 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
                 .where(
                     ExerciseMuscle.exercise_id.in_(ex_ids),
-                    ExerciseMuscle.involvement == "primary",
                 )
                 .distinct()
             )
@@ -232,8 +231,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             _raw.setdefault(str(eid), []).append((name_ko, pct, involvement))
 
         for eid, muscles in _raw.items():
-            # activation_pct 실제값이 있으면 합계 100으로 정규화
-            if any(pct is not None for _, pct, _ in muscles):
+            # 모든 근육에 실제 activation_pct가 있을 때만 합계 100으로 정규화
+            # 하나라도 NULL이면 involvement 기반 추정으로 fallback (NULL 근육이 0%로 묻히는 것 방지)
+            if all(pct is not None for _, pct, _ in muscles):
                 raw_pairs = [(name, pct or 0) for name, pct, _ in muscles]
                 total = sum(p for _, p in raw_pairs)
                 if total > 0 and total != 100:

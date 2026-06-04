@@ -425,6 +425,21 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         else ""
     )
 
+    # 세션 시간 기반 최소 운동 개수 (단일 근육 부위도 다양한 각도/변형으로 채울 것)
+    _mins = profile.session_minutes or 60
+    if _mins <= 30:
+        _min_ex, _max_ex = 3, 4
+    elif _mins <= 60:
+        _min_ex, _max_ex = 4, 6
+    elif _mins <= 90:
+        _min_ex, _max_ex = 6, 8
+    else:
+        _min_ex, _max_ex = 7, 10
+    exercise_count_rule = (
+        f"- Include {_min_ex}–{_max_ex} exercises. "
+        f"Even when targeting a single muscle group, fill the count using different angles, grips, or movement variations.\n"
+    )
+
     return (
         f"You are a sports science expert. Create a 1-day workout routine "
         f"based ONLY on the research papers below.\n\n"
@@ -449,6 +464,7 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
+        f"{exercise_count_rule}"
         f"{label_rule}"
         f"{target_muscle_rule}"
         f"- notes must be written in Korean and explain the specific finding from the paper. Never use [Paper N] notation inside notes.\n"
