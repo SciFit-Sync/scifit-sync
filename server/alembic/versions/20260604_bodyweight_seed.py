@@ -14,8 +14,13 @@ Create Date: 2026-06-04
 
 변경:
   generic 'Bodyweight' 기구 1개(equipment_type='bodyweight' → is_freeweight=true)를 만들고
-  bodyweight 운동에 exercise_equipment_map + exercises.default_equipment_id를 연결한다.
-  → rex_equip_notnull 백필이 eem 경로로 채우고, _build_rag_profile 프리 후보에 자동 포함.
+  bodyweight 운동에 exercise_equipment_map(eem)을 연결한다.
+  → rex_equip_notnull 백필이 eem 경로로 routine_exercises를 채우고, 후속 ex_default_equip
+     백필(WHERE is_freeweight=true)이 같은 eem으로 exercises.default_equipment_id를 채워
+     _build_rag_profile 프리 후보에 자동 포함된다.
+  ※ default_equipment_id 컬럼은 ex_default_equip에서 추가되며 본 revision은 체인상 그보다
+     앞이므로 여기서 직접 UPDATE하지 않는다 (그렇게 하면 CI "Run DB migrations"에서
+     'column default_equipment_id does not exist'로 실패).
 
 체인 위치 (중요):
   rex_equip_notnull(NOT NULL 승격)보다 **먼저** 실행돼야 prod 5행이 백필되므로
@@ -72,7 +77,9 @@ def upgrade() -> None:
         {"id": _BODYWEIGHT_UUID},
     )
 
-    # 2~3. 운동별: eem 매핑(rex_equip_notnull 백필 경로) + default_equipment_id(런타임 프리 후보)
+    # 2. 운동별 eem 매핑. default_equipment_id는 여기서 설정하지 않는다 — 그 컬럼은 후속
+    # ex_default_equip 마이그레이션에서 추가되고(본 revision이 체인상 앞), ex_default_equip의
+    # 백필(WHERE is_freeweight=true)이 이 bodyweight eem을 잡아 default_equipment_id를 채운다.
     for name_en in _BODYWEIGHT_EXERCISES:
         conn.execute(
             sa.text(
@@ -86,25 +93,12 @@ def upgrade() -> None:
             ),
             {"bw": _BODYWEIGHT_UUID, "nm": name_en},
         )
-        conn.execute(
-            sa.text(
-                """
-                UPDATE exercises
-                SET default_equipment_id = CAST(:bw AS uuid)
-                WHERE name_en = :nm AND default_equipment_id IS NULL
-                """
-            ),
-            {"bw": _BODYWEIGHT_UUID, "nm": name_en},
-        )
 
 
 def downgrade() -> None:
     conn = op.get_bind()
-    # 역순(이 revision이 넣은 것만): default 해제 → eem 삭제 → 기구 삭제
-    conn.execute(
-        sa.text("UPDATE exercises SET default_equipment_id = NULL WHERE default_equipment_id = CAST(:bw AS uuid)"),
-        {"bw": _BODYWEIGHT_UUID},
-    )
+    # eem 삭제 → 기구 삭제. default_equipment_id는 ex_default_equip downgrade가 컬럼째 DROP하므로
+    # 여기서 건드리지 않는다(본 revision이 체인상 앞이라 downgrade 시점엔 이미 컬럼이 없음).
     conn.execute(
         sa.text("DELETE FROM exercise_equipment_map WHERE equipment_id = CAST(:bw AS uuid)"),
         {"bw": _BODYWEIGHT_UUID},
