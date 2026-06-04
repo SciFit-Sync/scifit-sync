@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20260604_fix_muscle_name_ko"
-down_revision = "20260604_rex_equip_notnull"
+down_revision = "20260604_eqmuscle_direct"
 branch_labels = None
 depends_on = None
 
