@@ -98,6 +98,7 @@ class RoutineExercise(Base):
     weight_kg: Mapped[float | None] = mapped_column(default=None)
     rest_seconds: Mapped[int] = mapped_column(Integer, default=60, server_default=text("60"))
     note: Mapped[str | None] = mapped_column(Text, default=None)
+    display_name: Mapped[str | None] = mapped_column(String(200), default=None)
 
     routine_day: Mapped["RoutineDay"] = relationship(back_populates="exercises")
     exercise: Mapped["Exercise"] = relationship()  # noqa: F821
