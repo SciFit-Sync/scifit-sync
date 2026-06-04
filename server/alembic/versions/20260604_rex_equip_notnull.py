@@ -1,8 +1,12 @@
 """routine_exercises.equipment_id 백필 + NOT NULL/RESTRICT 승격 (기구-중심 PR-4: M4+M5)
 
 Revision ID: 20260604_rex_equip_notnull
-Revises: 20260604_rex_display_name
+Revises: 20260604_bodyweight_seed
 Create Date: 2026-06-04
+
+체인 변경(routine-equipment-fix): bodyweight_seed를 앞에 삽입 — bodyweight 운동의
+eem 매핑이 본 마이그레이션의 M4 백필보다 먼저 존재해야 prod의 bodyweight 루틴 행
+(Plank/Crunch/Ab Rollout)이 백필되어 NOT NULL 승격 중단(raise)을 피한다.
 
 기구-중심 재설계의 마지막 비파괴 단계. equipment_id를 routine_exercises의 1차 단위로
 격상한다(스펙 §2-3, §5 M4/M5).
@@ -21,7 +25,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20260604_rex_equip_notnull"
-down_revision = "20260604_rex_display_name"
+down_revision = "20260604_bodyweight_seed"
 branch_labels = None
 depends_on = None
 

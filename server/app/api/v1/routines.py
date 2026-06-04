@@ -1040,7 +1040,11 @@ async def _build_rag_profile(
 
 
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
-    """LLM이 출력한 운동 이름 → exercises.id.
+    """[DEPRECATED · 호출처 없음] LLM 운동 이름 → exercises.id 의 fuzzy 매칭.
+
+    _resolve_label_to_ids의 fuzzy fallback이 머신→프리웨이트 오매칭(예: "Chest Press"→
+    "Bench Press")을 유발해 제거되면서 호출처가 사라졌다. 향후 다른 용도로 재사용할
+    여지가 있어 함수는 보존하되, 어떤 런타임 경로에서도 호출하지 않는다.
 
     순서:
     1) name_en 정확 매치 (case-insensitive)
@@ -1125,7 +1129,7 @@ async def _resolve_label_to_ids(
     해석 순서:
     1) 머신: equipments.movement_label_en == label (gym_id가 있으면 gym_equipments 체크)
     2) 프리웨이트: exercises.name_en == label → exercises.default_equipment_id에서 기구 선택
-    3) 실패 시 _resolve_exercise_id fallback (기존 fuzzy 매칭)
+    3) 정확 매칭 실패 시 제외 (fuzzy fallback 비활성 — 머신→프리 오매칭 방지)
 
     반환: (equipment_id, exercise_id, equipment_type, pulley_ratio, bar_weight)
     """
@@ -1189,34 +1193,14 @@ async def _resolve_label_to_ids(
         # 기구 매핑 없어도 exercise_id는 반환 (equipment_id None)
         return None, exercise_id, None, 1.0, None
 
-    # ── 3) fuzzy fallback: _resolve_exercise_id 사용 ──
-    logger.warning("equipment_label '%s' 매칭 실패 — fuzzy fallback 시도", label_stripped)
-    fallback_ex_id = await _resolve_exercise_id(label_stripped, db)
-    if fallback_ex_id is None:
-        return None, None, None, 1.0, None
-
-    # fallback exercise → equipment (PR-4.5: exercises.default_equipment_id)
-    # default_equipment_id는 프리웨이트(전 헬스장 공통)만 가리키므로 gym 소속 검증 불필요.
-    default_eq_id = (
-        await db.execute(select(Exercise.default_equipment_id).where(Exercise.id == fallback_ex_id))
-    ).scalar_one_or_none()
-    if default_eq_id is not None:
-        eq_row = (
-            await db.execute(
-                select(Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight)
-                .where(Equipment.id == default_eq_id)
-                .limit(1)
-            )
-        ).first()
-        if eq_row is not None:
-            return (
-                default_eq_id,
-                fallback_ex_id,
-                str(eq_row.equipment_type),
-                float(eq_row.pulley_ratio),
-                eq_row.bar_weight,
-            )
-    return None, fallback_ex_id, None, 1.0, None
+    # ── 3) 정확 매칭 실패 → 제외 (fuzzy fallback 제거) ──
+    # 기존 _resolve_exercise_id fuzzy("Chest Press"→"Bench Press" 등 부분/토큰 매칭)는
+    # LLM이 목록 밖 label을 내면 엉뚱한 운동(특히 머신→프리웨이트)으로 둔갑시켜
+    # "체스트 프레스 머신 선택했는데 벤치프레스 표시" 문제를 유발했다. LLM은 프롬프트로
+    # available_equipments의 label만 출력하도록 강제되므로, 정확 매칭(머신 movement_label_en /
+    # 프리 name_en) 실패 시 fuzzy로 추정하지 않고 해당 운동을 제외한다(_persist_day에서 skip).
+    logger.warning("equipment_label '%s' 정확 매칭 실패 — 해당 운동 제외 (fuzzy 비활성)", label_stripped)
+    return None, None, None, 1.0, None
 
 
 async def _pick_equipment_for_exercise(
