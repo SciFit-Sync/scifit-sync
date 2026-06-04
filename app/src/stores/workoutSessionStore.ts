@@ -16,11 +16,16 @@ interface WorkoutSessionState {
   routine_id: string | null;
   /** 백엔드 세션 ID */
   session_id: string | null;
+  /** 세션 시작 시각 (ISO string) — 완료 시 finished_at 계산에 사용 */
+  session_started_at: string | null;
+  /** 루틴 상세 페이지 누적 체류 시간 (ms) — 탭 이탈 시마다 합산 */
+  page_elapsed_ms: number;
   /** set_id → 체크 여부 */
   checked_sets: Record<string, boolean>;
 
   set_owner: (user_id: string) => void;
-  set_session: (routine_id: string, session_id: string) => void;
+  set_session: (routine_id: string, session_id: string, started_at: string) => void;
+  add_page_elapsed: (ms: number) => void;
   toggle_set: (set_id: string, is_done: boolean) => void;
   clear: () => void;
 }
@@ -31,12 +36,17 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
       owner_user_id: null,
       routine_id: null,
       session_id: null,
+      session_started_at: null,
+      page_elapsed_ms: 0,
       checked_sets: {},
 
       set_owner: (user_id) => set({ owner_user_id: user_id }),
 
-      set_session: (routine_id, session_id) =>
-        set({ routine_id, session_id }),
+      set_session: (routine_id, session_id, started_at) =>
+        set({ routine_id, session_id, session_started_at: started_at }),
+
+      add_page_elapsed: (ms) =>
+        set((state) => ({ page_elapsed_ms: state.page_elapsed_ms + ms })),
 
       toggle_set: (set_id, is_done) =>
         set((state) => ({
@@ -44,7 +54,14 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
         })),
 
       clear: () =>
-        set({ owner_user_id: null, routine_id: null, session_id: null, checked_sets: {} }),
+        set({
+          owner_user_id: null,
+          routine_id: null,
+          session_id: null,
+          session_started_at: null,
+          page_elapsed_ms: 0,
+          checked_sets: {},
+        }),
     }),
     {
       name: 'workout-session',

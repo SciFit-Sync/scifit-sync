@@ -16,6 +16,26 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://api.workoutxapp.com/v1"
 _TIMEOUT = 10.0
 
+# gif 바이트는 id별 불변 → 성공분만 인메모리 캐시. 매 요청 WorkoutX 호출을 없애
+# 간헐적 timeout/throttle을 회피한다 (운동 수십 개 → 메모리 영향 미미).
+_GIF_CACHE: dict[str, tuple[bytes, str]] = {}
+_GIF_CACHE_MAX = 1000
+
+# httpx 클라이언트 재사용 — 매 요청 새 클라이언트(+TLS 핸드셰이크) 대신 연결 풀 유지.
+_shared_client: httpx.AsyncClient | None = None
+
+
+def _get_shared_client() -> httpx.AsyncClient:
+    """gif 프록시용 영속 httpx 클라이언트(연결 풀 재사용). 닫혔으면 재생성."""
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(
+            base_url=_BASE_URL,
+            headers={"X-WorkoutX-Key": get_settings().WORKOUTX_API_KEY},
+            timeout=_TIMEOUT,
+        )
+    return _shared_client
+
 
 def _client() -> httpx.AsyncClient:
     settings = get_settings()
@@ -128,20 +148,27 @@ def to_gif_proxy_url(raw: str | None, base_url: str) -> str | None:
 async def fetch_gif_bytes(gif_id: str) -> tuple[bytes, str] | None:
     """WorkoutX gif를 서버 API 키로 받아 (bytes, content_type) 반환. 미존재/오류 시 None.
 
-    이미지 로드가 5xx로 실패하지 않도록 모든 오류는 None으로 흡수한다.
+    gif 바이트는 불변이라 성공분만 인메모리 캐시한다 → 동일 id 재요청 시 WorkoutX를
+    재호출하지 않아 간헐적 timeout/throttle을 회피한다. 실패(timeout/404)는 캐시하지
+    않으므로 다음 요청에서 재시도된다. 이미지 로드가 5xx로 실패하지 않도록 모든 오류는 None으로 흡수.
     """
     if not gif_id.isdigit():  # SSRF/경로주입 방어
         return None
+    cached = _GIF_CACHE.get(gif_id)
+    if cached is not None:
+        return cached
     if not get_settings().WORKOUTX_API_KEY:
         logger.warning("WORKOUTX_API_KEY 미설정 — gif 프록시 불가")
         return None
-    async with _client() as client:
-        try:
-            resp = await client.get(f"/gifs/{gif_id}.gif")
-            if resp.status_code == 404:
-                return None
-            resp.raise_for_status()
-            return resp.content, resp.headers.get("content-type", "image/gif")
-        except Exception as e:
-            logger.error("WorkoutX gif 조회 실패 (id=%s): %s", gif_id, e)
+    try:
+        resp = await _get_shared_client().get(f"/gifs/{gif_id}.gif")
+        if resp.status_code == 404:
             return None
+        resp.raise_for_status()
+        result = (resp.content, resp.headers.get("content-type", "image/gif"))
+        if len(_GIF_CACHE) < _GIF_CACHE_MAX:
+            _GIF_CACHE[gif_id] = result
+        return result
+    except Exception as e:
+        logger.warning("WorkoutX gif 조회 실패 (id=%s): %s", gif_id, e)
+        return None
