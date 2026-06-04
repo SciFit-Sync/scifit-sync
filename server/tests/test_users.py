@@ -187,6 +187,63 @@ class TestUpdateBody:
         assert resp.json()["data"]["height_cm"] == 178.0
 
 
+# ── POST /users/me/body/ocr ───────────────────────────────────────────────────
+
+
+class TestOcrInbody:
+    @staticmethod
+    def _img() -> str:
+        import base64
+
+        return base64.b64encode(b"fake-inbody-image").decode()
+
+    @pytest.mark.asyncio
+    async def test_success(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: (
+                '{"weight_kg": 72.5, "skeletal_muscle_kg": 33.2, "body_fat_pct": 18.4, "measured_at": "2026-06-04"}'
+            ),
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["weight_kg"] == 72.5
+        assert data["skeletal_muscle_kg"] == 33.2
+        assert data["body_fat_pct"] == 18.4
+        assert data["measured_at"] == "2026-06-04"
+
+    @pytest.mark.asyncio
+    async def test_codefence_and_null_fields(self, client, monkeypatch):
+        # LLM이 ```json 코드펜스로 감싸고 일부 값이 null인 경우
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: (
+                '```json\n{"weight_kg": 70.0, "skeletal_muscle_kg": null, "body_fat_pct": null, "measured_at": null}\n```'
+            ),
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["weight_kg"] == 70.0
+        assert data["skeletal_muscle_kg"] is None
+        assert data["measured_at"] is None
+
+    @pytest.mark.asyncio
+    async def test_unparseable_returns_503(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: "결과지를 읽을 수 없습니다",
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_invalid_base64_returns_400(self, client):
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": "!!!not-valid!!!"})
+        assert resp.status_code == 400
+
+
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
 
 
