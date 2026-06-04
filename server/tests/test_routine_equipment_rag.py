@@ -538,15 +538,11 @@ class TestResolveLabelToIds:
 
     @pytest.mark.asyncio
     async def test_both_paths_fail_returns_none_ids(self):
-        """머신/프리 모두 실패하고 fuzzy fallback도 실패 → (None, None, ...)."""
+        """머신/프리 모두 정확 매칭 실패 → (None, None, ...). fuzzy fallback 비활성."""
         db = _make_db(
             _exec_first(None),  # machine_stmt → None
             _exec_first(None),  # Exercise(id, default_equipment_id) → None (프리 미매치)
-            # fuzzy: _resolve_exercise_id 내부 쿼리들
-            _exec_scalar(None),  # name_en 정확 매치
-            _exec_scalar(None),  # name 한글 매치
-            _exec_scalar(None),  # ilike 매치
-            _exec_all([]),  # all_exercises
+            # fuzzy fallback 제거됨 → 정확 매칭 실패 시 즉시 (None, None) 반환
         )
 
         result = await _resolve_label_to_ids("CompletelyUnknownExercise", None, db)
