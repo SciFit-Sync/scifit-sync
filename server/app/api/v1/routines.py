@@ -880,25 +880,39 @@ async def _build_rag_profile(
     target_muscle_ids: list[uuid.UUID] = []
     target_muscle_names: list[str] = []
     body_regions: list[str] = []
+    # 선택 순서 보존(복수 부위 비중 배분용): ("uuid", UUID) | ("region", str)
+    priority_specs: list[tuple[str, object]] = []
     if req and req.target_muscle_group_ids:
         for mid in req.target_muscle_group_ids:
             if not mid:
                 continue
             try:
-                target_muscle_ids.append(uuid.UUID(mid))
+                uid = uuid.UUID(mid)
+                target_muscle_ids.append(uid)
+                priority_specs.append(("uuid", uid))
             except ValueError:
                 normalized = _REGION_ALIASES.get(mid.lower(), mid.lower())
                 body_regions.append(normalized)
+                priority_specs.append(("region", normalized))
 
     if body_regions:
         region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
         target_muscle_ids.extend([row[0] for row in region_rows])
 
+    target_priority: list[str] = []
     if target_muscle_ids:
         mg_rows = (
             await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
         ).all()
         target_muscle_names = [name for _, name in mg_rows]
+        # 선택 순서대로 우선순위 라벨 구성 (region은 라벨 그대로, uuid는 근육명) + 중복 제거
+        id_to_name = {str(mid): name for mid, name in mg_rows}
+        seen_pri: set[str] = set()
+        for kind, val in priority_specs:
+            label = val if kind == "region" else id_to_name.get(str(val))
+            if label and label not in seen_pri:
+                seen_pri.add(label)
+                target_priority.append(label)
 
     # 5. gym 기구 × 선택 근육 필터링 → LLM에게 전달할 기구 목록 (PR-3: 기구 중심 재설계)
     #    머신(is_freeweight=false): gym_equipments(gym_id) × equipment_muscles(근육 필터, optional)
@@ -1048,6 +1062,7 @@ async def _build_rag_profile(
         gender=str(profile.gender) if profile.gender else None,
         available_equipments=available_equipments,
         target_muscles=target_muscle_names,
+        target_priority=target_priority,
         session_minutes=(req.session_minutes if req else None),
         injury=(req.injury if req else None),
         feedback=feedback,
