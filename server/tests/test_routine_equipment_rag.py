@@ -393,6 +393,38 @@ class TestPersistDay:
         assert rex_pairs == []
 
     @pytest.mark.asyncio
+    async def test_unresolved_equipment_excluded_from_results(self):
+        """PR-4: exercise_id는 해석됐으나 equipment_id=None이면 equipment_id NOT NULL 위반을 피하기 위해 제외."""
+        day_data = self._make_day_data("Some Free Exercise")
+
+        async def fake_resolve_no_equip(label, gym_id, db):
+            return None, _EX_ID, None, 1.0, None  # 운동은 있으나 기구 해석 실패
+
+        db = AsyncMock()
+        db.flush = AsyncMock()
+        db.add = MagicMock()
+
+        with (
+            patch("app.api.v1.routines._resolve_label_to_ids", side_effect=fake_resolve_no_equip),
+            patch("app.api.v1.routines.derive_exercise_targets") as mock_targets,
+        ):
+            _, rex_pairs, _ = await _persist_day(
+                routine_id=_ROUTINE_ID,
+                day_data=day_data,
+                primary_goal="hypertrophy",
+                user_1rms={},
+                user_body_weight=70.0,
+                user_gender=None,
+                user_career_level=None,
+                gym_id=_GYM_ID,
+                db=db,
+            )
+
+        assert rex_pairs == []
+        # eq_id None 가드는 derive_exercise_targets 호출 전에 continue → 타겟 계산도 안 됨
+        mock_targets.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_name_fallback_used_when_no_equipment_label(self):
         """'name' 키만 있는 LLM 출력(하위 호환)도 equipment_label처럼 해석된다."""
         day_data = {

@@ -294,8 +294,8 @@ erDiagram
     routine_exercises {
         UUID id PK
         UUID routine_day_id FK "routine_days.id CASCADE"
-        UUID exercise_id FK "exercises.id RESTRICT"
-        UUID equipment_id FK "equipments.id SET NULL, NULL"
+        UUID exercise_id FK "exercises.id RESTRICT (보조 라벨)"
+        UUID equipment_id FK "equipments.id RESTRICT, NOT NULL (PR-4 1차 단위)"
         int order_index "NOT NULL"
         int sets "NOT NULL"
         int reps_min "범위 하한 (API-4)"
@@ -303,6 +303,7 @@ erDiagram
         decimal weight_kg "기구 설정 중량 (NULL = 맨몸)"
         int rest_seconds "NOT NULL DEFAULT 60"
         text note "수행 가이드 메모 (NULL) (S-3)"
+        string display_name "선택 동작 라벨 스냅샷 (NULL) (PR-3)"
     }
 
     routine_papers {

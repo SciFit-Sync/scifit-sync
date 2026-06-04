@@ -36,6 +36,10 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | exercise_id | String (UUID) | ❌ | **종목 자체 교체** 시 새 운동 ID. 없으면 기존 유지 |
 | equipment_id | String (UUID) | ❌ | 사용 기구 변경. 사용자 헬스장 보유 검증 |
+
+> **PR-4 동작 (equipment_id NOT NULL):** `routine_exercises.equipment_id`는 NOT NULL이므로 운동마다 항상 기구가 묶인다.
+> `exercise_id`만 보내 종목을 교체하면 서버가 그 운동에 쓸 기구를 **결정론적으로 자동 선택**한다(우선순위: 루틴 헬스장 머신 → 전 헬스장 공통 프리웨이트). `equipment_id`를 함께 보내면 그 값이 우선한다.
+> 종목 교체 시 헬스장에서 쓸 수 있는 기구가 하나도 없으면 **409 CONFLICT** (`교체할 운동에 사용할 수 있는 기구가 헬스장에 없습니다.`).
 | sets | Integer | ❌ | 세트 수 (≥ 1) |
 | reps_min | Integer | ❌ | 최소 반복 (≥ 1, ≤ reps_max) |
 | reps_max | Integer | ❌ | 최대 반복 (≥ 1) |

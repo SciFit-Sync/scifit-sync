@@ -454,26 +454,14 @@ async def update_routine_exercise(
         new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
         if new_ex is None:
             raise NotFoundError(message="운동을 찾을 수 없습니다.")
-        # D-M9: 교체 운동의 기구가 루틴 헬스장 소속인지 검증
-        if routine.gym_id:
-            gym_eq_ids = {
-                row[0]
-                for row in (
-                    await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
-                ).all()
-            }
-            ex_eq_ids = {
-                row[0]
-                for row in (
-                    await db.execute(
-                        select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
-                    )
-                ).all()
-            }
-            if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
-                raise ConflictError(message="선택한 기구가 헬스장에 등록되어 있지 않습니다.")
         rex.exercise_id = new_ex_id
-        rex.equipment_id = None  # 종목 바뀌면 기구 초기화
+        # PR-4: equipment_id NOT NULL — 같은 요청에 equipment_id가 없으면 결정론적으로 재선택.
+        # _pick_equipment_for_exercise가 헬스장 머신/공통 프리웨이트만 고르므로 D-M9 소속 검증을 겸한다.
+        if body.equipment_id is None:
+            picked = await _pick_equipment_for_exercise(new_ex_id, routine.gym_id, db)
+            if picked is None:
+                raise ConflictError(message="교체할 운동에 사용할 수 있는 기구가 헬스장에 없습니다.")
+            rex.equipment_id = picked
 
     # 기구 변경
     if body.equipment_id is not None:
@@ -1275,6 +1263,46 @@ async def _resolve_label_to_ids(
     return None, fallback_ex_id, None, 1.0, None
 
 
+async def _pick_equipment_for_exercise(
+    exercise_id: uuid.UUID,
+    gym_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> uuid.UUID | None:
+    """exercise_id에 연결된 기구를 결정론적으로 1개 선택한다 (equipment_id NOT NULL 보장용).
+
+    우선순위: 1) 루틴 헬스장에 등록된 머신  2) 전 헬스장 공통 프리웨이트  3) (gym 미지정 시) 정렬상 1개.
+    gym_id가 있으면 헬스장 머신 또는 공통 프리웨이트만 허용한다(헬스장에 없는 머신은 고르지 않음 — D-M9).
+    후보가 없거나 gym 제약을 만족하지 못하면 None.
+    """
+    rows = (
+        await db.execute(
+            select(Equipment.id, Equipment.is_freeweight)
+            .join(ExerciseEquipmentMap, ExerciseEquipmentMap.equipment_id == Equipment.id)
+            .where(ExerciseEquipmentMap.exercise_id == exercise_id)
+            .order_by(Equipment.id)
+        )
+    ).all()
+    if not rows:
+        return None
+
+    gym_eq_ids: set[uuid.UUID] = set()
+    if gym_id is not None:
+        gym_eq_ids = {
+            row[0]
+            for row in (await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == gym_id))).all()
+        }
+
+    gym_machines = sorted((r.id for r in rows if r.id in gym_eq_ids), key=str)
+    if gym_machines:
+        return gym_machines[0]
+    freeweights = sorted((r.id for r in rows if r.is_freeweight), key=str)
+    if freeweights:
+        return freeweights[0]
+    if gym_id is None:
+        return sorted((r.id for r in rows), key=str)[0]
+    return None
+
+
 async def _persist_day(
     *,
     routine_id: uuid.UUID,
@@ -1315,6 +1343,13 @@ async def _persist_day(
 
         if exercise_id is None:
             logger.warning("equipment_label '%s' exercise_id 해석 실패 — 제외", equipment_label)
+            continue
+
+        # PR-4: equipment_id NOT NULL — 기구 해석 실패 시 저장 불가하므로 제외
+        if eq_id is None:
+            logger.warning(
+                "equipment_label '%s' equipment_id 해석 실패 — 제외 (equipment_id NOT NULL)", equipment_label
+            )
             continue
 
         targets = derive_exercise_targets(
