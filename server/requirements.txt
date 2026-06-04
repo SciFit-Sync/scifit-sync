@@ -18,8 +18,12 @@ google-genai>=1.0.0
 openai>=1.50.0
 
 # RAG / Embedding
+# 임베딩 스택 버전 핀 — Dockerfile의 torch(CPU wheel)와 호환 필수.
+# 미핀 시 최신 transformers가 torch.float8_e8m0fnu(torch 2.7+) 참조 →
+# torch 미스매치로 PreTrainedModel import 전체 붕괴 (rev31 챗봇/RAG 장애).
 chromadb>=1.0.0
-sentence-transformers>=3.0.0
+transformers==4.57.1
+sentence-transformers==5.3.0
 
 # HTTP / 외부 API
 httpx>=0.27.0
