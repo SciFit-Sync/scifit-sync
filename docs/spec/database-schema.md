@@ -242,6 +242,7 @@ erDiagram
         varchar name_en UK "영문명, NOT NULL (S-4: UNIQUE)"
         varchar category "compound | isolation 등, NOT NULL"
         text description "NULL"
+        UUID default_equipment_id FK "equipments.id SET NULL, NULL (PR-4.5: 프리웨이트 운동의 구현 기구. exercise_equipment_map 읽기 경로 대체)"
         timestamp updated_at "NOT NULL DEFAULT NOW()"
     }
 

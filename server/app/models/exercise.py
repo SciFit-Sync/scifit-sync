@@ -22,7 +22,12 @@ class Exercise(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     category: Mapped[str] = mapped_column(String(50))
     gif_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    # PR-4.5: 프리웨이트 운동의 구현 기구(제네릭 바벨/덤벨) 단일 매핑. exercise_equipment_map 읽기 경로 대체.
+    default_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="SET NULL"), default=None
+    )
 
+    # DEPRECATED (PR-5에서 제거 예정): 런타임 읽기/쓰기 경로는 default_equipment_id로 이전됨.
     equipment_maps: Mapped[list["ExerciseEquipmentMap"]] = relationship(
         back_populates="exercise", cascade="all, delete-orphan"
     )

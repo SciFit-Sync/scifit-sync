@@ -150,7 +150,7 @@ class FreeWeightItem(BaseModel):
     exercise_id: str
     name: str
     name_en: str | None = None
-    equipment_id: str | None = None  # 바벨/덤벨 기구 ID (exercise_equipment_map 출처)
+    equipment_id: str | None = None  # 바벨/덤벨 기구 ID (exercises.default_equipment_id 출처)
     equipment_type: str | None = None  # 'barbell' | 'dumbbell' | 'bodyweight'
 
 

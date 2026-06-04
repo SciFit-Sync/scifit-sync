@@ -111,6 +111,13 @@ def _exec_all(rows):
     return r
 
 
+def _exec_first(row):
+    """.first() 반환 (단일 행 조인 쿼리용)."""
+    r = MagicMock()
+    r.first.return_value = row
+    return r
+
+
 def _make_db(*side_effects):
     """주어진 side_effect 순서로 execute()를 응답하는 목 AsyncSession."""
     db = AsyncMock()
@@ -439,10 +446,10 @@ class TestUpdateRoutineExercise:
         rex = _routine_exercise()
         new_ex = MagicMock()
         new_ex.id = new_ex_uuid
-        # _pick_equipment_for_exercise 후보 행 (gym None → 프리웨이트 선택)
-        cand_row = MagicMock()
-        cand_row.id = free_eq_id
-        cand_row.is_freeweight = True
+        # PR-4.5: _pick은 Exercise(name_en, default_equipment_id) 조회 → 프리웨이트면 default 기구 반환
+        pick_row = MagicMock()
+        pick_row.name_en = "Deadlift"
+        pick_row.default_equipment_id = free_eq_id
         exercise_resp = MagicMock()
         exercise_resp.name = "데드리프트"
         equipment_resp = MagicMock()
@@ -452,7 +459,7 @@ class TestUpdateRoutineExercise:
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
             _exec_scalar(new_ex),  # 신규 Exercise 조회
-            _exec_all([cand_row]),  # _pick: 후보 기구 (gym None → gym 쿼리 없음)
+            _exec_first(pick_row),  # _pick: Exercise(name_en, default_equipment_id) → 프리웨이트(default 설정)
             _exec_scalar(exercise_resp),  # 응답용 Exercise
             _exec_scalar(equipment_resp),  # 응답용 Equipment
         )
@@ -481,17 +488,17 @@ class TestUpdateRoutineExercise:
         rex = _routine_exercise()
         new_ex = MagicMock()
         new_ex.id = new_ex_uuid
-        # 후보는 머신 1개지만 헬스장 미보유 + 프리웨이트 아님 → 선택 불가
-        cand_row = MagicMock()
-        cand_row.id = uuid.uuid4()
-        cand_row.is_freeweight = False
+        # PR-4.5: 머신 운동(default_equipment_id=None)인데 헬스장에 해당 머신 미보유 → 선택 불가
+        pick_row = MagicMock()
+        pick_row.name_en = "Machine Chest Press"
+        pick_row.default_equipment_id = None
 
         db = _make_db(
             _exec_scalar(r),  # _get_my_routine
             _exec_scalar(rex),  # RoutineExercise 조회
             _exec_scalar(new_ex),  # 신규 Exercise 조회
-            _exec_all([cand_row]),  # _pick: 후보 기구
-            _exec_all([]),  # _pick: 헬스장 기구 목록 (없음)
+            _exec_first(pick_row),  # _pick: Exercise(name_en, default_equipment_id) → 머신(default None)
+            _exec_first(None),  # _pick: gym 보유 머신(movement_label_en 매치) 조회 → 없음
         )
         app.dependency_overrides[get_db] = _db_override(db)
 

@@ -509,20 +509,24 @@ class TestResolveLabelToIds:
 
     @pytest.mark.asyncio
     async def test_free_weight_path_returns_both_ids(self):
-        """movement_label_en 미매치 → exercises.name_en 매치 → exercise_id + equipment 반환."""
+        """movement_label_en 미매치 → exercises.name_en 매치 → default_equipment_id로 equipment 반환 (PR-4.5)."""
         ex_id = _EX_ID
         eq_id = _EQ_FREE_ID
 
-        eq_map_row = MagicMock()
-        eq_map_row.id = eq_id
-        eq_map_row.equipment_type = "barbell"
-        eq_map_row.pulley_ratio = 1.0
-        eq_map_row.bar_weight = 20.0
+        # PR-4.5: 프리 경로는 Exercise(id, default_equipment_id) 조회 후 그 기구 정보를 조회한다
+        ex_row = MagicMock()
+        ex_row.id = ex_id
+        ex_row.default_equipment_id = eq_id
+
+        eq_row = MagicMock()
+        eq_row.equipment_type = "barbell"
+        eq_row.pulley_ratio = 1.0
+        eq_row.bar_weight = 20.0
 
         db = _make_db(
             _exec_first(None),  # machine_stmt.first() → None (머신 미매치)
-            _exec_scalar(ex_id),  # Exercise.id by name_en
-            _exec_first(eq_map_row),  # exercise_equipment_map 기구
+            _exec_first(ex_row),  # Exercise(id, default_equipment_id) by name_en
+            _exec_first(eq_row),  # default_equipment_id 기구 정보 (equipment_type/pulley/bar)
         )
 
         result_eq_id, result_ex_id, eq_type, pulley, bar = await _resolve_label_to_ids("Barbell Bench Press", None, db)
@@ -537,7 +541,7 @@ class TestResolveLabelToIds:
         """머신/프리 모두 실패하고 fuzzy fallback도 실패 → (None, None, ...)."""
         db = _make_db(
             _exec_first(None),  # machine_stmt → None
-            _exec_scalar(None),  # Exercise.id → None (프리 미매치)
+            _exec_first(None),  # Exercise(id, default_equipment_id) → None (프리 미매치)
             # fuzzy: _resolve_exercise_id 내부 쿼리들
             _exec_scalar(None),  # name_en 정확 매치
             _exec_scalar(None),  # name 한글 매치
