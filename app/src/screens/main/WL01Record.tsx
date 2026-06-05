@@ -269,11 +269,11 @@ export default function WL01Record() {
                   <Text style={styles.routine_name}>
                     {item.routine_name ?? "자유 운동"}
                   </Text>
-                  {(item.fitness_goals.length > 0 || item.target_muscle_names.length > 0) && (
+                  {(item.fitness_goals.length > 0 || (item.target_muscle_names ?? []).length > 0) && (
                     <Text style={styles.routine_sub}>
                       {[
                         item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", "),
-                        item.target_muscle_names.join(", "),
+                        (item.target_muscle_names ?? []).join(", "),
                       ].filter(Boolean).join(" · ")}
                     </Text>
                   )}
