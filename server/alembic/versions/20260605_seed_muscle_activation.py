@@ -61,10 +61,7 @@ def upgrade() -> None:
     exercises = sorted({r["exercise_name"].strip() for r in rows})
     for name in exercises:
         conn.execute(
-            text(
-                "DELETE FROM exercise_muscles "
-                "WHERE exercise_id = (SELECT id FROM exercises WHERE name_en = :nm)"
-            ),
+            text("DELETE FROM exercise_muscles WHERE exercise_id = (SELECT id FROM exercises WHERE name_en = :nm)"),
             {"nm": name},
         )
 
@@ -99,9 +96,7 @@ def upgrade() -> None:
         if conn.execute(text("SELECT 1 FROM muscle_groups WHERE name = :s"), {"s": s}).first() is None
     ]
     if missing_slugs:
-        raise RuntimeError(
-            f"muscle slug 미해석 {len(missing_slugs)}종 — normalize_muscles 선행 누락? {missing_slugs}"
-        )
+        raise RuntimeError(f"muscle slug 미해석 {len(missing_slugs)}종 — normalize_muscles 선행 누락? {missing_slugs}")
 
 
 def downgrade() -> None:
