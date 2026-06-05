@@ -350,7 +350,9 @@ async def ocr_inbody(
         parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("인바디 OCR JSON 파싱 실패: %.200s", raw)
-        raise ExternalServiceError(message="결과지를 인식하지 못했습니다. 더 선명한 사진으로 다시 시도해주세요.") from None
+        raise ExternalServiceError(
+            message="결과지를 인식하지 못했습니다. 더 선명한 사진으로 다시 시도해주세요."
+        ) from None
 
     raw_date = parsed.get("measured_at")
     measured: date | None = None
