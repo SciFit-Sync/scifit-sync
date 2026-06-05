@@ -29,11 +29,7 @@
       "expo-font",
       "expo-web-browser"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "2c24df8a-4e78-4de3-aaec-b5b9f0344b56"
-      }
-    },
-    "owner": "kuyebin"
+
+    "owner": "2ziziy"
   }
 }
