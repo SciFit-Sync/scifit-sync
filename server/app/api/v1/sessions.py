@@ -411,7 +411,7 @@ async def _check_and_create_po_notifications(
             category=equipment_type,
             goal=goal,
             current_weight=float(cur_max_weight or 0),
-            current_sets=int(set_count),
+            current_sets=rex.sets or int(set_count),
             max_stack=max_stack,
         )
 
