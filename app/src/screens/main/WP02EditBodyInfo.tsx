@@ -45,6 +45,7 @@ export default function WP02EditBodyInfo() {
   const [weight, set_weight] = useState("");
   const [skeletal_muscle, set_skeletal_muscle] = useState("");
   const [body_fat, set_body_fat] = useState("");
+  const [measured_at, set_measured_at] = useState<string | null>(null);
   const [gender, set_gender] = useState<Gender>("male");
   const [show_date_picker, set_show_date_picker] = useState(false);
   const [loading, set_loading] = useState(true);
@@ -99,11 +100,17 @@ export default function WP02EditBodyInfo() {
             });
       if (result.canceled || !result.assets?.[0]?.base64) return;
       set_ocr_loading(true);
-      const m = await ocrInbody(token, result.assets[0].base64, "image/jpeg");
+      const asset = result.assets[0];
+      const m = await ocrInbody(
+        token,
+        asset.base64!,
+        asset.mimeType ?? "image/jpeg",
+      );
       if (m.weight_kg != null) set_weight(String(m.weight_kg));
       if (m.skeletal_muscle_kg != null)
         set_skeletal_muscle(String(m.skeletal_muscle_kg));
       if (m.body_fat_pct != null) set_body_fat(String(m.body_fat_pct));
+      if (m.measured_at) set_measured_at(m.measured_at);
       Alert.alert("인식 완료", "추출된 값을 확인하고 수정 후 저장해주세요.");
     } catch (e: any) {
       Alert.alert(
@@ -144,6 +151,7 @@ export default function WP02EditBodyInfo() {
         ...(w !== undefined ? { weight_kg: w } : {}),
         ...(sm !== undefined && !isNaN(sm) ? { skeletal_muscle_kg: sm } : {}),
         ...(bf !== undefined && !isNaN(bf) ? { body_fat_pct: bf } : {}),
+        ...(measured_at ? { measured_at } : {}),
         ...(birth_date ? { birth_date: display_to_api(birth_date) } : {}),
         gender,
       });

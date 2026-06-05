@@ -243,6 +243,32 @@ class TestOcrInbody:
         resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": "!!!not-valid!!!"})
         assert resp.status_code == 400
 
+    @pytest.mark.asyncio
+    async def test_non_numeric_values_coerced(self, client, monkeypatch):
+        # LLM이 단위 포함 문자열 반환 → _as_float가 숫자 추출 (pydantic 500 방지)
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: (
+                '{"weight_kg": "72.5kg", "skeletal_muscle_kg": "약 33", "body_fat_pct": "18.4%", "measured_at": null}'
+            ),
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["weight_kg"] == 72.5
+        assert data["skeletal_muscle_kg"] == 33.0
+        assert data["body_fat_pct"] == 18.4
+
+    @pytest.mark.asyncio
+    async def test_non_dict_response_returns_503(self, client, monkeypatch):
+        # LLM이 JSON 배열 등 비-객체 반환 → parsed.get AttributeError(500) 대신 503
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: '["not", "a", "dict"]',
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 503
+
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
 

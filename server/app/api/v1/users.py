@@ -3,9 +3,11 @@
 CLAUDE.md / api-endpoints.md #9-17, #43, #50.
 """
 
+import asyncio
 import base64
 import json
 import logging
+import re
 import uuid
 from datetime import date, datetime, timezone
 
@@ -293,6 +295,19 @@ async def update_body(
 
 
 # ── POST /users/me/body/ocr ───────────────────────────────────────────────────
+def _as_float(v) -> float | None:
+    """LLM이 '18.4%'·'약 72'·'N/A' 등 비순수 숫자를 줄 수 있어 방어적으로 float 추출.
+
+    숫자 변환 불가 시 None (pydantic ValidationError → 500 우회).
+    """
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    m = re.search(r"-?\d+(?:\.\d+)?", str(v))
+    return float(m.group()) if m else None
+
+
 _INBODY_OCR_PROMPT = """당신은 인바디(InBody) 체성분 분석 결과지를 읽는 OCR 도우미입니다.
 첨부된 인바디 결과지 사진에서 아래 수치를 추출해 JSON 으로만 응답하세요.
 
@@ -329,6 +344,10 @@ async def ocr_inbody(
     추출만 수행하며, 클라이언트가 사용자 확인 후 PATCH /me/body 로 저장한다.
     LLM endpoint 이므로 rate limit 5/minute (CLAUDE.md §12).
     """
+    # base64 길이 선검사 — 거대 페이로드를 디코드 전 차단 (10MB 이미지 ≈ 13.4MB base64)
+    if len(body.image_base64) > 14 * 1024 * 1024:
+        raise ValidationError(message="이미지 크기는 10MB 이하여야 합니다.")
+
     try:
         image_bytes = base64.b64decode(body.image_base64, validate=True)
     except Exception:
@@ -336,11 +355,11 @@ async def ocr_inbody(
 
     if not image_bytes:
         raise ValidationError(message="이미지가 비어 있습니다.")
-    if len(image_bytes) > 10 * 1024 * 1024:
-        raise ValidationError(message="이미지 크기는 10MB 이하여야 합니다.")
 
     try:
-        raw = generate_vision(_INBODY_OCR_PROMPT, image_bytes, body.mime_type)
+        # 동기 blocking LLM 호출을 스레드로 오프로드 — ECS Task count=1 이므로
+        # 직접 호출 시 OCR 처리 동안 이벤트 루프가 막혀 모든 동시 요청이 정지 (CLAUDE.md §16).
+        raw = await asyncio.to_thread(generate_vision, _INBODY_OCR_PROMPT, image_bytes, body.mime_type)
     except Exception as e:
         logger.warning("인바디 OCR LLM 호출 실패: %s", e)
         raise ExternalServiceError(message="이미지 분석에 실패했습니다. 잠시 후 다시 시도해주세요.") from e
@@ -350,6 +369,12 @@ async def ocr_inbody(
         parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("인바디 OCR JSON 파싱 실패: %.200s", raw)
+        raise ExternalServiceError(
+            message="결과지를 인식하지 못했습니다. 더 선명한 사진으로 다시 시도해주세요."
+        ) from None
+
+    if not isinstance(parsed, dict):
+        logger.warning("인바디 OCR 비-객체 응답: %.200s", raw)
         raise ExternalServiceError(
             message="결과지를 인식하지 못했습니다. 더 선명한 사진으로 다시 시도해주세요."
         ) from None
@@ -364,9 +389,9 @@ async def ocr_inbody(
 
     return SuccessResponse(
         data=BodyMeasurementData(
-            weight_kg=parsed.get("weight_kg"),
-            skeletal_muscle_kg=parsed.get("skeletal_muscle_kg"),
-            body_fat_pct=parsed.get("body_fat_pct"),
+            weight_kg=_as_float(parsed.get("weight_kg")),
+            skeletal_muscle_kg=_as_float(parsed.get("skeletal_muscle_kg")),
+            body_fat_pct=_as_float(parsed.get("body_fat_pct")),
             measured_at=measured,
         )
     )
