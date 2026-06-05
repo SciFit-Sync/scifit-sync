@@ -56,6 +56,7 @@ interface Exercise {
   id: string; // = routine_exercise_id
   exercise_id: string; // 실제 exercises.id (세트 기록 API 용)
   name: string;
+  equipment_name: string | null;
   sets: Set[];
   is_expanded: boolean;
   muscles: MuscleActivation[];
@@ -85,6 +86,7 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
     id: item.routine_exercise_id,
     exercise_id: item.exercise_id,
     name: item.exercise_name,
+    equipment_name: item.equipment_name ?? null,
     sets,
     is_expanded: false,
     muscles: (item.muscle_activation ?? []).map((m) => ({
@@ -829,6 +831,9 @@ export default function WR04RoutineDetail() {
                 >
                   <View style={styles.exercise_info}>
                     <Text style={styles.exercise_name}>{exercise.name}</Text>
+                    {exercise.equipment_name && (
+                      <Text style={styles.equipment_label}>{exercise.equipment_name}</Text>
+                    )}
                     <Text style={styles.exercise_sub}>
                       세트 {exercise.sets.filter((s) => s.is_done).length}/
                       {exercise.sets.length}회
@@ -1534,6 +1539,11 @@ const styles = StyleSheet.create({
     fontFamily: "medium",
     fontSize: 16,
     color: colors.primary,
+  },
+  equipment_label: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: colors.gray500,
   },
   exercise_sub: {
     fontFamily: "regular",

@@ -24,7 +24,6 @@ from app.models import (
     Equipment,
     EquipmentBrand,
     Exercise,
-    ExerciseEquipmentMap,
     ExerciseMuscle,
     Gym,
     MuscleGroup,
@@ -44,7 +43,7 @@ from app.models import (
 from app.models import (
     UserProfile as DBUserProfile,
 )
-from app.models.gym import GymEquipment
+from app.models.gym import GymEquipment, UserGym
 from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
@@ -218,7 +217,10 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
                     ExerciseMuscle.involvement,
                 )
                 .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
-                .where(ExerciseMuscle.exercise_id.in_(ex_ids))
+                .where(
+                    ExerciseMuscle.exercise_id.in_(ex_ids),
+                )
+                .distinct()
             )
         ).all()
 
@@ -228,8 +230,9 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
             _raw.setdefault(str(eid), []).append((name_ko, pct, involvement))
 
         for eid, muscles in _raw.items():
-            # activation_pct 실제값이 있으면 합계 100으로 정규화
-            if any(pct is not None for _, pct, _ in muscles):
+            # 모든 근육에 실제 activation_pct가 있을 때만 합계 100으로 정규화
+            # 하나라도 NULL이면 involvement 기반 추정으로 fallback (NULL 근육이 0%로 묻히는 것 방지)
+            if all(pct is not None for _, pct, _ in muscles):
                 raw_pairs = [(name, pct or 0) for name, pct, _ in muscles]
                 total = sum(p for _, p in raw_pairs)
                 if total > 0 and total != 100:
@@ -450,26 +453,14 @@ async def update_routine_exercise(
         new_ex = (await db.execute(select(Exercise).where(Exercise.id == new_ex_id))).scalar_one_or_none()
         if new_ex is None:
             raise NotFoundError(message="운동을 찾을 수 없습니다.")
-        # D-M9: 교체 운동의 기구가 루틴 헬스장 소속인지 검증
-        if routine.gym_id:
-            gym_eq_ids = {
-                row[0]
-                for row in (
-                    await db.execute(select(GymEquipment.equipment_id).where(GymEquipment.gym_id == routine.gym_id))
-                ).all()
-            }
-            ex_eq_ids = {
-                row[0]
-                for row in (
-                    await db.execute(
-                        select(ExerciseEquipmentMap.equipment_id).where(ExerciseEquipmentMap.exercise_id == new_ex_id)
-                    )
-                ).all()
-            }
-            if ex_eq_ids and not ex_eq_ids.intersection(gym_eq_ids):
-                raise ConflictError(message="선택한 기구가 헬스장에 등록되어 있지 않습니다.")
         rex.exercise_id = new_ex_id
-        rex.equipment_id = None  # 종목 바뀌면 기구 초기화
+        # PR-4: equipment_id NOT NULL — 같은 요청에 equipment_id가 없으면 결정론적으로 재선택.
+        # _pick_equipment_for_exercise가 헬스장 머신/공통 프리웨이트만 고르므로 D-M9 소속 검증을 겸한다.
+        if body.equipment_id is None:
+            picked = await _pick_equipment_for_exercise(new_ex_id, routine.gym_id, db)
+            if picked is None:
+                raise ConflictError(message="교체할 운동에 사용할 수 있는 기구가 헬스장에 없습니다.")
+            rex.equipment_id = picked
 
     # 기구 변경
     if body.equipment_id is not None:
@@ -830,6 +821,21 @@ async def _async_iter_sync_gen(make_gen):
         yield item
 
 
+async def _resolve_primary_gym_id(user_id: uuid.UUID, db: AsyncSession) -> str | None:
+    """user의 기본 헬스장 gym_id(is_primary 우선). gym_id 미지정 루틴 생성 시 fallback (D-M9).
+
+    프론트가 routine 생성 요청에 gym_id를 보내지 않아도, 서버가 user_gyms의 기본 헬스장을
+    채워 머신 후보(gym_equipments 기반)가 _build_rag_profile에서 정상 생성되도록 한다.
+    user_gyms가 없으면 None(전 헬스장 공통 프리/맨몸만 — else fallback).
+    """
+    row = (
+        await db.execute(
+            select(UserGym.gym_id).where(UserGym.user_id == user_id).order_by(UserGym.is_primary.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    return str(row) if row else None
+
+
 async def _build_rag_profile(
     user: User,
     body: GenerateRoutineRequest | RegenerateRoutineRequest,
@@ -857,73 +863,206 @@ async def _build_rag_profile(
 
     req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
 
-    # 3. target_muscle_group_ids(UUID) → 영어 근육 이름으로 해석
+    # 3. target_muscle_group_ids → UUID 또는 body_region 문자열로 해석
+    _REGION_ALIASES: dict[str, str] = {
+        "shoulder": "shoulders",
+        "shoulders": "shoulders",
+        "back": "back",
+        "chest": "chest",
+        "legs": "legs",
+        "leg": "legs",
+        "arms": "arms",
+        "arm": "arms",
+        "abs": "core",
+        "core": "core",
+    }
+
     target_muscle_ids: list[uuid.UUID] = []
     target_muscle_names: list[str] = []
+    body_regions: list[str] = []
+    # 선택 순서 보존(복수 부위 비중 배분용): ("uuid", UUID) | ("region", str)
+    priority_specs: list[tuple[str, object]] = []
     if req and req.target_muscle_group_ids:
         for mid in req.target_muscle_group_ids:
             if not mid:
                 continue
             try:
-                target_muscle_ids.append(uuid.UUID(mid))
+                uid = uuid.UUID(mid)
+                target_muscle_ids.append(uid)
+                priority_specs.append(("uuid", uid))
             except ValueError:
-                logger.warning("잘못된 muscle_group_id 무시: %s", mid)
+                normalized = _REGION_ALIASES.get(mid.lower(), mid.lower())
+                body_regions.append(normalized)
+                priority_specs.append(("region", normalized))
+
+    if body_regions:
+        region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
+        target_muscle_ids.extend([row[0] for row in region_rows])
+
+    target_priority: list[str] = []
     if target_muscle_ids:
         mg_rows = (
             await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
         ).all()
         target_muscle_names = [name for _, name in mg_rows]
+        # 선택 순서대로 우선순위 라벨 구성 (region은 라벨 그대로, uuid는 근육명) + 중복 제거
+        id_to_name = {str(mid): name for mid, name in mg_rows}
+        seen_pri: set[str] = set()
+        for kind, val in priority_specs:
+            label = val if kind == "region" else id_to_name.get(str(val))
+            if label and label not in seen_pri:
+                seen_pri.add(label)
+                target_priority.append(label)
 
-    # 5. gym 기구 × 선택 근육 필터링 → LLM에게 전달할 운동 목록
-    #    target_muscles 선택 시: 해당 근육을 주동근(PRIMARY)으로 쓰는 운동만
-    #    선택 없으면(전신 루틴): gym 기구로 할 수 있는 모든 운동
-    available_exercises: list[str] = []
+    # 5. gym 기구 × 선택 근육 필터링 → LLM에게 전달할 기구 목록 (PR-3: 기구 중심 재설계)
+    #    머신(is_freeweight=false): gym_equipments(gym_id) × equipment_muscles(근육 필터, optional)
+    #    프리웨이트(is_freeweight=true): exercise_muscles × exercises × equipments(default_equipment_id), 전 헬스장 공통
+    #    gym_id 있는데 결과 0개 → 404 (전체 DB로 새지 않음)
+    #    gym_id 없을 때만 전체 DB 허용 (fallback)
+    from app.models.gym import EquipmentMuscle
+
+    available_equipments: list[dict] = []
     gym_id_str = req.gym_id if req else None
+    gid: uuid.UUID | None = None
+
     if gym_id_str:
         try:
             gid = uuid.UUID(gym_id_str)
-            stmt = (
-                select(Exercise.name_en)
-                .join(ExerciseEquipmentMap, ExerciseEquipmentMap.exercise_id == Exercise.id)
-                .join(GymEquipment, GymEquipment.equipment_id == ExerciseEquipmentMap.equipment_id)
-                .where(GymEquipment.gym_id == gid)
-                .distinct()
-                .order_by(Exercise.name_en)
-            )
-            if target_muscle_ids:
-                # 선택된 근육을 주동근으로 쓰는 운동만 포함
-                stmt = stmt.join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id).where(
-                    ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
-                    ExerciseMuscle.involvement == "primary",
-                )
-            rows = (await db.execute(stmt)).all()
-            available_exercises = [row[0] for row in rows]
         except ValueError:
             logger.warning("gym_id가 UUID가 아님: %s", gym_id_str)
 
-    # gym_id 없거나 gym 필터 결과가 비어 있을 때 → 전체 DB 기준 fallback
-    # (근육 선택이 있으면 fallback에서도 근육 필터 유지)
-    if not available_exercises:
-        fb_stmt = select(Exercise.name_en).where(Exercise.name_en.isnot(None))
-        if target_muscle_ids:
-            fb_stmt = (
-                fb_stmt.join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
-                .where(
-                    ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
-                    ExerciseMuscle.involvement == "primary",
-                )
-                .distinct()
+    if gid is not None:
+        # ── 머신 후보: gym_equipments JOIN equipments(is_freeweight=false) ──
+        machine_stmt = (
+            select(
+                Equipment.id,
+                Equipment.movement_label_en,
+                Equipment.name_en,
+                Equipment.name,
+                Equipment.equipment_type,
             )
-        fallback_rows = (await db.execute(fb_stmt)).scalars().all()
-        available_exercises = sorted({n.strip() for n in fallback_rows if n and n.strip()})
+            .join(GymEquipment, GymEquipment.equipment_id == Equipment.id)
+            .where(
+                GymEquipment.gym_id == gid,
+                Equipment.is_freeweight == False,  # noqa: E712
+            )
+        )
+        if target_muscle_ids:
+            machine_stmt = machine_stmt.join(EquipmentMuscle, EquipmentMuscle.equipment_id == Equipment.id).where(
+                EquipmentMuscle.muscle_group_id.in_(target_muscle_ids),
+                EquipmentMuscle.involvement == "primary",
+            )
+        machine_stmt = machine_stmt.distinct().order_by(Equipment.movement_label_en, Equipment.name_en, Equipment.name)
+        machine_rows = (await db.execute(machine_stmt)).all()
+
+        for row in machine_rows:
+            label = row.movement_label_en or row.name_en or row.name
+            if not label:
+                continue
+            available_equipments.append(
+                {
+                    "equipment_id": str(row.id),
+                    "label": label.strip(),
+                    "equipment_type": str(row.equipment_type),
+                    "source": "MACHINE",
+                }
+            )
+
+        # ── 프리웨이트 후보: exercise_muscles × exercises × equipments(default_equipment_id, is_freeweight=true) ──
+        # 전 헬스장 공통 — gym 필터 없음 (PR-4.5: exercise_equipment_map → exercises.default_equipment_id)
+        free_stmt = (
+            select(
+                Exercise.id.label("exercise_id"),
+                Exercise.name_en.label("exercise_name_en"),
+                Equipment.id.label("equipment_id"),
+                Equipment.equipment_type,
+            )
+            .join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
+            .join(Equipment, Equipment.id == Exercise.default_equipment_id)
+            .where(
+                Exercise.name_en.isnot(None),
+                Equipment.is_freeweight == True,  # noqa: E712
+            )
+        )
+        if target_muscle_ids:
+            free_stmt = free_stmt.where(
+                ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
+                ExerciseMuscle.involvement == "primary",
+            )
+        free_stmt = free_stmt.distinct().order_by(Exercise.name_en)
+        free_rows = (await db.execute(free_stmt)).all()
+
+        # 중복 label 제거 (exercise_name_en 기준)
+        seen_free_labels: set[str] = set()
+        for row in free_rows:
+            label = (row.exercise_name_en or "").strip()
+            if not label or label in seen_free_labels:
+                continue
+            seen_free_labels.add(label)
+            available_equipments.append(
+                {
+                    "equipment_id": str(row.equipment_id),
+                    "label": label,
+                    "equipment_type": str(row.equipment_type),
+                    "source": "FREE",
+                }
+            )
+
+        # gym_id 있는데 후보 0개 → 404 (전체 DB fallback 없음, 스펙 §3-B.4)
+        if not available_equipments:
+            from app.core.exceptions import NotFoundError
+
+            raise NotFoundError(
+                message="해당 헬스장에 등록된 기구가 없습니다. 기구를 먼저 등록해 주세요.",
+                details={"gym_id": gym_id_str, "reason": "no_gym_equipments"},
+            )
+
+    else:
+        # gym_id 없을 때: 전체 DB 기준 프리웨이트 + 머신 (순수 fallback)
+        fb_free_stmt = (
+            select(
+                Exercise.name_en.label("exercise_name_en"),
+                Equipment.id.label("equipment_id"),
+                Equipment.equipment_type,
+            )
+            .join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
+            .join(Equipment, Equipment.id == Exercise.default_equipment_id)
+            .where(
+                Exercise.name_en.isnot(None),
+                Equipment.is_freeweight == True,  # noqa: E712
+            )
+        )
+        if target_muscle_ids:
+            fb_free_stmt = fb_free_stmt.where(
+                ExerciseMuscle.muscle_group_id.in_(target_muscle_ids),
+                ExerciseMuscle.involvement == "primary",
+            )
+        fb_free_stmt = fb_free_stmt.distinct().order_by(Exercise.name_en)
+        fb_free_rows = (await db.execute(fb_free_stmt)).all()
+
+        seen_fb: set[str] = set()
+        for row in fb_free_rows:
+            label = (row.exercise_name_en or "").strip()
+            if not label or label in seen_fb:
+                continue
+            seen_fb.add(label)
+            available_equipments.append(
+                {
+                    "equipment_id": str(row.equipment_id),
+                    "label": label,
+                    "equipment_type": str(row.equipment_type),
+                    "source": "FREE",
+                }
+            )
 
     return RagUserProfile(
         goals=(req.goals if req else []),
         body_weight=body_weight,
         fitness_career=str(profile.career_level),
         gender=str(profile.gender) if profile.gender else None,
-        available_exercises=available_exercises,
+        available_equipments=available_equipments,
         target_muscles=target_muscle_names,
+        target_priority=target_priority,
         session_minutes=(req.session_minutes if req else None),
         injury=(req.injury if req else None),
         feedback=feedback,
@@ -931,7 +1070,11 @@ async def _build_rag_profile(
 
 
 async def _resolve_exercise_id(name: str, db: AsyncSession) -> uuid.UUID | None:
-    """LLM이 출력한 운동 이름 → exercises.id.
+    """[DEPRECATED · 호출처 없음] LLM 운동 이름 → exercises.id 의 fuzzy 매칭.
+
+    _resolve_label_to_ids의 fuzzy fallback이 머신→프리웨이트 오매칭(예: "Chest Press"→
+    "Bench Press")을 유발해 제거되면서 호출처가 사라졌다. 향후 다른 용도로 재사용할
+    여지가 있어 함수는 보존하되, 어떤 런타임 경로에서도 호출하지 않는다.
 
     순서:
     1) name_en 정확 매치 (case-insensitive)
@@ -1006,6 +1149,127 @@ async def _fetch_user_1rms(user_id: uuid.UUID, db: AsyncSession) -> dict[uuid.UU
     return {ex_id: float(w) for ex_id, w in rows}
 
 
+async def _resolve_label_to_ids(
+    label: str,
+    gym_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> tuple[uuid.UUID | None, uuid.UUID | None, str | None, float, float | None]:
+    """LLM equipment_label → (equipment_id, exercise_id, equipment_type, pulley_ratio, bar_weight).
+
+    해석 순서:
+    1) 머신: equipments.movement_label_en == label (gym_id가 있으면 gym_equipments 체크)
+    2) 프리웨이트: exercises.name_en == label → exercises.default_equipment_id에서 기구 선택
+    3) 정확 매칭 실패 시 제외 (fuzzy fallback 비활성 — 머신→프리 오매칭 방지)
+
+    반환: (equipment_id, exercise_id, equipment_type, pulley_ratio, bar_weight)
+    """
+    from sqlalchemy import func as sa_func
+
+    label_stripped = label.strip()
+    label_lc = label_stripped.lower()
+
+    # ── 1) 머신: movement_label_en 정확 매치 ──
+    machine_stmt = select(Equipment.id, Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight).where(
+        sa_func.lower(Equipment.movement_label_en) == label_lc
+    )
+    if gym_id is not None:
+        machine_stmt = machine_stmt.join(GymEquipment, GymEquipment.equipment_id == Equipment.id).where(
+            GymEquipment.gym_id == gym_id
+        )
+    machine_stmt = machine_stmt.limit(1)
+    machine_row = (await db.execute(machine_stmt)).first()
+
+    if machine_row is not None:
+        eq_id = machine_row.id
+        eq_type = str(machine_row.equipment_type)
+        pulley_ratio = float(machine_row.pulley_ratio)
+        bar_weight = machine_row.bar_weight
+
+        # movement_label_en == label이면 exercises.name_en도 동일 값으로 연결된다(스펙 §데이터모델)
+        # exercises에서 name_en == label_stripped 인 exercise_id를 찾는다
+        ex_row = (
+            await db.execute(select(Exercise.id).where(sa_func.lower(Exercise.name_en) == label_lc).limit(1))
+        ).scalar_one_or_none()
+        return eq_id, ex_row, eq_type, pulley_ratio, bar_weight
+
+    # ── 2) 프리웨이트: exercises.name_en 정확 매치 ──
+    ex_row = (
+        await db.execute(
+            select(Exercise.id, Exercise.default_equipment_id)
+            .where(sa_func.lower(Exercise.name_en) == label_lc)
+            .limit(1)
+        )
+    ).first()
+
+    if ex_row is not None:
+        exercise_id = ex_row.id
+        # PR-4.5: 프리웨이트 운동의 구현 기구는 exercises.default_equipment_id (exercise_equipment_map 대체)
+        if ex_row.default_equipment_id is not None:
+            eq_row = (
+                await db.execute(
+                    select(Equipment.equipment_type, Equipment.pulley_ratio, Equipment.bar_weight)
+                    .where(Equipment.id == ex_row.default_equipment_id)
+                    .limit(1)
+                )
+            ).first()
+            if eq_row is not None:
+                return (
+                    ex_row.default_equipment_id,
+                    exercise_id,
+                    str(eq_row.equipment_type),
+                    float(eq_row.pulley_ratio),
+                    eq_row.bar_weight,
+                )
+        # 기구 매핑 없어도 exercise_id는 반환 (equipment_id None)
+        return None, exercise_id, None, 1.0, None
+
+    # ── 3) 정확 매칭 실패 → 제외 (fuzzy fallback 제거) ──
+    # 기존 _resolve_exercise_id fuzzy("Chest Press"→"Bench Press" 등 부분/토큰 매칭)는
+    # LLM이 목록 밖 label을 내면 엉뚱한 운동(특히 머신→프리웨이트)으로 둔갑시켜
+    # "체스트 프레스 머신 선택했는데 벤치프레스 표시" 문제를 유발했다. LLM은 프롬프트로
+    # available_equipments의 label만 출력하도록 강제되므로, 정확 매칭(머신 movement_label_en /
+    # 프리 name_en) 실패 시 fuzzy로 추정하지 않고 해당 운동을 제외한다(_persist_day에서 skip).
+    logger.warning("equipment_label '%s' 정확 매칭 실패 — 해당 운동 제외 (fuzzy 비활성)", label_stripped)
+    return None, None, None, 1.0, None
+
+
+async def _pick_equipment_for_exercise(
+    exercise_id: uuid.UUID,
+    gym_id: uuid.UUID | None,
+    db: AsyncSession,
+) -> uuid.UUID | None:
+    """exercise_id에 맞는 기구를 결정론적으로 1개 선택한다 (equipment_id NOT NULL 보장용, PATCH 종목 교체).
+
+    운동은 프리웨이트이거나 머신 movement_template 둘 중 하나다(disjoint):
+      - 프리웨이트: exercises.default_equipment_id (전 헬스장 공통, gym 제약 없음).
+      - 머신: equipments.movement_label_en == exercises.name_en 인 기구를 gym 보유분에서 선택.
+    선택 불가 시 None (PATCH 호출부에서 409).
+    """
+    from sqlalchemy import func as sa_func
+
+    ex_row = (
+        await db.execute(select(Exercise.name_en, Exercise.default_equipment_id).where(Exercise.id == exercise_id))
+    ).first()
+    if ex_row is None:
+        return None
+
+    # 프리웨이트: 전 헬스장 공통 기구
+    if ex_row.default_equipment_id is not None:
+        return ex_row.default_equipment_id
+
+    # 머신: movement_label_en == name_en 인 기구 (gym 지정 시 그 헬스장 보유분만)
+    if not ex_row.name_en:
+        return None
+    machine_stmt = select(Equipment.id).where(sa_func.lower(Equipment.movement_label_en) == ex_row.name_en.lower())
+    if gym_id is not None:
+        machine_stmt = machine_stmt.join(GymEquipment, GymEquipment.equipment_id == Equipment.id).where(
+            GymEquipment.gym_id == gym_id
+        )
+    machine_stmt = machine_stmt.order_by(Equipment.id).limit(1)
+    row = (await db.execute(machine_stmt)).first()
+    return row[0] if row else None
+
+
 async def _persist_day(
     *,
     routine_id: uuid.UUID,
@@ -1014,9 +1278,15 @@ async def _persist_day(
     user_1rms: dict[uuid.UUID, float],
     user_body_weight: float,
     user_gender: str | None,
+    user_career_level: str | None,
+    gym_id: uuid.UUID | None,
     db: AsyncSession,
 ) -> tuple[RoutineDay, list[tuple[RoutineExercise, int | None]], list[uuid.UUID]]:
-    """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환."""
+    """LLM day_complete 이벤트를 RoutineDay + RoutineExercise[] 로 저장하고 (day, exercise_pairs, dropped) 반환.
+
+    PR-3: LLM은 equipment_label을 출력. _resolve_label_to_ids가 label → (equipment_id, exercise_id)로 변환.
+    exercise_id NOT NULL이 필수 — 해석 실패(None) 시 해당 운동 제외.
+    """
     day_number = int(day_data.get("day") or 1)
     label = str(day_data.get("focus") or f"Day {day_number}")[:200]
 
@@ -1029,10 +1299,24 @@ async def _persist_day(
     for idx, ex_data in enumerate(llm_exercises):
         if not isinstance(ex_data, dict):
             continue
-        name = str(ex_data.get("name") or "").strip()
-        exercise_id = await _resolve_exercise_id(name, db)
+
+        # PR-3: LLM은 "name" 대신 "equipment_label" 출력; 하위 호환으로 "name" fallback
+        equipment_label = str(ex_data.get("equipment_label") or ex_data.get("name") or "").strip()
+        if not equipment_label:
+            logger.warning("운동 항목에 equipment_label/name 없음 (idx=%d) — 제외", idx)
+            continue
+
+        eq_id, exercise_id, eq_type, pulley_ratio, bar_weight = await _resolve_label_to_ids(equipment_label, gym_id, db)
+
         if exercise_id is None:
-            logger.warning("운동 '%s' 매칭 실패 — 제외", name)
+            logger.warning("equipment_label '%s' exercise_id 해석 실패 — 제외", equipment_label)
+            continue
+
+        # PR-4: equipment_id NOT NULL — 기구 해석 실패 시 저장 불가하므로 제외
+        if eq_id is None:
+            logger.warning(
+                "equipment_label '%s' equipment_id 해석 실패 — 제외 (equipment_id NOT NULL)", equipment_label
+            )
             continue
 
         targets = derive_exercise_targets(
@@ -1040,6 +1324,10 @@ async def _persist_day(
             user_1rm_kg=user_1rms.get(exercise_id),
             user_body_weight=user_body_weight,
             user_gender=user_gender,
+            user_career_level=user_career_level,
+            equipment_type=eq_type,
+            pulley_ratio=pulley_ratio,
+            bar_weight=bar_weight,
             llm_sets=ex_data.get("sets"),
             llm_reps_min=ex_data.get("reps_min"),
             llm_reps_max=ex_data.get("reps_max"),
@@ -1056,6 +1344,7 @@ async def _persist_day(
         rex = RoutineExercise(
             routine_day_id=day.id,
             exercise_id=exercise_id,
+            equipment_id=eq_id,
             order_index=idx,
             sets=targets["sets"],
             reps_min=targets["reps_min"],
@@ -1063,6 +1352,7 @@ async def _persist_day(
             weight_kg=targets["weight_kg"],
             rest_seconds=targets["rest_seconds"],
             note=(ex_data.get("notes") or None),
+            display_name=equipment_label[:200],
         )
         db.add(rex)
         exercise_pairs.append((rex, paper_index))
@@ -1172,6 +1462,8 @@ async def _run_rag_to_sse(
                     user_1rms=user_1rms,
                     user_body_weight=profile.body_weight,
                     user_gender=str(profile.gender) if profile.gender else None,
+                    user_career_level=str(profile.fitness_career) if profile.fitness_career else None,
+                    gym_id=routine.gym_id,
                     db=db,
                 )
                 # paper_index와 notes를 나중에 _persist_papers에서 사용하기 위해 수집
@@ -1289,6 +1581,10 @@ async def generate_routine(
         except ValueError as e:
             valid = [e.value for e in SplitType]
             raise ValidationError(message=f"split_type 값이 올바르지 않습니다. 가능한 값: {valid}") from e
+    # gym_id 미지정 시 user 기본 헬스장 자동 사용 (D-M9: 루틴은 gym 종속).
+    # 프론트가 gym_id를 안 보내도 머신 후보가 나오도록 서버가 기본 gym을 채운다.
+    if not body.gym_id:
+        body.gym_id = await _resolve_primary_gym_id(current_user.id, db)
     gym_uuid = None
     if body.gym_id:
         try:
@@ -1359,7 +1655,7 @@ async def regenerate_routine(
         target_muscle_group_ids=list(routine.target_muscle_group_ids or []),
         session_minutes=routine.session_minutes,
         split_type=str(routine.split_type) if routine.split_type else None,
-        gym_id=str(routine.gym_id) if routine.gym_id else None,
+        gym_id=(str(routine.gym_id) if routine.gym_id else None) or await _resolve_primary_gym_id(current_user.id, db),
         injury=None,
     )
     profile = await _build_rag_profile(current_user, body, db, feedback=body.feedback, overrides=pseudo_req)

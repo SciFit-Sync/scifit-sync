@@ -111,6 +111,13 @@ def _exec_all(rows):
     return r
 
 
+def _exec_first(row):
+    """.first() 반환 (단일 행 조인 쿼리용)."""
+    r = MagicMock()
+    r.first.return_value = row
+    return r
+
+
 def _make_db(*side_effects):
     """주어진 side_effect 순서로 execute()를 응답하는 목 AsyncSession."""
     db = AsyncMock()
@@ -429,6 +436,80 @@ class TestUpdateRoutineExercise:
 
         assert resp.status_code == 400
 
+    @pytest.mark.asyncio
+    async def test_swap_exercise_auto_picks_equipment(self, client):
+        """PR-4: 종목 교체 시 equipment_id 미동봉이면 결정론적으로 기구를 재선택한다 (equipment_id NOT NULL)."""
+        new_ex_uuid = uuid.uuid4()
+        free_eq_id = uuid.uuid4()
+
+        r = _routine()  # gym_id=None
+        rex = _routine_exercise()
+        new_ex = MagicMock()
+        new_ex.id = new_ex_uuid
+        # PR-4.5: _pick은 Exercise(name_en, default_equipment_id) 조회 → 프리웨이트면 default 기구 반환
+        pick_row = MagicMock()
+        pick_row.name_en = "Deadlift"
+        pick_row.default_equipment_id = free_eq_id
+        exercise_resp = MagicMock()
+        exercise_resp.name = "데드리프트"
+        equipment_resp = MagicMock()
+        equipment_resp.name = "바벨"
+
+        db = _make_db(
+            _exec_scalar(r),  # _get_my_routine
+            _exec_scalar(rex),  # RoutineExercise 조회
+            _exec_scalar(new_ex),  # 신규 Exercise 조회
+            _exec_first(pick_row),  # _pick: Exercise(name_en, default_equipment_id) → 프리웨이트(default 설정)
+            _exec_scalar(exercise_resp),  # 응답용 Exercise
+            _exec_scalar(equipment_resp),  # 응답용 Equipment
+        )
+        db.refresh = AsyncMock(side_effect=lambda obj: None)
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch(
+            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
+            json={"exercise_id": str(new_ex_uuid)},
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["exercise_id"] == str(new_ex_uuid)
+        assert data["equipment_id"] == str(free_eq_id)
+        assert rex.equipment_id == free_eq_id
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_swap_exercise_no_usable_equipment_returns_409(self, client):
+        """PR-4: 종목 교체 시 헬스장에서 쓸 수 있는 기구가 없으면 409 ConflictError (NULL 저장 방지)."""
+        new_ex_uuid = uuid.uuid4()
+
+        r = _routine()
+        r.gym_id = uuid.uuid4()  # 헬스장 지정
+        rex = _routine_exercise()
+        new_ex = MagicMock()
+        new_ex.id = new_ex_uuid
+        # PR-4.5: 머신 운동(default_equipment_id=None)인데 헬스장에 해당 머신 미보유 → 선택 불가
+        pick_row = MagicMock()
+        pick_row.name_en = "Machine Chest Press"
+        pick_row.default_equipment_id = None
+
+        db = _make_db(
+            _exec_scalar(r),  # _get_my_routine
+            _exec_scalar(rex),  # RoutineExercise 조회
+            _exec_scalar(new_ex),  # 신규 Exercise 조회
+            _exec_first(pick_row),  # _pick: Exercise(name_en, default_equipment_id) → 머신(default None)
+            _exec_first(None),  # _pick: gym 보유 머신(movement_label_en 매치) 조회 → 없음
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch(
+            f"/api/v1/routines/{_ROUTINE_ID}/exercises/{_REX_ID}",
+            json={"exercise_id": str(new_ex_uuid)},
+        )
+
+        assert resp.status_code == 409
+        db.commit.assert_not_awaited()
+
 
 # ── DELETE /routines/{id} ─────────────────────────────────────────────────────
 
@@ -740,6 +821,15 @@ def _stub_rag_stream(events: list[dict]):
 
 
 class TestGenerateRoutine:
+    @pytest.fixture(autouse=True)
+    def _no_primary_gym(self, monkeypatch):
+        # gym_id 미지정 요청 시 user 기본 gym fallback DB 조회를 막아 mock 순서 유지.
+        # fallback 동작 자체는 TestResolvePrimaryGym에서 별도 검증.
+        monkeypatch.setattr(
+            "app.api.v1.routines._resolve_primary_gym_id",
+            AsyncMock(return_value=None),
+        )
+
     @pytest.mark.asyncio
     async def test_returns_sse_content_type(self, client, monkeypatch):
         monkeypatch.setattr(
@@ -923,6 +1013,14 @@ def _regenerate_db(routine):
 
 
 class TestRegenerateRoutine:
+    @pytest.fixture(autouse=True)
+    def _no_primary_gym(self, monkeypatch):
+        # routine.gym_id 가 None 인 mock 루틴 재생성 시 fallback DB 조회를 막아 mock 순서 유지.
+        monkeypatch.setattr(
+            "app.api.v1.routines._resolve_primary_gym_id",
+            AsyncMock(return_value=None),
+        )
+
     @pytest.mark.asyncio
     async def test_returns_sse_content_type(self, client, monkeypatch):
         monkeypatch.setattr(
@@ -967,3 +1065,25 @@ class TestRegenerateRoutine:
         )
 
         assert resp.status_code == 404
+
+
+# ── _resolve_primary_gym_id (D-M9 fallback) ──────────────────────────────────
+class TestResolvePrimaryGym:
+    """gym_id 미지정 루틴 생성 시 user 기본 gym 으로 fallback (D-M9)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_primary_gym_id_as_str(self):
+        from app.api.v1.routines import _resolve_primary_gym_id
+
+        gym = uuid.uuid4()
+        db = _make_db(_exec_scalar(gym))
+        result = await _resolve_primary_gym_id(uuid.uuid4(), db)
+        assert result == str(gym)
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_user_has_no_gym(self):
+        from app.api.v1.routines import _resolve_primary_gym_id
+
+        db = _make_db(_exec_scalar(None))
+        result = await _resolve_primary_gym_id(uuid.uuid4(), db)
+        assert result is None

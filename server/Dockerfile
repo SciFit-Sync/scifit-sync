@@ -19,9 +19,11 @@ COPY server/requirements.txt .
 # torch CPU-only wheel 명시 설치 — sentence-transformers가 default PyPI에서
 # GPU 포함 torch(~2GB) 끌어오는 것 차단. ECS Fargate는 GPU 없음 (CLAUDE.md §2).
 # venv 안에 먼저 설치되면 후속 sentence-transformers는 `Requirement already satisfied`로 재사용.
+# 버전 핀 필수: 최신 transformers가 torch.float8_e8m0fnu(torch 2.7+) 참조 →
+# torch 2.5.1과 미스매치 시 PreTrainedModel import 붕괴 (rev31 인시던트). requirements.txt 핀과 동기.
 RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu \
-    torch==2.5.1
+    torch==2.8.0
 
 # 나머지 의존성 — --extra-index-url로 PyPI와 CPU wheel 인덱스를 함께 검색 (CPU 우선이 아닌 동시 검색).
 # 이미 설치된 torch는 재설치 안 함.

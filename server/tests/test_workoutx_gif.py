@@ -11,7 +11,17 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.services import workoutx as wx
 from app.services.workoutx import gif_id_from, to_gif_proxy_url
+
+
+class _Resp:
+    status_code = 200
+    content = b"GIFDATA"
+    headers = {"content-type": "image/gif"}
+
+    def raise_for_status(self):
+        return None
 
 
 class TestGifHelpers:
@@ -68,3 +78,55 @@ class TestGifProxy:
         )
         resp = await client.get("/api/v1/exercises/gif/9999")
         assert resp.status_code == 404
+
+
+class TestGifCache:
+    """fetch_gif_bytes 인메모리 캐시 + 실패 미캐시(재시도) 검증 (#239 잔여)."""
+
+    @pytest.mark.asyncio
+    async def test_caches_success(self, monkeypatch):
+        wx._GIF_CACHE.clear()
+
+        class _FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            async def get(self, url):
+                self.calls += 1
+                return _Resp()
+
+        fake = _FakeClient()
+        monkeypatch.setattr(wx, "_get_shared_client", lambda: fake)
+        monkeypatch.setattr(wx, "get_settings", lambda: type("S", (), {"WORKOUTX_API_KEY": "k"})())
+
+        r1 = await wx.fetch_gif_bytes("0025")
+        r2 = await wx.fetch_gif_bytes("0025")
+        assert r1 == (b"GIFDATA", "image/gif")
+        assert r2 == (b"GIFDATA", "image/gif")
+        assert fake.calls == 1  # 2번째는 캐시 hit → WorkoutX 재호출 없음
+        wx._GIF_CACHE.clear()
+
+    @pytest.mark.asyncio
+    async def test_failure_not_cached_and_retried(self, monkeypatch):
+        wx._GIF_CACHE.clear()
+
+        class _FlakyClient:
+            def __init__(self):
+                self.calls = 0
+
+            async def get(self, url):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("timeout")  # 1회차 실패(간헐 timeout)
+                return _Resp()  # 2회차 성공
+
+        fake = _FlakyClient()
+        monkeypatch.setattr(wx, "_get_shared_client", lambda: fake)
+        monkeypatch.setattr(wx, "get_settings", lambda: type("S", (), {"WORKOUTX_API_KEY": "k"})())
+
+        r1 = await wx.fetch_gif_bytes("0025")
+        r2 = await wx.fetch_gif_bytes("0025")
+        assert r1 is None  # 실패 → 캐시 안 함
+        assert r2 == (b"GIFDATA", "image/gif")  # 재시도 성공
+        assert fake.calls == 2
+        wx._GIF_CACHE.clear()

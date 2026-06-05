@@ -9,7 +9,7 @@ load_calc.py는 100% 커버리지 대상(CLAUDE.md §13)이므로 이 모듈에 
 
 from __future__ import annotations
 
-from app.services.load_calc import RANGES, get_recommended_weight_range
+from app.services.load_calc import RANGES, effective_to_stack_weight, get_recommended_weight_range
 
 # CLAUDE.md §11 목표별 권장 반복 범위
 _REPS_BY_GOAL: dict[str, tuple[int, int]] = {
@@ -41,6 +41,18 @@ _REST_BY_GOAL: dict[str, int] = {
     "rehabilitation": 60,
 }
 
+# 목표별 권장 세트 수. _REST_BY_GOAL과 동일 철학 — LLM은 세트 수에 변별력이 없어
+# (프롬프트에 세트 지침이 없어 거의 항상 3을 반복 제안) llm_sets를 무시하고 목표 기준값을 사용한다.
+# 운동생리학 기준: strength=고중량 저반복→세트↑, hypertrophy=볼륨 중심, endurance/weight_loss=고반복→세트↓, rehab=저강도 회복.
+_SETS_BY_GOAL: dict[str, int] = {
+    "strength": 5,
+    "hypertrophy": 4,
+    "endurance": 3,
+    "weight_loss": 3,
+    "rehabilitation": 2,
+}
+
+# 알 수 없는 goal이 _normalize_goal을 우회해 들어올 때의 최종 안전망 (정상 경로에선 도달하지 않음).
 DEFAULT_SETS = 3
 
 
@@ -76,30 +88,56 @@ _DEFAULT_1RM_RATIO: dict[str, float] = {
     "female": 0.55,
 }
 
+# 경력 수준별 추정 1RM 보정 배수 (beginner=기준, 운동 경험에 따른 상대 강도 증가)
+_CAREER_LEVEL_MULTIPLIER: dict[str, float] = {
+    "beginner": 1.00,
+    "novice": 1.10,
+    "intermediate": 1.20,
+    "advanced": 1.35,
+}
 
-def _estimate_1rm_from_body_weight(body_weight: float, gender: str | None) -> float:
+
+def _estimate_1rm_from_body_weight(
+    body_weight: float,
+    gender: str | None,
+    career_level: str | None = None,
+) -> float:
     ratio = _DEFAULT_1RM_RATIO.get(gender or "", 0.65)  # 성별 미입력 시 중간값
-    return body_weight * ratio
+    career_mult = _CAREER_LEVEL_MULTIPLIER.get(career_level or "", 1.00)
+    return body_weight * ratio * career_mult
 
 
-def recommended_weight_kg(goal, user_1rm_kg, user_body_weight=None, user_gender=None):
+def recommended_weight_kg(
+    goal,
+    user_1rm_kg,
+    user_body_weight=None,
+    user_gender=None,
+    user_career_level=None,
+    equipment_type=None,
+    pulley_ratio=1.0,
+    bar_weight=None,
+):
     """목표별 권장 중량 중간값 반환.
 
-    1RM이 있으면 우선 사용. 없으면 성별·체중 기반 추정 1RM으로 기본값 계산.
+    1RM이 있으면 우선 사용. 없으면 성별·경력·체중 기반 추정 1RM으로 기본값 계산.
     체중도 없으면 None 반환 (사용자가 첫 세션에 직접 입력).
+    cable/machine 장비는 실효 부하를 스택 설정값으로 역변환해 반환한다.
     """
     if user_1rm_kg is None or user_1rm_kg <= 0:
         if user_body_weight and user_body_weight > 0:
-            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender)
+            user_1rm_kg = _estimate_1rm_from_body_weight(user_body_weight, user_gender, user_career_level)
         else:
             return None
     range_key = _GOAL_TO_RANGE_KEY.get(_normalize_goal(goal))
     if range_key is None or range_key not in RANGES:
         return None
     low, high = get_recommended_weight_range(user_1rm_kg, range_key)
-    # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
     mid = (low + high) / 2.0
-    return round(mid / 2.5) * 2.5
+    # cable/machine은 스택 설정값으로 역변환, 나머지는 실효 부하 그대로 사용
+    stack = effective_to_stack_weight(mid, equipment_type or "", pulley_ratio, bar_weight)
+    display = stack if stack is not None else mid
+    # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
+    return round(display / 2.5) * 2.5
 
 
 def derive_exercise_targets(
@@ -108,7 +146,11 @@ def derive_exercise_targets(
     user_1rm_kg=None,
     user_body_weight=None,
     user_gender=None,
-    llm_sets=None,
+    user_career_level=None,
+    equipment_type=None,
+    pulley_ratio=1.0,
+    bar_weight=None,
+    llm_sets=None,  # 수신은 하되 사용하지 않음 (LLM 값 신뢰 불가, _SETS_BY_GOAL 사용)
     llm_reps_min=None,
     llm_reps_max=None,
     llm_rest_seconds=None,  # 수신은 하되 사용하지 않음 (LLM 값 신뢰 불가)
@@ -118,9 +160,9 @@ def derive_exercise_targets(
     Args:
         goal: 1차 운동 목표 (대소문자 무관)
         user_1rm_kg: 해당 운동에 대한 사용자 1RM (없으면 None → weight_kg=None)
-        llm_*: LLM 응답의 sets/reps_min/reps_max (str/int/None 모두 허용)
-               llm_rest_seconds는 LLM이 모든 운동에 동일한 값을 반복 제안하므로 무시하고
-               _REST_BY_GOAL 기반으로 목표별 고정값을 사용한다.
+        llm_*: LLM 응답의 reps_min/reps_max (str/int/None 모두 허용)
+               llm_sets / llm_rest_seconds는 LLM이 모든 운동에 동일한 값을 반복 제안하므로 무시하고
+               각각 _SETS_BY_GOAL / _REST_BY_GOAL 기반 목표별 고정값을 사용한다.
 
     Returns:
         {
@@ -136,18 +178,17 @@ def derive_exercise_targets(
 
     # _coerce_int가 이미 default를 반환하므로 `or`로 falsy-fallback 하지 않는다.
     # (0 같은 falsy이지만 유효한 값을 default로 덮어쓰지 않기 위함)
-    sets = _coerce_int(llm_sets, DEFAULT_SETS)
     reps_min = _coerce_int(llm_reps_min, default_reps_min)
     reps_max = _coerce_int(llm_reps_max, default_reps_max)
-    # LLM 값 무시 — 목표별 운동생리학 기준값 사용
+    # LLM 값 무시 — 목표별 운동생리학 기준값 사용 (sets / rest_seconds 동일 정책)
+    sets = _SETS_BY_GOAL.get(g, DEFAULT_SETS)
     rest_seconds = _REST_BY_GOAL[g]
 
     # 반복 범위 정합성: min > max인 경우 swap
     if reps_min > reps_max:
         reps_min, reps_max = reps_max, reps_min
 
-    # 음수/0 방어
-    sets = max(1, sets)
+    # 음수/0 방어 (reps만 — sets는 _SETS_BY_GOAL 고정 양수)
     reps_min = max(1, reps_min)
     reps_max = max(reps_min, reps_max)
 
@@ -156,5 +197,7 @@ def derive_exercise_targets(
         "reps_min": reps_min,
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
-        "weight_kg": recommended_weight_kg(g, user_1rm_kg, user_body_weight, user_gender),
+        "weight_kg": recommended_weight_kg(
+            g, user_1rm_kg, user_body_weight, user_gender, user_career_level, equipment_type, pulley_ratio, bar_weight
+        ),
     }

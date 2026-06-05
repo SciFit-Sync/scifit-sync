@@ -22,7 +22,7 @@ def calculate_effective_weight(
     match equipment_type:
         case "cable" | "machine":
             s = stack or 0.0
-            return s * pulley_ratio + (bar_weight or 0.0)
+            return s / pulley_ratio + (bar_weight or 0.0)
         case "barbell":
             return (bar_weight or 0.0) + (added or 0.0)
         case "dumbbell":
@@ -49,6 +49,23 @@ def estimate_1rm(effective_weight: float, reps: int) -> float:
     if reps == 0:
         return effective_weight
     return effective_weight * (1 + reps / 30)
+
+
+def effective_to_stack_weight(
+    effective_kg: float,
+    equipment_type: str,
+    pulley_ratio: float = 1.0,
+    bar_weight: float | None = None,
+) -> float | None:
+    """실효 부하(근육 하중) → 장비 스택 설정값 역변환.
+
+    cable/machine은 stack = (effective - bar_weight) * pulley_ratio.
+    barbell/dumbbell/bodyweight는 None 반환 (effective를 그대로 사용).
+    """
+    if equipment_type in ("cable", "machine"):
+        bw = bar_weight or 0.0
+        return max((effective_kg - bw) * max(pulley_ratio, 0.01), 0.0)
+    return None
 
 
 def get_recommended_weight_range(one_rm: float, goal: str) -> tuple[float, float]:
