@@ -242,7 +242,9 @@ export default function WM01Main() {
 
       {/* 헤더 */}
       <View style={styles.header}>
+        <View style={styles.placeholder} />
         <Text style={styles.logo}>SciFit-Sync</Text>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView
