@@ -269,16 +269,14 @@ export default function WL01Record() {
                   <Text style={styles.routine_name}>
                     {item.routine_name ?? "자유 운동"}
                   </Text>
-                  {item.gym_name != null && (
-                    <Text style={styles.routine_sub}>{item.gym_name}</Text>
-                  )}
                   {item.fitness_goals.length > 0 && (
                     <Text style={styles.routine_sub}>
-                      {item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")}
+                      {item.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", ")}
                     </Text>
                   )}
                   <Text style={styles.routine_sub}>
                     {item.date.replace(/-/g, ".")}
+                    {item.gym_name ? `  ·  ${item.gym_name}` : ""}
                   </Text>
                 </View>
                 <Octicons
