@@ -3,7 +3,11 @@
 CLAUDE.md / api-endpoints.md #9-17, #43, #50.
 """
 
+import asyncio
+import base64
+import json
 import logging
+import re
 import uuid
 from datetime import date, datetime, timezone
 
@@ -13,7 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.core.exceptions import ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import (
+    ConflictError,
+    ExternalServiceError,
+    NotFoundError,
+    ValidationError,
+)
 from app.core.limiter import rate_limit
 from app.models import (
     CareerLevel,
@@ -38,6 +47,7 @@ from app.schemas.users import (
     BulkOneRMData,
     CoreLift1RMItem,
     GymData,
+    InbodyOcrRequest,
     MeData,
     OnboardData,
     OnboardRequest,
@@ -52,6 +62,7 @@ from app.schemas.users import (
     UserEquipmentItem,
     UserEquipmentListData,
 )
+from app.services.llm import generate_vision
 from app.services.load_calc import estimate_1rm
 
 logger = logging.getLogger(__name__)
@@ -279,6 +290,109 @@ async def update_body(
             age=_calc_age(profile.birth_date) if profile else None,
             gender=str(profile.gender) if profile and profile.gender else updated_gender,
             measurement=measurement_dto,
+        )
+    )
+
+
+# ── POST /users/me/body/ocr ───────────────────────────────────────────────────
+def _as_float(v) -> float | None:
+    """LLM이 '18.4%'·'약 72'·'N/A' 등 비순수 숫자를 줄 수 있어 방어적으로 float 추출.
+
+    숫자 변환 불가 시 None (pydantic ValidationError → 500 우회).
+    """
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    m = re.search(r"-?\d+(?:\.\d+)?", str(v))
+    return float(m.group()) if m else None
+
+
+_INBODY_OCR_PROMPT = """당신은 인바디(InBody) 체성분 분석 결과지를 읽는 OCR 도우미입니다.
+첨부된 인바디 결과지 사진에서 아래 수치를 추출해 JSON 으로만 응답하세요.
+
+- weight_kg: 체중 (kg, 숫자만)
+- skeletal_muscle_kg: 골격근량 SMM (kg, 숫자만)
+- body_fat_pct: 체지방률 PBF (%, 숫자만)
+- measured_at: 측정일 (YYYY-MM-DD 형식, 결과지에 있으면)
+
+규칙:
+- 값을 찾을 수 없으면 해당 키는 null 로 두세요.
+- 단위 표기(kg, %)는 빼고 숫자만 출력하세요.
+- 골격근량은 '골격근량' 또는 'SMM'(Skeletal Muscle Mass) 항목입니다 (제지방량 LBM 과 혼동 금지).
+- 체지방률은 '체지방률' 또는 'PBF'(Percent Body Fat) 항목입니다.
+- 설명 없이 JSON 객체만 출력하세요.
+
+출력 예시:
+{"weight_kg": 72.5, "skeletal_muscle_kg": 33.2, "body_fat_pct": 18.4, "measured_at": "2026-06-04"}
+"""
+
+
+@router.post(
+    "/me/body/ocr",
+    response_model=SuccessResponse[BodyMeasurementData],
+    summary="인바디 결과지 OCR 추출",
+)
+@rate_limit("5/minute")
+async def ocr_inbody(
+    request: Request,
+    body: InbodyOcrRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """인바디 결과지 사진(base64)에서 체중·골격근량·체지방률을 추출한다 (저장 X).
+
+    추출만 수행하며, 클라이언트가 사용자 확인 후 PATCH /me/body 로 저장한다.
+    LLM endpoint 이므로 rate limit 5/minute (CLAUDE.md §12).
+    """
+    # base64 길이 선검사 — 거대 페이로드를 디코드 전 차단 (10MB 이미지 ≈ 13.4MB base64)
+    if len(body.image_base64) > 14 * 1024 * 1024:
+        raise ValidationError(message="이미지 크기는 10MB 이하여야 합니다.")
+
+    try:
+        image_bytes = base64.b64decode(body.image_base64, validate=True)
+    except Exception:
+        raise ValidationError(message="유효하지 않은 이미지 데이터입니다.") from None
+
+    if not image_bytes:
+        raise ValidationError(message="이미지가 비어 있습니다.")
+
+    try:
+        # 동기 blocking LLM 호출을 스레드로 오프로드 — ECS Task count=1 이므로
+        # 직접 호출 시 OCR 처리 동안 이벤트 루프가 막혀 모든 동시 요청이 정지 (CLAUDE.md §16).
+        raw = await asyncio.to_thread(generate_vision, _INBODY_OCR_PROMPT, image_bytes, body.mime_type)
+    except Exception as e:
+        logger.warning("인바디 OCR LLM 호출 실패: %s", e)
+        raise ExternalServiceError(message="이미지 분석에 실패했습니다. 잠시 후 다시 시도해주세요.") from e
+
+    cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        logger.warning("인바디 OCR JSON 파싱 실패: %.200s", raw)
+        raise ExternalServiceError(
+            message="결과지를 인식하지 못했습니다. 더 선명한 사진으로 다시 시도해주세요."
+        ) from None
+
+    if not isinstance(parsed, dict):
+        logger.warning("인바디 OCR 비-객체 응답: %.200s", raw)
+        raise ExternalServiceError(
+            message="결과지를 인식하지 못했습니다. 더 선명한 사진으로 다시 시도해주세요."
+        ) from None
+
+    raw_date = parsed.get("measured_at")
+    measured: date | None = None
+    if isinstance(raw_date, str):
+        try:
+            measured = date.fromisoformat(raw_date)
+        except ValueError:
+            measured = None
+
+    return SuccessResponse(
+        data=BodyMeasurementData(
+            weight_kg=_as_float(parsed.get("weight_kg")),
+            skeletal_muscle_kg=_as_float(parsed.get("skeletal_muscle_kg")),
+            body_fat_pct=_as_float(parsed.get("body_fat_pct")),
+            measured_at=measured,
         )
     )
 
