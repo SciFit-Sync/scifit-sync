@@ -231,19 +231,12 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
     )
     await db.commit()
 
-    # 이메일 발송 (개발 환경이거나 SMTP 미설정 시 로그만 출력)
     await send_otp_email(body.email, otp_code)
-    logger.warning("[DEV] OTP for %s: %s", body.email, otp_code)
-
-    settings = get_settings()
-    # 개발 환경에서는 otp_code를 응답에 포함 (이메일 미발송 대비)
-    expose_otp = settings.ENV == "development" or not settings.SMTP_USER
 
     return SuccessResponse(
         data=RegisterData(
             user_id=str(user.id),
             username=user.username,
-            otp_code=otp_code if expose_otp else None,
         )
     )
 
