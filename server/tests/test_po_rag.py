@@ -1,6 +1,7 @@
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 SAMPLE_CHUNKS = [
     {"document": "Studies show 5% load increment per session improves strength.", "similarity": 0.85, "score": 0.85}
@@ -65,7 +66,7 @@ class TestRagPoIncrement:
         assert result is None
 
     def test_cache_hit_skips_rag_and_llm(self):
-        from app.services.po_rag import rag_po_increment, _cache_set
+        from app.services.po_rag import _cache_set, rag_po_increment
         _cache_set("hypertrophy", "cable", 5.0)
         with patch("app.services.po_rag._call_search_async", new=AsyncMock()) as mock_search, \
              patch("app.services.po_rag._call_llm_async", new=AsyncMock()) as mock_llm:
@@ -75,7 +76,7 @@ class TestRagPoIncrement:
         assert result == 5.0
 
     def test_cache_hit_with_none_pct_returns_none(self):
-        from app.services.po_rag import rag_po_increment, _cache_set
+        from app.services.po_rag import _cache_set, rag_po_increment
         _cache_set("hypertrophy", "cable", None)
         with patch("app.services.po_rag._call_search_async", new=AsyncMock()) as mock_search:
             result = self._run(rag_po_increment("hypertrophy", "cable", 100.0))
