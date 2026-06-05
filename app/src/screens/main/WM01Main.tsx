@@ -242,22 +242,7 @@ export default function WM01Main() {
 
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={styles.bell_btn} />
         <Text style={styles.logo}>SciFit-Sync</Text>
-        <TouchableOpacity
-          style={styles.bell_btn}
-          onPress={() => navigation.navigate("WN01Notifications" as never)}
-          activeOpacity={0.7}
-        >
-          <Octicons name="bell" size={22} color={colors.primary} />
-          {unread_count > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badge_text}>
-                {unread_count > 99 ? "99+" : unread_count}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
       </View>
 
       <ScrollView
