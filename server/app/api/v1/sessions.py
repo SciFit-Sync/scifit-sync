@@ -536,6 +536,10 @@ async def _check_and_create_po_notifications(
             max_stack=max_stack,
         )
 
+        # 루틴 중량/세트 즉시 반영 — 다음 루틴 접속 시 업데이트된 값이 보임
+        rex.weight_kg = result["new_weight"]
+        rex.sets = result["new_sets"]
+
         if result["overflow"] and result["message"]:
             new_notifications.append(
                 Notification(

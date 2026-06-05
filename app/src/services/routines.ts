@@ -265,6 +265,7 @@ export interface RoutineDetail {
   routine_id: string;
   name: string;
   fitness_goals: string[] | null;
+  target_muscle_names: string[] | null;
   split_type: string | null;
   generated_by: string;
   status: string;

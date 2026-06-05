@@ -29,6 +29,13 @@ class BodyMeasurementData(BaseModel):
     measured_at: date | None = None
 
 
+class InbodyOcrRequest(BaseModel):
+    """인바디 결과지 사진(base64) → OCR 추출 요청 (MVP: 3지표)."""
+
+    image_base64: str = Field(..., description="인바디 결과지 이미지 base64 (data URI 접두어 제외)")
+    mime_type: str = "image/jpeg"
+
+
 class GymData(BaseModel):
     gym_id: str
     name: str

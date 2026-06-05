@@ -16,7 +16,8 @@ import { useNavigation } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
-import { getMe, updateBody } from "../../services/users";
+import * as ImagePicker from "expo-image-picker";
+import { getMe, updateBody, ocrInbody } from "../../services/users";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
 
 type Gender = "female" | "male";
@@ -42,10 +43,14 @@ export default function WP02EditBodyInfo() {
   const [birth_date, set_birth_date] = useState(""); // "YYYY년 M월 D일"
   const [height, set_height] = useState("");
   const [weight, set_weight] = useState("");
+  const [skeletal_muscle, set_skeletal_muscle] = useState("");
+  const [body_fat, set_body_fat] = useState("");
+  const [measured_at, set_measured_at] = useState<string | null>(null);
   const [gender, set_gender] = useState<Gender>("male");
   const [show_date_picker, set_show_date_picker] = useState(false);
   const [loading, set_loading] = useState(true);
   const [saving, set_saving] = useState(false);
+  const [ocr_loading, set_ocr_loading] = useState(false);
 
   const load_data = useCallback(async () => {
     try {
@@ -55,8 +60,11 @@ export default function WP02EditBodyInfo() {
       if (p?.height_cm) set_height(String(p.height_cm));
       if (me.latest_measurement?.weight_kg)
         set_weight(String(me.latest_measurement.weight_kg));
-      if (p?.gender === "female" || p?.gender === "male")
-        set_gender(p.gender);
+      if (me.latest_measurement?.skeletal_muscle_kg)
+        set_skeletal_muscle(String(me.latest_measurement.skeletal_muscle_kg));
+      if (me.latest_measurement?.body_fat_pct)
+        set_body_fat(String(me.latest_measurement.body_fat_pct));
+      if (p?.gender === "female" || p?.gender === "male") set_gender(p.gender);
     } catch (e) {
       console.warn("신체 정보 프리필 실패:", e);
     } finally {
@@ -73,6 +81,55 @@ export default function WP02EditBodyInfo() {
     set_show_date_picker(false);
   };
 
+  const run_ocr = async (source: "camera" | "library") => {
+    try {
+      const perm =
+        source === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("권한 필요", "사진 접근 권한을 허용해주세요.");
+        return;
+      }
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.5 })
+          : await ImagePicker.launchImageLibraryAsync({
+              base64: true,
+              quality: 0.5,
+            });
+      if (result.canceled || !result.assets?.[0]?.base64) return;
+      set_ocr_loading(true);
+      const asset = result.assets[0];
+      const m = await ocrInbody(
+        token,
+        asset.base64!,
+        asset.mimeType ?? "image/jpeg",
+      );
+      if (m.weight_kg != null) set_weight(String(m.weight_kg));
+      if (m.skeletal_muscle_kg != null)
+        set_skeletal_muscle(String(m.skeletal_muscle_kg));
+      if (m.body_fat_pct != null) set_body_fat(String(m.body_fat_pct));
+      if (m.measured_at) set_measured_at(m.measured_at);
+      Alert.alert("인식 완료", "추출된 값을 확인하고 수정 후 저장해주세요.");
+    } catch (e: any) {
+      Alert.alert(
+        "인식 실패",
+        e.message ?? "더 선명한 사진으로 다시 시도해주세요.",
+      );
+    } finally {
+      set_ocr_loading(false);
+    }
+  };
+
+  const handle_ocr = () => {
+    Alert.alert("인바디 결과지 입력", "사진을 선택하세요", [
+      { text: "카메라로 촬영", onPress: () => run_ocr("camera") },
+      { text: "갤러리에서 선택", onPress: () => run_ocr("library") },
+      { text: "취소", style: "cancel" },
+    ]);
+  };
+
   const handle_save = async () => {
     const h = height.trim() !== "" ? parseFloat(height) : undefined;
     const w = weight.trim() !== "" ? parseFloat(weight) : undefined;
@@ -84,11 +141,17 @@ export default function WP02EditBodyInfo() {
       Alert.alert("알림", "몸무게를 올바르게 입력해주세요.");
       return;
     }
+    const sm =
+      skeletal_muscle.trim() !== "" ? parseFloat(skeletal_muscle) : undefined;
+    const bf = body_fat.trim() !== "" ? parseFloat(body_fat) : undefined;
     set_saving(true);
     try {
       await updateBody(token, {
         ...(h !== undefined ? { height_cm: h } : {}),
         ...(w !== undefined ? { weight_kg: w } : {}),
+        ...(sm !== undefined && !isNaN(sm) ? { skeletal_muscle_kg: sm } : {}),
+        ...(bf !== undefined && !isNaN(bf) ? { body_fat_pct: bf } : {}),
+        ...(measured_at ? { measured_at } : {}),
         ...(birth_date ? { birth_date: display_to_api(birth_date) } : {}),
         gender,
       });
@@ -127,6 +190,32 @@ export default function WP02EditBodyInfo() {
           ) : (
             <View style={styles.card}>
               <Text style={styles.card_title}>신체 정보 수정</Text>
+
+              {/* 인바디 결과지 OCR */}
+              <TouchableOpacity
+                style={[
+                  styles.ocr_button,
+                  ocr_loading && styles.button_disabled,
+                ]}
+                onPress={handle_ocr}
+                disabled={ocr_loading}
+                activeOpacity={0.8}
+              >
+                {ocr_loading ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <>
+                    <Octicons
+                      name="device-camera"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.ocr_button_text}>
+                      인바디 결과지 사진으로 입력
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
               {/* 생년월일 */}
               <View style={styles.field}>
@@ -175,6 +264,38 @@ export default function WP02EditBodyInfo() {
                       keyboardType="numeric"
                     />
                     <Text style={styles.unit}>kg</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* 골격근량 / 체지방률 */}
+              <View style={styles.row}>
+                <View style={[styles.field, styles.flex]}>
+                  <Text style={styles.label}>골격근량</Text>
+                  <View style={styles.input_row}>
+                    <TextInput
+                      style={[styles.input_inner, styles.flex]}
+                      placeholder="골격근량"
+                      placeholderTextColor={colors.border}
+                      value={skeletal_muscle}
+                      onChangeText={set_skeletal_muscle}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.unit}>kg</Text>
+                  </View>
+                </View>
+                <View style={[styles.field, styles.flex]}>
+                  <Text style={styles.label}>체지방률</Text>
+                  <View style={styles.input_row}>
+                    <TextInput
+                      style={[styles.input_inner, styles.flex]}
+                      placeholder="체지방률"
+                      placeholderTextColor={colors.border}
+                      value={body_fat}
+                      onChangeText={set_body_fat}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.unit}>%</Text>
                   </View>
                 </View>
               </View>
@@ -328,4 +449,19 @@ const styles = StyleSheet.create({
   },
   button_disabled: { opacity: 0.5 },
   button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
+  ocr_button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  ocr_button_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.primary,
+  },
 });
