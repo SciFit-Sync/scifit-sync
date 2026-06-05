@@ -1,0 +1,3694 @@
+exercise_name,muscle_slug,role
+3/4 Sit-up,rectus_abdominis,primary
+3/4 Sit-up,hip_flexors,secondary
+3/4 Sit-up,erector_spinae,secondary
+45° Side Bend,rectus_abdominis,primary
+45° Side Bend,obliques,secondary
+Air Bike,rectus_abdominis,primary
+Air Bike,hip_flexors,secondary
+All Fours Squad Stretch,quadriceps,primary
+All Fours Squad Stretch,hamstrings,secondary
+All Fours Squad Stretch,gluteus_maximus,secondary
+Alternate Heel Touchers,rectus_abdominis,primary
+Alternate Heel Touchers,obliques,secondary
+Alternate Lateral Pulldown,latissimus_dorsi,primary
+Alternate Lateral Pulldown,biceps_brachii,secondary
+Alternate Lateral Pulldown,rhomboids,secondary
+Ankle Circles,calves,primary
+Archer Pull Up,latissimus_dorsi,primary
+Archer Pull Up,biceps_brachii,secondary
+Archer Pull Up,forearms,secondary
+Archer Push Up,pectoralis_major,primary
+Archer Push Up,triceps_brachii,secondary
+Archer Push Up,anterior_deltoid,secondary
+Archer Push Up,rectus_abdominis,secondary
+Arm Slingers Hanging Bent Knee Legs,rectus_abdominis,primary
+Arm Slingers Hanging Bent Knee Legs,posterior_deltoid,secondary
+Arm Slingers Hanging Bent Knee Legs,latissimus_dorsi,secondary
+Arm Slingers Hanging Straight Legs,rectus_abdominis,primary
+Arm Slingers Hanging Straight Legs,lateral_deltoid,secondary
+Arm Slingers Hanging Straight Legs,latissimus_dorsi,secondary
+Arms Apart Circular Toe Touch (male),gluteus_maximus,primary
+Arms Apart Circular Toe Touch (male),hamstrings,secondary
+Arms Apart Circular Toe Touch (male),quadriceps,secondary
+Arms Apart Circular Toe Touch (male),calves,secondary
+Arms Overhead Full Sit-up (male),rectus_abdominis,primary
+Arms Overhead Full Sit-up (male),hip_flexors,secondary
+Arms Overhead Full Sit-up (male),erector_spinae,secondary
+Assisted Chest Dip (kneeling),pectoralis_major,primary
+Assisted Chest Dip (kneeling),triceps_brachii,secondary
+Assisted Chest Dip (kneeling),anterior_deltoid,secondary
+Assisted Hanging Knee Raise,rectus_abdominis,primary
+Assisted Hanging Knee Raise,hip_flexors,secondary
+Assisted Hanging Knee Raise With Throw Down,rectus_abdominis,primary
+Assisted Hanging Knee Raise With Throw Down,hip_flexors,secondary
+Assisted Hanging Knee Raise With Throw Down,erector_spinae,secondary
+Assisted Lying Calves Stretch,calves,primary
+Assisted Lying Calves Stretch,hamstrings,secondary
+Assisted Lying Glutes Stretch,gluteus_maximus,primary
+Assisted Lying Glutes Stretch,hamstrings,secondary
+Assisted Lying Gluteus And Piriformis Stretch,gluteus_maximus,primary
+Assisted Lying Gluteus And Piriformis Stretch,hamstrings,secondary
+Assisted Lying Leg Raise With Lateral Throw Down,rectus_abdominis,primary
+Assisted Lying Leg Raise With Lateral Throw Down,hip_flexors,secondary
+Assisted Lying Leg Raise With Lateral Throw Down,obliques,secondary
+Assisted Lying Leg Raise With Throw Down,rectus_abdominis,primary
+Assisted Lying Leg Raise With Throw Down,hip_flexors,secondary
+Assisted Lying Leg Raise With Throw Down,quadriceps,secondary
+Assisted Motion Russian Twist,rectus_abdominis,primary
+Assisted Motion Russian Twist,obliques,secondary
+Assisted Motion Russian Twist,erector_spinae,secondary
+Assisted Parallel Close Grip Pull-up,latissimus_dorsi,primary
+Assisted Parallel Close Grip Pull-up,biceps_brachii,secondary
+Assisted Parallel Close Grip Pull-up,forearms,secondary
+Assisted Prone Hamstring,hamstrings,primary
+Assisted Prone Hamstring,gluteus_maximus,secondary
+Assisted Prone Hamstring,erector_spinae,secondary
+Assisted Prone Lying Quads Stretch,quadriceps,primary
+Assisted Prone Lying Quads Stretch,hamstrings,secondary
+Assisted Prone Lying Quads Stretch,gluteus_maximus,secondary
+Assisted Prone Rectus Femoris Stretch,rectus_abdominis,primary
+Assisted Prone Rectus Femoris Stretch,quadriceps,secondary
+Assisted Pull-up,latissimus_dorsi,primary
+Assisted Pull-up,biceps_brachii,secondary
+Assisted Pull-up,forearms,secondary
+Assisted Seated Pectoralis Major Stretch With Stability Ball,pectoralis_major,primary
+Assisted Seated Pectoralis Major Stretch With Stability Ball,lateral_deltoid,secondary
+Assisted Seated Pectoralis Major Stretch With Stability Ball,triceps_brachii,secondary
+Assisted Side Lying Adductor Stretch,adductors,primary
+Assisted Side Lying Adductor Stretch,hamstrings,secondary
+Assisted Side Lying Adductor Stretch,gluteus_maximus,secondary
+Assisted Sit-up,rectus_abdominis,primary
+Assisted Sit-up,hip_flexors,secondary
+Assisted Standing Chin-up,latissimus_dorsi,primary
+Assisted Standing Chin-up,biceps_brachii,secondary
+Assisted Standing Chin-up,forearms,secondary
+Assisted Standing Pull-up,latissimus_dorsi,primary
+Assisted Standing Pull-up,biceps_brachii,secondary
+Assisted Standing Pull-up,forearms,secondary
+Assisted Standing Triceps Extension (with Towel),triceps_brachii,primary
+Assisted Standing Triceps Extension (with Towel),lateral_deltoid,secondary
+Assisted Triceps Dip (kneeling),triceps_brachii,primary
+Assisted Triceps Dip (kneeling),pectoralis_major,secondary
+Assisted Triceps Dip (kneeling),anterior_deltoid,secondary
+Assisted Wide-grip Chest Dip (kneeling),pectoralis_major,primary
+Assisted Wide-grip Chest Dip (kneeling),triceps_brachii,secondary
+Assisted Wide-grip Chest Dip (kneeling),anterior_deltoid,secondary
+Back Extension On Exercise Ball,erector_spinae,primary
+Back Extension On Exercise Ball,gluteus_maximus,secondary
+Back Extension On Exercise Ball,hamstrings,secondary
+Back Lever,trapezius,primary
+Back Lever,biceps_brachii,secondary
+Back Lever,forearms,secondary
+Back Lever,rectus_abdominis,secondary
+Back Pec Stretch,latissimus_dorsi,primary
+Back Pec Stretch,lateral_deltoid,secondary
+Back Pec Stretch,pectoralis_major,secondary
+Backward Jump,quadriceps,primary
+Backward Jump,hamstrings,secondary
+Backward Jump,gluteus_maximus,secondary
+Backward Jump,calves,secondary
+Balance Board,quadriceps,primary
+Balance Board,calves,secondary
+Balance Board,hamstrings,secondary
+Balance Board,gluteus_maximus,secondary
+Band Alternating Biceps Curl,biceps_brachii,primary
+Band Alternating Biceps Curl,forearms,secondary
+Band Alternating V-up,rectus_abdominis,primary
+Band Alternating V-up,hip_flexors,secondary
+Band Assisted Pull-up,latissimus_dorsi,primary
+Band Assisted Pull-up,biceps_brachii,secondary
+Band Assisted Pull-up,forearms,secondary
+Band Assisted Wheel Rollerout,rectus_abdominis,primary
+Band Assisted Wheel Rollerout,erector_spinae,secondary
+Band Bench Press,pectoralis_major,primary
+Band Bench Press,triceps_brachii,secondary
+Band Bench Press,anterior_deltoid,secondary
+Band Bent-over Hip Extension,gluteus_maximus,primary
+Band Bent-over Hip Extension,hamstrings,secondary
+Band Bent-over Hip Extension,erector_spinae,secondary
+Band Bicycle Crunch,rectus_abdominis,primary
+Band Bicycle Crunch,hip_flexors,secondary
+Band Bicycle Crunch,obliques,secondary
+Band Close-grip Pulldown,latissimus_dorsi,primary
+Band Close-grip Pulldown,biceps_brachii,secondary
+Band Close-grip Pulldown,forearms,secondary
+Band Close-grip Push-up,triceps_brachii,primary
+Band Close-grip Push-up,pectoralis_major,secondary
+Band Close-grip Push-up,anterior_deltoid,secondary
+Band Concentration Curl,biceps_brachii,primary
+Band Concentration Curl,forearms,secondary
+Band Fixed Back Close Grip Pulldown,latissimus_dorsi,primary
+Band Fixed Back Close Grip Pulldown,biceps_brachii,secondary
+Band Fixed Back Close Grip Pulldown,forearms,secondary
+Band Fixed Back Underhand Pulldown,latissimus_dorsi,primary
+Band Fixed Back Underhand Pulldown,biceps_brachii,secondary
+Band Fixed Back Underhand Pulldown,rhomboids,secondary
+Band Fixed Back Underhand Pulldown,posterior_deltoid,secondary
+Band Front Lateral Raise,anterior_deltoid,primary
+Band Front Lateral Raise,trapezius,secondary
+Band Front Raise,anterior_deltoid,primary
+Band Front Raise,triceps_brachii,secondary
+Band Front Raise,trapezius,secondary
+Band Hip Lift,gluteus_maximus,primary
+Band Hip Lift,hamstrings,secondary
+Band Hip Lift,quadriceps,secondary
+Band Horizontal Pallof Press,rectus_abdominis,primary
+Band Horizontal Pallof Press,obliques,secondary
+Band Horizontal Pallof Press,gluteus_maximus,secondary
+Band Jack Knife Sit-up,rectus_abdominis,primary
+Band Jack Knife Sit-up,hip_flexors,secondary
+Band Kneeling One Arm Pulldown,latissimus_dorsi,primary
+Band Kneeling One Arm Pulldown,biceps_brachii,secondary
+Band Kneeling One Arm Pulldown,rhomboids,secondary
+Band Kneeling Twisting Crunch,rectus_abdominis,primary
+Band Kneeling Twisting Crunch,obliques,secondary
+Band Lying Hip Internal Rotation,gluteus_maximus,primary
+Band Lying Hip Internal Rotation,hamstrings,secondary
+Band Lying Hip Internal Rotation,quadriceps,secondary
+Band Lying Straight Leg Raise,rectus_abdominis,primary
+Band Lying Straight Leg Raise,hip_flexors,secondary
+Band One Arm Overhead Biceps Curl,biceps_brachii,primary
+Band One Arm Overhead Biceps Curl,forearms,secondary
+Band One Arm Overhead Biceps Curl,anterior_deltoid,secondary
+Band One Arm Single Leg Split Squat,quadriceps,primary
+Band One Arm Single Leg Split Squat,gluteus_maximus,secondary
+Band One Arm Single Leg Split Squat,hamstrings,secondary
+Band One Arm Standing Low Row,trapezius,primary
+Band One Arm Standing Low Row,biceps_brachii,secondary
+Band One Arm Standing Low Row,lateral_deltoid,secondary
+Band One Arm Twisting Chest Press,pectoralis_major,primary
+Band One Arm Twisting Chest Press,anterior_deltoid,secondary
+Band One Arm Twisting Chest Press,triceps_brachii,secondary
+Band One Arm Twisting Seated Row,trapezius,primary
+Band One Arm Twisting Seated Row,biceps_brachii,secondary
+Band One Arm Twisting Seated Row,lateral_deltoid,secondary
+Band Pull Through,gluteus_maximus,primary
+Band Pull Through,hamstrings,secondary
+Band Pull Through,erector_spinae,secondary
+Band Push Sit-up,rectus_abdominis,primary
+Band Push Sit-up,lateral_deltoid,secondary
+Band Push Sit-up,pectoralis_major,secondary
+Band Reverse Fly,posterior_deltoid,primary
+Band Reverse Fly,trapezius,secondary
+Band Reverse Wrist Curl,forearms,primary
+Band Seated Hip Internal Rotation,gluteus_maximus,primary
+Band Seated Hip Internal Rotation,hamstrings,secondary
+Band Seated Hip Internal Rotation,quadriceps,secondary
+Band Seated Twist,rectus_abdominis,primary
+Band Seated Twist,obliques,secondary
+Band Shoulder Press,anterior_deltoid,primary
+Band Shoulder Press,triceps_brachii,secondary
+Band Shoulder Press,trapezius,secondary
+Band Shrug,trapezius,primary
+Band Shrug,lateral_deltoid,secondary
+Band Side Triceps Extension,triceps_brachii,primary
+Band Side Triceps Extension,lateral_deltoid,secondary
+Band Single Leg Calf Raise,calves,primary
+Band Single Leg Reverse Calf Raise,calves,primary
+Band Single Leg Reverse Calf Raise,hamstrings,secondary
+Band Single Leg Reverse Calf Raise,gluteus_maximus,secondary
+Band Single Leg Split Squat,quadriceps,primary
+Band Single Leg Split Squat,gluteus_maximus,secondary
+Band Single Leg Split Squat,hamstrings,secondary
+Band Squat,gluteus_maximus,primary
+Band Squat,quadriceps,secondary
+Band Squat,hamstrings,secondary
+Band Squat,calves,secondary
+Band Squat Row,gluteus_maximus,primary
+Band Squat Row,hamstrings,secondary
+Band Squat Row,quadriceps,secondary
+Band Squat Row,latissimus_dorsi,secondary
+Band Standing Crunch,rectus_abdominis,primary
+Band Standing Crunch,obliques,secondary
+Band Standing Rear Delt Row,posterior_deltoid,primary
+Band Standing Rear Delt Row,trapezius,secondary
+Band Standing Rear Delt Row,rhomboids,secondary
+Band Standing Rear Delt Row,biceps_brachii,secondary
+Band Standing Twisting Crunch,rectus_abdominis,primary
+Band Standing Twisting Crunch,obliques,secondary
+Band Step-up,gluteus_maximus,primary
+Band Step-up,quadriceps,secondary
+Band Step-up,hamstrings,secondary
+Band Step-up,calves,secondary
+Band Stiff Leg Deadlift,gluteus_maximus,primary
+Band Stiff Leg Deadlift,hamstrings,secondary
+Band Stiff Leg Deadlift,erector_spinae,secondary
+Band Straight Back Stiff Leg Deadlift,gluteus_maximus,primary
+Band Straight Back Stiff Leg Deadlift,hamstrings,secondary
+Band Straight Back Stiff Leg Deadlift,erector_spinae,secondary
+Band Straight Leg Deadlift,erector_spinae,primary
+Band Straight Leg Deadlift,hamstrings,secondary
+Band Straight Leg Deadlift,gluteus_maximus,secondary
+Band Twisting Overhead Press,anterior_deltoid,primary
+Band Twisting Overhead Press,triceps_brachii,secondary
+Band Twisting Overhead Press,trapezius,secondary
+Band Two Legs Calf Raise - (band Under Both Legs) V. 2,calves,primary
+Band Underhand Pulldown,latissimus_dorsi,primary
+Band Underhand Pulldown,biceps_brachii,secondary
+Band Underhand Pulldown,forearms,secondary
+Band V-up,rectus_abdominis,primary
+Band V-up,hip_flexors,secondary
+Band Vertical Pallof Press,rectus_abdominis,primary
+Band Vertical Pallof Press,obliques,secondary
+Band Vertical Pallof Press,gluteus_maximus,secondary
+Band Wrist Curl,forearms,primary
+Band Wrist Curl,biceps_brachii,secondary
+Band Wrist Curl,triceps_brachii,secondary
+Band Y-raise,lateral_deltoid,primary
+Band Y-raise,trapezius,secondary
+Band Y-raise,rhomboids,secondary
+Barbell Alternate Biceps Curl,biceps_brachii,primary
+Barbell Alternate Biceps Curl,forearms,secondary
+Barbell Bench Front Squat,quadriceps,primary
+Barbell Bench Front Squat,hamstrings,secondary
+Barbell Bench Front Squat,gluteus_maximus,secondary
+Barbell Bench Front Squat,calves,secondary
+Barbell Bench Press,pectoralis_major,primary
+Barbell Bench Press,triceps_brachii,secondary
+Barbell Bench Press,anterior_deltoid,secondary
+Barbell Bench Squat,quadriceps,primary
+Barbell Bench Squat,gluteus_maximus,secondary
+Barbell Bench Squat,hamstrings,secondary
+Barbell Bench Squat,calves,secondary
+Barbell Bent Arm Pullover,latissimus_dorsi,primary
+Barbell Bent Arm Pullover,triceps_brachii,secondary
+Barbell Bent Arm Pullover,pectoralis_major,secondary
+Barbell Bent Over Row,trapezius,primary
+Barbell Bent Over Row,biceps_brachii,secondary
+Barbell Bent Over Row,forearms,secondary
+Barbell Biceps Curl (with Arm Blaster),biceps_brachii,primary
+Barbell Biceps Curl (with Arm Blaster),forearms,secondary
+Barbell Clean And Press,quadriceps,primary
+Barbell Clean And Press,hamstrings,secondary
+Barbell Clean And Press,gluteus_maximus,secondary
+Barbell Clean And Press,anterior_deltoid,secondary
+Barbell Clean And Press,triceps_brachii,secondary
+Barbell Clean-grip Front Squat,gluteus_maximus,primary
+Barbell Clean-grip Front Squat,quadriceps,secondary
+Barbell Clean-grip Front Squat,hamstrings,secondary
+Barbell Clean-grip Front Squat,calves,secondary
+Barbell Clean-grip Front Squat,rectus_abdominis,secondary
+Barbell Close-grip Bench Press,triceps_brachii,primary
+Barbell Close-grip Bench Press,pectoralis_major,secondary
+Barbell Close-grip Bench Press,anterior_deltoid,secondary
+Barbell Deadlift,gluteus_maximus,primary
+Barbell Deadlift,hamstrings,secondary
+Barbell Deadlift,erector_spinae,secondary
+Barbell Decline Bench Press,pectoralis_major,primary
+Barbell Decline Bench Press,triceps_brachii,secondary
+Barbell Decline Bench Press,anterior_deltoid,secondary
+Barbell Decline Bent Arm Pullover,latissimus_dorsi,primary
+Barbell Decline Bent Arm Pullover,triceps_brachii,secondary
+Barbell Decline Bent Arm Pullover,pectoralis_major,secondary
+Barbell Decline Close Grip To Skull Press,triceps_brachii,primary
+Barbell Decline Close Grip To Skull Press,pectoralis_major,secondary
+Barbell Decline Close Grip To Skull Press,anterior_deltoid,secondary
+Barbell Decline Pullover,pectoralis_major,primary
+Barbell Decline Pullover,triceps_brachii,secondary
+Barbell Decline Pullover,lateral_deltoid,secondary
+Barbell Decline Wide-grip Press,pectoralis_major,primary
+Barbell Decline Wide-grip Press,triceps_brachii,secondary
+Barbell Decline Wide-grip Press,anterior_deltoid,secondary
+Barbell Decline Wide-grip Pullover,latissimus_dorsi,primary
+Barbell Decline Wide-grip Pullover,triceps_brachii,secondary
+Barbell Decline Wide-grip Pullover,pectoralis_major,secondary
+Barbell Drag Curl,biceps_brachii,primary
+Barbell Drag Curl,forearms,secondary
+Barbell Floor Calf Raise,calves,primary
+Barbell Floor Calf Raise,hamstrings,secondary
+Barbell Front Chest Squat,gluteus_maximus,primary
+Barbell Front Chest Squat,quadriceps,secondary
+Barbell Front Chest Squat,hamstrings,secondary
+Barbell Front Chest Squat,calves,secondary
+Barbell Front Chest Squat,rectus_abdominis,secondary
+Barbell Front Raise,anterior_deltoid,primary
+Barbell Front Raise,biceps_brachii,secondary
+Barbell Front Raise,triceps_brachii,secondary
+Barbell Front Raise And Pullover,pectoralis_major,primary
+Barbell Front Raise And Pullover,anterior_deltoid,secondary
+Barbell Front Raise And Pullover,triceps_brachii,secondary
+Barbell Front Squat,gluteus_maximus,primary
+Barbell Front Squat,quadriceps,secondary
+Barbell Front Squat,hamstrings,secondary
+Barbell Front Squat,calves,secondary
+Barbell Front Squat,rectus_abdominis,secondary
+Barbell Full Squat,gluteus_maximus,primary
+Barbell Full Squat,quadriceps,secondary
+Barbell Full Squat,hamstrings,secondary
+Barbell Full Squat,calves,secondary
+Barbell Full Squat,rectus_abdominis,secondary
+Barbell Full Squat (back Pov),gluteus_maximus,primary
+Barbell Full Squat (back Pov),quadriceps,secondary
+Barbell Full Squat (back Pov),hamstrings,secondary
+Barbell Full Squat (back Pov),calves,secondary
+Barbell Full Squat (back Pov),rectus_abdominis,secondary
+Barbell Full Squat (side Pov),gluteus_maximus,primary
+Barbell Full Squat (side Pov),quadriceps,secondary
+Barbell Full Squat (side Pov),hamstrings,secondary
+Barbell Full Squat (side Pov),calves,secondary
+Barbell Full Squat (side Pov),rectus_abdominis,secondary
+Barbell Full Zercher Squat,gluteus_maximus,primary
+Barbell Full Zercher Squat,quadriceps,secondary
+Barbell Full Zercher Squat,hamstrings,secondary
+Barbell Full Zercher Squat,calves,secondary
+Barbell Full Zercher Squat,rectus_abdominis,secondary
+Barbell Glute Bridge,gluteus_maximus,primary
+Barbell Glute Bridge,hamstrings,secondary
+Barbell Glute Bridge,erector_spinae,secondary
+Barbell Glute Bridge Two Legs On Bench (male),gluteus_maximus,primary
+Barbell Glute Bridge Two Legs On Bench (male),hamstrings,secondary
+Barbell Glute Bridge Two Legs On Bench (male),rectus_abdominis,secondary
+Barbell Good Morning,hamstrings,primary
+Barbell Good Morning,erector_spinae,secondary
+Barbell Guillotine Bench Press,pectoralis_major,primary
+Barbell Guillotine Bench Press,anterior_deltoid,secondary
+Barbell Guillotine Bench Press,triceps_brachii,secondary
+Barbell Hack Squat,gluteus_maximus,primary
+Barbell Hack Squat,quadriceps,secondary
+Barbell Hack Squat,hamstrings,secondary
+Barbell Hack Squat,calves,secondary
+Barbell High Bar Squat,gluteus_maximus,primary
+Barbell High Bar Squat,quadriceps,secondary
+Barbell High Bar Squat,hamstrings,secondary
+Barbell High Bar Squat,calves,secondary
+Barbell High Bar Squat,rectus_abdominis,secondary
+Barbell Incline Bench Press,pectoralis_major,primary
+Barbell Incline Bench Press,anterior_deltoid,secondary
+Barbell Incline Bench Press,triceps_brachii,secondary
+Barbell Incline Close Grip Bench Press,triceps_brachii,primary
+Barbell Incline Close Grip Bench Press,pectoralis_major,secondary
+Barbell Incline Close Grip Bench Press,anterior_deltoid,secondary
+Barbell Incline Reverse-grip Press,triceps_brachii,primary
+Barbell Incline Reverse-grip Press,pectoralis_major,secondary
+Barbell Incline Reverse-grip Press,posterior_deltoid,secondary
+Barbell Incline Row,trapezius,primary
+Barbell Incline Row,biceps_brachii,secondary
+Barbell Incline Row,forearms,secondary
+Barbell Incline Shoulder Raise,serratus_anterior,primary
+Barbell Incline Shoulder Raise,lateral_deltoid,secondary
+Barbell Incline Shoulder Raise,trapezius,secondary
+Barbell Jefferson Squat,gluteus_maximus,primary
+Barbell Jefferson Squat,quadriceps,secondary
+Barbell Jefferson Squat,hamstrings,secondary
+Barbell Jefferson Squat,calves,secondary
+Barbell Jm Bench Press,triceps_brachii,primary
+Barbell Jm Bench Press,pectoralis_major,secondary
+Barbell Jm Bench Press,anterior_deltoid,secondary
+Barbell Jump Squat,gluteus_maximus,primary
+Barbell Jump Squat,quadriceps,secondary
+Barbell Jump Squat,hamstrings,secondary
+Barbell Jump Squat,calves,secondary
+Barbell Lateral Lunge,gluteus_maximus,primary
+Barbell Lateral Lunge,quadriceps,secondary
+Barbell Lateral Lunge,hamstrings,secondary
+Barbell Lateral Lunge,calves,secondary
+Barbell Low Bar Squat,gluteus_maximus,primary
+Barbell Low Bar Squat,quadriceps,secondary
+Barbell Low Bar Squat,hamstrings,secondary
+Barbell Low Bar Squat,calves,secondary
+Barbell Lying Back Of The Head Tricep Extension,triceps_brachii,primary
+Barbell Lying Back Of The Head Tricep Extension,lateral_deltoid,secondary
+Barbell Lying Close-grip Press,triceps_brachii,primary
+Barbell Lying Close-grip Press,pectoralis_major,secondary
+Barbell Lying Close-grip Press,anterior_deltoid,secondary
+Barbell Lying Close-grip Triceps Extension,triceps_brachii,primary
+Barbell Lying Close-grip Triceps Extension,lateral_deltoid,secondary
+Barbell Lying Extension,triceps_brachii,primary
+Barbell Lying Extension,lateral_deltoid,secondary
+Barbell Lying Lifting (on Hip),gluteus_maximus,primary
+Barbell Lying Lifting (on Hip),hamstrings,secondary
+Barbell Lying Lifting (on Hip),quadriceps,secondary
+Barbell Lying Preacher Curl,biceps_brachii,primary
+Barbell Lying Preacher Curl,forearms,secondary
+Barbell Lying Triceps Extension,triceps_brachii,primary
+Barbell Lying Triceps Extension,lateral_deltoid,secondary
+Barbell Lying Triceps Extension Skull Crusher,triceps_brachii,primary
+Barbell Lying Triceps Extension Skull Crusher,lateral_deltoid,secondary
+Barbell Narrow Stance Squat,gluteus_maximus,primary
+Barbell Narrow Stance Squat,quadriceps,secondary
+Barbell Narrow Stance Squat,hamstrings,secondary
+Barbell Narrow Stance Squat,calves,secondary
+Barbell One Arm Bent Over Row,trapezius,primary
+Barbell One Arm Bent Over Row,biceps_brachii,secondary
+Barbell One Arm Bent Over Row,forearms,secondary
+Barbell One Arm Floor Press,triceps_brachii,primary
+Barbell One Arm Floor Press,pectoralis_major,secondary
+Barbell One Arm Floor Press,anterior_deltoid,secondary
+Barbell One Arm Side Deadlift,gluteus_maximus,primary
+Barbell One Arm Side Deadlift,hamstrings,secondary
+Barbell One Arm Side Deadlift,quadriceps,secondary
+Barbell One Arm Side Deadlift,erector_spinae,secondary
+Barbell One Arm Snatch,lateral_deltoid,primary
+Barbell One Arm Snatch,trapezius,secondary
+Barbell One Arm Snatch,forearms,secondary
+Barbell One Arm Snatch,rectus_abdominis,secondary
+Barbell One Leg Squat,quadriceps,primary
+Barbell One Leg Squat,gluteus_maximus,secondary
+Barbell One Leg Squat,hamstrings,secondary
+Barbell One Leg Squat,calves,secondary
+Barbell Overhead Squat,quadriceps,primary
+Barbell Overhead Squat,gluteus_maximus,secondary
+Barbell Overhead Squat,hamstrings,secondary
+Barbell Overhead Squat,calves,secondary
+Barbell Overhead Squat,rectus_abdominis,secondary
+Barbell Palms Down Wrist Curl Over A Bench,forearms,primary
+Barbell Palms Down Wrist Curl Over A Bench,biceps_brachii,secondary
+Barbell Palms Down Wrist Curl Over A Bench,brachialis,secondary
+Barbell Palms Up Wrist Curl Over A Bench,forearms,primary
+Barbell Palms Up Wrist Curl Over A Bench,biceps_brachii,secondary
+Barbell Palms Up Wrist Curl Over A Bench,anterior_deltoid,secondary
+Barbell Pendlay Row,trapezius,primary
+Barbell Pendlay Row,biceps_brachii,secondary
+Barbell Pendlay Row,forearms,secondary
+Barbell Pin Presses,triceps_brachii,primary
+Barbell Pin Presses,anterior_deltoid,secondary
+Barbell Preacher Curl,biceps_brachii,primary
+Barbell Preacher Curl,forearms,secondary
+Barbell Press Sit-up,rectus_abdominis,primary
+Barbell Press Sit-up,anterior_deltoid,secondary
+Barbell Press Sit-up,pectoralis_major,secondary
+Barbell Prone Incline Curl,biceps_brachii,primary
+Barbell Prone Incline Curl,forearms,secondary
+Barbell Pullover,latissimus_dorsi,primary
+Barbell Pullover,pectoralis_major,secondary
+Barbell Pullover,triceps_brachii,secondary
+Barbell Pullover To Press,latissimus_dorsi,primary
+Barbell Pullover To Press,triceps_brachii,secondary
+Barbell Pullover To Press,pectoralis_major,secondary
+Barbell Pullover To Press,anterior_deltoid,secondary
+Barbell Rack Pull,gluteus_maximus,primary
+Barbell Rack Pull,hamstrings,secondary
+Barbell Rack Pull,erector_spinae,secondary
+Barbell Rear Delt Raise,posterior_deltoid,primary
+Barbell Rear Delt Raise,trapezius,secondary
+Barbell Rear Delt Raise,rhomboids,secondary
+Barbell Rear Delt Row,posterior_deltoid,primary
+Barbell Rear Delt Row,trapezius,secondary
+Barbell Rear Delt Row,rhomboids,secondary
+Barbell Rear Delt Row,biceps_brachii,secondary
+Barbell Rear Lunge,gluteus_maximus,primary
+Barbell Rear Lunge,quadriceps,secondary
+Barbell Rear Lunge,hamstrings,secondary
+Barbell Rear Lunge,calves,secondary
+Barbell Rear Lunge V. 2,gluteus_maximus,primary
+Barbell Rear Lunge V. 2,quadriceps,secondary
+Barbell Rear Lunge V. 2,hamstrings,secondary
+Barbell Rear Lunge V. 2,calves,secondary
+Barbell Reverse Close-grip Bench Press,triceps_brachii,primary
+Barbell Reverse Close-grip Bench Press,pectoralis_major,secondary
+Barbell Reverse Close-grip Bench Press,posterior_deltoid,secondary
+Barbell Reverse Curl,biceps_brachii,primary
+Barbell Reverse Curl,forearms,secondary
+Barbell Reverse Grip Bent Over Row,trapezius,primary
+Barbell Reverse Grip Bent Over Row,biceps_brachii,secondary
+Barbell Reverse Grip Bent Over Row,forearms,secondary
+Barbell Reverse Grip Decline Bench Press,pectoralis_major,primary
+Barbell Reverse Grip Decline Bench Press,triceps_brachii,secondary
+Barbell Reverse Grip Decline Bench Press,posterior_deltoid,secondary
+Barbell Reverse Grip Incline Bench Press,pectoralis_major,primary
+Barbell Reverse Grip Incline Bench Press,triceps_brachii,secondary
+Barbell Reverse Grip Incline Bench Press,posterior_deltoid,secondary
+Barbell Reverse Grip Incline Bench Row,trapezius,primary
+Barbell Reverse Grip Incline Bench Row,biceps_brachii,secondary
+Barbell Reverse Grip Incline Bench Row,forearms,secondary
+Barbell Reverse Grip Skullcrusher,triceps_brachii,primary
+Barbell Reverse Grip Skullcrusher,forearms,secondary
+Barbell Reverse Preacher Curl,biceps_brachii,primary
+Barbell Reverse Preacher Curl,forearms,secondary
+Barbell Reverse Wrist Curl,forearms,primary
+Barbell Reverse Wrist Curl,biceps_brachii,secondary
+Barbell Reverse Wrist Curl,brachialis,secondary
+Barbell Reverse Wrist Curl V. 2,forearms,primary
+Barbell Reverse Wrist Curl V. 2,biceps_brachii,secondary
+Barbell Reverse Wrist Curl V. 2,brachialis,secondary
+Barbell Rollerout,rectus_abdominis,primary
+Barbell Rollerout,erector_spinae,secondary
+Barbell Rollerout From Bench,rectus_abdominis,primary
+Barbell Rollerout From Bench,anterior_deltoid,secondary
+Barbell Rollerout From Bench,triceps_brachii,secondary
+Barbell Romanian Deadlift,gluteus_maximus,primary
+Barbell Romanian Deadlift,hamstrings,secondary
+Barbell Romanian Deadlift,erector_spinae,secondary
+Barbell Seated Behind Head Military Press,anterior_deltoid,primary
+Barbell Seated Behind Head Military Press,triceps_brachii,secondary
+Barbell Seated Behind Head Military Press,trapezius,secondary
+Barbell Seated Bradford Rocky Press,anterior_deltoid,primary
+Barbell Seated Bradford Rocky Press,triceps_brachii,secondary
+Barbell Seated Bradford Rocky Press,trapezius,secondary
+Barbell Seated Calf Raise,calves,primary
+Barbell Seated Calf Raise,hamstrings,secondary
+Barbell Seated Close Grip Behind Neck Triceps Extension,triceps_brachii,primary
+Barbell Seated Close Grip Behind Neck Triceps Extension,lateral_deltoid,secondary
+Barbell Seated Close-grip Concentration Curl,biceps_brachii,primary
+Barbell Seated Close-grip Concentration Curl,forearms,secondary
+Barbell Seated Good Morning,gluteus_maximus,primary
+Barbell Seated Good Morning,hamstrings,secondary
+Barbell Seated Good Morning,erector_spinae,secondary
+Barbell Seated Overhead Press,anterior_deltoid,primary
+Barbell Seated Overhead Press,triceps_brachii,secondary
+Barbell Seated Overhead Press,trapezius,secondary
+Barbell Seated Overhead Triceps Extension,triceps_brachii,primary
+Barbell Seated Overhead Triceps Extension,anterior_deltoid,secondary
+Barbell Seated Twist,rectus_abdominis,primary
+Barbell Seated Twist,obliques,secondary
+Barbell Seated Twist,erector_spinae,secondary
+Barbell Side Bent V. 2,rectus_abdominis,primary
+Barbell Side Bent V. 2,obliques,secondary
+Barbell Side Bent V. 2,erector_spinae,secondary
+Barbell Side Split Squat,quadriceps,primary
+Barbell Side Split Squat,gluteus_maximus,secondary
+Barbell Side Split Squat,hamstrings,secondary
+Barbell Side Split Squat,calves,secondary
+Barbell Side Split Squat V. 2,quadriceps,primary
+Barbell Side Split Squat V. 2,gluteus_maximus,secondary
+Barbell Side Split Squat V. 2,hamstrings,secondary
+Barbell Side Split Squat V. 2,calves,secondary
+Barbell Single Leg Deadlift,gluteus_maximus,primary
+Barbell Single Leg Deadlift,hamstrings,secondary
+Barbell Single Leg Deadlift,erector_spinae,secondary
+Barbell Single Leg Split Squat,quadriceps,primary
+Barbell Single Leg Split Squat,gluteus_maximus,secondary
+Barbell Single Leg Split Squat,hamstrings,secondary
+Barbell Single Leg Split Squat,calves,secondary
+Barbell Sitted Alternate Leg Raise,rectus_abdominis,primary
+Barbell Sitted Alternate Leg Raise,hip_flexors,secondary
+Barbell Sitted Alternate Leg Raise (female),rectus_abdominis,primary
+Barbell Sitted Alternate Leg Raise (female),hip_flexors,secondary
+Barbell Sitted Alternate Leg Raise (female),quadriceps,secondary
+Barbell Skier,lateral_deltoid,primary
+Barbell Skier,triceps_brachii,secondary
+Barbell Skier,rectus_abdominis,secondary
+Barbell Speed Squat,gluteus_maximus,primary
+Barbell Speed Squat,quadriceps,secondary
+Barbell Speed Squat,hamstrings,secondary
+Barbell Speed Squat,calves,secondary
+Barbell Split Squat V. 2,quadriceps,primary
+Barbell Split Squat V. 2,gluteus_maximus,secondary
+Barbell Split Squat V. 2,hamstrings,secondary
+Barbell Split Squat V. 2,calves,secondary
+Barbell Squat (on Knees),quadriceps,primary
+Barbell Squat (on Knees),gluteus_maximus,secondary
+Barbell Squat (on Knees),hamstrings,secondary
+Barbell Squat (on Knees),calves,secondary
+Barbell Squat Jump Step Rear Lunge,quadriceps,primary
+Barbell Squat Jump Step Rear Lunge,gluteus_maximus,secondary
+Barbell Squat Jump Step Rear Lunge,hamstrings,secondary
+Barbell Squat Jump Step Rear Lunge,calves,secondary
+Barbell Standing Ab Rollerout,rectus_abdominis,primary
+Barbell Standing Ab Rollerout,lateral_deltoid,secondary
+Barbell Standing Ab Rollerout,erector_spinae,secondary
+Barbell Standing Back Wrist Curl,forearms,primary
+Barbell Standing Back Wrist Curl,biceps_brachii,secondary
+Barbell Standing Back Wrist Curl,lateral_deltoid,secondary
+Barbell Standing Bradford Press,anterior_deltoid,primary
+Barbell Standing Bradford Press,triceps_brachii,secondary
+Barbell Standing Bradford Press,trapezius,secondary
+Barbell Standing Calf Raise,calves,primary
+Barbell Standing Calf Raise,hamstrings,secondary
+Barbell Standing Calf Raise,gluteus_maximus,secondary
+Barbell Standing Close Grip Curl,biceps_brachii,primary
+Barbell Standing Close Grip Curl,forearms,secondary
+Barbell Standing Close Grip Military Press,anterior_deltoid,primary
+Barbell Standing Close Grip Military Press,triceps_brachii,secondary
+Barbell Standing Close Grip Military Press,trapezius,secondary
+Barbell Standing Concentration Curl,biceps_brachii,primary
+Barbell Standing Concentration Curl,forearms,secondary
+Barbell Standing Front Raise Over Head,anterior_deltoid,primary
+Barbell Standing Front Raise Over Head,triceps_brachii,secondary
+Barbell Standing Front Raise Over Head,trapezius,secondary
+Barbell Standing Leg Calf Raise,calves,primary
+Barbell Standing Leg Calf Raise,hamstrings,secondary
+Barbell Standing Leg Calf Raise,gluteus_maximus,secondary
+Barbell Standing Overhead Triceps Extension,triceps_brachii,primary
+Barbell Standing Overhead Triceps Extension,anterior_deltoid,secondary
+Barbell Standing Reverse Grip Curl,biceps_brachii,primary
+Barbell Standing Reverse Grip Curl,forearms,secondary
+Barbell Standing Rocking Leg Calf Raise,calves,primary
+Barbell Standing Rocking Leg Calf Raise,hamstrings,secondary
+Barbell Standing Rocking Leg Calf Raise,quadriceps,secondary
+Barbell Standing Twist,rectus_abdominis,primary
+Barbell Standing Twist,obliques,secondary
+Barbell Standing Twist,erector_spinae,secondary
+Barbell Standing Wide Grip Biceps Curl,biceps_brachii,primary
+Barbell Standing Wide Grip Biceps Curl,forearms,secondary
+Barbell Standing Wide Military Press,anterior_deltoid,primary
+Barbell Standing Wide Military Press,triceps_brachii,secondary
+Barbell Standing Wide Military Press,trapezius,secondary
+Barbell Standing Wide-grip Curl,biceps_brachii,primary
+Barbell Standing Wide-grip Curl,forearms,secondary
+Barbell Standing Wide-grip Curl,lateral_deltoid,secondary
+Barbell Step-up,gluteus_maximus,primary
+Barbell Step-up,quadriceps,secondary
+Barbell Step-up,hamstrings,secondary
+Barbell Step-up,calves,secondary
+Barbell Stiff Leg Good Morning,gluteus_maximus,primary
+Barbell Stiff Leg Good Morning,hamstrings,secondary
+Barbell Stiff Leg Good Morning,erector_spinae,secondary
+Barbell Straight Leg Deadlift,hamstrings,primary
+Barbell Straight Leg Deadlift,gluteus_maximus,secondary
+Barbell Straight Leg Deadlift,erector_spinae,secondary
+Barbell Sumo Deadlift,gluteus_maximus,primary
+Barbell Sumo Deadlift,hamstrings,secondary
+Barbell Sumo Deadlift,quadriceps,secondary
+Barbell Sumo Deadlift,erector_spinae,secondary
+Barbell Thruster,lateral_deltoid,primary
+Barbell Thruster,quadriceps,secondary
+Barbell Thruster,gluteus_maximus,secondary
+Barbell Thruster,hamstrings,secondary
+Barbell Thruster,rectus_abdominis,secondary
+Barbell Upright Row,lateral_deltoid,primary
+Barbell Upright Row,trapezius,secondary
+Barbell Upright Row,biceps_brachii,secondary
+Barbell Upright Row V. 2,lateral_deltoid,primary
+Barbell Upright Row V. 2,trapezius,secondary
+Barbell Upright Row V. 2,biceps_brachii,secondary
+Barbell Upright Row V. 3,lateral_deltoid,primary
+Barbell Upright Row V. 3,trapezius,secondary
+Barbell Upright Row V. 3,biceps_brachii,secondary
+Barbell Wide Bench Press,pectoralis_major,primary
+Barbell Wide Bench Press,anterior_deltoid,secondary
+Barbell Wide Bench Press,triceps_brachii,secondary
+Barbell Wide Reverse Grip Bench Press,pectoralis_major,primary
+Barbell Wide Reverse Grip Bench Press,triceps_brachii,secondary
+Barbell Wide Reverse Grip Bench Press,posterior_deltoid,secondary
+Barbell Wide Squat,quadriceps,primary
+Barbell Wide Squat,gluteus_maximus,secondary
+Barbell Wide Squat,hamstrings,secondary
+Barbell Wide Squat,calves,secondary
+Barbell Wide-grip Upright Row,lateral_deltoid,primary
+Barbell Wide-grip Upright Row,trapezius,secondary
+Barbell Wide-grip Upright Row,biceps_brachii,secondary
+Barbell Wrist Curl,forearms,primary
+Barbell Wrist Curl,biceps_brachii,secondary
+Barbell Wrist Curl,brachialis,secondary
+Barbell Wrist Curl V. 2,forearms,primary
+Barbell Wrist Curl V. 2,biceps_brachii,secondary
+Barbell Wrist Curl V. 2,brachialis,secondary
+Barbell Zercher Squat,gluteus_maximus,primary
+Barbell Zercher Squat,quadriceps,secondary
+Barbell Zercher Squat,hamstrings,secondary
+Barbell Zercher Squat,calves,secondary
+Barbell Zercher Squat,rectus_abdominis,secondary
+Basic Toe Touch (male),gluteus_maximus,primary
+Basic Toe Touch (male),hamstrings,secondary
+Basic Toe Touch (male),calves,secondary
+Battling Ropes,lateral_deltoid,primary
+Battling Ropes,forearms,secondary
+Battling Ropes,rectus_abdominis,secondary
+Behind Head Chest Stretch,pectoralis_major,primary
+Behind Head Chest Stretch,anterior_deltoid,secondary
+Behind Head Chest Stretch,triceps_brachii,secondary
+Bench Dip (knees Bent),triceps_brachii,primary
+Bench Dip (knees Bent),pectoralis_major,secondary
+Bench Dip (knees Bent),posterior_deltoid,secondary
+Bench Dip On Floor,triceps_brachii,primary
+Bench Dip On Floor,pectoralis_major,secondary
+Bench Dip On Floor,anterior_deltoid,secondary
+Bench Hip Extension,gluteus_maximus,primary
+Bench Hip Extension,hamstrings,secondary
+Bench Pull-ups,latissimus_dorsi,primary
+Bench Pull-ups,biceps_brachii,secondary
+Bench Pull-ups,forearms,secondary
+Bent Knee Lying Twist (male),gluteus_maximus,primary
+Bent Knee Lying Twist (male),obliques,secondary
+Bent Knee Lying Twist (male),hip_flexors,secondary
+Biceps Leg Concentration Curl,biceps_brachii,primary
+Biceps Leg Concentration Curl,forearms,secondary
+Biceps Narrow Pull-ups,biceps_brachii,primary
+Biceps Narrow Pull-ups,forearms,secondary
+Biceps Narrow Pull-ups,lateral_deltoid,secondary
+Biceps Pull-up,biceps_brachii,primary
+Biceps Pull-up,forearms,secondary
+Biceps Pull-up,lateral_deltoid,secondary
+Body-up,triceps_brachii,primary
+Body-up,pectoralis_major,secondary
+Body-up,lateral_deltoid,secondary
+Bodyweight Drop Jump Squat,gluteus_maximus,primary
+Bodyweight Drop Jump Squat,quadriceps,secondary
+Bodyweight Drop Jump Squat,hamstrings,secondary
+Bodyweight Drop Jump Squat,calves,secondary
+Bodyweight Incline Side Plank,rectus_abdominis,primary
+Bodyweight Incline Side Plank,obliques,secondary
+Bodyweight Incline Side Plank,lateral_deltoid,secondary
+Bodyweight Kneeling Triceps Extension,triceps_brachii,primary
+Bodyweight Kneeling Triceps Extension,lateral_deltoid,secondary
+Bodyweight Kneeling Triceps Extension,pectoralis_major,secondary
+Bodyweight Side Lying Biceps Curl,biceps_brachii,primary
+Bodyweight Side Lying Biceps Curl,forearms,secondary
+Bodyweight Squatting Row,trapezius,primary
+Bodyweight Squatting Row,biceps_brachii,secondary
+Bodyweight Squatting Row,lateral_deltoid,secondary
+Bodyweight Squatting Row (with Towel),trapezius,primary
+Bodyweight Squatting Row (with Towel),biceps_brachii,secondary
+Bodyweight Squatting Row (with Towel),lateral_deltoid,secondary
+Bodyweight Standing Calf Raise,calves,primary
+Bodyweight Standing Close-grip One Arm Row,trapezius,primary
+Bodyweight Standing Close-grip One Arm Row,biceps_brachii,secondary
+Bodyweight Standing Close-grip One Arm Row,forearms,secondary
+Bodyweight Standing Close-grip Row,trapezius,primary
+Bodyweight Standing Close-grip Row,biceps_brachii,secondary
+Bodyweight Standing Close-grip Row,forearms,secondary
+Bodyweight Standing One Arm Row,trapezius,primary
+Bodyweight Standing One Arm Row,biceps_brachii,secondary
+Bodyweight Standing One Arm Row,forearms,secondary
+Bodyweight Standing One Arm Row (with Towel),trapezius,primary
+Bodyweight Standing One Arm Row (with Towel),biceps_brachii,secondary
+Bodyweight Standing One Arm Row (with Towel),forearms,secondary
+Bodyweight Standing Row,trapezius,primary
+Bodyweight Standing Row,biceps_brachii,secondary
+Bodyweight Standing Row,lateral_deltoid,secondary
+Bodyweight Standing Row (with Towel),trapezius,primary
+Bodyweight Standing Row (with Towel),biceps_brachii,secondary
+Bodyweight Standing Row (with Towel),lateral_deltoid,secondary
+Bottoms-up,rectus_abdominis,primary
+Bottoms-up,obliques,secondary
+Bottoms-up,hip_flexors,secondary
+Box Jump Down With One Leg Stabilization,calves,primary
+Box Jump Down With One Leg Stabilization,quadriceps,secondary
+Box Jump Down With One Leg Stabilization,hamstrings,secondary
+Box Jump Down With One Leg Stabilization,gluteus_maximus,secondary
+Bridge - Mountain Climber (cross Body),rectus_abdominis,primary
+Bridge - Mountain Climber (cross Body),gluteus_maximus,secondary
+Bridge - Mountain Climber (cross Body),quadriceps,secondary
+Bridge - Mountain Climber (cross Body),hamstrings,secondary
+Bridge - Mountain Climber (cross Body),lateral_deltoid,secondary
+Bridge - Mountain Climber (cross Body),triceps_brachii,secondary
+Butt-ups,rectus_abdominis,primary
+Butt-ups,hip_flexors,secondary
+Butt-ups,erector_spinae,secondary
+Butterfly Yoga Pose,adductors,primary
+Butterfly Yoga Pose,hamstrings,secondary
+Cable Alternate Shoulder Press,anterior_deltoid,primary
+Cable Alternate Shoulder Press,triceps_brachii,secondary
+Cable Alternate Shoulder Press,trapezius,secondary
+Cable Alternate Triceps Extension,triceps_brachii,primary
+Cable Alternate Triceps Extension,lateral_deltoid,secondary
+Cable Assisted Inverse Leg Curl,hamstrings,primary
+Cable Assisted Inverse Leg Curl,gluteus_maximus,secondary
+Cable Assisted Inverse Leg Curl,calves,secondary
+Cable Bar Lateral Pulldown,latissimus_dorsi,primary
+Cable Bar Lateral Pulldown,biceps_brachii,secondary
+Cable Bar Lateral Pulldown,rhomboids,secondary
+Cable Bar Lateral Pulldown,posterior_deltoid,secondary
+Cable Bench Press,pectoralis_major,primary
+Cable Bench Press,triceps_brachii,secondary
+Cable Bench Press,anterior_deltoid,secondary
+Cable Close Grip Curl,biceps_brachii,primary
+Cable Close Grip Curl,forearms,secondary
+Cable Concentration Curl,biceps_brachii,primary
+Cable Concentration Curl,forearms,secondary
+Cable Concentration Extension (on Knee),triceps_brachii,primary
+Cable Concentration Extension (on Knee),forearms,secondary
+Cable Cross-over Lateral Pulldown,latissimus_dorsi,primary
+Cable Cross-over Lateral Pulldown,biceps_brachii,secondary
+Cable Cross-over Lateral Pulldown,rhomboids,secondary
+Cable Cross-over Lateral Pulldown,posterior_deltoid,secondary
+Cable Cross-over Reverse Fly,posterior_deltoid,primary
+Cable Cross-over Reverse Fly,rhomboids,secondary
+Cable Cross-over Reverse Fly,trapezius,secondary
+Cable Cross-over Variation,pectoralis_major,primary
+Cable Cross-over Variation,lateral_deltoid,secondary
+Cable Cross-over Variation,triceps_brachii,secondary
+Cable Curl,biceps_brachii,primary
+Cable Curl,forearms,secondary
+Cable Deadlift,gluteus_maximus,primary
+Cable Deadlift,hamstrings,secondary
+Cable Deadlift,quadriceps,secondary
+Cable Deadlift,erector_spinae,secondary
+Cable Decline Fly,pectoralis_major,primary
+Cable Decline Fly,lateral_deltoid,secondary
+Cable Decline Fly,triceps_brachii,secondary
+Cable Decline One Arm Press,pectoralis_major,primary
+Cable Decline One Arm Press,triceps_brachii,secondary
+Cable Decline One Arm Press,anterior_deltoid,secondary
+Cable Decline Press,pectoralis_major,primary
+Cable Decline Press,triceps_brachii,secondary
+Cable Decline Press,anterior_deltoid,secondary
+Cable Decline Seated Wide-grip Row,trapezius,primary
+Cable Decline Seated Wide-grip Row,biceps_brachii,secondary
+Cable Decline Seated Wide-grip Row,forearms,secondary
+Cable Drag Curl,biceps_brachii,primary
+Cable Drag Curl,forearms,secondary
+Cable Floor Seated Wide-grip Row,trapezius,primary
+Cable Floor Seated Wide-grip Row,biceps_brachii,secondary
+Cable Floor Seated Wide-grip Row,forearms,secondary
+Cable Forward Raise,lateral_deltoid,primary
+Cable Forward Raise,triceps_brachii,secondary
+Cable Forward Raise,forearms,secondary
+Cable Front Raise,anterior_deltoid,primary
+Cable Front Raise,triceps_brachii,secondary
+Cable Front Raise,forearms,secondary
+Cable Front Shoulder Raise,anterior_deltoid,primary
+Cable Front Shoulder Raise,trapezius,secondary
+Cable Front Shoulder Raise,biceps_brachii,secondary
+Cable Hammer Curl (with Rope),biceps_brachii,primary
+Cable Hammer Curl (with Rope),forearms,secondary
+Cable High Pulley Overhead Tricep Extension,triceps_brachii,primary
+Cable High Pulley Overhead Tricep Extension,anterior_deltoid,secondary
+Cable High Row (kneeling),trapezius,primary
+Cable High Row (kneeling),biceps_brachii,secondary
+Cable High Row (kneeling),lateral_deltoid,secondary
+Cable Hip Adduction,adductors,primary
+Cable Hip Adduction,gluteus_maximus,secondary
+Cable Hip Adduction,quadriceps,secondary
+Cable Incline Bench Press,pectoralis_major,primary
+Cable Incline Bench Press,anterior_deltoid,secondary
+Cable Incline Bench Press,triceps_brachii,secondary
+Cable Incline Bench Row,trapezius,primary
+Cable Incline Bench Row,biceps_brachii,secondary
+Cable Incline Bench Row,posterior_deltoid,secondary
+Cable Incline Fly,pectoralis_major,primary
+Cable Incline Fly,lateral_deltoid,secondary
+Cable Incline Fly,triceps_brachii,secondary
+Cable Incline Fly (on Stability Ball),pectoralis_major,primary
+Cable Incline Fly (on Stability Ball),lateral_deltoid,secondary
+Cable Incline Fly (on Stability Ball),triceps_brachii,secondary
+Cable Incline Pushdown,latissimus_dorsi,primary
+Cable Incline Pushdown,triceps_brachii,secondary
+Cable Incline Pushdown,lateral_deltoid,secondary
+Cable Incline Triceps Extension,triceps_brachii,primary
+Cable Incline Triceps Extension,lateral_deltoid,secondary
+Cable Judo Flip,rectus_abdominis,primary
+Cable Judo Flip,obliques,secondary
+Cable Judo Flip,lateral_deltoid,secondary
+Cable Kickback,triceps_brachii,primary
+Cable Kickback,lateral_deltoid,secondary
+Cable Kneeling Crunch,rectus_abdominis,primary
+Cable Kneeling Crunch,obliques,secondary
+Cable Kneeling Rear Delt Row (with Rope) (male),posterior_deltoid,primary
+Cable Kneeling Rear Delt Row (with Rope) (male),trapezius,secondary
+Cable Kneeling Rear Delt Row (with Rope) (male),rhomboids,secondary
+Cable Kneeling Rear Delt Row (with Rope) (male),biceps_brachii,secondary
+Cable Kneeling Triceps Extension,triceps_brachii,primary
+Cable Kneeling Triceps Extension,lateral_deltoid,secondary
+Cable Lat Pulldown Full Range Of Motion,latissimus_dorsi,primary
+Cable Lat Pulldown Full Range Of Motion,biceps_brachii,secondary
+Cable Lat Pulldown Full Range Of Motion,rhomboids,secondary
+Cable Lat Pulldown Full Range Of Motion,posterior_deltoid,secondary
+Cable Lateral Pulldown (with Rope Attachment),latissimus_dorsi,primary
+Cable Lateral Pulldown (with Rope Attachment),biceps_brachii,secondary
+Cable Lateral Pulldown (with Rope Attachment),forearms,secondary
+Cable Lateral Pulldown With V-bar,latissimus_dorsi,primary
+Cable Lateral Pulldown With V-bar,biceps_brachii,secondary
+Cable Lateral Pulldown With V-bar,forearms,secondary
+Cable Lateral Raise,lateral_deltoid,primary
+Cable Lateral Raise,trapezius,secondary
+Cable Lateral Raise,triceps_brachii,secondary
+Cable Low Fly,pectoralis_major,primary
+Cable Low Fly,lateral_deltoid,secondary
+Cable Low Fly,triceps_brachii,secondary
+Cable Low Seated Row,trapezius,primary
+Cable Low Seated Row,biceps_brachii,secondary
+Cable Low Seated Row,forearms,secondary
+Cable Lying Bicep Curl,biceps_brachii,primary
+Cable Lying Bicep Curl,forearms,secondary
+Cable Lying Close-grip Curl,biceps_brachii,primary
+Cable Lying Close-grip Curl,forearms,secondary
+Cable Lying Extension Pullover (with Rope Attachment),latissimus_dorsi,primary
+Cable Lying Extension Pullover (with Rope Attachment),triceps_brachii,secondary
+Cable Lying Extension Pullover (with Rope Attachment),lateral_deltoid,secondary
+Cable Lying Fly,pectoralis_major,primary
+Cable Lying Fly,lateral_deltoid,secondary
+Cable Lying Fly,triceps_brachii,secondary
+Cable Lying Triceps Extension V. 2,triceps_brachii,primary
+Cable Lying Triceps Extension V. 2,lateral_deltoid,secondary
+Cable Middle Fly,pectoralis_major,primary
+Cable Middle Fly,lateral_deltoid,secondary
+Cable Middle Fly,triceps_brachii,secondary
+Cable One Arm Bent Over Row,trapezius,primary
+Cable One Arm Bent Over Row,biceps_brachii,secondary
+Cable One Arm Bent Over Row,forearms,secondary
+Cable One Arm Curl,biceps_brachii,primary
+Cable One Arm Curl,forearms,secondary
+Cable One Arm Decline Chest Fly,pectoralis_major,primary
+Cable One Arm Decline Chest Fly,anterior_deltoid,secondary
+Cable One Arm Decline Chest Fly,triceps_brachii,secondary
+Cable One Arm Fly On Exercise Ball,pectoralis_major,primary
+Cable One Arm Fly On Exercise Ball,lateral_deltoid,secondary
+Cable One Arm Fly On Exercise Ball,triceps_brachii,secondary
+Cable One Arm Incline Fly On Exercise Ball,pectoralis_major,primary
+Cable One Arm Incline Fly On Exercise Ball,lateral_deltoid,secondary
+Cable One Arm Incline Fly On Exercise Ball,triceps_brachii,secondary
+Cable One Arm Incline Press,pectoralis_major,primary
+Cable One Arm Incline Press,anterior_deltoid,secondary
+Cable One Arm Incline Press,triceps_brachii,secondary
+Cable One Arm Incline Press On Exercise Ball,pectoralis_major,primary
+Cable One Arm Incline Press On Exercise Ball,anterior_deltoid,secondary
+Cable One Arm Incline Press On Exercise Ball,triceps_brachii,secondary
+Cable One Arm Lateral Bent-over,pectoralis_major,primary
+Cable One Arm Lateral Bent-over,posterior_deltoid,secondary
+Cable One Arm Lateral Bent-over,trapezius,secondary
+Cable One Arm Lateral Raise,lateral_deltoid,primary
+Cable One Arm Lateral Raise,trapezius,secondary
+Cable One Arm Lateral Raise,triceps_brachii,secondary
+Cable One Arm Preacher Curl,biceps_brachii,primary
+Cable One Arm Preacher Curl,forearms,secondary
+Cable One Arm Press On Exercise Ball,pectoralis_major,primary
+Cable One Arm Press On Exercise Ball,anterior_deltoid,secondary
+Cable One Arm Press On Exercise Ball,triceps_brachii,secondary
+Cable One Arm Pulldown,latissimus_dorsi,primary
+Cable One Arm Pulldown,biceps_brachii,secondary
+Cable One Arm Pulldown,forearms,secondary
+Cable One Arm Reverse Preacher Curl,biceps_brachii,primary
+Cable One Arm Reverse Preacher Curl,forearms,secondary
+Cable One Arm Straight Back High Row (kneeling),trapezius,primary
+Cable One Arm Straight Back High Row (kneeling),biceps_brachii,secondary
+Cable One Arm Straight Back High Row (kneeling),lateral_deltoid,secondary
+Cable One Arm Tricep Pushdown,triceps_brachii,primary
+Cable One Arm Tricep Pushdown,forearms,secondary
+Cable Overhead Curl,biceps_brachii,primary
+Cable Overhead Curl,forearms,secondary
+Cable Overhead Curl,anterior_deltoid,secondary
+Cable Overhead Curl On Exercise Ball,biceps_brachii,primary
+Cable Overhead Curl On Exercise Ball,forearms,secondary
+Cable Overhead Curl On Exercise Ball,anterior_deltoid,secondary
+Cable Overhead Triceps Extension (rope Attachment),triceps_brachii,primary
+Cable Overhead Triceps Extension (rope Attachment),anterior_deltoid,secondary
+Cable Palm Rotational Row,trapezius,primary
+Cable Palm Rotational Row,biceps_brachii,secondary
+Cable Palm Rotational Row,forearms,secondary
+Cable Preacher Curl,biceps_brachii,primary
+Cable Preacher Curl,forearms,secondary
+Cable Press On Exercise Ball,pectoralis_major,primary
+Cable Press On Exercise Ball,anterior_deltoid,secondary
+Cable Press On Exercise Ball,triceps_brachii,secondary
+Cable Pull Through (with Rope),gluteus_maximus,primary
+Cable Pull Through (with Rope),hamstrings,secondary
+Cable Pull Through (with Rope),erector_spinae,secondary
+Cable Pulldown,latissimus_dorsi,primary
+Cable Pulldown,biceps_brachii,secondary
+Cable Pulldown,forearms,secondary
+Cable Pulldown (pro Lat Bar),latissimus_dorsi,primary
+Cable Pulldown (pro Lat Bar),biceps_brachii,secondary
+Cable Pulldown (pro Lat Bar),forearms,secondary
+Cable Pulldown Bicep Curl,biceps_brachii,primary
+Cable Pulldown Bicep Curl,forearms,secondary
+Cable Pushdown,triceps_brachii,primary
+Cable Pushdown,forearms,secondary
+Cable Pushdown (straight Arm) V. 2,latissimus_dorsi,primary
+Cable Pushdown (straight Arm) V. 2,triceps_brachii,secondary
+Cable Pushdown (straight Arm) V. 2,lateral_deltoid,secondary
+Cable Pushdown (with Rope Attachment),triceps_brachii,primary
+Cable Pushdown (with Rope Attachment),forearms,secondary
+Cable Rear Delt Row (stirrups),posterior_deltoid,primary
+Cable Rear Delt Row (stirrups),trapezius,secondary
+Cable Rear Delt Row (stirrups),rhomboids,secondary
+Cable Rear Delt Row (stirrups),biceps_brachii,secondary
+Cable Rear Delt Row (with Rope),posterior_deltoid,primary
+Cable Rear Delt Row (with Rope),trapezius,secondary
+Cable Rear Delt Row (with Rope),rhomboids,secondary
+Cable Rear Delt Row (with Rope),biceps_brachii,secondary
+Cable Rear Drive,triceps_brachii,primary
+Cable Rear Drive,posterior_deltoid,secondary
+Cable Rear Drive,latissimus_dorsi,secondary
+Cable Rear Pulldown,latissimus_dorsi,primary
+Cable Rear Pulldown,biceps_brachii,secondary
+Cable Rear Pulldown,rhomboids,secondary
+Cable Rear Pulldown,posterior_deltoid,secondary
+Cable Reverse Crunch,rectus_abdominis,primary
+Cable Reverse Crunch,hip_flexors,secondary
+Cable Reverse Curl,biceps_brachii,primary
+Cable Reverse Curl,forearms,secondary
+Cable Reverse Grip Triceps Pushdown (sz-bar) (with Arm Blaster),triceps_brachii,primary
+Cable Reverse Grip Triceps Pushdown (sz-bar) (with Arm Blaster),forearms,secondary
+Cable Reverse One Arm Curl,biceps_brachii,primary
+Cable Reverse One Arm Curl,forearms,secondary
+Cable Reverse Preacher Curl,biceps_brachii,primary
+Cable Reverse Preacher Curl,forearms,secondary
+Cable Reverse Wrist Curl,forearms,primary
+Cable Reverse-grip Pushdown,triceps_brachii,primary
+Cable Reverse-grip Pushdown,forearms,secondary
+Cable Reverse-grip Straight Back Seated High Row,trapezius,primary
+Cable Reverse-grip Straight Back Seated High Row,biceps_brachii,secondary
+Cable Reverse-grip Straight Back Seated High Row,forearms,secondary
+Cable Rope Crossover Seated Row,trapezius,primary
+Cable Rope Crossover Seated Row,biceps_brachii,secondary
+Cable Rope Crossover Seated Row,forearms,secondary
+Cable Rope Elevated Seated Row,trapezius,primary
+Cable Rope Elevated Seated Row,biceps_brachii,secondary
+Cable Rope Elevated Seated Row,forearms,secondary
+Cable Rope Extension Incline Bench Row,trapezius,primary
+Cable Rope Extension Incline Bench Row,biceps_brachii,secondary
+Cable Rope Extension Incline Bench Row,anterior_deltoid,secondary
+Cable Rope Hammer Preacher Curl,biceps_brachii,primary
+Cable Rope Hammer Preacher Curl,forearms,secondary
+Cable Rope High Pulley Overhead Tricep Extension,triceps_brachii,primary
+Cable Rope High Pulley Overhead Tricep Extension,anterior_deltoid,secondary
+Cable Rope Incline Tricep Extension,triceps_brachii,primary
+Cable Rope Incline Tricep Extension,lateral_deltoid,secondary
+Cable Rope Lying On Floor Tricep Extension,triceps_brachii,primary
+Cable Rope Lying On Floor Tricep Extension,lateral_deltoid,secondary
+Cable Rope One Arm Hammer Preacher Curl,biceps_brachii,primary
+Cable Rope One Arm Hammer Preacher Curl,forearms,secondary
+Cable Rope Seated Row,trapezius,primary
+Cable Rope Seated Row,biceps_brachii,secondary
+Cable Rope Seated Row,forearms,secondary
+Cable Russian Twists (on Stability Ball),rectus_abdominis,primary
+Cable Russian Twists (on Stability Ball),obliques,secondary
+Cable Russian Twists (on Stability Ball),erector_spinae,secondary
+Cable Seated Chest Press,pectoralis_major,primary
+Cable Seated Chest Press,anterior_deltoid,secondary
+Cable Seated Chest Press,triceps_brachii,secondary
+Cable Seated Crunch,rectus_abdominis,primary
+Cable Seated Crunch,obliques,secondary
+Cable Seated Curl,biceps_brachii,primary
+Cable Seated Curl,forearms,secondary
+Cable Seated High Row (v-bar),latissimus_dorsi,primary
+Cable Seated High Row (v-bar),biceps_brachii,secondary
+Cable Seated High Row (v-bar),rhomboids,secondary
+Cable Seated High Row (v-bar),posterior_deltoid,secondary
+Cable Seated One Arm Alternate Row,trapezius,primary
+Cable Seated One Arm Alternate Row,biceps_brachii,secondary
+Cable Seated One Arm Alternate Row,forearms,secondary
+Cable Seated One Arm Concentration Curl,biceps_brachii,primary
+Cable Seated One Arm Concentration Curl,forearms,secondary
+Cable Seated Overhead Curl,biceps_brachii,primary
+Cable Seated Overhead Curl,forearms,secondary
+Cable Seated Overhead Curl,anterior_deltoid,secondary
+Cable Seated Rear Lateral Raise,posterior_deltoid,primary
+Cable Seated Rear Lateral Raise,trapezius,secondary
+Cable Seated Rear Lateral Raise,rhomboids,secondary
+Cable Seated Row,trapezius,primary
+Cable Seated Row,biceps_brachii,secondary
+Cable Seated Row,forearms,secondary
+Cable Seated Shoulder Internal Rotation,lateral_deltoid,primary
+Cable Seated Shoulder Internal Rotation,rotator_cuff,secondary
+Cable Seated Shoulder Internal Rotation,triceps_brachii,secondary
+Cable Seated Twist,rectus_abdominis,primary
+Cable Seated Twist,obliques,secondary
+Cable Seated Wide-grip Row,trapezius,primary
+Cable Seated Wide-grip Row,biceps_brachii,secondary
+Cable Seated Wide-grip Row,forearms,secondary
+Cable Shoulder Press,anterior_deltoid,primary
+Cable Shoulder Press,triceps_brachii,secondary
+Cable Shoulder Press,trapezius,secondary
+Cable Shrug,trapezius,primary
+Cable Shrug,lateral_deltoid,secondary
+Cable Side Bend,rectus_abdominis,primary
+Cable Side Bend,obliques,secondary
+Cable Side Bend Crunch (bosu Ball),rectus_abdominis,primary
+Cable Side Bend Crunch (bosu Ball),obliques,secondary
+Cable Side Crunch,rectus_abdominis,primary
+Cable Side Crunch,obliques,secondary
+Cable Squat Row (with Rope Attachment),latissimus_dorsi,primary
+Cable Squat Row (with Rope Attachment),biceps_brachii,secondary
+Cable Squat Row (with Rope Attachment),rhomboids,secondary
+Cable Squat Row (with Rope Attachment),posterior_deltoid,secondary
+Cable Squatting Curl,biceps_brachii,primary
+Cable Squatting Curl,forearms,secondary
+Cable Standing Back Wrist Curl,forearms,primary
+Cable Standing Back Wrist Curl,biceps_brachii,secondary
+Cable Standing Back Wrist Curl,brachialis,secondary
+Cable Standing Calf Raise,calves,primary
+Cable Standing Calf Raise,hamstrings,secondary
+Cable Standing Calf Raise,gluteus_maximus,secondary
+Cable Standing Cross-over High Reverse Fly,posterior_deltoid,primary
+Cable Standing Cross-over High Reverse Fly,trapezius,secondary
+Cable Standing Cross-over High Reverse Fly,rhomboids,secondary
+Cable Standing Crunch,rectus_abdominis,primary
+Cable Standing Crunch,obliques,secondary
+Cable Standing Crunch (with Rope Attachment),rectus_abdominis,primary
+Cable Standing Crunch (with Rope Attachment),obliques,secondary
+Cable Standing Fly,pectoralis_major,primary
+Cable Standing Fly,lateral_deltoid,secondary
+Cable Standing Fly,triceps_brachii,secondary
+Cable Standing Hip Extension,gluteus_maximus,primary
+Cable Standing Hip Extension,hamstrings,secondary
+Cable Standing Hip Extension,quadriceps,secondary
+Cable Standing Inner Curl,biceps_brachii,primary
+Cable Standing Inner Curl,forearms,secondary
+Cable Standing Lift,rectus_abdominis,primary
+Cable Standing Lift,obliques,secondary
+Cable Standing Lift,erector_spinae,secondary
+Cable Standing One Arm Triceps Extension,triceps_brachii,primary
+Cable Standing One Arm Triceps Extension,lateral_deltoid,secondary
+Cable Standing One Leg Calf Raise,calves,primary
+Cable Standing Pulldown (with Rope),biceps_brachii,primary
+Cable Standing Pulldown (with Rope),forearms,secondary
+Cable Standing Pulldown (with Rope),lateral_deltoid,secondary
+Cable Standing Rear Delt Row (with Rope),posterior_deltoid,primary
+Cable Standing Rear Delt Row (with Rope),trapezius,secondary
+Cable Standing Rear Delt Row (with Rope),rhomboids,secondary
+Cable Standing Rear Delt Row (with Rope),biceps_brachii,secondary
+Cable Standing Reverse Grip One Arm Overhead Tricep Extension,triceps_brachii,primary
+Cable Standing Reverse Grip One Arm Overhead Tricep Extension,posterior_deltoid,secondary
+Cable Standing Row (v-bar),trapezius,primary
+Cable Standing Row (v-bar),biceps_brachii,secondary
+Cable Standing Row (v-bar),lateral_deltoid,secondary
+Cable Standing Shoulder External Rotation,lateral_deltoid,primary
+Cable Standing Shoulder External Rotation,rotator_cuff,secondary
+Cable Standing Shoulder External Rotation,trapezius,secondary
+Cable Standing Twist Row (v-bar),trapezius,primary
+Cable Standing Twist Row (v-bar),biceps_brachii,secondary
+Cable Standing Twist Row (v-bar),lateral_deltoid,secondary
+Cable Standing Up Straight Crossovers,pectoralis_major,primary
+Cable Standing Up Straight Crossovers,lateral_deltoid,secondary
+Cable Standing Up Straight Crossovers,triceps_brachii,secondary
+Cable Straight Arm Pulldown,latissimus_dorsi,primary
+Cable Straight Arm Pulldown,lateral_deltoid,secondary
+Cable Straight Arm Pulldown,biceps_brachii,secondary
+Cable Straight Arm Pulldown (with Rope),latissimus_dorsi,primary
+Cable Straight Arm Pulldown (with Rope),biceps_brachii,secondary
+Cable Straight Arm Pulldown (with Rope),forearms,secondary
+Cable Straight Back Seated Row,trapezius,primary
+Cable Straight Back Seated Row,biceps_brachii,secondary
+Cable Straight Back Seated Row,forearms,secondary
+Cable Straight Back Seated Row,lateral_deltoid,secondary
+Cable Supine Reverse Fly,posterior_deltoid,primary
+Cable Supine Reverse Fly,trapezius,secondary
+Cable Supine Reverse Fly,rhomboids,secondary
+Cable Thibaudeau Kayak Row,latissimus_dorsi,primary
+Cable Thibaudeau Kayak Row,biceps_brachii,secondary
+Cable Thibaudeau Kayak Row,rhomboids,secondary
+Cable Thibaudeau Kayak Row,posterior_deltoid,secondary
+Cable Triceps Pushdown (v-bar),triceps_brachii,primary
+Cable Triceps Pushdown (v-bar),forearms,secondary
+Cable Triceps Pushdown (v-bar) (with Arm Blaster),triceps_brachii,primary
+Cable Triceps Pushdown (v-bar) (with Arm Blaster),forearms,secondary
+Cable Tuck Reverse Crunch,rectus_abdominis,primary
+Cable Tuck Reverse Crunch,hip_flexors,secondary
+Cable Twist,rectus_abdominis,primary
+Cable Twist,obliques,secondary
+Cable Twist (up-down),rectus_abdominis,primary
+Cable Twist (up-down),obliques,secondary
+Cable Twist (up-down),erector_spinae,secondary
+Cable Twisting Pull,latissimus_dorsi,primary
+Cable Twisting Pull,lateral_deltoid,secondary
+Cable Twisting Pull,biceps_brachii,secondary
+Cable Two Arm Curl On Incline Bench,biceps_brachii,primary
+Cable Two Arm Curl On Incline Bench,forearms,secondary
+Cable Two Arm Tricep Kickback,triceps_brachii,primary
+Cable Two Arm Tricep Kickback,lateral_deltoid,secondary
+Cable Underhand Pulldown,latissimus_dorsi,primary
+Cable Underhand Pulldown,biceps_brachii,secondary
+Cable Underhand Pulldown,forearms,secondary
+Cable Upper Chest Crossovers,pectoralis_major,primary
+Cable Upper Chest Crossovers,anterior_deltoid,secondary
+Cable Upper Chest Crossovers,triceps_brachii,secondary
+Cable Upper Row,trapezius,primary
+Cable Upper Row,biceps_brachii,secondary
+Cable Upper Row,lateral_deltoid,secondary
+Cable Upright Row,lateral_deltoid,primary
+Cable Upright Row,trapezius,secondary
+Cable Upright Row,biceps_brachii,secondary
+Cable Wide Grip Rear Pulldown Behind Neck,latissimus_dorsi,primary
+Cable Wide Grip Rear Pulldown Behind Neck,biceps_brachii,secondary
+Cable Wide Grip Rear Pulldown Behind Neck,rhomboids,secondary
+Cable Wide Grip Rear Pulldown Behind Neck,posterior_deltoid,secondary
+Cable Wrist Curl,forearms,primary
+Cable Wrist Curl,biceps_brachii,secondary
+Cable Wrist Curl,brachialis,secondary
+Calf Push Stretch With Hands Against Wall,calves,primary
+Calf Push Stretch With Hands Against Wall,hamstrings,secondary
+Calf Stretch With Hands Against Wall,calves,primary
+Calf Stretch With Hands Against Wall,hamstrings,secondary
+Calf Stretch With Rope,calves,primary
+Calf Stretch With Rope,hamstrings,secondary
+Cambered Bar Lying Row,trapezius,primary
+Cambered Bar Lying Row,biceps_brachii,secondary
+Cambered Bar Lying Row,forearms,secondary
+Captains Chair Straight Leg Raise,rectus_abdominis,primary
+Captains Chair Straight Leg Raise,hip_flexors,secondary
+Chair Leg Extended Stretch,quadriceps,primary
+Chair Leg Extended Stretch,hamstrings,secondary
+Chair Leg Extended Stretch,calves,secondary
+Chest And Front Of Shoulder Stretch,pectoralis_major,primary
+Chest And Front Of Shoulder Stretch,anterior_deltoid,secondary
+Chest Dip,pectoralis_major,primary
+Chest Dip,triceps_brachii,secondary
+Chest Dip,anterior_deltoid,secondary
+Chest Dip (on Dip-pull-up Cage),pectoralis_major,primary
+Chest Dip (on Dip-pull-up Cage),triceps_brachii,secondary
+Chest Dip (on Dip-pull-up Cage),anterior_deltoid,secondary
+Chest Dip On Straight Bar,pectoralis_major,primary
+Chest Dip On Straight Bar,triceps_brachii,secondary
+Chest Dip On Straight Bar,anterior_deltoid,secondary
+Chest Stretch With Exercise Ball,pectoralis_major,primary
+Chest Stretch With Exercise Ball,anterior_deltoid,secondary
+Chest Stretch With Exercise Ball,triceps_brachii,secondary
+Chest Tap Push-up (male),pectoralis_major,primary
+Chest Tap Push-up (male),triceps_brachii,secondary
+Chest Tap Push-up (male),anterior_deltoid,secondary
+Chin-up,latissimus_dorsi,primary
+Chin-up,biceps_brachii,secondary
+Chin-up,forearms,secondary
+Chin-ups (narrow Parallel Grip),trapezius,primary
+Chin-ups (narrow Parallel Grip),biceps_brachii,secondary
+Chin-ups (narrow Parallel Grip),forearms,secondary
+Circles Knee Stretch,calves,primary
+Circles Knee Stretch,hamstrings,secondary
+Circles Knee Stretch,quadriceps,secondary
+Clap Push Up,pectoralis_major,primary
+Clap Push Up,triceps_brachii,secondary
+Clap Push Up,anterior_deltoid,secondary
+Clock Push-up,pectoralis_major,primary
+Clock Push-up,triceps_brachii,secondary
+Clock Push-up,anterior_deltoid,secondary
+Clock Push-up,rectus_abdominis,secondary
+Close Grip Chin-up,latissimus_dorsi,primary
+Close Grip Chin-up,biceps_brachii,secondary
+Close Grip Chin-up,forearms,secondary
+Close-grip Push-up,triceps_brachii,primary
+Close-grip Push-up,pectoralis_major,secondary
+Close-grip Push-up,anterior_deltoid,secondary
+Close-grip Push-up (on Knees),triceps_brachii,primary
+Close-grip Push-up (on Knees),pectoralis_major,secondary
+Close-grip Push-up (on Knees),anterior_deltoid,secondary
+Cocoons,rectus_abdominis,primary
+Cocoons,hip_flexors,secondary
+Cocoons,erector_spinae,secondary
+Crab Twist Toe Touch,rectus_abdominis,primary
+Crab Twist Toe Touch,obliques,secondary
+Crab Twist Toe Touch,hip_flexors,secondary
+Cross Body Crunch,rectus_abdominis,primary
+Cross Body Crunch,obliques,secondary
+Crunch (hands Overhead),rectus_abdominis,primary
+Crunch (hands Overhead),hip_flexors,secondary
+"Crunch (on Stability Ball, Arms Straight)",rectus_abdominis,primary
+"Crunch (on Stability Ball, Arms Straight)",hip_flexors,secondary
+Crunch (on Stability Ball),rectus_abdominis,primary
+Crunch (on Stability Ball),hip_flexors,secondary
+Crunch Floor,rectus_abdominis,primary
+Crunch Floor,hip_flexors,secondary
+Curl-up,rectus_abdominis,primary
+Curl-up,hip_flexors,secondary
+Curtsey Squat,gluteus_maximus,primary
+Curtsey Squat,quadriceps,secondary
+Curtsey Squat,hamstrings,secondary
+Curtsey Squat,calves,secondary
+Dead Bug,rectus_abdominis,primary
+Dead Bug,hip_flexors,secondary
+Dead Bug,erector_spinae,secondary
+Decline Crunch,rectus_abdominis,primary
+Decline Crunch,hip_flexors,secondary
+Decline Push-up,pectoralis_major,primary
+Decline Push-up,triceps_brachii,secondary
+Decline Push-up,anterior_deltoid,secondary
+Decline Sit-up,rectus_abdominis,primary
+Decline Sit-up,hip_flexors,secondary
+Decline Sit-up,erector_spinae,secondary
+Deep Push Up,pectoralis_major,primary
+Deep Push Up,triceps_brachii,secondary
+Deep Push Up,anterior_deltoid,secondary
+Diamond Push-up,triceps_brachii,primary
+Diamond Push-up,pectoralis_major,secondary
+Diamond Push-up,anterior_deltoid,secondary
+Donkey Calf Raise,calves,primary
+Donkey Calf Raise,hamstrings,secondary
+Donkey Calf Raise,gluteus_maximus,secondary
+Drop Push Up,pectoralis_major,primary
+Drop Push Up,triceps_brachii,secondary
+Drop Push Up,anterior_deltoid,secondary
+Dumbbell Alternate Biceps Curl,biceps_brachii,primary
+Dumbbell Alternate Biceps Curl,forearms,secondary
+Dumbbell Alternate Biceps Curl (with Arm Blaster),biceps_brachii,primary
+Dumbbell Alternate Biceps Curl (with Arm Blaster),forearms,secondary
+Dumbbell Alternate Hammer Preacher Curl,biceps_brachii,primary
+Dumbbell Alternate Hammer Preacher Curl,forearms,secondary
+Dumbbell Alternate Preacher Curl,biceps_brachii,primary
+Dumbbell Alternate Preacher Curl,forearms,secondary
+Dumbbell Alternate Seated Hammer Curl,biceps_brachii,primary
+Dumbbell Alternate Seated Hammer Curl,forearms,secondary
+Dumbbell Alternate Side Press,anterior_deltoid,primary
+Dumbbell Alternate Side Press,triceps_brachii,secondary
+Dumbbell Alternate Side Press,rectus_abdominis,secondary
+Dumbbell Alternating Bicep Curl With Leg Raised On Exercise Ball,biceps_brachii,primary
+Dumbbell Alternating Bicep Curl With Leg Raised On Exercise Ball,forearms,secondary
+Dumbbell Alternating Bicep Curl With Leg Raised On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Alternating Seated Bicep Curl On Exercise Ball,biceps_brachii,primary
+Dumbbell Alternating Seated Bicep Curl On Exercise Ball,forearms,secondary
+Dumbbell Arnold Press,anterior_deltoid,primary
+Dumbbell Arnold Press,triceps_brachii,secondary
+Dumbbell Arnold Press,pectoralis_major,secondary
+Dumbbell Arnold Press V. 2,anterior_deltoid,primary
+Dumbbell Arnold Press V. 2,triceps_brachii,secondary
+Dumbbell Arnold Press V. 2,pectoralis_major,secondary
+Dumbbell Around Pullover,pectoralis_major,primary
+Dumbbell Around Pullover,triceps_brachii,secondary
+Dumbbell Around Pullover,latissimus_dorsi,secondary
+Dumbbell Bench Press,pectoralis_major,primary
+Dumbbell Bench Press,triceps_brachii,secondary
+Dumbbell Bench Press,anterior_deltoid,secondary
+Dumbbell Bench Seated Press,anterior_deltoid,primary
+Dumbbell Bench Seated Press,triceps_brachii,secondary
+Dumbbell Bench Seated Press,pectoralis_major,secondary
+Dumbbell Bench Squat,gluteus_maximus,primary
+Dumbbell Bench Squat,quadriceps,secondary
+Dumbbell Bench Squat,hamstrings,secondary
+Dumbbell Bench Squat,calves,secondary
+Dumbbell Bent Over Row,trapezius,primary
+Dumbbell Bent Over Row,biceps_brachii,secondary
+Dumbbell Bent Over Row,forearms,secondary
+Dumbbell Bicep Curl Lunge With Bowling Motion,biceps_brachii,primary
+Dumbbell Bicep Curl Lunge With Bowling Motion,forearms,secondary
+Dumbbell Bicep Curl Lunge With Bowling Motion,lateral_deltoid,secondary
+Dumbbell Bicep Curl On Exercise Ball With Leg Raised,biceps_brachii,primary
+Dumbbell Bicep Curl On Exercise Ball With Leg Raised,forearms,secondary
+Dumbbell Bicep Curl On Exercise Ball With Leg Raised,lateral_deltoid,secondary
+Dumbbell Bicep Curl With Stork Stance,biceps_brachii,primary
+Dumbbell Bicep Curl With Stork Stance,forearms,secondary
+Dumbbell Biceps Curl,biceps_brachii,primary
+Dumbbell Biceps Curl,forearms,secondary
+Dumbbell Biceps Curl (with Arm Blaster),biceps_brachii,primary
+Dumbbell Biceps Curl (with Arm Blaster),forearms,secondary
+Dumbbell Biceps Curl Reverse,biceps_brachii,primary
+Dumbbell Biceps Curl Reverse,forearms,secondary
+Dumbbell Biceps Curl Squat,biceps_brachii,primary
+Dumbbell Biceps Curl Squat,forearms,secondary
+Dumbbell Biceps Curl V Sit On Bosu Ball,biceps_brachii,primary
+Dumbbell Biceps Curl V Sit On Bosu Ball,forearms,secondary
+Dumbbell Biceps Curl V Sit On Bosu Ball,lateral_deltoid,secondary
+Dumbbell Clean,gluteus_maximus,primary
+Dumbbell Clean,hamstrings,secondary
+Dumbbell Clean,quadriceps,secondary
+Dumbbell Clean,calves,secondary
+Dumbbell Close Grip Press,triceps_brachii,primary
+Dumbbell Close Grip Press,pectoralis_major,secondary
+Dumbbell Close Grip Press,anterior_deltoid,secondary
+Dumbbell Close-grip Press,triceps_brachii,primary
+Dumbbell Close-grip Press,pectoralis_major,secondary
+Dumbbell Close-grip Press,anterior_deltoid,secondary
+Dumbbell Concentration Curl,biceps_brachii,primary
+Dumbbell Concentration Curl,forearms,secondary
+Dumbbell Contralateral Forward Lunge,gluteus_maximus,primary
+Dumbbell Contralateral Forward Lunge,quadriceps,secondary
+Dumbbell Contralateral Forward Lunge,hamstrings,secondary
+Dumbbell Contralateral Forward Lunge,calves,secondary
+Dumbbell Cross Body Hammer Curl,biceps_brachii,primary
+Dumbbell Cross Body Hammer Curl,forearms,secondary
+Dumbbell Cross Body Hammer Curl V. 2,biceps_brachii,primary
+Dumbbell Cross Body Hammer Curl V. 2,forearms,secondary
+Dumbbell Cuban Press,anterior_deltoid,primary
+Dumbbell Cuban Press,triceps_brachii,secondary
+Dumbbell Cuban Press,trapezius,secondary
+Dumbbell Cuban Press V. 2,anterior_deltoid,primary
+Dumbbell Cuban Press V. 2,triceps_brachii,secondary
+Dumbbell Cuban Press V. 2,trapezius,secondary
+Dumbbell Deadlift,gluteus_maximus,primary
+Dumbbell Deadlift,hamstrings,secondary
+Dumbbell Deadlift,erector_spinae,secondary
+Dumbbell Decline Bench Press,pectoralis_major,primary
+Dumbbell Decline Bench Press,triceps_brachii,secondary
+Dumbbell Decline Bench Press,anterior_deltoid,secondary
+Dumbbell Decline Fly,pectoralis_major,primary
+Dumbbell Decline Fly,lateral_deltoid,secondary
+Dumbbell Decline Hammer Press,pectoralis_major,primary
+Dumbbell Decline Hammer Press,triceps_brachii,secondary
+Dumbbell Decline Hammer Press,anterior_deltoid,secondary
+Dumbbell Decline One Arm Fly,pectoralis_major,primary
+Dumbbell Decline One Arm Fly,lateral_deltoid,secondary
+Dumbbell Decline One Arm Hammer Press,triceps_brachii,primary
+Dumbbell Decline One Arm Hammer Press,pectoralis_major,secondary
+Dumbbell Decline One Arm Hammer Press,anterior_deltoid,secondary
+Dumbbell Decline Shrug,trapezius,primary
+Dumbbell Decline Shrug,lateral_deltoid,secondary
+Dumbbell Decline Shrug,rhomboids,secondary
+Dumbbell Decline Shrug V. 2,trapezius,primary
+Dumbbell Decline Shrug V. 2,lateral_deltoid,secondary
+Dumbbell Decline Shrug V. 2,rhomboids,secondary
+Dumbbell Decline Triceps Extension,triceps_brachii,primary
+Dumbbell Decline Triceps Extension,lateral_deltoid,secondary
+Dumbbell Decline Twist Fly,pectoralis_major,primary
+Dumbbell Decline Twist Fly,lateral_deltoid,secondary
+Dumbbell Decline Twist Fly,triceps_brachii,secondary
+Dumbbell Finger Curls,forearms,primary
+Dumbbell Fly On Exercise Ball,pectoralis_major,primary
+Dumbbell Fly On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Fly On Exercise Ball,triceps_brachii,secondary
+Dumbbell Forward Lunge Triceps Extension,triceps_brachii,primary
+Dumbbell Forward Lunge Triceps Extension,lateral_deltoid,secondary
+Dumbbell Forward Lunge Triceps Extension,rectus_abdominis,secondary
+Dumbbell Front Raise,anterior_deltoid,primary
+Dumbbell Front Raise,biceps_brachii,secondary
+Dumbbell Front Raise,trapezius,secondary
+Dumbbell Front Raise V. 2,anterior_deltoid,primary
+Dumbbell Front Raise V. 2,trapezius,secondary
+Dumbbell Front Raise V. 2,biceps_brachii,secondary
+Dumbbell Full Can Lateral Raise,lateral_deltoid,primary
+Dumbbell Full Can Lateral Raise,trapezius,secondary
+Dumbbell Full Can Lateral Raise,rotator_cuff,secondary
+Dumbbell Goblet Squat,quadriceps,primary
+Dumbbell Goblet Squat,gluteus_maximus,secondary
+Dumbbell Goblet Squat,hamstrings,secondary
+Dumbbell Goblet Squat,calves,secondary
+Dumbbell Hammer Curl On Exercise Ball,biceps_brachii,primary
+Dumbbell Hammer Curl On Exercise Ball,forearms,secondary
+Dumbbell Hammer Curl V. 2,biceps_brachii,primary
+Dumbbell Hammer Curl V. 2,forearms,secondary
+Dumbbell Hammer Curls (with Arm Blaster),biceps_brachii,primary
+Dumbbell Hammer Curls (with Arm Blaster),forearms,secondary
+Dumbbell High Curl,biceps_brachii,primary
+Dumbbell High Curl,forearms,secondary
+Dumbbell Incline Alternate Press,pectoralis_major,primary
+Dumbbell Incline Alternate Press,anterior_deltoid,secondary
+Dumbbell Incline Alternate Press,triceps_brachii,secondary
+Dumbbell Incline Bench Press,pectoralis_major,primary
+Dumbbell Incline Bench Press,anterior_deltoid,secondary
+Dumbbell Incline Bench Press,triceps_brachii,secondary
+Dumbbell Incline Biceps Curl,biceps_brachii,primary
+Dumbbell Incline Biceps Curl,forearms,secondary
+Dumbbell Incline Breeding,pectoralis_major,primary
+Dumbbell Incline Breeding,lateral_deltoid,secondary
+Dumbbell Incline Breeding,triceps_brachii,secondary
+Dumbbell Incline Curl,biceps_brachii,primary
+Dumbbell Incline Curl,forearms,secondary
+Dumbbell Incline Curl V. 2,biceps_brachii,primary
+Dumbbell Incline Curl V. 2,forearms,secondary
+Dumbbell Incline Fly,pectoralis_major,primary
+Dumbbell Incline Fly,lateral_deltoid,secondary
+Dumbbell Incline Fly On Exercise Ball,pectoralis_major,primary
+Dumbbell Incline Fly On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Incline Hammer Curl,biceps_brachii,primary
+Dumbbell Incline Hammer Curl,forearms,secondary
+Dumbbell Incline Hammer Press,pectoralis_major,primary
+Dumbbell Incline Hammer Press,anterior_deltoid,secondary
+Dumbbell Incline Hammer Press,triceps_brachii,secondary
+Dumbbell Incline Hammer Press On Exercise Ball,triceps_brachii,primary
+Dumbbell Incline Hammer Press On Exercise Ball,pectoralis_major,secondary
+Dumbbell Incline Hammer Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell Incline Inner Biceps Curl,biceps_brachii,primary
+Dumbbell Incline Inner Biceps Curl,forearms,secondary
+Dumbbell Incline One Arm Fly,pectoralis_major,primary
+Dumbbell Incline One Arm Fly,lateral_deltoid,secondary
+Dumbbell Incline One Arm Fly,triceps_brachii,secondary
+Dumbbell Incline One Arm Fly On Exercise Ball,pectoralis_major,primary
+Dumbbell Incline One Arm Fly On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Incline One Arm Hammer Press,triceps_brachii,primary
+Dumbbell Incline One Arm Hammer Press,anterior_deltoid,secondary
+Dumbbell Incline One Arm Hammer Press,pectoralis_major,secondary
+Dumbbell Incline One Arm Hammer Press On Exercise Ball,triceps_brachii,primary
+Dumbbell Incline One Arm Hammer Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell Incline One Arm Hammer Press On Exercise Ball,pectoralis_major,secondary
+Dumbbell Incline One Arm Lateral Raise,lateral_deltoid,primary
+Dumbbell Incline One Arm Lateral Raise,trapezius,secondary
+Dumbbell Incline One Arm Lateral Raise,triceps_brachii,secondary
+Dumbbell Incline One Arm Press,pectoralis_major,primary
+Dumbbell Incline One Arm Press,anterior_deltoid,secondary
+Dumbbell Incline One Arm Press,triceps_brachii,secondary
+Dumbbell Incline One Arm Press On Exercise Ball,pectoralis_major,primary
+Dumbbell Incline One Arm Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell Incline One Arm Press On Exercise Ball,triceps_brachii,secondary
+Dumbbell Incline Palm-in Press,pectoralis_major,primary
+Dumbbell Incline Palm-in Press,anterior_deltoid,secondary
+Dumbbell Incline Palm-in Press,triceps_brachii,secondary
+Dumbbell Incline Press On Exercise Ball,pectoralis_major,primary
+Dumbbell Incline Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell Incline Press On Exercise Ball,triceps_brachii,secondary
+Dumbbell Incline Raise,lateral_deltoid,primary
+Dumbbell Incline Raise,trapezius,secondary
+Dumbbell Incline Raise,triceps_brachii,secondary
+Dumbbell Incline Rear Lateral Raise,posterior_deltoid,primary
+Dumbbell Incline Rear Lateral Raise,trapezius,secondary
+Dumbbell Incline Rear Lateral Raise,rhomboids,secondary
+Dumbbell Incline Row,trapezius,primary
+Dumbbell Incline Row,biceps_brachii,secondary
+Dumbbell Incline Row,lateral_deltoid,secondary
+Dumbbell Incline Shoulder Raise,serratus_anterior,primary
+Dumbbell Incline Shoulder Raise,lateral_deltoid,secondary
+Dumbbell Incline Shoulder Raise,trapezius,secondary
+Dumbbell Incline Shrug,trapezius,primary
+Dumbbell Incline Shrug,lateral_deltoid,secondary
+Dumbbell Incline T-raise,lateral_deltoid,primary
+Dumbbell Incline T-raise,trapezius,secondary
+Dumbbell Incline T-raise,rhomboids,secondary
+Dumbbell Incline Triceps Extension,triceps_brachii,primary
+Dumbbell Incline Triceps Extension,lateral_deltoid,secondary
+Dumbbell Incline Twisted Flyes,pectoralis_major,primary
+Dumbbell Incline Twisted Flyes,lateral_deltoid,secondary
+Dumbbell Incline Twisted Flyes,triceps_brachii,secondary
+Dumbbell Incline Two Arm Extension,triceps_brachii,primary
+Dumbbell Incline Two Arm Extension,lateral_deltoid,secondary
+Dumbbell Incline Y-raise,trapezius,primary
+Dumbbell Incline Y-raise,lateral_deltoid,secondary
+Dumbbell Incline Y-raise,posterior_deltoid,secondary
+Dumbbell Iron Cross,lateral_deltoid,primary
+Dumbbell Iron Cross,triceps_brachii,secondary
+Dumbbell Iron Cross,pectoralis_major,secondary
+Dumbbell Kickback,triceps_brachii,primary
+Dumbbell Kickback,lateral_deltoid,secondary
+Dumbbell Kickbacks On Exercise Ball,triceps_brachii,primary
+Dumbbell Kickbacks On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Kickbacks On Exercise Ball,latissimus_dorsi,secondary
+Dumbbell Kneeling Bicep Curl Exercise Ball,biceps_brachii,primary
+Dumbbell Kneeling Bicep Curl Exercise Ball,forearms,secondary
+Dumbbell Lateral Raise,lateral_deltoid,primary
+Dumbbell Lateral Raise,trapezius,secondary
+Dumbbell Lateral To Front Raise,anterior_deltoid,primary
+Dumbbell Lateral To Front Raise,trapezius,secondary
+Dumbbell Lateral To Front Raise,biceps_brachii,secondary
+Dumbbell Lunge,gluteus_maximus,primary
+Dumbbell Lunge,quadriceps,secondary
+Dumbbell Lunge,hamstrings,secondary
+Dumbbell Lunge,calves,secondary
+Dumbbell Lunge With Bicep Curl,biceps_brachii,primary
+Dumbbell Lunge With Bicep Curl,quadriceps,secondary
+Dumbbell Lunge With Bicep Curl,hamstrings,secondary
+Dumbbell Lying Alternate Extension,triceps_brachii,primary
+Dumbbell Lying Alternate Extension,lateral_deltoid,secondary
+Dumbbell Lying Elbow Press,triceps_brachii,primary
+Dumbbell Lying Elbow Press,pectoralis_major,secondary
+Dumbbell Lying Elbow Press,anterior_deltoid,secondary
+Dumbbell Lying Extension (across Face),triceps_brachii,primary
+Dumbbell Lying Extension (across Face),lateral_deltoid,secondary
+Dumbbell Lying External Shoulder Rotation,lateral_deltoid,primary
+Dumbbell Lying External Shoulder Rotation,rotator_cuff,secondary
+Dumbbell Lying External Shoulder Rotation,triceps_brachii,secondary
+Dumbbell Lying Femoral,hamstrings,primary
+Dumbbell Lying Femoral,gluteus_maximus,secondary
+Dumbbell Lying Hammer Press,pectoralis_major,primary
+Dumbbell Lying Hammer Press,triceps_brachii,secondary
+Dumbbell Lying Hammer Press,anterior_deltoid,secondary
+Dumbbell Lying On Floor Rear Delt Raise,posterior_deltoid,primary
+Dumbbell Lying On Floor Rear Delt Raise,trapezius,secondary
+Dumbbell Lying On Floor Rear Delt Raise,rhomboids,secondary
+Dumbbell Lying One Arm Deltoid Rear,posterior_deltoid,primary
+Dumbbell Lying One Arm Deltoid Rear,trapezius,secondary
+Dumbbell Lying One Arm Deltoid Rear,rhomboids,secondary
+Dumbbell Lying One Arm Press,pectoralis_major,primary
+Dumbbell Lying One Arm Press,triceps_brachii,secondary
+Dumbbell Lying One Arm Press,anterior_deltoid,secondary
+Dumbbell Lying One Arm Press V. 2,pectoralis_major,primary
+Dumbbell Lying One Arm Press V. 2,triceps_brachii,secondary
+Dumbbell Lying One Arm Press V. 2,anterior_deltoid,secondary
+Dumbbell Lying One Arm Pronated Triceps Extension,triceps_brachii,primary
+Dumbbell Lying One Arm Pronated Triceps Extension,lateral_deltoid,secondary
+Dumbbell Lying One Arm Rear Lateral Raise,posterior_deltoid,primary
+Dumbbell Lying One Arm Rear Lateral Raise,trapezius,secondary
+Dumbbell Lying One Arm Rear Lateral Raise,rhomboids,secondary
+Dumbbell Lying One Arm Supinated Triceps Extension,triceps_brachii,primary
+Dumbbell Lying One Arm Supinated Triceps Extension,forearms,secondary
+Dumbbell Lying Pronation,forearms,primary
+Dumbbell Lying Pronation,biceps_brachii,secondary
+Dumbbell Lying Pronation,lateral_deltoid,secondary
+Dumbbell Lying Pronation On Floor,forearms,primary
+Dumbbell Lying Pronation On Floor,biceps_brachii,secondary
+Dumbbell Lying Pronation On Floor,triceps_brachii,secondary
+Dumbbell Lying Pullover On Exercise Ball,pectoralis_major,primary
+Dumbbell Lying Pullover On Exercise Ball,triceps_brachii,secondary
+Dumbbell Lying Pullover On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Lying Pullover On Exercise Ball,latissimus_dorsi,secondary
+Dumbbell Lying Rear Delt Row,trapezius,primary
+Dumbbell Lying Rear Delt Row,posterior_deltoid,secondary
+Dumbbell Lying Rear Delt Row,biceps_brachii,secondary
+Dumbbell Lying Rear Lateral Raise,posterior_deltoid,primary
+Dumbbell Lying Rear Lateral Raise,trapezius,secondary
+Dumbbell Lying Rear Lateral Raise,rhomboids,secondary
+Dumbbell Lying Single Extension,triceps_brachii,primary
+Dumbbell Lying Single Extension,lateral_deltoid,secondary
+Dumbbell Lying Supination,forearms,primary
+Dumbbell Lying Supination,biceps_brachii,secondary
+Dumbbell Lying Supination,lateral_deltoid,secondary
+Dumbbell Lying Supination On Floor,forearms,primary
+Dumbbell Lying Supination On Floor,biceps_brachii,secondary
+Dumbbell Lying Supination On Floor,lateral_deltoid,secondary
+Dumbbell Lying Supine Biceps Curl,biceps_brachii,primary
+Dumbbell Lying Supine Biceps Curl,forearms,secondary
+Dumbbell Lying Supine Curl,biceps_brachii,primary
+Dumbbell Lying Supine Curl,forearms,secondary
+Dumbbell Lying Triceps Extension,triceps_brachii,primary
+Dumbbell Lying Triceps Extension,lateral_deltoid,secondary
+Dumbbell Lying Wide Curl,biceps_brachii,primary
+Dumbbell Lying Wide Curl,forearms,secondary
+Dumbbell Neutral Grip Bench Press,triceps_brachii,primary
+Dumbbell Neutral Grip Bench Press,pectoralis_major,secondary
+Dumbbell Neutral Grip Bench Press,anterior_deltoid,secondary
+Dumbbell One Arm Bench Fly,pectoralis_major,primary
+Dumbbell One Arm Bench Fly,anterior_deltoid,secondary
+Dumbbell One Arm Bent-over Row,trapezius,primary
+Dumbbell One Arm Bent-over Row,biceps_brachii,secondary
+Dumbbell One Arm Bent-over Row,forearms,secondary
+Dumbbell One Arm Chest Fly On Exercise Ball,pectoralis_major,primary
+Dumbbell One Arm Chest Fly On Exercise Ball,anterior_deltoid,secondary
+Dumbbell One Arm Chest Fly On Exercise Ball,triceps_brachii,secondary
+Dumbbell One Arm Concentration Curl (on Stability Ball),biceps_brachii,primary
+Dumbbell One Arm Concentration Curl (on Stability Ball),forearms,secondary
+Dumbbell One Arm Decline Chest Press,pectoralis_major,primary
+Dumbbell One Arm Decline Chest Press,triceps_brachii,secondary
+Dumbbell One Arm Decline Chest Press,anterior_deltoid,secondary
+Dumbbell One Arm Fly On Exercise Ball,pectoralis_major,primary
+Dumbbell One Arm Fly On Exercise Ball,lateral_deltoid,secondary
+Dumbbell One Arm Fly On Exercise Ball,triceps_brachii,secondary
+Dumbbell One Arm French Press On Exercise Ball,triceps_brachii,primary
+Dumbbell One Arm French Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell One Arm Hammer Preacher Curl,biceps_brachii,primary
+Dumbbell One Arm Hammer Preacher Curl,forearms,secondary
+Dumbbell One Arm Hammer Press On Exercise Ball,triceps_brachii,primary
+Dumbbell One Arm Hammer Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell One Arm Hammer Press On Exercise Ball,pectoralis_major,secondary
+Dumbbell One Arm Incline Chest Press,pectoralis_major,primary
+Dumbbell One Arm Incline Chest Press,anterior_deltoid,secondary
+Dumbbell One Arm Incline Chest Press,triceps_brachii,secondary
+Dumbbell One Arm Kickback,triceps_brachii,primary
+Dumbbell One Arm Kickback,lateral_deltoid,secondary
+Dumbbell One Arm Lateral Raise,lateral_deltoid,primary
+Dumbbell One Arm Lateral Raise,trapezius,secondary
+Dumbbell One Arm Lateral Raise,triceps_brachii,secondary
+Dumbbell One Arm Lateral Raise With Support,lateral_deltoid,primary
+Dumbbell One Arm Lateral Raise With Support,trapezius,secondary
+Dumbbell One Arm Lateral Raise With Support,rotator_cuff,secondary
+Dumbbell One Arm Press On Exercise Ball,pectoralis_major,primary
+Dumbbell One Arm Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell One Arm Press On Exercise Ball,triceps_brachii,secondary
+Dumbbell One Arm Press On Exercise Ball,rectus_abdominis,secondary
+Dumbbell One Arm Prone Curl,biceps_brachii,primary
+Dumbbell One Arm Prone Curl,forearms,secondary
+Dumbbell One Arm Prone Hammer Curl,biceps_brachii,primary
+Dumbbell One Arm Prone Hammer Curl,forearms,secondary
+Dumbbell One Arm Pullover On Exercise Ball,pectoralis_major,primary
+Dumbbell One Arm Pullover On Exercise Ball,triceps_brachii,secondary
+Dumbbell One Arm Pullover On Exercise Ball,latissimus_dorsi,secondary
+Dumbbell One Arm Pullover On Exercise Ball,rhomboids,secondary
+Dumbbell One Arm Reverse Fly (with Support),posterior_deltoid,primary
+Dumbbell One Arm Reverse Fly (with Support),trapezius,secondary
+Dumbbell One Arm Reverse Fly (with Support),rhomboids,secondary
+Dumbbell One Arm Reverse Grip Press,pectoralis_major,primary
+Dumbbell One Arm Reverse Grip Press,triceps_brachii,secondary
+Dumbbell One Arm Reverse Grip Press,posterior_deltoid,secondary
+Dumbbell One Arm Reverse Preacher Curl,biceps_brachii,primary
+Dumbbell One Arm Reverse Preacher Curl,forearms,secondary
+Dumbbell One Arm Reverse Spider Curl,biceps_brachii,primary
+Dumbbell One Arm Reverse Spider Curl,forearms,secondary
+Dumbbell One Arm Reverse Wrist Curl,forearms,primary
+Dumbbell One Arm Seated Bicep Curl On Exercise Ball,biceps_brachii,primary
+Dumbbell One Arm Seated Bicep Curl On Exercise Ball,forearms,secondary
+Dumbbell One Arm Seated Hammer Curl,biceps_brachii,primary
+Dumbbell One Arm Seated Hammer Curl,forearms,secondary
+Dumbbell One Arm Seated Neutral Wrist Curl,forearms,primary
+Dumbbell One Arm Seated Neutral Wrist Curl,biceps_brachii,secondary
+Dumbbell One Arm Seated Neutral Wrist Curl,brachialis,secondary
+Dumbbell One Arm Shoulder Press,anterior_deltoid,primary
+Dumbbell One Arm Shoulder Press,triceps_brachii,secondary
+Dumbbell One Arm Shoulder Press,trapezius,secondary
+Dumbbell One Arm Shoulder Press V. 2,anterior_deltoid,primary
+Dumbbell One Arm Shoulder Press V. 2,triceps_brachii,secondary
+Dumbbell One Arm Shoulder Press V. 2,trapezius,secondary
+Dumbbell One Arm Snatch,gluteus_maximus,primary
+Dumbbell One Arm Snatch,hamstrings,secondary
+Dumbbell One Arm Snatch,quadriceps,secondary
+Dumbbell One Arm Snatch,rectus_abdominis,secondary
+Dumbbell One Arm Standing Curl,biceps_brachii,primary
+Dumbbell One Arm Standing Curl,forearms,secondary
+Dumbbell One Arm Standing Hammer Curl,biceps_brachii,primary
+Dumbbell One Arm Standing Hammer Curl,forearms,secondary
+Dumbbell One Arm Triceps Extension (on Bench),triceps_brachii,primary
+Dumbbell One Arm Triceps Extension (on Bench),anterior_deltoid,secondary
+Dumbbell One Arm Upright Row,lateral_deltoid,primary
+Dumbbell One Arm Upright Row,trapezius,secondary
+Dumbbell One Arm Upright Row,biceps_brachii,secondary
+Dumbbell One Arm Wrist Curl,forearms,primary
+Dumbbell One Arm Wrist Curl,biceps_brachii,secondary
+Dumbbell One Arm Wrist Curl,brachialis,secondary
+Dumbbell One Arm Zottman Preacher Curl,biceps_brachii,primary
+Dumbbell One Arm Zottman Preacher Curl,forearms,secondary
+Dumbbell One Leg Fly On Exercise Ball,pectoralis_major,primary
+Dumbbell One Leg Fly On Exercise Ball,lateral_deltoid,secondary
+Dumbbell One Leg Fly On Exercise Ball,triceps_brachii,secondary
+Dumbbell Over Bench Neutral Wrist Curl,biceps_brachii,primary
+Dumbbell Over Bench Neutral Wrist Curl,forearms,secondary
+Dumbbell Over Bench One Arm Neutral Wrist Curl,biceps_brachii,primary
+Dumbbell Over Bench One Arm Neutral Wrist Curl,forearms,secondary
+Dumbbell Over Bench One Arm Reverse Wrist Curl,forearms,primary
+Dumbbell Over Bench One Arm Reverse Wrist Curl,biceps_brachii,secondary
+Dumbbell Over Bench One Arm Reverse Wrist Curl,brachialis,secondary
+Dumbbell Over Bench One Arm Wrist Curl,forearms,primary
+Dumbbell Over Bench One Arm Wrist Curl,biceps_brachii,secondary
+Dumbbell Over Bench One Arm Wrist Curl,anterior_deltoid,secondary
+Dumbbell Over Bench Reverse Wrist Curl,forearms,primary
+Dumbbell Over Bench Reverse Wrist Curl,biceps_brachii,secondary
+Dumbbell Over Bench Reverse Wrist Curl,brachialis,secondary
+Dumbbell Over Bench Wrist Curl,forearms,primary
+Dumbbell Over Bench Wrist Curl,biceps_brachii,secondary
+Dumbbell Over Bench Wrist Curl,brachialis,secondary
+Dumbbell Palm Rotational Bent Over Row,trapezius,primary
+Dumbbell Palm Rotational Bent Over Row,biceps_brachii,secondary
+Dumbbell Palm Rotational Bent Over Row,forearms,secondary
+Dumbbell Palms In Incline Bench Press,triceps_brachii,primary
+Dumbbell Palms In Incline Bench Press,pectoralis_major,secondary
+Dumbbell Palms In Incline Bench Press,anterior_deltoid,secondary
+Dumbbell Plyo Squat,gluteus_maximus,primary
+Dumbbell Plyo Squat,quadriceps,secondary
+Dumbbell Plyo Squat,hamstrings,secondary
+Dumbbell Plyo Squat,calves,secondary
+Dumbbell Preacher Curl,biceps_brachii,primary
+Dumbbell Preacher Curl,forearms,secondary
+Dumbbell Preacher Curl Over Exercise Ball,biceps_brachii,primary
+Dumbbell Preacher Curl Over Exercise Ball,forearms,secondary
+Dumbbell Preacher Hammer Curl,biceps_brachii,primary
+Dumbbell Preacher Hammer Curl,forearms,secondary
+Dumbbell Press On Exercise Ball,pectoralis_major,primary
+Dumbbell Press On Exercise Ball,anterior_deltoid,secondary
+Dumbbell Press On Exercise Ball,triceps_brachii,secondary
+Dumbbell Pronate-grip Triceps Extension,triceps_brachii,primary
+Dumbbell Pronate-grip Triceps Extension,forearms,secondary
+Dumbbell Prone Incline Curl,biceps_brachii,primary
+Dumbbell Prone Incline Curl,forearms,secondary
+Dumbbell Prone Incline Hammer Curl,biceps_brachii,primary
+Dumbbell Prone Incline Hammer Curl,forearms,secondary
+Dumbbell Pullover,pectoralis_major,primary
+Dumbbell Pullover,latissimus_dorsi,secondary
+Dumbbell Pullover,triceps_brachii,secondary
+Dumbbell Pullover Hip Extension On Exercise Ball,pectoralis_major,primary
+Dumbbell Pullover Hip Extension On Exercise Ball,triceps_brachii,secondary
+Dumbbell Pullover Hip Extension On Exercise Ball,lateral_deltoid,secondary
+Dumbbell Pullover Hip Extension On Exercise Ball,rectus_abdominis,secondary
+Dumbbell Pullover On Exercise Ball,pectoralis_major,primary
+Dumbbell Pullover On Exercise Ball,triceps_brachii,secondary
+Dumbbell Pullover On Exercise Ball,latissimus_dorsi,secondary
+Dumbbell Push Press,anterior_deltoid,primary
+Dumbbell Push Press,triceps_brachii,secondary
+Dumbbell Push Press,rectus_abdominis,secondary
+Dumbbell Raise,lateral_deltoid,primary
+Dumbbell Raise,trapezius,secondary
+Dumbbell Raise,rhomboids,secondary
+Dumbbell Rear Delt Raise,posterior_deltoid,primary
+Dumbbell Rear Delt Raise,trapezius,secondary
+Dumbbell Rear Delt Raise,rhomboids,secondary
+Dumbbell Rear Delt Row (shoulder),posterior_deltoid,primary
+Dumbbell Rear Delt Row (shoulder),trapezius,secondary
+Dumbbell Rear Delt Row (shoulder),rhomboids,secondary
+Dumbbell Rear Fly,posterior_deltoid,primary
+Dumbbell Rear Fly,trapezius,secondary
+Dumbbell Rear Fly,rhomboids,secondary
+Dumbbell Rear Lateral Raise,posterior_deltoid,primary
+Dumbbell Rear Lateral Raise,trapezius,secondary
+Dumbbell Rear Lateral Raise,rhomboids,secondary
+Dumbbell Rear Lateral Raise (support Head),posterior_deltoid,primary
+Dumbbell Rear Lateral Raise (support Head),trapezius,secondary
+Dumbbell Rear Lateral Raise (support Head),rhomboids,secondary
+Dumbbell Rear Lunge,gluteus_maximus,primary
+Dumbbell Rear Lunge,quadriceps,secondary
+Dumbbell Rear Lunge,hamstrings,secondary
+Dumbbell Rear Lunge,calves,secondary
+Dumbbell Reverse Bench Press,pectoralis_major,primary
+Dumbbell Reverse Bench Press,triceps_brachii,secondary
+Dumbbell Reverse Bench Press,posterior_deltoid,secondary
+Dumbbell Reverse Fly,posterior_deltoid,primary
+Dumbbell Reverse Fly,trapezius,secondary
+Dumbbell Reverse Fly,rhomboids,secondary
+Dumbbell Reverse Grip Biceps Curl,biceps_brachii,primary
+Dumbbell Reverse Grip Biceps Curl,forearms,secondary
+Dumbbell Reverse Grip Incline Bench One Arm Row,trapezius,primary
+Dumbbell Reverse Grip Incline Bench One Arm Row,biceps_brachii,secondary
+Dumbbell Reverse Grip Incline Bench One Arm Row,posterior_deltoid,secondary
+Dumbbell Reverse Grip Incline Bench Two Arm Row,trapezius,primary
+Dumbbell Reverse Grip Incline Bench Two Arm Row,biceps_brachii,secondary
+Dumbbell Reverse Grip Incline Bench Two Arm Row,forearms,secondary
+Dumbbell Reverse Grip Row (female),trapezius,primary
+Dumbbell Reverse Grip Row (female),biceps_brachii,secondary
+Dumbbell Reverse Grip Row (female),forearms,secondary
+Dumbbell Reverse Preacher Curl,biceps_brachii,primary
+Dumbbell Reverse Preacher Curl,forearms,secondary
+Dumbbell Reverse Spider Curl,biceps_brachii,primary
+Dumbbell Reverse Spider Curl,forearms,secondary
+Dumbbell Reverse Wrist Curl,forearms,primary
+Dumbbell Reverse Wrist Curl,biceps_brachii,secondary
+Dumbbell Reverse Wrist Curl,brachialis,secondary
+Dumbbell Romanian Deadlift,gluteus_maximus,primary
+Dumbbell Romanian Deadlift,hamstrings,secondary
+Dumbbell Romanian Deadlift,erector_spinae,secondary
+Dumbbell Rotation Reverse Fly,posterior_deltoid,primary
+Dumbbell Rotation Reverse Fly,trapezius,secondary
+Dumbbell Rotation Reverse Fly,rhomboids,secondary
+Dumbbell Scott Press,anterior_deltoid,primary
+Dumbbell Scott Press,triceps_brachii,secondary
+Dumbbell Scott Press,pectoralis_major,secondary
+Dumbbell Seated Alternate Front Raise,anterior_deltoid,primary
+Dumbbell Seated Alternate Front Raise,trapezius,secondary
+Dumbbell Seated Alternate Front Raise,biceps_brachii,secondary
+Dumbbell Seated Alternate Hammer Curl On Exercise Ball,biceps_brachii,primary
+Dumbbell Seated Alternate Hammer Curl On Exercise Ball,forearms,secondary
+Dumbbell Seated Alternate Press,anterior_deltoid,primary
+Dumbbell Seated Alternate Press,triceps_brachii,secondary
+Dumbbell Seated Alternate Press,pectoralis_major,secondary
+Dumbbell Seated Alternate Shoulder,lateral_deltoid,primary
+Dumbbell Seated Alternate Shoulder,triceps_brachii,secondary
+Dumbbell Seated Alternate Shoulder,trapezius,secondary
+Dumbbell Seated Bench Extension,triceps_brachii,primary
+Dumbbell Seated Bench Extension,anterior_deltoid,secondary
+Dumbbell Seated Bent Arm Lateral Raise,posterior_deltoid,primary
+Dumbbell Seated Bent Arm Lateral Raise,trapezius,secondary
+Dumbbell Seated Bent Arm Lateral Raise,rhomboids,secondary
+Dumbbell Seated Bent Over Alternate Kickback,triceps_brachii,primary
+Dumbbell Seated Bent Over Alternate Kickback,posterior_deltoid,secondary
+Dumbbell Seated Bent Over Alternate Kickback,latissimus_dorsi,secondary
+Dumbbell Seated Bent Over Triceps Extension,triceps_brachii,primary
+Dumbbell Seated Bent Over Triceps Extension,posterior_deltoid,secondary
+Dumbbell Seated Bent Over Triceps Extension,latissimus_dorsi,secondary
+Dumbbell Seated Bicep Curl,biceps_brachii,primary
+Dumbbell Seated Bicep Curl,forearms,secondary
+Dumbbell Seated Biceps Curl (on Stability Ball),biceps_brachii,primary
+Dumbbell Seated Biceps Curl (on Stability Ball),forearms,secondary
+Dumbbell Seated Biceps Curl To Shoulder Press,biceps_brachii,primary
+Dumbbell Seated Biceps Curl To Shoulder Press,anterior_deltoid,secondary
+Dumbbell Seated Calf Raise,calves,primary
+Dumbbell Seated Calf Raise,hamstrings,secondary
+Dumbbell Seated Curl,biceps_brachii,primary
+Dumbbell Seated Curl,forearms,secondary
+Dumbbell Seated Front Raise,anterior_deltoid,primary
+Dumbbell Seated Front Raise,trapezius,secondary
+Dumbbell Seated Front Raise,biceps_brachii,secondary
+Dumbbell Seated Hammer Curl,biceps_brachii,primary
+Dumbbell Seated Hammer Curl,forearms,secondary
+Dumbbell Seated Inner Biceps Curl,biceps_brachii,primary
+Dumbbell Seated Inner Biceps Curl,forearms,secondary
+Dumbbell Seated Kickback,triceps_brachii,primary
+Dumbbell Seated Kickback,lateral_deltoid,secondary
+Dumbbell Seated Lateral Raise,lateral_deltoid,primary
+Dumbbell Seated Lateral Raise,trapezius,secondary
+Dumbbell Seated Lateral Raise V. 2,lateral_deltoid,primary
+Dumbbell Seated Lateral Raise V. 2,trapezius,secondary
+Dumbbell Seated Lateral Raise V. 2,triceps_brachii,secondary
+Dumbbell Seated Neutral Wrist Curl,biceps_brachii,primary
+Dumbbell Seated Neutral Wrist Curl,forearms,secondary
+Dumbbell Seated One Arm Bicep Curl On Exercise Ball With Leg Raised,biceps_brachii,primary
+Dumbbell Seated One Arm Bicep Curl On Exercise Ball With Leg Raised,forearms,secondary
+Dumbbell Seated One Arm Bicep Curl On Exercise Ball With Leg Raised,lateral_deltoid,secondary
+Dumbbell Seated One Arm Kickback,triceps_brachii,primary
+Dumbbell Seated One Arm Kickback,lateral_deltoid,secondary
+Dumbbell Seated One Arm Rotate,forearms,primary
+Dumbbell Seated One Arm Rotate,lateral_deltoid,secondary
+Dumbbell Seated One Arm Rotate,biceps_brachii,secondary
+Dumbbell Seated One Leg Calf Raise,calves,primary
+Dumbbell Seated One Leg Calf Raise,hamstrings,secondary
+Dumbbell Seated One Leg Calf Raise,gluteus_maximus,secondary
+Dumbbell Seated One Leg Calf Raise - Hammer Grip,calves,primary
+Dumbbell Seated One Leg Calf Raise - Hammer Grip,hamstrings,secondary
+Dumbbell Seated One Leg Calf Raise - Hammer Grip,gluteus_maximus,secondary
+Dumbbell Seated One Leg Calf Raise - Palm Up,calves,primary
+Dumbbell Seated One Leg Calf Raise - Palm Up,hamstrings,secondary
+Dumbbell Seated One Leg Calf Raise - Palm Up,gluteus_maximus,secondary
+Dumbbell Seated Palms Up Wrist Curl,forearms,primary
+Dumbbell Seated Palms Up Wrist Curl,biceps_brachii,secondary
+Dumbbell Seated Palms Up Wrist Curl,lateral_deltoid,secondary
+Dumbbell Seated Preacher Curl,biceps_brachii,primary
+Dumbbell Seated Preacher Curl,forearms,secondary
+Dumbbell Seated Reverse Grip Concentration Curl,biceps_brachii,primary
+Dumbbell Seated Reverse Grip Concentration Curl,forearms,secondary
+Dumbbell Seated Reverse Grip One Arm Overhead Tricep Extension,triceps_brachii,primary
+Dumbbell Seated Reverse Grip One Arm Overhead Tricep Extension,posterior_deltoid,secondary
+Dumbbell Seated Shoulder Press,anterior_deltoid,primary
+Dumbbell Seated Shoulder Press,triceps_brachii,secondary
+Dumbbell Seated Shoulder Press,trapezius,secondary
+Dumbbell Seated Shoulder Press (parallel Grip),anterior_deltoid,primary
+Dumbbell Seated Shoulder Press (parallel Grip),triceps_brachii,secondary
+Dumbbell Seated Shoulder Press (parallel Grip),trapezius,secondary
+Dumbbell Seated Triceps Extension,triceps_brachii,primary
+Dumbbell Seated Triceps Extension,lateral_deltoid,secondary
+Dumbbell Side Bend,rectus_abdominis,primary
+Dumbbell Side Bend,obliques,secondary
+Dumbbell Side Lying One Hand Raise,lateral_deltoid,primary
+Dumbbell Side Lying One Hand Raise,trapezius,secondary
+Dumbbell Side Lying One Hand Raise,rhomboids,secondary
+Dumbbell Side Plank With Rear Fly,trapezius,primary
+Dumbbell Side Plank With Rear Fly,posterior_deltoid,secondary
+Dumbbell Side Plank With Rear Fly,rectus_abdominis,secondary
+Dumbbell Single Arm Overhead Carry,anterior_deltoid,primary
+Dumbbell Single Arm Overhead Carry,trapezius,secondary
+Dumbbell Single Arm Overhead Carry,rectus_abdominis,secondary
+Dumbbell Single Leg Calf Raise,calves,primary
+Dumbbell Single Leg Deadlift,gluteus_maximus,primary
+Dumbbell Single Leg Deadlift,hamstrings,secondary
+Dumbbell Single Leg Deadlift,erector_spinae,secondary
+Dumbbell Single Leg Deadlift With Stepbox Support,gluteus_maximus,primary
+Dumbbell Single Leg Deadlift With Stepbox Support,hamstrings,secondary
+Dumbbell Single Leg Deadlift With Stepbox Support,erector_spinae,secondary
+Dumbbell Single Leg Split Squat,quadriceps,primary
+Dumbbell Single Leg Split Squat,gluteus_maximus,secondary
+Dumbbell Single Leg Split Squat,hamstrings,secondary
+Dumbbell Single Leg Split Squat,calves,secondary
+Dumbbell Single Leg Squat,gluteus_maximus,primary
+Dumbbell Single Leg Squat,quadriceps,secondary
+Dumbbell Single Leg Squat,hamstrings,secondary
+Dumbbell Single Leg Squat,calves,secondary
+Dumbbell Squat,gluteus_maximus,primary
+Dumbbell Squat,quadriceps,secondary
+Dumbbell Squat,hamstrings,secondary
+Dumbbell Squat,calves,secondary
+Dumbbell Standing Alternate Hammer Curl And Press,biceps_brachii,primary
+Dumbbell Standing Alternate Hammer Curl And Press,forearms,secondary
+Dumbbell Standing Alternate Hammer Curl And Press,anterior_deltoid,secondary
+Dumbbell Standing Alternate Overhead Press,anterior_deltoid,primary
+Dumbbell Standing Alternate Overhead Press,triceps_brachii,secondary
+Dumbbell Standing Alternate Overhead Press,rectus_abdominis,secondary
+Dumbbell Standing Alternate Raise,lateral_deltoid,primary
+Dumbbell Standing Alternate Raise,trapezius,secondary
+Dumbbell Standing Alternate Raise,forearms,secondary
+Dumbbell Standing Alternating Tricep Kickback,triceps_brachii,primary
+Dumbbell Standing Alternating Tricep Kickback,lateral_deltoid,secondary
+Dumbbell Standing Around World,lateral_deltoid,primary
+Dumbbell Standing Around World,triceps_brachii,secondary
+Dumbbell Standing Around World,forearms,secondary
+Dumbbell Standing Bent Over One Arm Triceps Extension,triceps_brachii,primary
+Dumbbell Standing Bent Over One Arm Triceps Extension,posterior_deltoid,secondary
+Dumbbell Standing Bent Over One Arm Triceps Extension,latissimus_dorsi,secondary
+Dumbbell Standing Bent Over Two Arm Triceps Extension,triceps_brachii,primary
+Dumbbell Standing Bent Over Two Arm Triceps Extension,posterior_deltoid,secondary
+Dumbbell Standing Bent Over Two Arm Triceps Extension,latissimus_dorsi,secondary
+Dumbbell Standing Biceps Curl,biceps_brachii,primary
+Dumbbell Standing Biceps Curl,forearms,secondary
+Dumbbell Standing Calf Raise,calves,primary
+Dumbbell Standing Concentration Curl,biceps_brachii,primary
+Dumbbell Standing Concentration Curl,forearms,secondary
+Dumbbell Standing Front Raise Above Head,anterior_deltoid,primary
+Dumbbell Standing Front Raise Above Head,trapezius,secondary
+Dumbbell Standing Front Raise Above Head,biceps_brachii,secondary
+Dumbbell Standing Inner Biceps Curl V. 2,biceps_brachii,primary
+Dumbbell Standing Inner Biceps Curl V. 2,forearms,secondary
+Dumbbell Standing Kickback,triceps_brachii,primary
+Dumbbell Standing Kickback,lateral_deltoid,secondary
+Dumbbell Standing One Arm Concentration Curl,biceps_brachii,primary
+Dumbbell Standing One Arm Concentration Curl,forearms,secondary
+Dumbbell Standing One Arm Curl (over Incline Bench),biceps_brachii,primary
+Dumbbell Standing One Arm Curl (over Incline Bench),forearms,secondary
+Dumbbell Standing One Arm Curl Over Incline Bench,biceps_brachii,primary
+Dumbbell Standing One Arm Curl Over Incline Bench,forearms,secondary
+Dumbbell Standing One Arm Extension,triceps_brachii,primary
+Dumbbell Standing One Arm Extension,lateral_deltoid,secondary
+Dumbbell Standing One Arm Palm In Press,anterior_deltoid,primary
+Dumbbell Standing One Arm Palm In Press,triceps_brachii,secondary
+Dumbbell Standing One Arm Palm In Press,rectus_abdominis,secondary
+Dumbbell Standing One Arm Reverse Curl,biceps_brachii,primary
+Dumbbell Standing One Arm Reverse Curl,forearms,secondary
+Dumbbell Standing Overhead Press,anterior_deltoid,primary
+Dumbbell Standing Overhead Press,triceps_brachii,secondary
+Dumbbell Standing Overhead Press,trapezius,secondary
+Dumbbell Standing Palms In Press,anterior_deltoid,primary
+Dumbbell Standing Palms In Press,triceps_brachii,secondary
+Dumbbell Standing Palms In Press,pectoralis_major,secondary
+Dumbbell Standing Preacher Curl,biceps_brachii,primary
+Dumbbell Standing Preacher Curl,forearms,secondary
+Dumbbell Standing Reverse Curl,biceps_brachii,primary
+Dumbbell Standing Reverse Curl,forearms,secondary
+Dumbbell Standing Triceps Extension,triceps_brachii,primary
+Dumbbell Standing Triceps Extension,lateral_deltoid,secondary
+Dumbbell Standing Zottman Preacher Curl,biceps_brachii,primary
+Dumbbell Standing Zottman Preacher Curl,forearms,secondary
+Dumbbell Step Up Single Leg Balance With Bicep Curl,biceps_brachii,primary
+Dumbbell Step Up Single Leg Balance With Bicep Curl,quadriceps,secondary
+Dumbbell Step Up Single Leg Balance With Bicep Curl,gluteus_maximus,secondary
+Dumbbell Step Up Single Leg Balance With Bicep Curl,hamstrings,secondary
+Dumbbell Step-up,gluteus_maximus,primary
+Dumbbell Step-up,quadriceps,secondary
+Dumbbell Step-up,hamstrings,secondary
+Dumbbell Step-up,calves,secondary
+Dumbbell Step-up Lunge,quadriceps,primary
+Dumbbell Step-up Lunge,gluteus_maximus,secondary
+Dumbbell Step-up Lunge,hamstrings,secondary
+Dumbbell Step-up Lunge,calves,secondary
+Dumbbell Step-up Split Squat,quadriceps,primary
+Dumbbell Step-up Split Squat,gluteus_maximus,secondary
+Dumbbell Step-up Split Squat,hamstrings,secondary
+Dumbbell Step-up Split Squat,calves,secondary
+Dumbbell Stiff Leg Deadlift,gluteus_maximus,primary
+Dumbbell Stiff Leg Deadlift,hamstrings,secondary
+Dumbbell Stiff Leg Deadlift,erector_spinae,secondary
+Dumbbell Straight Arm Pullover,pectoralis_major,primary
+Dumbbell Straight Arm Pullover,latissimus_dorsi,secondary
+Dumbbell Straight Arm Pullover,triceps_brachii,secondary
+Dumbbell Straight Leg Deadlift,gluteus_maximus,primary
+Dumbbell Straight Leg Deadlift,hamstrings,secondary
+Dumbbell Straight Leg Deadlift,erector_spinae,secondary
+Dumbbell Sumo Pull Through,gluteus_maximus,primary
+Dumbbell Sumo Pull Through,hamstrings,secondary
+Dumbbell Sumo Pull Through,quadriceps,secondary
+Dumbbell Sumo Pull Through,rectus_abdominis,secondary
+Dumbbell Supported Squat,quadriceps,primary
+Dumbbell Supported Squat,gluteus_maximus,secondary
+Dumbbell Supported Squat,hamstrings,secondary
+Dumbbell Supported Squat,calves,secondary
+Dumbbell Tate Press,triceps_brachii,primary
+Dumbbell Tate Press,anterior_deltoid,secondary
+Dumbbell Tricep Kickback With Stork Stance,triceps_brachii,primary
+Dumbbell Tricep Kickback With Stork Stance,lateral_deltoid,secondary
+Dumbbell Twisting Bench Press,triceps_brachii,primary
+Dumbbell Twisting Bench Press,pectoralis_major,secondary
+Dumbbell Twisting Bench Press,anterior_deltoid,secondary
+Dumbbell Upright Row,lateral_deltoid,primary
+Dumbbell Upright Row,trapezius,secondary
+Dumbbell Upright Row,biceps_brachii,secondary
+Dumbbell Upright Row (back Pov),lateral_deltoid,primary
+Dumbbell Upright Row (back Pov),trapezius,secondary
+Dumbbell Upright Row (back Pov),biceps_brachii,secondary
+Dumbbell Upright Shoulder External Rotation,lateral_deltoid,primary
+Dumbbell Upright Shoulder External Rotation,rotator_cuff,secondary
+Dumbbell Upright Shoulder External Rotation,trapezius,secondary
+Dumbbell W-press,anterior_deltoid,primary
+Dumbbell W-press,triceps_brachii,secondary
+Dumbbell W-press,pectoralis_major,secondary
+Dumbbell Waiter Biceps Curl,biceps_brachii,primary
+Dumbbell Waiter Biceps Curl,forearms,secondary
+Dumbbell Waiter Biceps Curl,lateral_deltoid,secondary
+Dumbbell Zottman Curl,biceps_brachii,primary
+Dumbbell Zottman Curl,forearms,secondary
+Dumbbell Zottman Preacher Curl,biceps_brachii,primary
+Dumbbell Zottman Preacher Curl,forearms,secondary
+Dumbbells Seated Triceps Extension,triceps_brachii,primary
+Dumbbells Seated Triceps Extension,lateral_deltoid,secondary
+Dynamic Chest Stretch (male),pectoralis_major,primary
+Dynamic Chest Stretch (male),anterior_deltoid,secondary
+Dynamic Chest Stretch (male),triceps_brachii,secondary
+Elbow Dips,triceps_brachii,primary
+Elbow Dips,pectoralis_major,secondary
+Elbow Dips,anterior_deltoid,secondary
+Elbow Lift - Reverse Push-up,trapezius,primary
+Elbow Lift - Reverse Push-up,triceps_brachii,secondary
+Elbow Lift - Reverse Push-up,posterior_deltoid,secondary
+Elbow-to-knee,rectus_abdominis,primary
+Elbow-to-knee,obliques,secondary
+Elevator,trapezius,primary
+Elevator,lateral_deltoid,secondary
+Exercise Ball Alternating Arm Ups,latissimus_dorsi,primary
+Exercise Ball Alternating Arm Ups,lateral_deltoid,secondary
+Exercise Ball Alternating Arm Ups,rectus_abdominis,secondary
+Exercise Ball Back Extension With Arms Extended,erector_spinae,primary
+Exercise Ball Back Extension With Arms Extended,gluteus_maximus,secondary
+Exercise Ball Back Extension With Arms Extended,hamstrings,secondary
+Exercise Ball Back Extension With Hands Behind Head,erector_spinae,primary
+Exercise Ball Back Extension With Hands Behind Head,gluteus_maximus,secondary
+Exercise Ball Back Extension With Hands Behind Head,hamstrings,secondary
+Exercise Ball Back Extension With Knees Off Ground,erector_spinae,primary
+Exercise Ball Back Extension With Knees Off Ground,gluteus_maximus,secondary
+Exercise Ball Back Extension With Knees Off Ground,hamstrings,secondary
+Exercise Ball Back Extension With Rotation,erector_spinae,primary
+Exercise Ball Back Extension With Rotation,gluteus_maximus,secondary
+Exercise Ball Back Extension With Rotation,hamstrings,secondary
+Exercise Ball Dip,triceps_brachii,primary
+Exercise Ball Dip,pectoralis_major,secondary
+Exercise Ball Dip,anterior_deltoid,secondary
+Exercise Ball Hip Flexor Stretch,gluteus_maximus,primary
+Exercise Ball Hip Flexor Stretch,quadriceps,secondary
+Exercise Ball Hip Flexor Stretch,hamstrings,secondary
+Exercise Ball Hug,erector_spinae,primary
+Exercise Ball Hug,lateral_deltoid,secondary
+Exercise Ball Hug,pectoralis_major,secondary
+Exercise Ball Lat Stretch,latissimus_dorsi,primary
+Exercise Ball Lat Stretch,lateral_deltoid,secondary
+Exercise Ball Lat Stretch,triceps_brachii,secondary
+Exercise Ball Lower Back Stretch (pyramid),latissimus_dorsi,primary
+Exercise Ball Lower Back Stretch (pyramid),gluteus_maximus,secondary
+Exercise Ball Lower Back Stretch (pyramid),hamstrings,secondary
+Exercise Ball Lying Side Lat Stretch,latissimus_dorsi,primary
+Exercise Ball Lying Side Lat Stretch,lateral_deltoid,secondary
+Exercise Ball Lying Side Lat Stretch,triceps_brachii,secondary
+Exercise Ball On The Wall Calf Raise,calves,primary
+Exercise Ball On The Wall Calf Raise,hamstrings,secondary
+Exercise Ball On The Wall Calf Raise,quadriceps,secondary
+Exercise Ball On The Wall Calf Raise (tennis Ball Between Ankles),calves,primary
+Exercise Ball On The Wall Calf Raise (tennis Ball Between Ankles),hamstrings,secondary
+Exercise Ball On The Wall Calf Raise (tennis Ball Between Ankles),quadriceps,secondary
+Exercise Ball On The Wall Calf Raise (tennis Ball Between Knees),calves,primary
+Exercise Ball On The Wall Calf Raise (tennis Ball Between Knees),quadriceps,secondary
+Exercise Ball On The Wall Calf Raise (tennis Ball Between Knees),hamstrings,secondary
+Exercise Ball One Leg Prone Lower Body Rotation,gluteus_maximus,primary
+Exercise Ball One Leg Prone Lower Body Rotation,hamstrings,secondary
+Exercise Ball One Leg Prone Lower Body Rotation,quadriceps,secondary
+Exercise Ball One Leg Prone Lower Body Rotation,rectus_abdominis,secondary
+Exercise Ball One Legged Diagonal Kick Hamstring Curl,gluteus_maximus,primary
+Exercise Ball One Legged Diagonal Kick Hamstring Curl,hamstrings,secondary
+Exercise Ball One Legged Diagonal Kick Hamstring Curl,calves,secondary
+Exercise Ball Pike Push Up,pectoralis_major,primary
+Exercise Ball Pike Push Up,anterior_deltoid,secondary
+Exercise Ball Pike Push Up,triceps_brachii,secondary
+Exercise Ball Pike Push Up,rectus_abdominis,secondary
+Exercise Ball Prone Leg Raise,erector_spinae,primary
+Exercise Ball Prone Leg Raise,rectus_abdominis,secondary
+Exercise Ball Prone Leg Raise,gluteus_maximus,secondary
+Exercise Ball Seated Hamstring Stretch,hamstrings,primary
+Exercise Ball Seated Hamstring Stretch,gluteus_maximus,secondary
+Exercise Ball Seated Hamstring Stretch,erector_spinae,secondary
+Exercise Ball Seated Triceps Stretch,triceps_brachii,primary
+Exercise Ball Seated Triceps Stretch,lateral_deltoid,secondary
+Exercise Ball Supine Triceps Extension,triceps_brachii,primary
+Exercise Ball Supine Triceps Extension,lateral_deltoid,secondary
+Ez Bar French Press On Exercise Ball,triceps_brachii,primary
+Ez Bar French Press On Exercise Ball,anterior_deltoid,secondary
+Ez Bar Lying Bent Arms Pullover,latissimus_dorsi,primary
+Ez Bar Lying Bent Arms Pullover,triceps_brachii,secondary
+Ez Bar Lying Bent Arms Pullover,pectoralis_major,secondary
+Ez Bar Lying Close Grip Triceps Extension Behind Head,triceps_brachii,primary
+Ez Bar Lying Close Grip Triceps Extension Behind Head,lateral_deltoid,secondary
+Ez Bar Reverse Grip Bent Over Row,trapezius,primary
+Ez Bar Reverse Grip Bent Over Row,biceps_brachii,secondary
+Ez Bar Reverse Grip Bent Over Row,forearms,secondary
+Ez Bar Seated Close Grip Concentration Curl,biceps_brachii,primary
+Ez Bar Seated Close Grip Concentration Curl,forearms,secondary
+Ez Bar Standing French Press,triceps_brachii,primary
+Ez Bar Standing French Press,anterior_deltoid,secondary
+Ez Barbell Anti Gravity Press,anterior_deltoid,primary
+Ez Barbell Anti Gravity Press,triceps_brachii,secondary
+Ez Barbell Anti Gravity Press,pectoralis_major,secondary
+Ez Barbell Close Grip Preacher Curl,biceps_brachii,primary
+Ez Barbell Close Grip Preacher Curl,forearms,secondary
+Ez Barbell Close-grip Curl,biceps_brachii,primary
+Ez Barbell Close-grip Curl,forearms,secondary
+Ez Barbell Curl,biceps_brachii,primary
+Ez Barbell Curl,forearms,secondary
+Ez Barbell Decline Close Grip Face Press,triceps_brachii,primary
+Ez Barbell Decline Close Grip Face Press,pectoralis_major,secondary
+Ez Barbell Decline Close Grip Face Press,anterior_deltoid,secondary
+Ez Barbell Decline Triceps Extension,triceps_brachii,primary
+Ez Barbell Decline Triceps Extension,lateral_deltoid,secondary
+Ez Barbell Incline Triceps Extension,triceps_brachii,primary
+Ez Barbell Incline Triceps Extension,lateral_deltoid,secondary
+Ez Barbell Jm Bench Press,triceps_brachii,primary
+Ez Barbell Jm Bench Press,pectoralis_major,secondary
+Ez Barbell Jm Bench Press,anterior_deltoid,secondary
+Ez Barbell Reverse Grip Curl,biceps_brachii,primary
+Ez Barbell Reverse Grip Curl,forearms,secondary
+Ez Barbell Reverse Grip Preacher Curl,biceps_brachii,primary
+Ez Barbell Reverse Grip Preacher Curl,forearms,secondary
+Ez Barbell Seated Curls,biceps_brachii,primary
+Ez Barbell Seated Curls,forearms,secondary
+Ez Barbell Seated Triceps Extension,triceps_brachii,primary
+Ez Barbell Seated Triceps Extension,lateral_deltoid,secondary
+Ez Barbell Spider Curl,biceps_brachii,primary
+Ez Barbell Spider Curl,forearms,secondary
+Ez-bar Biceps Curl (with Arm Blaster),biceps_brachii,primary
+Ez-bar Biceps Curl (with Arm Blaster),forearms,secondary
+Ez-bar Close-grip Bench Press,triceps_brachii,primary
+Ez-bar Close-grip Bench Press,pectoralis_major,secondary
+Ez-bar Close-grip Bench Press,anterior_deltoid,secondary
+Ez-barbell Standing Wide Grip Biceps Curl,biceps_brachii,primary
+Ez-barbell Standing Wide Grip Biceps Curl,forearms,secondary
+Farmers Walk,quadriceps,primary
+Farmers Walk,calves,secondary
+Farmers Walk,forearms,secondary
+Farmers Walk,rectus_abdominis,secondary
+Finger Curls,forearms,primary
+Flag,rectus_abdominis,primary
+Flag,obliques,secondary
+Flag,lateral_deltoid,secondary
+Flexion Leg Sit Up (bent Knee),rectus_abdominis,primary
+Flexion Leg Sit Up (bent Knee),hip_flexors,secondary
+Flexion Leg Sit Up (straight Arm),rectus_abdominis,primary
+Flexion Leg Sit Up (straight Arm),hip_flexors,secondary
+Flexion Leg Sit Up (straight Arm),quadriceps,secondary
+Floor Fly (with Barbell),pectoralis_major,primary
+Floor Fly (with Barbell),lateral_deltoid,secondary
+Floor Fly (with Barbell),triceps_brachii,secondary
+Flutter Kicks,gluteus_maximus,primary
+Flutter Kicks,hip_flexors,secondary
+Flutter Kicks,rectus_abdominis,secondary
+Forward Jump,quadriceps,primary
+Forward Jump,calves,secondary
+Forward Jump,hamstrings,secondary
+Forward Jump,gluteus_maximus,secondary
+Forward Lunge (male),gluteus_maximus,primary
+Forward Lunge (male),quadriceps,secondary
+Forward Lunge (male),hamstrings,secondary
+Forward Lunge (male),calves,secondary
+Frankenstein Squat,gluteus_maximus,primary
+Frankenstein Squat,quadriceps,secondary
+Frankenstein Squat,hamstrings,secondary
+Frankenstein Squat,calves,secondary
+Frog Crunch,rectus_abdominis,primary
+Frog Crunch,hip_flexors,secondary
+Frog Planche,rectus_abdominis,primary
+Frog Planche,lateral_deltoid,secondary
+Frog Planche,pectoralis_major,secondary
+Frog Planche,triceps_brachii,secondary
+Front Lever,rectus_abdominis,primary
+Front Lever,latissimus_dorsi,secondary
+Front Lever,anterior_deltoid,secondary
+Front Lever,forearms,secondary
+Front Lever Reps,trapezius,primary
+Front Lever Reps,rectus_abdominis,secondary
+Front Lever Reps,anterior_deltoid,secondary
+Front Plank With Twist,rectus_abdominis,primary
+Front Plank With Twist,obliques,secondary
+Front Plank With Twist,anterior_deltoid,secondary
+Full Maltese,rectus_abdominis,primary
+Full Maltese,lateral_deltoid,secondary
+Full Maltese,pectoralis_major,secondary
+Full Planche,rectus_abdominis,primary
+Full Planche,lateral_deltoid,secondary
+Full Planche,pectoralis_major,secondary
+Full Planche,triceps_brachii,secondary
+Full Planche Push-up,pectoralis_major,primary
+Full Planche Push-up,anterior_deltoid,secondary
+Full Planche Push-up,triceps_brachii,secondary
+Full Planche Push-up,rectus_abdominis,secondary
+Gironda Sternum Chin,latissimus_dorsi,primary
+Gironda Sternum Chin,biceps_brachii,secondary
+Gironda Sternum Chin,rhomboids,secondary
+Gironda Sternum Chin,posterior_deltoid,secondary
+Glute Bridge March,gluteus_maximus,primary
+Glute Bridge March,hamstrings,secondary
+Glute Bridge March,quadriceps,secondary
+Glute Bridge Two Legs On Bench (male),gluteus_maximus,primary
+Glute Bridge Two Legs On Bench (male),hamstrings,secondary
+Glute Bridge Two Legs On Bench (male),rectus_abdominis,secondary
+Glute-ham Raise,hamstrings,primary
+Glute-ham Raise,gluteus_maximus,secondary
+Glute-ham Raise,erector_spinae,secondary
+Gorilla Chin,rectus_abdominis,primary
+Gorilla Chin,forearms,secondary
+Gorilla Chin,biceps_brachii,secondary
+Groin Crunch,rectus_abdominis,primary
+Groin Crunch,hip_flexors,secondary
+Groin Crunch,adductors,secondary
+Hack Calf Raise,calves,primary
+Hack Calf Raise,hamstrings,secondary
+Hack Calf Raise,gluteus_maximus,secondary
+Hack One Leg Calf Raise,calves,primary
+Hack One Leg Calf Raise,hamstrings,secondary
+Hack One Leg Calf Raise,gluteus_maximus,secondary
+Half Sit-up (male),rectus_abdominis,primary
+Half Sit-up (male),hip_flexors,secondary
+Hamstring Stretch,hamstrings,primary
+Hamstring Stretch,gluteus_maximus,secondary
+Hands Bike,pectoralis_major,primary
+Hands Bike,triceps_brachii,secondary
+Hands Bike,lateral_deltoid,secondary
+Hands Clasped Circular Toe Touch (male),gluteus_maximus,primary
+Hands Clasped Circular Toe Touch (male),hamstrings,secondary
+Hands Clasped Circular Toe Touch (male),quadriceps,secondary
+Hands Clasped Circular Toe Touch (male),calves,secondary
+Hands Reversed Clasped Circular Toe Touch (male),gluteus_maximus,primary
+Hands Reversed Clasped Circular Toe Touch (male),hamstrings,secondary
+Hands Reversed Clasped Circular Toe Touch (male),quadriceps,secondary
+Hands Reversed Clasped Circular Toe Touch (male),calves,secondary
+Handstand,triceps_brachii,primary
+Handstand,lateral_deltoid,secondary
+Handstand,rectus_abdominis,secondary
+Handstand Push-up,triceps_brachii,primary
+Handstand Push-up,anterior_deltoid,secondary
+Handstand Push-up,pectoralis_major,secondary
+Handstand Push-up,rectus_abdominis,secondary
+Hanging Leg Hip Raise,rectus_abdominis,primary
+Hanging Leg Hip Raise,hip_flexors,secondary
+Hanging Leg Hip Raise,erector_spinae,secondary
+Hanging Leg Raise,rectus_abdominis,primary
+Hanging Leg Raise,hip_flexors,secondary
+Hanging Oblique Knee Raise,rectus_abdominis,primary
+Hanging Oblique Knee Raise,obliques,secondary
+Hanging Pike,rectus_abdominis,primary
+Hanging Pike,hip_flexors,secondary
+Hanging Pike,lateral_deltoid,secondary
+Hanging Straight Leg Hip Raise,rectus_abdominis,primary
+Hanging Straight Leg Hip Raise,hip_flexors,secondary
+Hanging Straight Leg Raise,rectus_abdominis,primary
+Hanging Straight Leg Raise,hip_flexors,secondary
+Hanging Straight Twisting Leg Hip Raise,rectus_abdominis,primary
+Hanging Straight Twisting Leg Hip Raise,obliques,secondary
+Hanging Straight Twisting Leg Hip Raise,hip_flexors,secondary
+Hip Raise (bent Knee),rectus_abdominis,primary
+Hip Raise (bent Knee),gluteus_maximus,secondary
+Hip Raise (bent Knee),hamstrings,secondary
+Hug Knees To Chest,gluteus_maximus,primary
+Hug Knees To Chest,hamstrings,secondary
+Hug Knees To Chest,quadriceps,secondary
+Hyght Dumbbell Fly,pectoralis_major,primary
+Hyght Dumbbell Fly,lateral_deltoid,secondary
+Hyperextension,erector_spinae,primary
+Hyperextension,gluteus_maximus,secondary
+Hyperextension,hamstrings,secondary
+Hyperextension (on Bench),erector_spinae,primary
+Hyperextension (on Bench),gluteus_maximus,secondary
+Hyperextension (on Bench),hamstrings,secondary
+Impossible Dips,triceps_brachii,primary
+Impossible Dips,pectoralis_major,secondary
+Impossible Dips,anterior_deltoid,secondary
+Inchworm,rectus_abdominis,primary
+Inchworm,lateral_deltoid,secondary
+Inchworm,hamstrings,secondary
+Inchworm V. 2,rectus_abdominis,primary
+Inchworm V. 2,lateral_deltoid,secondary
+Inchworm V. 2,hamstrings,secondary
+Incline Close-grip Push-up,triceps_brachii,primary
+Incline Close-grip Push-up,pectoralis_major,secondary
+Incline Close-grip Push-up,anterior_deltoid,secondary
+Incline Leg Hip Raise (leg Straight),rectus_abdominis,primary
+Incline Leg Hip Raise (leg Straight),hip_flexors,secondary
+Incline Push Up Depth Jump,pectoralis_major,primary
+Incline Push Up Depth Jump,triceps_brachii,secondary
+Incline Push Up Depth Jump,anterior_deltoid,secondary
+Incline Push Up Depth Jump,rectus_abdominis,secondary
+Incline Push-up,pectoralis_major,primary
+Incline Push-up,triceps_brachii,secondary
+Incline Push-up,anterior_deltoid,secondary
+Incline Push-up (on Box),pectoralis_major,primary
+Incline Push-up (on Box),triceps_brachii,secondary
+Incline Push-up (on Box),anterior_deltoid,secondary
+Incline Reverse Grip Push-up,pectoralis_major,primary
+Incline Reverse Grip Push-up,triceps_brachii,secondary
+Incline Reverse Grip Push-up,posterior_deltoid,secondary
+Incline Scapula Push Up,serratus_anterior,primary
+Incline Scapula Push Up,triceps_brachii,secondary
+Incline Scapula Push Up,anterior_deltoid,secondary
+Incline Twisting Sit-up,rectus_abdominis,primary
+Incline Twisting Sit-up,obliques,secondary
+Intermediate Hip Flexor And Quad Stretch,quadriceps,primary
+Intermediate Hip Flexor And Quad Stretch,hamstrings,secondary
+Intermediate Hip Flexor And Quad Stretch,gluteus_maximus,secondary
+Inverse Leg Curl (bench Support),hamstrings,primary
+Inverse Leg Curl (bench Support),gluteus_maximus,secondary
+Inverse Leg Curl (bench Support),calves,secondary
+Inverse Leg Curl (on Pull-up Cable Machine),hamstrings,primary
+Inverse Leg Curl (on Pull-up Cable Machine),gluteus_maximus,secondary
+Inverse Leg Curl (on Pull-up Cable Machine),calves,secondary
+Inverted Row,trapezius,primary
+Inverted Row,biceps_brachii,secondary
+Inverted Row,forearms,secondary
+Inverted Row Bent Knees,trapezius,primary
+Inverted Row Bent Knees,biceps_brachii,secondary
+Inverted Row Bent Knees,forearms,secondary
+Inverted Row On Bench,trapezius,primary
+Inverted Row On Bench,biceps_brachii,secondary
+Inverted Row On Bench,forearms,secondary
+Inverted Row V. 2,trapezius,primary
+Inverted Row V. 2,biceps_brachii,secondary
+Inverted Row V. 2,forearms,secondary
+Inverted Row With Straps,trapezius,primary
+Inverted Row With Straps,biceps_brachii,secondary
+Inverted Row With Straps,forearms,secondary
+Iron Cross Stretch,gluteus_maximus,primary
+Iron Cross Stretch,hamstrings,secondary
+Iron Cross Stretch,quadriceps,secondary
+Isometric Chest Squeeze,pectoralis_major,primary
+Isometric Chest Squeeze,triceps_brachii,secondary
+Isometric Chest Squeeze,anterior_deltoid,secondary
+Isometric Wipers,pectoralis_major,primary
+Isometric Wipers,lateral_deltoid,secondary
+Isometric Wipers,triceps_brachii,secondary
+Isometric Wipers,rectus_abdominis,secondary
+Jackknife Sit-up,rectus_abdominis,primary
+Jackknife Sit-up,hip_flexors,secondary
+Janda Sit-up,rectus_abdominis,primary
+Janda Sit-up,hip_flexors,secondary
+Janda Sit-up,erector_spinae,secondary
+Jump Squat,gluteus_maximus,primary
+Jump Squat,quadriceps,secondary
+Jump Squat,hamstrings,secondary
+Jump Squat,calves,secondary
+Jump Squat V. 2,gluteus_maximus,primary
+Jump Squat V. 2,quadriceps,secondary
+Jump Squat V. 2,hamstrings,secondary
+Jump Squat V. 2,calves,secondary
+Kettlebell Advanced Windmill,rectus_abdominis,primary
+Kettlebell Advanced Windmill,obliques,secondary
+Kettlebell Advanced Windmill,lateral_deltoid,secondary
+Kettlebell Alternating Hang Clean,forearms,primary
+Kettlebell Alternating Hang Clean,lateral_deltoid,secondary
+Kettlebell Alternating Hang Clean,trapezius,secondary
+Kettlebell Alternating Hang Clean,rectus_abdominis,secondary
+Kettlebell Alternating Press,anterior_deltoid,primary
+Kettlebell Alternating Press,triceps_brachii,secondary
+Kettlebell Alternating Press,rectus_abdominis,secondary
+Kettlebell Alternating Press On Floor,pectoralis_major,primary
+Kettlebell Alternating Press On Floor,anterior_deltoid,secondary
+Kettlebell Alternating Press On Floor,triceps_brachii,secondary
+Kettlebell Alternating Renegade Row,trapezius,primary
+Kettlebell Alternating Renegade Row,rectus_abdominis,secondary
+Kettlebell Alternating Renegade Row,lateral_deltoid,secondary
+Kettlebell Alternating Row,trapezius,primary
+Kettlebell Alternating Row,biceps_brachii,secondary
+Kettlebell Alternating Row,forearms,secondary
+Kettlebell Arnold Press,anterior_deltoid,primary
+Kettlebell Arnold Press,triceps_brachii,secondary
+Kettlebell Arnold Press,trapezius,secondary
+Kettlebell Bent Press,rectus_abdominis,primary
+Kettlebell Bent Press,posterior_deltoid,secondary
+Kettlebell Bent Press,triceps_brachii,secondary
+Kettlebell Bent Press,obliques,secondary
+Kettlebell Bottoms Up Clean From The Hang Position,biceps_brachii,primary
+Kettlebell Bottoms Up Clean From The Hang Position,forearms,secondary
+Kettlebell Bottoms Up Clean From The Hang Position,lateral_deltoid,secondary
+Kettlebell Double Alternating Hang Clean,biceps_brachii,primary
+Kettlebell Double Alternating Hang Clean,forearms,secondary
+Kettlebell Double Alternating Hang Clean,lateral_deltoid,secondary
+Kettlebell Double Jerk,lateral_deltoid,primary
+Kettlebell Double Jerk,triceps_brachii,secondary
+Kettlebell Double Jerk,rectus_abdominis,secondary
+Kettlebell Double Push Press,anterior_deltoid,primary
+Kettlebell Double Push Press,triceps_brachii,secondary
+Kettlebell Double Push Press,rectus_abdominis,secondary
+Kettlebell Double Snatch,lateral_deltoid,primary
+Kettlebell Double Snatch,trapezius,secondary
+Kettlebell Double Snatch,forearms,secondary
+Kettlebell Double Snatch,rectus_abdominis,secondary
+Kettlebell Double Windmill,rectus_abdominis,primary
+Kettlebell Double Windmill,lateral_deltoid,secondary
+Kettlebell Double Windmill,hamstrings,secondary
+Kettlebell Extended Range One Arm Press On Floor,pectoralis_major,primary
+Kettlebell Extended Range One Arm Press On Floor,triceps_brachii,secondary
+Kettlebell Extended Range One Arm Press On Floor,anterior_deltoid,secondary
+Kettlebell Figure 8,rectus_abdominis,primary
+Kettlebell Figure 8,lateral_deltoid,secondary
+Kettlebell Figure 8,forearms,secondary
+Kettlebell Front Squat,gluteus_maximus,primary
+Kettlebell Front Squat,quadriceps,secondary
+Kettlebell Front Squat,hamstrings,secondary
+Kettlebell Front Squat,calves,secondary
+Kettlebell Goblet Squat,gluteus_maximus,primary
+Kettlebell Goblet Squat,quadriceps,secondary
+Kettlebell Goblet Squat,hamstrings,secondary
+Kettlebell Goblet Squat,calves,secondary
+Kettlebell Hang Clean,hamstrings,primary
+Kettlebell Hang Clean,gluteus_maximus,secondary
+Kettlebell Hang Clean,quadriceps,secondary
+Kettlebell Hang Clean,calves,secondary
+Kettlebell Lunge Pass Through,gluteus_maximus,primary
+Kettlebell Lunge Pass Through,quadriceps,secondary
+Kettlebell Lunge Pass Through,hamstrings,secondary
+Kettlebell Lunge Pass Through,calves,secondary
+Kettlebell One Arm Clean And Jerk,lateral_deltoid,primary
+Kettlebell One Arm Clean And Jerk,triceps_brachii,secondary
+Kettlebell One Arm Clean And Jerk,rectus_abdominis,secondary
+Kettlebell One Arm Floor Press,pectoralis_major,primary
+Kettlebell One Arm Floor Press,triceps_brachii,secondary
+Kettlebell One Arm Floor Press,anterior_deltoid,secondary
+Kettlebell One Arm Jerk,lateral_deltoid,primary
+Kettlebell One Arm Jerk,triceps_brachii,secondary
+Kettlebell One Arm Jerk,rectus_abdominis,secondary
+Kettlebell One Arm Military Press To The Side,anterior_deltoid,primary
+Kettlebell One Arm Military Press To The Side,triceps_brachii,secondary
+Kettlebell One Arm Military Press To The Side,rectus_abdominis,secondary
+Kettlebell One Arm Push Press,anterior_deltoid,primary
+Kettlebell One Arm Push Press,triceps_brachii,secondary
+Kettlebell One Arm Push Press,rectus_abdominis,secondary
+Kettlebell One Arm Row,trapezius,primary
+Kettlebell One Arm Row,biceps_brachii,secondary
+Kettlebell One Arm Row,forearms,secondary
+Kettlebell One Arm Snatch,lateral_deltoid,primary
+Kettlebell One Arm Snatch,trapezius,secondary
+Kettlebell One Arm Snatch,forearms,secondary
+Kettlebell One Arm Snatch,rectus_abdominis,secondary
+Kettlebell Pirate Supper Legs,lateral_deltoid,primary
+Kettlebell Pirate Supper Legs,triceps_brachii,secondary
+Kettlebell Pirate Supper Legs,forearms,secondary
+Kettlebell Pistol Squat,gluteus_maximus,primary
+Kettlebell Pistol Squat,quadriceps,secondary
+Kettlebell Pistol Squat,hamstrings,secondary
+Kettlebell Pistol Squat,calves,secondary
+Kettlebell Plyo Push-up,pectoralis_major,primary
+Kettlebell Plyo Push-up,triceps_brachii,secondary
+Kettlebell Plyo Push-up,anterior_deltoid,secondary
+Kettlebell Plyo Push-up,rectus_abdominis,secondary
+Kettlebell Seated Press,anterior_deltoid,primary
+Kettlebell Seated Press,triceps_brachii,secondary
+Kettlebell Seated Press,rectus_abdominis,secondary
+Kettlebell Seated Two Arm Military Press,anterior_deltoid,primary
+Kettlebell Seated Two Arm Military Press,triceps_brachii,secondary
+Kettlebell Seated Two Arm Military Press,trapezius,secondary
+Kettlebell Seesaw Press,anterior_deltoid,primary
+Kettlebell Seesaw Press,triceps_brachii,secondary
+Kettlebell Seesaw Press,rectus_abdominis,secondary
+Kettlebell Sumo High Pull,trapezius,primary
+Kettlebell Sumo High Pull,lateral_deltoid,secondary
+Kettlebell Sumo High Pull,gluteus_maximus,secondary
+Kettlebell Sumo High Pull,hamstrings,secondary
+Kettlebell Swing,gluteus_maximus,primary
+Kettlebell Swing,hamstrings,secondary
+Kettlebell Swing,rectus_abdominis,secondary
+Kettlebell Thruster,lateral_deltoid,primary
+Kettlebell Thruster,quadriceps,secondary
+Kettlebell Thruster,gluteus_maximus,secondary
+Kettlebell Thruster,rectus_abdominis,secondary
+Kettlebell Turkish Get Up (squat Style),gluteus_maximus,primary
+Kettlebell Turkish Get Up (squat Style),quadriceps,secondary
+Kettlebell Turkish Get Up (squat Style),hamstrings,secondary
+Kettlebell Turkish Get Up (squat Style),rectus_abdominis,secondary
+Kettlebell Two Arm Clean,lateral_deltoid,primary
+Kettlebell Two Arm Clean,trapezius,secondary
+Kettlebell Two Arm Clean,forearms,secondary
+Kettlebell Two Arm Military Press,anterior_deltoid,primary
+Kettlebell Two Arm Military Press,triceps_brachii,secondary
+Kettlebell Two Arm Military Press,trapezius,secondary
+Kettlebell Two Arm Row,trapezius,primary
+Kettlebell Two Arm Row,biceps_brachii,secondary
+Kettlebell Two Arm Row,forearms,secondary
+Kettlebell Windmill,rectus_abdominis,primary
+Kettlebell Windmill,obliques,secondary
+Kettlebell Windmill,lateral_deltoid,secondary
+Kick Out Sit,hamstrings,primary
+Kick Out Sit,quadriceps,secondary
+Kick Out Sit,gluteus_maximus,secondary
+Kipping Muscle Up,latissimus_dorsi,primary
+Kipping Muscle Up,biceps_brachii,secondary
+Kipping Muscle Up,triceps_brachii,secondary
+Kipping Muscle Up,lateral_deltoid,secondary
+Kipping Muscle Up,rectus_abdominis,secondary
+Knee Touch Crunch,rectus_abdominis,primary
+Knee Touch Crunch,hip_flexors,secondary
+Kneeling Jump Squat,gluteus_maximus,primary
+Kneeling Jump Squat,quadriceps,secondary
+Kneeling Jump Squat,hamstrings,secondary
+Kneeling Jump Squat,calves,secondary
+Kneeling Lat Stretch,latissimus_dorsi,primary
+Kneeling Lat Stretch,lateral_deltoid,secondary
+Kneeling Lat Stretch,triceps_brachii,secondary
+Kneeling Plank Tap Shoulder (male),rectus_abdominis,primary
+Kneeling Plank Tap Shoulder (male),lateral_deltoid,secondary
+Kneeling Plank Tap Shoulder (male),triceps_brachii,secondary
+Kneeling Push-up (male),pectoralis_major,primary
+Kneeling Push-up (male),triceps_brachii,secondary
+Kneeling Push-up (male),anterior_deltoid,secondary
+Korean Dips,pectoralis_major,primary
+Korean Dips,triceps_brachii,secondary
+Korean Dips,anterior_deltoid,secondary
+L-pull-up,latissimus_dorsi,primary
+L-pull-up,biceps_brachii,secondary
+L-pull-up,forearms,secondary
+L-sit On Floor,rectus_abdominis,primary
+L-sit On Floor,hip_flexors,secondary
+Landmine 180,rectus_abdominis,primary
+Landmine 180,obliques,secondary
+Landmine 180,quadriceps,secondary
+Landmine Lateral Raise,lateral_deltoid,primary
+Landmine Lateral Raise,trapezius,secondary
+Lean Planche,rectus_abdominis,primary
+Lean Planche,lateral_deltoid,secondary
+Lean Planche,pectoralis_major,secondary
+Lean Planche,triceps_brachii,secondary
+Left Hook (boxing),lateral_deltoid,primary
+Left Hook (boxing),biceps_brachii,secondary
+Left Hook (boxing),triceps_brachii,secondary
+Left Hook (boxing),forearms,secondary
+Leg Pull In Flat Bench,rectus_abdominis,primary
+Leg Pull In Flat Bench,hip_flexors,secondary
+Leg Pull In Flat Bench,erector_spinae,secondary
+Leg Up Hamstring Stretch,hamstrings,primary
+Leg Up Hamstring Stretch,gluteus_maximus,secondary
+Lever Alternate Leg Press,quadriceps,primary
+Lever Alternate Leg Press,hamstrings,secondary
+Lever Alternate Leg Press,gluteus_maximus,secondary
+Lever Alternating Narrow Grip Seated Row,trapezius,primary
+Lever Alternating Narrow Grip Seated Row,biceps_brachii,secondary
+Lever Alternating Narrow Grip Seated Row,forearms,secondary
+Lever Assisted Chin-up,latissimus_dorsi,primary
+Lever Assisted Chin-up,biceps_brachii,secondary
+Lever Assisted Chin-up,forearms,secondary
+Lever Back Extension,erector_spinae,primary
+Lever Back Extension,gluteus_maximus,secondary
+Lever Back Extension,hamstrings,secondary
+Lever Bent Over Row,trapezius,primary
+Lever Bent Over Row,biceps_brachii,secondary
+Lever Bent Over Row,forearms,secondary
+Lever Bent-over Row With V-bar,trapezius,primary
+Lever Bent-over Row With V-bar,biceps_brachii,secondary
+Lever Bent-over Row With V-bar,forearms,secondary
+Lever Bicep Curl,biceps_brachii,primary
+Lever Bicep Curl,forearms,secondary
+Lever Calf Press,calves,primary
+Lever Calf Press,hamstrings,secondary
+Lever Chest Press,pectoralis_major,primary
+Lever Chest Press,triceps_brachii,secondary
+Lever Chest Press,anterior_deltoid,secondary
+Lever Deadlift,gluteus_maximus,primary
+Lever Deadlift,hamstrings,secondary
+Lever Deadlift,quadriceps,secondary
+Lever Decline Chest Press,pectoralis_major,primary
+Lever Decline Chest Press,triceps_brachii,secondary
+Lever Decline Chest Press,anterior_deltoid,secondary
+Lever Donkey Calf Raise,calves,primary
+Lever Donkey Calf Raise,hamstrings,secondary
+Lever Donkey Calf Raise,gluteus_maximus,secondary
+Lever Front Pulldown,latissimus_dorsi,primary
+Lever Front Pulldown,biceps_brachii,secondary
+Lever Front Pulldown,rhomboids,secondary
+Lever Front Pulldown,posterior_deltoid,secondary
+Lever Gripless Shrug,trapezius,primary
+Lever Gripless Shrug,lateral_deltoid,secondary
+Lever Gripless Shrug,forearms,secondary
+Lever Gripless Shrug V. 2,trapezius,primary
+Lever Gripless Shrug V. 2,lateral_deltoid,secondary
+Lever Gripless Shrug V. 2,forearms,secondary
+Lever Gripper Hands,forearms,primary
+Lever Gripper Hands,biceps_brachii,secondary
+Lever Gripper Hands,triceps_brachii,secondary
+Lever Hammer Grip Preacher Curl,biceps_brachii,primary
+Lever Hammer Grip Preacher Curl,forearms,secondary
+Lever High Row,trapezius,primary
+Lever High Row,biceps_brachii,secondary
+Lever High Row,posterior_deltoid,secondary
+Lever Hip Extension V. 2,gluteus_maximus,primary
+Lever Hip Extension V. 2,hamstrings,secondary
+Lever Horizontal One Leg Press,gluteus_maximus,primary
+Lever Horizontal One Leg Press,quadriceps,secondary
+Lever Horizontal One Leg Press,hamstrings,secondary
+Lever Horizontal One Leg Press,calves,secondary
+Lever Incline Chest Press,pectoralis_major,primary
+Lever Incline Chest Press,anterior_deltoid,secondary
+Lever Incline Chest Press,triceps_brachii,secondary
+Lever Incline Chest Press V. 2,pectoralis_major,primary
+Lever Incline Chest Press V. 2,triceps_brachii,secondary
+Lever Incline Chest Press V. 2,anterior_deltoid,secondary
+Lever Kneeling Leg Curl,hamstrings,primary
+Lever Kneeling Leg Curl,gluteus_maximus,secondary
+Lever Kneeling Twist,rectus_abdominis,primary
+Lever Kneeling Twist,obliques,secondary
+Lever Kneeling Twist,erector_spinae,secondary
+Lever Lateral Raise,lateral_deltoid,primary
+Lever Lateral Raise,trapezius,secondary
+Lever Leg Extension,quadriceps,primary
+Lever Leg Extension,hamstrings,secondary
+Lever Lying Leg Curl,hamstrings,primary
+Lever Lying Leg Curl,calves,secondary
+Lever Lying Two-one Leg Curl,hamstrings,primary
+Lever Lying Two-one Leg Curl,gluteus_maximus,secondary
+Lever Military Press,anterior_deltoid,primary
+Lever Military Press,triceps_brachii,secondary
+Lever Military Press,pectoralis_major,secondary
+Lever Narrow Grip Seated Row,trapezius,primary
+Lever Narrow Grip Seated Row,biceps_brachii,secondary
+Lever Narrow Grip Seated Row,forearms,secondary
+Lever One Arm Bent Over Row,trapezius,primary
+Lever One Arm Bent Over Row,biceps_brachii,secondary
+Lever One Arm Bent Over Row,forearms,secondary
+Lever One Arm Lateral High Row,trapezius,primary
+Lever One Arm Lateral High Row,biceps_brachii,secondary
+Lever One Arm Lateral High Row,lateral_deltoid,secondary
+Lever One Arm Lateral Wide Pulldown,latissimus_dorsi,primary
+Lever One Arm Lateral Wide Pulldown,biceps_brachii,secondary
+Lever One Arm Lateral Wide Pulldown,rhomboids,secondary
+Lever One Arm Lateral Wide Pulldown,posterior_deltoid,secondary
+Lever One Arm Shoulder Press,anterior_deltoid,primary
+Lever One Arm Shoulder Press,triceps_brachii,secondary
+Lever One Arm Shoulder Press,trapezius,secondary
+Lever Overhand Triceps Dip,triceps_brachii,primary
+Lever Overhand Triceps Dip,pectoralis_major,secondary
+Lever Overhand Triceps Dip,anterior_deltoid,secondary
+Lever Preacher Curl,biceps_brachii,primary
+Lever Preacher Curl,forearms,secondary
+Lever Preacher Curl V. 2,biceps_brachii,primary
+Lever Preacher Curl V. 2,forearms,secondary
+Lever Pullover,latissimus_dorsi,primary
+Lever Pullover,triceps_brachii,secondary
+Lever Pullover,lateral_deltoid,secondary
+Lever Reverse Grip Lateral Pulldown,latissimus_dorsi,primary
+Lever Reverse Grip Lateral Pulldown,biceps_brachii,secondary
+Lever Reverse Grip Lateral Pulldown,rhomboids,secondary
+Lever Reverse Grip Lateral Pulldown,posterior_deltoid,secondary
+Lever Reverse Grip Preacher Curl,biceps_brachii,primary
+Lever Reverse Grip Preacher Curl,forearms,secondary
+Lever Reverse Grip Vertical Row,trapezius,primary
+Lever Reverse Grip Vertical Row,biceps_brachii,secondary
+Lever Reverse Grip Vertical Row,forearms,secondary
+Lever Reverse Hyperextension,gluteus_maximus,primary
+Lever Reverse Hyperextension,hamstrings,secondary
+Lever Reverse Hyperextension,erector_spinae,secondary
+Lever Reverse T-bar Row,trapezius,primary
+Lever Reverse T-bar Row,biceps_brachii,secondary
+Lever Reverse T-bar Row,forearms,secondary
+Lever Rotary Calf,calves,primary
+Lever Seated Calf Press,calves,primary
+Lever Seated Calf Press,hamstrings,secondary
+Lever Seated Calf Raise,calves,primary
+Lever Seated Crunch,rectus_abdominis,primary
+Lever Seated Crunch,obliques,secondary
+Lever Seated Crunch (chest Pad),rectus_abdominis,primary
+Lever Seated Crunch (chest Pad),obliques,secondary
+Lever Seated Crunch V. 2,rectus_abdominis,primary
+Lever Seated Crunch V. 2,obliques,secondary
+Lever Seated Crunch V. 2,hip_flexors,secondary
+Lever Seated Dip,triceps_brachii,primary
+Lever Seated Dip,pectoralis_major,secondary
+Lever Seated Dip,anterior_deltoid,secondary
+Lever Seated Fly,pectoralis_major,primary
+Lever Seated Fly,lateral_deltoid,secondary
+Lever Seated Fly,trapezius,secondary
+Lever Seated Good Morning,gluteus_maximus,primary
+Lever Seated Good Morning,hamstrings,secondary
+Lever Seated Good Morning,erector_spinae,secondary
+Lever Seated Hip Abduction,gluteus_medius,primary
+Lever Seated Hip Abduction,gluteus_maximus,secondary
+Lever Seated Hip Abduction,hamstrings,secondary
+Lever Seated Hip Adduction,adductors,primary
+Lever Seated Hip Adduction,hamstrings,secondary
+Lever Seated Hip Adduction,gluteus_maximus,secondary
+Lever Seated Leg Curl,hamstrings,primary
+Lever Seated Leg Curl,calves,secondary
+Lever Seated Leg Raise Crunch,rectus_abdominis,primary
+Lever Seated Leg Raise Crunch,hip_flexors,secondary
+Lever Seated Reverse Fly,posterior_deltoid,primary
+Lever Seated Reverse Fly,trapezius,secondary
+Lever Seated Reverse Fly,rhomboids,secondary
+Lever Seated Reverse Fly (parallel Grip),posterior_deltoid,primary
+Lever Seated Reverse Fly (parallel Grip),trapezius,secondary
+Lever Seated Reverse Fly (parallel Grip),rhomboids,secondary
+Lever Seated Row,trapezius,primary
+Lever Seated Row,biceps_brachii,secondary
+Lever Seated Row,forearms,secondary
+Lever Seated Squat Calf Raise On Leg Press Machine,calves,primary
+Lever Seated Squat Calf Raise On Leg Press Machine,quadriceps,secondary
+Lever Seated Squat Calf Raise On Leg Press Machine,hamstrings,secondary
+Lever Seated Squat Calf Raise On Leg Press Machine,gluteus_maximus,secondary
+Lever Shoulder Press,anterior_deltoid,primary
+Lever Shoulder Press,triceps_brachii,secondary
+Lever Shoulder Press,pectoralis_major,secondary
+Lever Shoulder Press V. 2,anterior_deltoid,primary
+Lever Shoulder Press V. 2,triceps_brachii,secondary
+Lever Shoulder Press V. 2,pectoralis_major,secondary
+Lever Shoulder Press V. 3,anterior_deltoid,primary
+Lever Shoulder Press V. 3,triceps_brachii,secondary
+Lever Shoulder Press V. 3,pectoralis_major,secondary
+Lever Shrug,trapezius,primary
+Lever Shrug,lateral_deltoid,secondary
+Lever Standing Calf Raise,calves,primary
+Lever Standing Chest Press,pectoralis_major,primary
+Lever Standing Chest Press,anterior_deltoid,secondary
+Lever Standing Chest Press,triceps_brachii,secondary
+Lever T Bar Row,trapezius,primary
+Lever T Bar Row,biceps_brachii,secondary
+Lever T Bar Row,forearms,secondary
+Lever T-bar Reverse Grip Row,trapezius,primary
+Lever T-bar Reverse Grip Row,biceps_brachii,secondary
+Lever T-bar Reverse Grip Row,forearms,secondary
+Lever Triceps Extension,triceps_brachii,primary
+Lever Triceps Extension,lateral_deltoid,secondary
+Lever Unilateral Row,trapezius,primary
+Lever Unilateral Row,biceps_brachii,secondary
+Lever Unilateral Row,forearms,secondary
+London Bridge,trapezius,primary
+London Bridge,lateral_deltoid,secondary
+London Bridge,biceps_brachii,secondary
+London Bridge,forearms,secondary
+Low Glute Bridge On Floor,gluteus_maximus,primary
+Low Glute Bridge On Floor,hamstrings,secondary
+Low Glute Bridge On Floor,rectus_abdominis,secondary
+Lower Back Curl,erector_spinae,primary
+Lower Back Curl,gluteus_maximus,secondary
+Lower Back Curl,hamstrings,secondary
+Lunge With Jump,gluteus_maximus,primary
+Lunge With Jump,quadriceps,secondary
+Lunge With Jump,hamstrings,secondary
+Lunge With Jump,calves,secondary
+Lunge With Twist,rectus_abdominis,primary
+Lunge With Twist,quadriceps,secondary
+Lunge With Twist,gluteus_maximus,secondary
+Lunge With Twist,hamstrings,secondary
+Lying (side) Quads Stretch,quadriceps,primary
+Lying (side) Quads Stretch,hamstrings,secondary
+Lying Elbow To Knee,rectus_abdominis,primary
+Lying Elbow To Knee,hip_flexors,secondary
+Lying Elbow To Knee,erector_spinae,secondary
+Lying Leg Raise Flat Bench,rectus_abdominis,primary
+Lying Leg Raise Flat Bench,hip_flexors,secondary
+Lying Leg-hip Raise,rectus_abdominis,primary
+Lying Leg-hip Raise,hip_flexors,secondary
+Machine Inner Chest Press,pectoralis_major,primary
+Machine Inner Chest Press,triceps_brachii,secondary
+Machine Inner Chest Press,anterior_deltoid,secondary
+March Sit (wall),gluteus_maximus,primary
+March Sit (wall),quadriceps,secondary
+March Sit (wall),hamstrings,secondary
+March Sit (wall),calves,secondary
+Medicine Ball Catch And Overhead Throw,latissimus_dorsi,primary
+Medicine Ball Catch And Overhead Throw,anterior_deltoid,secondary
+Medicine Ball Catch And Overhead Throw,rectus_abdominis,secondary
+Medicine Ball Chest Pass,pectoralis_major,primary
+Medicine Ball Chest Pass,anterior_deltoid,secondary
+Medicine Ball Chest Pass,triceps_brachii,secondary
+Medicine Ball Chest Push From 3 Point Stance,pectoralis_major,primary
+Medicine Ball Chest Push From 3 Point Stance,anterior_deltoid,secondary
+Medicine Ball Chest Push From 3 Point Stance,triceps_brachii,secondary
+Medicine Ball Chest Push Multiple Response,pectoralis_major,primary
+Medicine Ball Chest Push Multiple Response,triceps_brachii,secondary
+Medicine Ball Chest Push Multiple Response,anterior_deltoid,secondary
+Medicine Ball Chest Push Single Response,pectoralis_major,primary
+Medicine Ball Chest Push Single Response,triceps_brachii,secondary
+Medicine Ball Chest Push Single Response,anterior_deltoid,secondary
+Medicine Ball Chest Push With Run Release,pectoralis_major,primary
+Medicine Ball Chest Push With Run Release,triceps_brachii,secondary
+Medicine Ball Chest Push With Run Release,anterior_deltoid,secondary
+Medicine Ball Chest Push With Run Release,rectus_abdominis,secondary
+Medicine Ball Close Grip Push Up,triceps_brachii,primary
+Medicine Ball Close Grip Push Up,pectoralis_major,secondary
+Medicine Ball Close Grip Push Up,anterior_deltoid,secondary
+Medicine Ball Overhead Slam,trapezius,primary
+Medicine Ball Overhead Slam,anterior_deltoid,secondary
+Medicine Ball Overhead Slam,rectus_abdominis,secondary
+Medicine Ball Supine Chest Throw,triceps_brachii,primary
+Medicine Ball Supine Chest Throw,pectoralis_major,secondary
+Medicine Ball Supine Chest Throw,anterior_deltoid,secondary
+Mixed Grip Chin-up,latissimus_dorsi,primary
+Mixed Grip Chin-up,biceps_brachii,secondary
+Mixed Grip Chin-up,forearms,secondary
+Modified Hindu Push-up (male),pectoralis_major,primary
+Modified Hindu Push-up (male),triceps_brachii,secondary
+Modified Hindu Push-up (male),anterior_deltoid,secondary
+Modified Hindu Push-up (male),rectus_abdominis,secondary
+Modified Push Up To Lower Arms,forearms,primary
+Modified Push Up To Lower Arms,triceps_brachii,secondary
+Modified Push Up To Lower Arms,pectoralis_major,secondary
+Modified Push Up To Lower Arms,anterior_deltoid,secondary
+Monster Walk,gluteus_maximus,primary
+Monster Walk,hamstrings,secondary
+Monster Walk,quadriceps,secondary
+Muscle Up,latissimus_dorsi,primary
+Muscle Up,biceps_brachii,secondary
+Muscle Up,triceps_brachii,secondary
+Muscle Up,lateral_deltoid,secondary
+Muscle Up,pectoralis_major,secondary
+Muscle-up (on Vertical Bar),latissimus_dorsi,primary
+Muscle-up (on Vertical Bar),biceps_brachii,secondary
+Muscle-up (on Vertical Bar),triceps_brachii,secondary
+Muscle-up (on Vertical Bar),forearms,secondary
+Narrow Push-up On Exercise Ball,triceps_brachii,primary
+Narrow Push-up On Exercise Ball,pectoralis_major,secondary
+Narrow Push-up On Exercise Ball,anterior_deltoid,secondary
+Neck Side Stretch,levator_scapulae,primary
+Neck Side Stretch,trapezius,secondary
+Negative Crunch,rectus_abdominis,primary
+Negative Crunch,hip_flexors,secondary
+Oblique Crunch V. 2,rectus_abdominis,primary
+Oblique Crunch V. 2,obliques,secondary
+Oblique Crunches Floor,rectus_abdominis,primary
+Oblique Crunches Floor,obliques,secondary
+Olympic Barbell Hammer Curl,biceps_brachii,primary
+Olympic Barbell Hammer Curl,forearms,secondary
+Olympic Barbell Triceps Extension,triceps_brachii,primary
+Olympic Barbell Triceps Extension,lateral_deltoid,secondary
+One Arm Against Wall,latissimus_dorsi,primary
+One Arm Against Wall,lateral_deltoid,secondary
+One Arm Against Wall,triceps_brachii,secondary
+One Arm Chin-up,latissimus_dorsi,primary
+One Arm Chin-up,biceps_brachii,secondary
+One Arm Chin-up,forearms,secondary
+One Arm Dip,triceps_brachii,primary
+One Arm Dip,pectoralis_major,secondary
+One Arm Dip,anterior_deltoid,secondary
+One Arm Slam (with Medicine Ball),rectus_abdominis,primary
+One Arm Slam (with Medicine Ball),lateral_deltoid,secondary
+One Arm Slam (with Medicine Ball),latissimus_dorsi,secondary
+One Arm Towel Row,trapezius,primary
+One Arm Towel Row,biceps_brachii,secondary
+One Arm Towel Row,forearms,secondary
+One Leg Donkey Calf Raise,calves,primary
+One Leg Donkey Calf Raise,hamstrings,secondary
+One Leg Donkey Calf Raise,gluteus_maximus,secondary
+One Leg Floor Calf Raise,calves,primary
+One Leg Squat,gluteus_maximus,primary
+One Leg Squat,quadriceps,secondary
+One Leg Squat,hamstrings,secondary
+One Leg Squat,calves,secondary
+Otis Up,rectus_abdominis,primary
+Otis Up,hip_flexors,secondary
+Otis Up,erector_spinae,secondary
+Outside Leg Kick Push-up,gluteus_maximus,primary
+Outside Leg Kick Push-up,quadriceps,secondary
+Outside Leg Kick Push-up,hamstrings,secondary
+Outside Leg Kick Push-up,calves,secondary
+Overhead Triceps Stretch,triceps_brachii,primary
+Overhead Triceps Stretch,anterior_deltoid,secondary
+Pelvic Tilt,rectus_abdominis,primary
+Pelvic Tilt,erector_spinae,secondary
+Pelvic Tilt Into Bridge,gluteus_maximus,primary
+Pelvic Tilt Into Bridge,hamstrings,secondary
+Pelvic Tilt Into Bridge,rectus_abdominis,secondary
+Peroneals Stretch,calves,primary
+Pike-to-cobra Push-up,gluteus_maximus,primary
+Pike-to-cobra Push-up,rectus_abdominis,secondary
+Pike-to-cobra Push-up,anterior_deltoid,secondary
+Pike-to-cobra Push-up,triceps_brachii,secondary
+Plyo Push Up,pectoralis_major,primary
+Plyo Push Up,triceps_brachii,secondary
+Plyo Push Up,anterior_deltoid,secondary
+Plyo Push Up,rectus_abdominis,secondary
+Posterior Step To Overhead Reach,rectus_abdominis,primary
+Posterior Step To Overhead Reach,gluteus_maximus,secondary
+Posterior Step To Overhead Reach,hamstrings,secondary
+Posterior Step To Overhead Reach,quadriceps,secondary
+Posterior Step To Overhead Reach,posterior_deltoid,secondary
+Posterior Tibialis Stretch,calves,primary
+Posterior Tibialis Stretch,hamstrings,secondary
+Posterior Tibialis Stretch,quadriceps,secondary
+Potty Squat,rectus_abdominis,primary
+Potty Squat,quadriceps,secondary
+Potty Squat,gluteus_maximus,secondary
+Potty Squat With Support,gluteus_maximus,primary
+Potty Squat With Support,quadriceps,secondary
+Potty Squat With Support,hamstrings,secondary
+Potty Squat With Support,calves,secondary
+Power Clean,hamstrings,primary
+Power Clean,gluteus_maximus,secondary
+Power Clean,quadriceps,secondary
+Power Clean,calves,secondary
+Power Point Plank,rectus_abdominis,primary
+Power Point Plank,lateral_deltoid,secondary
+Power Point Plank,triceps_brachii,secondary
+Power Point Plank,gluteus_maximus,secondary
+Prisoner Half Sit-up (male),rectus_abdominis,primary
+Prisoner Half Sit-up (male),hip_flexors,secondary
+Prone Twist On Stability Ball,rectus_abdominis,primary
+Prone Twist On Stability Ball,obliques,secondary
+Prone Twist On Stability Ball,erector_spinae,secondary
+Pull Up (neutral Grip),latissimus_dorsi,primary
+Pull Up (neutral Grip),biceps_brachii,secondary
+Pull Up (neutral Grip),forearms,secondary
+Pull-in (on Stability Ball),rectus_abdominis,primary
+Pull-in (on Stability Ball),hip_flexors,secondary
+Pull-up,latissimus_dorsi,primary
+Pull-up,biceps_brachii,secondary
+Pull-up,forearms,secondary
+Push And Pull Bodyweight,pectoralis_major,primary
+Push And Pull Bodyweight,triceps_brachii,secondary
+Push And Pull Bodyweight,lateral_deltoid,secondary
+Push Up On Bosu Ball,pectoralis_major,primary
+Push Up On Bosu Ball,triceps_brachii,secondary
+Push Up On Bosu Ball,anterior_deltoid,secondary
+Push Up On Bosu Ball,rectus_abdominis,secondary
+Push-up,pectoralis_major,primary
+Push-up,triceps_brachii,secondary
+Push-up,anterior_deltoid,secondary
+Push-up,rectus_abdominis,secondary
+Push-up (bosu Ball),pectoralis_major,primary
+Push-up (bosu Ball),triceps_brachii,secondary
+Push-up (bosu Ball),anterior_deltoid,secondary
+Push-up (bosu Ball),rectus_abdominis,secondary
+Push-up (on Stability Ball),pectoralis_major,primary
+Push-up (on Stability Ball),triceps_brachii,secondary
+Push-up (on Stability Ball),anterior_deltoid,secondary
+Push-up (on Stability Ball),rectus_abdominis,secondary
+Push-up (wall),pectoralis_major,primary
+Push-up (wall),triceps_brachii,secondary
+Push-up (wall),anterior_deltoid,secondary
+Push-up (wall) V. 2,pectoralis_major,primary
+Push-up (wall) V. 2,triceps_brachii,secondary
+Push-up (wall) V. 2,anterior_deltoid,secondary
+Push-up Close-grip Off Dumbbell,triceps_brachii,primary
+Push-up Close-grip Off Dumbbell,pectoralis_major,secondary
+Push-up Close-grip Off Dumbbell,anterior_deltoid,secondary
+Push-up Inside Leg Kick,gluteus_maximus,primary
+Push-up Inside Leg Kick,quadriceps,secondary
+Push-up Inside Leg Kick,hamstrings,secondary
+Push-up Inside Leg Kick,calves,secondary
+Push-up Inside Leg Kick,rectus_abdominis,secondary
+Push-up Medicine Ball,pectoralis_major,primary
+Push-up Medicine Ball,triceps_brachii,secondary
+Push-up Medicine Ball,anterior_deltoid,secondary
+Push-up Medicine Ball,rectus_abdominis,secondary
+Push-up On Lower Arms,triceps_brachii,primary
+Push-up On Lower Arms,pectoralis_major,secondary
+Push-up On Lower Arms,anterior_deltoid,secondary
+Push-up Plus,pectoralis_major,primary
+Push-up Plus,triceps_brachii,secondary
+Push-up Plus,anterior_deltoid,secondary
+Push-up To Side Plank,rectus_abdominis,primary
+Push-up To Side Plank,anterior_deltoid,secondary
+Push-up To Side Plank,pectoralis_major,secondary
+Push-up To Side Plank,triceps_brachii,secondary
+Quads (bodyweight Squat),quadriceps,primary
+Quads (bodyweight Squat),hamstrings,secondary
+Quads (bodyweight Squat),gluteus_maximus,secondary
+Quarter Sit-up,rectus_abdominis,primary
+Quarter Sit-up,hip_flexors,secondary
+Quick Feet V. 2,quadriceps,primary
+Quick Feet V. 2,calves,secondary
+Quick Feet V. 2,hamstrings,secondary
+Raise Single Arm Push-up,pectoralis_major,primary
+Raise Single Arm Push-up,triceps_brachii,secondary
+Raise Single Arm Push-up,anterior_deltoid,secondary
+Raise Single Arm Push-up,rectus_abdominis,secondary
+Rear Decline Bridge,gluteus_maximus,primary
+Rear Decline Bridge,hamstrings,secondary
+Rear Decline Bridge,erector_spinae,secondary
+Rear Deltoid Stretch,posterior_deltoid,primary
+Rear Deltoid Stretch,trapezius,secondary
+Rear Deltoid Stretch,rhomboids,secondary
+Rear Pull-up,latissimus_dorsi,primary
+Rear Pull-up,biceps_brachii,secondary
+Rear Pull-up,forearms,secondary
+Reclining Big Toe Pose With Rope,hamstrings,primary
+Reclining Big Toe Pose With Rope,calves,secondary
+Reclining Big Toe Pose With Rope,gluteus_maximus,secondary
+Resistance Band Hip Thrusts On Knees (female),gluteus_maximus,primary
+Resistance Band Hip Thrusts On Knees (female),hamstrings,secondary
+Resistance Band Hip Thrusts On Knees (female),quadriceps,secondary
+Resistance Band Leg Extension,quadriceps,primary
+Resistance Band Leg Extension,hamstrings,secondary
+Resistance Band Seated Biceps Curl,biceps_brachii,primary
+Resistance Band Seated Biceps Curl,forearms,secondary
+Resistance Band Seated Chest Press,pectoralis_major,primary
+Resistance Band Seated Chest Press,anterior_deltoid,secondary
+Resistance Band Seated Chest Press,triceps_brachii,secondary
+Resistance Band Seated Hip Abduction,gluteus_medius,primary
+Resistance Band Seated Hip Abduction,gluteus_maximus,secondary
+Resistance Band Seated Hip Abduction,hamstrings,secondary
+Resistance Band Seated Shoulder Press,anterior_deltoid,primary
+Resistance Band Seated Shoulder Press,triceps_brachii,secondary
+Resistance Band Seated Shoulder Press,trapezius,secondary
+Resistance Band Seated Straight Back Row,trapezius,primary
+Resistance Band Seated Straight Back Row,biceps_brachii,secondary
+Resistance Band Seated Straight Back Row,lateral_deltoid,secondary
+Reverse Crunch,rectus_abdominis,primary
+Reverse Crunch,hip_flexors,secondary
+Reverse Dip,triceps_brachii,primary
+Reverse Dip,pectoralis_major,secondary
+Reverse Dip,posterior_deltoid,secondary
+Reverse Grip Machine Lat Pulldown,latissimus_dorsi,primary
+Reverse Grip Machine Lat Pulldown,biceps_brachii,secondary
+Reverse Grip Machine Lat Pulldown,forearms,secondary
+Reverse Grip Pull-up,latissimus_dorsi,primary
+Reverse Grip Pull-up,biceps_brachii,secondary
+Reverse Grip Pull-up,forearms,secondary
+Reverse Hyper Extension (on Stability Ball),gluteus_maximus,primary
+Reverse Hyper Extension (on Stability Ball),hamstrings,secondary
+Reverse Hyper Extension (on Stability Ball),erector_spinae,secondary
+Reverse Hyper On Flat Bench,gluteus_maximus,primary
+Reverse Hyper On Flat Bench,hamstrings,secondary
+Reverse Hyper On Flat Bench,erector_spinae,secondary
+Reverse Plank With Leg Lift,rectus_abdominis,primary
+Reverse Plank With Leg Lift,gluteus_maximus,secondary
+Reverse Plank With Leg Lift,hamstrings,secondary
+Reverse Plank With Leg Lift,posterior_deltoid,secondary
+Ring Dips,triceps_brachii,primary
+Ring Dips,pectoralis_major,secondary
+Ring Dips,anterior_deltoid,secondary
+Rocking Frog Stretch,gluteus_maximus,primary
+Rocking Frog Stretch,hamstrings,secondary
+Rocking Frog Stretch,quadriceps,secondary
+Rocky Pull-up Pulldown,latissimus_dorsi,primary
+Rocky Pull-up Pulldown,biceps_brachii,secondary
+Rocky Pull-up Pulldown,forearms,secondary
+Roller Back Stretch,erector_spinae,primary
+Roller Back Stretch,hamstrings,secondary
+Roller Back Stretch,gluteus_maximus,secondary
+Roller Body Saw,rectus_abdominis,primary
+Roller Body Saw,lateral_deltoid,secondary
+Roller Body Saw,triceps_brachii,secondary
+Roller Hip Lat Stretch,gluteus_maximus,primary
+Roller Hip Lat Stretch,hamstrings,secondary
+Roller Hip Lat Stretch,quadriceps,secondary
+Roller Hip Stretch,gluteus_maximus,primary
+Roller Hip Stretch,hamstrings,secondary
+Roller Hip Stretch,quadriceps,secondary
+Roller Reverse Crunch,rectus_abdominis,primary
+Roller Reverse Crunch,hip_flexors,secondary
+Roller Seated Shoulder Flexor Depresor Retractor,pectoralis_major,primary
+Roller Seated Shoulder Flexor Depresor Retractor,lateral_deltoid,secondary
+Roller Seated Shoulder Flexor Depresor Retractor,triceps_brachii,secondary
+Roller Seated Single Leg Shoulder Flexor Depresor Retractor,pectoralis_major,primary
+Roller Seated Single Leg Shoulder Flexor Depresor Retractor,lateral_deltoid,secondary
+Roller Seated Single Leg Shoulder Flexor Depresor Retractor,triceps_brachii,secondary
+Roller Side Lat Stretch,latissimus_dorsi,primary
+Roller Side Lat Stretch,lateral_deltoid,secondary
+Roller Side Lat Stretch,triceps_brachii,secondary
+Rope Climb,trapezius,primary
+Rope Climb,forearms,secondary
+Rope Climb,biceps_brachii,secondary
+Rope Climb,lateral_deltoid,secondary
+Runners Stretch,hamstrings,primary
+Runners Stretch,calves,secondary
+Runners Stretch,quadriceps,secondary
+Russian Twist,rectus_abdominis,primary
+Russian Twist,obliques,secondary
+Scapula Dips,trapezius,primary
+Scapula Dips,rhomboids,secondary
+Scapula Dips,anterior_deltoid,secondary
+Scapula Push-up,serratus_anterior,primary
+Scapula Push-up,triceps_brachii,secondary
+Scapula Push-up,anterior_deltoid,secondary
+Scapular Pull-up,trapezius,primary
+Scapular Pull-up,biceps_brachii,secondary
+Scapular Pull-up,rhomboids,secondary
+Scapular Pull-up,posterior_deltoid,secondary
+Seated Calf Stretch (male),calves,primary
+Seated Calf Stretch (male),hamstrings,secondary
+Seated Glute Stretch,gluteus_maximus,primary
+Seated Glute Stretch,hamstrings,secondary
+Seated Leg Raise,rectus_abdominis,primary
+Seated Leg Raise,hip_flexors,secondary
+Seated Lower Back Stretch,latissimus_dorsi,primary
+Seated Lower Back Stretch,gluteus_maximus,secondary
+Seated Lower Back Stretch,hamstrings,secondary
+Seated Piriformis Stretch,gluteus_maximus,primary
+Seated Piriformis Stretch,hamstrings,secondary
+Seated Side Crunch (wall),rectus_abdominis,primary
+Seated Side Crunch (wall),obliques,secondary
+Seated Wide Angle Pose Sequence,hamstrings,primary
+Seated Wide Angle Pose Sequence,quadriceps,secondary
+Seated Wide Angle Pose Sequence,calves,secondary
+Self Assisted Inverse Leg Curl,hamstrings,primary
+Self Assisted Inverse Leg Curl,gluteus_maximus,secondary
+Self Assisted Inverse Leg Curl,calves,secondary
+Self Assisted Inverse Leg Curl (on Floor),hamstrings,primary
+Self Assisted Inverse Leg Curl (on Floor),gluteus_maximus,secondary
+Self Assisted Inverse Leg Curl (on Floor),calves,secondary
+Shoulder Grip Pull-up,latissimus_dorsi,primary
+Shoulder Grip Pull-up,biceps_brachii,secondary
+Shoulder Grip Pull-up,forearms,secondary
+Shoulder Tap,rectus_abdominis,primary
+Shoulder Tap,lateral_deltoid,secondary
+Shoulder Tap,triceps_brachii,secondary
+Shoulder Tap Push-up,pectoralis_major,primary
+Shoulder Tap Push-up,triceps_brachii,secondary
+Shoulder Tap Push-up,rectus_abdominis,secondary
+Side Bridge Hip Abduction,gluteus_medius,primary
+Side Bridge Hip Abduction,gluteus_maximus,secondary
+Side Bridge Hip Abduction,obliques,secondary
+Side Bridge V. 2,rectus_abdominis,primary
+Side Bridge V. 2,obliques,secondary
+Side Bridge V. 2,gluteus_maximus,secondary
+Side Hip (on Parallel Bars),rectus_abdominis,primary
+Side Hip (on Parallel Bars),obliques,secondary
+Side Hip (on Parallel Bars),hip_flexors,secondary
+Side Hip Abduction,gluteus_medius,primary
+Side Hip Abduction,gluteus_maximus,secondary
+Side Hip Abduction,quadriceps,secondary
+Side Lying Floor Stretch,latissimus_dorsi,primary
+Side Lying Floor Stretch,obliques,secondary
+Side Lying Floor Stretch,gluteus_maximus,secondary
+Side Lying Hip Adduction (male),adductors,primary
+Side Lying Hip Adduction (male),gluteus_maximus,secondary
+Side Lying Hip Adduction (male),hamstrings,secondary
+Side Plank Hip Adduction,adductors,primary
+Side Plank Hip Adduction,obliques,secondary
+Side Plank Hip Adduction,gluteus_maximus,secondary
+Side Push Neck Stretch,levator_scapulae,primary
+Side Push Neck Stretch,trapezius,secondary
+Side Push-up,triceps_brachii,primary
+Side Push-up,anterior_deltoid,secondary
+Side Push-up,pectoralis_major,secondary
+Side Push-up,rectus_abdominis,secondary
+Side Wrist Pull Stretch,forearms,primary
+Side-to-side Chin,latissimus_dorsi,primary
+Side-to-side Chin,biceps_brachii,secondary
+Side-to-side Chin,forearms,secondary
+Side-to-side Toe Touch (male),rectus_abdominis,primary
+Side-to-side Toe Touch (male),obliques,secondary
+Side-to-side Toe Touch (male),hip_flexors,secondary
+Single Arm Push-up,pectoralis_major,primary
+Single Arm Push-up,triceps_brachii,secondary
+Single Arm Push-up,anterior_deltoid,secondary
+Single Arm Push-up,rectus_abdominis,secondary
+Single Leg Bridge With Outstretched Leg,gluteus_maximus,primary
+Single Leg Bridge With Outstretched Leg,hamstrings,secondary
+Single Leg Bridge With Outstretched Leg,quadriceps,secondary
+Single Leg Calf Raise (on A Dumbbell),calves,primary
+Single Leg Platform Slide,hamstrings,primary
+Single Leg Platform Slide,gluteus_maximus,secondary
+Single Leg Platform Slide,quadriceps,secondary
+Single Leg Squat (pistol) Male,gluteus_maximus,primary
+Single Leg Squat (pistol) Male,quadriceps,secondary
+Single Leg Squat (pistol) Male,hamstrings,secondary
+Single Leg Squat (pistol) Male,calves,secondary
+Sissy Squat,quadriceps,primary
+Sissy Squat,calves,secondary
+Sissy Squat,gluteus_maximus,secondary
+Sit-up V. 2,rectus_abdominis,primary
+Sit-up V. 2,hip_flexors,secondary
+Sit-up With Arms On Chest,rectus_abdominis,primary
+Sit-up With Arms On Chest,hip_flexors,secondary
+Ski Ergometer,triceps_brachii,primary
+Ski Ergometer,lateral_deltoid,secondary
+Ski Ergometer,forearms,secondary
+Skin The Cat,trapezius,primary
+Skin The Cat,lateral_deltoid,secondary
+Skin The Cat,rectus_abdominis,secondary
+Sled 45 Degrees One Leg Press,gluteus_maximus,primary
+Sled 45 Degrees One Leg Press,quadriceps,secondary
+Sled 45 Degrees One Leg Press,hamstrings,secondary
+Sled 45 Degrees One Leg Press,calves,secondary
+Sled 45° Calf Press,calves,primary
+Sled 45° Calf Press,hamstrings,secondary
+Sled 45° Leg Press,gluteus_maximus,primary
+Sled 45° Leg Press,quadriceps,secondary
+Sled 45° Leg Press,hamstrings,secondary
+Sled 45° Leg Press,calves,secondary
+Sled 45° Leg Press (back Pov),gluteus_maximus,primary
+Sled 45° Leg Press (back Pov),quadriceps,secondary
+Sled 45° Leg Press (back Pov),hamstrings,secondary
+Sled 45° Leg Press (back Pov),calves,secondary
+Sled 45° Leg Press (side Pov),gluteus_maximus,primary
+Sled 45° Leg Press (side Pov),quadriceps,secondary
+Sled 45° Leg Press (side Pov),hamstrings,secondary
+Sled 45° Leg Press (side Pov),calves,secondary
+Sled 45° Leg Wide Press,gluteus_maximus,primary
+Sled 45° Leg Wide Press,quadriceps,secondary
+Sled 45° Leg Wide Press,hamstrings,secondary
+Sled 45° Leg Wide Press,calves,secondary
+Sled Calf Press On Leg Press,calves,primary
+Sled Calf Press On Leg Press,hamstrings,secondary
+Sled Calf Press On Leg Press,quadriceps,secondary
+Sled Closer Hack Squat,gluteus_maximus,primary
+Sled Closer Hack Squat,quadriceps,secondary
+Sled Closer Hack Squat,hamstrings,secondary
+Sled Closer Hack Squat,calves,secondary
+Sled Forward Angled Calf Raise,calves,primary
+Sled Forward Angled Calf Raise,hamstrings,secondary
+Sled Forward Angled Calf Raise,gluteus_maximus,secondary
+Sled Hack Squat,gluteus_maximus,primary
+Sled Hack Squat,quadriceps,secondary
+Sled Hack Squat,hamstrings,secondary
+Sled Hack Squat,calves,secondary
+Sled Lying Calf Press,calves,primary
+Sled Lying Calf Press,hamstrings,secondary
+Sled Lying Calf Press,gluteus_maximus,secondary
+Sled Lying Squat,gluteus_maximus,primary
+Sled Lying Squat,quadriceps,secondary
+Sled Lying Squat,hamstrings,secondary
+Sled Lying Squat,calves,secondary
+Sled One Leg Calf Press On Leg Press,calves,primary
+Sled One Leg Calf Press On Leg Press,hamstrings,secondary
+Sled One Leg Calf Press On Leg Press,gluteus_maximus,secondary
+Sledge Hammer,rectus_abdominis,primary
+Sledge Hammer,forearms,secondary
+Sledge Hammer,lateral_deltoid,secondary
+Smith Back Shrug,trapezius,primary
+Smith Back Shrug,lateral_deltoid,secondary
+Smith Behind Neck Press,anterior_deltoid,primary
+Smith Behind Neck Press,triceps_brachii,secondary
+Smith Behind Neck Press,trapezius,secondary
+Smith Bench Press,pectoralis_major,primary
+Smith Bench Press,triceps_brachii,secondary
+Smith Bench Press,anterior_deltoid,secondary
+Smith Bent Knee Good Morning,gluteus_maximus,primary
+Smith Bent Knee Good Morning,hamstrings,secondary
+Smith Bent Knee Good Morning,erector_spinae,secondary
+Smith Bent Over Row,trapezius,primary
+Smith Bent Over Row,biceps_brachii,secondary
+Smith Bent Over Row,forearms,secondary
+Smith Chair Squat,quadriceps,primary
+Smith Chair Squat,gluteus_maximus,secondary
+Smith Chair Squat,hamstrings,secondary
+Smith Chair Squat,calves,secondary
+Smith Close-grip Bench Press,triceps_brachii,primary
+Smith Close-grip Bench Press,pectoralis_major,secondary
+Smith Close-grip Bench Press,anterior_deltoid,secondary
+Smith Deadlift,gluteus_maximus,primary
+Smith Deadlift,hamstrings,secondary
+Smith Deadlift,quadriceps,secondary
+Smith Deadlift,erector_spinae,secondary
+Smith Decline Bench Press,pectoralis_major,primary
+Smith Decline Bench Press,triceps_brachii,secondary
+Smith Decline Bench Press,anterior_deltoid,secondary
+Smith Decline Reverse-grip Press,pectoralis_major,primary
+Smith Decline Reverse-grip Press,triceps_brachii,secondary
+Smith Decline Reverse-grip Press,posterior_deltoid,secondary
+Smith Front Squat (clean Grip),gluteus_maximus,primary
+Smith Front Squat (clean Grip),quadriceps,secondary
+Smith Front Squat (clean Grip),hamstrings,secondary
+Smith Front Squat (clean Grip),calves,secondary
+Smith Front Squat (clean Grip),rectus_abdominis,secondary
+Smith Full Squat,gluteus_maximus,primary
+Smith Full Squat,quadriceps,secondary
+Smith Full Squat,hamstrings,secondary
+Smith Full Squat,calves,secondary
+Smith Hack Squat,gluteus_maximus,primary
+Smith Hack Squat,quadriceps,secondary
+Smith Hack Squat,hamstrings,secondary
+Smith Hack Squat,calves,secondary
+Smith Hip Raise,rectus_abdominis,primary
+Smith Hip Raise,gluteus_maximus,secondary
+Smith Hip Raise,hamstrings,secondary
+Smith Incline Bench Press,pectoralis_major,primary
+Smith Incline Bench Press,anterior_deltoid,secondary
+Smith Incline Bench Press,triceps_brachii,secondary
+Smith Incline Reverse-grip Press,pectoralis_major,primary
+Smith Incline Reverse-grip Press,triceps_brachii,secondary
+Smith Incline Reverse-grip Press,posterior_deltoid,secondary
+Smith Incline Shoulder Raises,serratus_anterior,primary
+Smith Incline Shoulder Raises,lateral_deltoid,secondary
+Smith Incline Shoulder Raises,trapezius,secondary
+Smith Leg Press,gluteus_maximus,primary
+Smith Leg Press,quadriceps,secondary
+Smith Leg Press,hamstrings,secondary
+Smith Leg Press,calves,secondary
+Smith Low Bar Squat,gluteus_maximus,primary
+Smith Low Bar Squat,quadriceps,secondary
+Smith Low Bar Squat,hamstrings,secondary
+Smith Low Bar Squat,calves,secondary
+Smith Machine Bicep Curl,biceps_brachii,primary
+Smith Machine Bicep Curl,forearms,secondary
+Smith Machine Decline Close Grip Bench Press,triceps_brachii,primary
+Smith Machine Decline Close Grip Bench Press,pectoralis_major,secondary
+Smith Machine Decline Close Grip Bench Press,anterior_deltoid,secondary
+Smith Machine Incline Tricep Extension,triceps_brachii,primary
+Smith Machine Incline Tricep Extension,lateral_deltoid,secondary
+Smith Machine Reverse Decline Close Grip Bench Press,pectoralis_major,primary
+Smith Machine Reverse Decline Close Grip Bench Press,triceps_brachii,secondary
+Smith Machine Reverse Decline Close Grip Bench Press,posterior_deltoid,secondary
+Smith Narrow Row,trapezius,primary
+Smith Narrow Row,biceps_brachii,secondary
+Smith Narrow Row,posterior_deltoid,secondary
+Smith One Arm Row,trapezius,primary
+Smith One Arm Row,biceps_brachii,secondary
+Smith One Arm Row,forearms,secondary
+Smith One Leg Floor Calf Raise,calves,primary
+Smith One Leg Floor Calf Raise,hamstrings,secondary
+Smith One Leg Floor Calf Raise,gluteus_maximus,secondary
+Smith Rear Delt Row,posterior_deltoid,primary
+Smith Rear Delt Row,trapezius,secondary
+Smith Rear Delt Row,rhomboids,secondary
+Smith Rear Delt Row,biceps_brachii,secondary
+Smith Reverse Calf Raises,calves,primary
+Smith Reverse Calf Raises,hamstrings,secondary
+Smith Reverse Grip Bent Over Row,trapezius,primary
+Smith Reverse Grip Bent Over Row,biceps_brachii,secondary
+Smith Reverse Grip Bent Over Row,forearms,secondary
+Smith Reverse-grip Press,pectoralis_major,primary
+Smith Reverse-grip Press,triceps_brachii,secondary
+Smith Reverse-grip Press,posterior_deltoid,secondary
+Smith Seated One Leg Calf Raise,calves,primary
+Smith Seated One Leg Calf Raise,hamstrings,secondary
+Smith Seated Shoulder Press,anterior_deltoid,primary
+Smith Seated Shoulder Press,triceps_brachii,secondary
+Smith Seated Shoulder Press,trapezius,secondary
+Smith Seated Wrist Curl,forearms,primary
+Smith Seated Wrist Curl,biceps_brachii,secondary
+Smith Seated Wrist Curl,brachialis,secondary
+Smith Shoulder Press,anterior_deltoid,primary
+Smith Shoulder Press,triceps_brachii,secondary
+Smith Shoulder Press,trapezius,secondary
+Smith Shrug,trapezius,primary
+Smith Shrug,lateral_deltoid,secondary
+Smith Single Leg Split Squat,quadriceps,primary
+Smith Single Leg Split Squat,gluteus_maximus,secondary
+Smith Single Leg Split Squat,hamstrings,secondary
+Smith Sprint Lunge,gluteus_maximus,primary
+Smith Sprint Lunge,quadriceps,secondary
+Smith Sprint Lunge,hamstrings,secondary
+Smith Sprint Lunge,calves,secondary
+Smith Squat,gluteus_maximus,primary
+Smith Squat,quadriceps,secondary
+Smith Squat,hamstrings,secondary
+Smith Squat,calves,secondary
+Smith Standing Back Wrist Curl,forearms,primary
+Smith Standing Back Wrist Curl,biceps_brachii,secondary
+Smith Standing Back Wrist Curl,triceps_brachii,secondary
+Smith Standing Behind Head Military Press,anterior_deltoid,primary
+Smith Standing Behind Head Military Press,triceps_brachii,secondary
+Smith Standing Behind Head Military Press,trapezius,secondary
+Smith Standing Leg Calf Raise,calves,primary
+Smith Standing Leg Calf Raise,hamstrings,secondary
+Smith Standing Leg Calf Raise,gluteus_maximus,secondary
+Smith Standing Military Press,anterior_deltoid,primary
+Smith Standing Military Press,triceps_brachii,secondary
+Smith Standing Military Press,trapezius,secondary
+Smith Sumo Squat,gluteus_maximus,primary
+Smith Sumo Squat,quadriceps,secondary
+Smith Sumo Squat,hamstrings,secondary
+Smith Sumo Squat,calves,secondary
+Smith Toe Raise,calves,primary
+Smith Upright Row,lateral_deltoid,primary
+Smith Upright Row,trapezius,secondary
+Smith Upright Row,biceps_brachii,secondary
+Smith Wide Grip Bench Press,pectoralis_major,primary
+Smith Wide Grip Bench Press,triceps_brachii,secondary
+Smith Wide Grip Bench Press,anterior_deltoid,secondary
+Smith Wide Grip Decline Bench Press,pectoralis_major,primary
+Smith Wide Grip Decline Bench Press,triceps_brachii,secondary
+Smith Wide Grip Decline Bench Press,anterior_deltoid,secondary
+Snatch Pull,quadriceps,primary
+Snatch Pull,hamstrings,secondary
+Snatch Pull,gluteus_maximus,secondary
+Snatch Pull,calves,secondary
+Spell Caster,rectus_abdominis,primary
+Spell Caster,obliques,secondary
+Spell Caster,erector_spinae,secondary
+Sphinx,erector_spinae,primary
+Sphinx,gluteus_maximus,secondary
+Sphinx,hamstrings,secondary
+Spider Crawl Push Up,gluteus_maximus,primary
+Spider Crawl Push Up,rectus_abdominis,secondary
+Spider Crawl Push Up,pectoralis_major,secondary
+Spider Crawl Push Up,anterior_deltoid,secondary
+Spine Stretch,erector_spinae,primary
+Spine Stretch,hamstrings,secondary
+Spine Stretch,gluteus_maximus,secondary
+Spine Twist,rectus_abdominis,primary
+Spine Twist,obliques,secondary
+Spine Twist,erector_spinae,secondary
+Split Squats,quadriceps,primary
+Split Squats,gluteus_maximus,secondary
+Split Squats,hamstrings,secondary
+Split Squats,calves,secondary
+Squat Jerk,quadriceps,primary
+Squat Jerk,gluteus_maximus,secondary
+Squat Jerk,hamstrings,secondary
+Squat Jerk,calves,secondary
+Squat Jerk,rectus_abdominis,secondary
+Squat On Bosu Ball,quadriceps,primary
+Squat On Bosu Ball,gluteus_maximus,secondary
+Squat On Bosu Ball,hamstrings,secondary
+Squat On Bosu Ball,calves,secondary
+Squat To Overhead Reach,quadriceps,primary
+Squat To Overhead Reach,gluteus_maximus,secondary
+Squat To Overhead Reach,hamstrings,secondary
+Squat To Overhead Reach,rectus_abdominis,secondary
+Squat To Overhead Reach With Twist,quadriceps,primary
+Squat To Overhead Reach With Twist,gluteus_maximus,secondary
+Squat To Overhead Reach With Twist,hamstrings,secondary
+Squat To Overhead Reach With Twist,rectus_abdominis,secondary
+Stability Ball Crunch (full Range Hands Behind Head),rectus_abdominis,primary
+Stability Ball Crunch (full Range Hands Behind Head),hip_flexors,secondary
+Stalder Press,triceps_brachii,primary
+Stalder Press,anterior_deltoid,secondary
+Stalder Press,rectus_abdominis,secondary
+Standing Archer,trapezius,primary
+Standing Archer,lateral_deltoid,secondary
+Standing Archer,biceps_brachii,secondary
+Standing Archer,forearms,secondary
+Standing Behind Neck Press,anterior_deltoid,primary
+Standing Behind Neck Press,triceps_brachii,secondary
+Standing Behind Neck Press,trapezius,secondary
+Standing Calf Raise (on A Staircase),calves,primary
+Standing Calves,calves,primary
+Standing Calves,hamstrings,secondary
+Standing Calves,gluteus_maximus,secondary
+Standing Calves Calf Stretch,calves,primary
+Standing Calves Calf Stretch,hamstrings,secondary
+Standing Calves Calf Stretch,gluteus_maximus,secondary
+Standing Hamstring And Calf Stretch With Strap,hamstrings,primary
+Standing Hamstring And Calf Stretch With Strap,calves,secondary
+Standing Lateral Stretch,latissimus_dorsi,primary
+Standing Lateral Stretch,lateral_deltoid,secondary
+Standing Lateral Stretch,obliques,secondary
+Standing Pelvic Tilt,erector_spinae,primary
+Standing Pelvic Tilt,rectus_abdominis,secondary
+Standing Single Leg Curl,hamstrings,primary
+Standing Single Leg Curl,gluteus_maximus,secondary
+Standing Wheel Rollerout,rectus_abdominis,primary
+Standing Wheel Rollerout,erector_spinae,secondary
+Standing Wheel Rollerout,lateral_deltoid,secondary
+Straddle Maltese,rectus_abdominis,primary
+Straddle Maltese,lateral_deltoid,secondary
+Straddle Maltese,pectoralis_major,secondary
+Straddle Planche,rectus_abdominis,primary
+Straddle Planche,lateral_deltoid,secondary
+Straddle Planche,triceps_brachii,secondary
+Straddle Planche,pectoralis_major,secondary
+Straight Leg Outer Hip Abductor,gluteus_medius,primary
+Straight Leg Outer Hip Abductor,gluteus_maximus,secondary
+Straight Leg Outer Hip Abductor,hamstrings,secondary
+Superman Push-up,pectoralis_major,primary
+Superman Push-up,rectus_abdominis,secondary
+Superman Push-up,anterior_deltoid,secondary
+Suspended Abdominal Fallout,rectus_abdominis,primary
+Suspended Abdominal Fallout,obliques,secondary
+Suspended Abdominal Fallout,hip_flexors,secondary
+Suspended Push-up,pectoralis_major,primary
+Suspended Push-up,triceps_brachii,secondary
+Suspended Push-up,anterior_deltoid,secondary
+Suspended Push-up,rectus_abdominis,secondary
+Suspended Reverse Crunch,rectus_abdominis,primary
+Suspended Reverse Crunch,hip_flexors,secondary
+Suspended Row,trapezius,primary
+Suspended Row,biceps_brachii,secondary
+Suspended Row,lateral_deltoid,secondary
+Suspended Split Squat,quadriceps,primary
+Suspended Split Squat,gluteus_maximus,secondary
+Suspended Split Squat,hamstrings,secondary
+Suspended Split Squat,calves,secondary
+Swimmer Kicks V. 2 (male),gluteus_maximus,primary
+Swimmer Kicks V. 2 (male),hamstrings,secondary
+Swimmer Kicks V. 2 (male),quadriceps,secondary
+Swimmer Kicks V. 2 (male),calves,secondary
+Three Bench Dip,triceps_brachii,primary
+Three Bench Dip,pectoralis_major,secondary
+Three Bench Dip,anterior_deltoid,secondary
+Tire Flip,gluteus_maximus,primary
+Tire Flip,hamstrings,secondary
+Tire Flip,quadriceps,secondary
+Tire Flip,rectus_abdominis,secondary
+Trap Bar Deadlift,gluteus_maximus,primary
+Trap Bar Deadlift,hamstrings,secondary
+Trap Bar Deadlift,quadriceps,secondary
+Trap Bar Deadlift,erector_spinae,secondary
+Triceps Dip,triceps_brachii,primary
+Triceps Dip,pectoralis_major,secondary
+Triceps Dip,anterior_deltoid,secondary
+Triceps Dip (bench Leg),triceps_brachii,primary
+Triceps Dip (bench Leg),pectoralis_major,secondary
+Triceps Dip (bench Leg),anterior_deltoid,secondary
+Triceps Dip (between Benches),triceps_brachii,primary
+Triceps Dip (between Benches),pectoralis_major,secondary
+Triceps Dip (between Benches),anterior_deltoid,secondary
+Triceps Dips Floor,triceps_brachii,primary
+Triceps Dips Floor,pectoralis_major,secondary
+Triceps Dips Floor,anterior_deltoid,secondary
+Triceps Press,triceps_brachii,primary
+Triceps Press,anterior_deltoid,secondary
+Triceps Stretch,triceps_brachii,primary
+Triceps Stretch,lateral_deltoid,secondary
+Tuck Crunch,rectus_abdominis,primary
+Tuck Crunch,hip_flexors,secondary
+Twin Handle Parallel Grip Lat Pulldown,latissimus_dorsi,primary
+Twin Handle Parallel Grip Lat Pulldown,biceps_brachii,secondary
+Twin Handle Parallel Grip Lat Pulldown,rhomboids,secondary
+Twin Handle Parallel Grip Lat Pulldown,posterior_deltoid,secondary
+Twist Hip Lift,gluteus_maximus,primary
+Twist Hip Lift,obliques,secondary
+Twist Hip Lift,hamstrings,secondary
+Twisted Leg Raise,rectus_abdominis,primary
+Twisted Leg Raise,obliques,secondary
+Twisted Leg Raise,hip_flexors,secondary
+Twisted Leg Raise (female),rectus_abdominis,primary
+Twisted Leg Raise (female),obliques,secondary
+Twisted Leg Raise (female),hip_flexors,secondary
+Two Toe Touch (male),erector_spinae,primary
+Two Toe Touch (male),hamstrings,secondary
+Two Toe Touch (male),gluteus_maximus,secondary
+Upper Back Stretch,trapezius,primary
+Upper Back Stretch,lateral_deltoid,secondary
+Upward Facing Dog,erector_spinae,primary
+Upward Facing Dog,lateral_deltoid,secondary
+Upward Facing Dog,pectoralis_major,secondary
+V-sit On Floor,rectus_abdominis,primary
+V-sit On Floor,hip_flexors,secondary
+Vertical Leg Raise (on Parallel Bars),rectus_abdominis,primary
+Vertical Leg Raise (on Parallel Bars),hip_flexors,secondary
+Walking Lunge,gluteus_maximus,primary
+Walking Lunge,quadriceps,secondary
+Walking Lunge,hamstrings,secondary
+Walking Lunge,calves,secondary
+Weighted Bench Dip,triceps_brachii,primary
+Weighted Bench Dip,pectoralis_major,secondary
+Weighted Bench Dip,anterior_deltoid,secondary
+Weighted Close Grip Chin-up On Dip Cage,latissimus_dorsi,primary
+Weighted Close Grip Chin-up On Dip Cage,biceps_brachii,secondary
+Weighted Close Grip Chin-up On Dip Cage,forearms,secondary
+Weighted Cossack Squats (male),gluteus_maximus,primary
+Weighted Cossack Squats (male),quadriceps,secondary
+Weighted Cossack Squats (male),hamstrings,secondary
+Weighted Cossack Squats (male),calves,secondary
+Weighted Crunch,rectus_abdominis,primary
+Weighted Crunch,obliques,secondary
+Weighted Decline Sit-up,rectus_abdominis,primary
+Weighted Decline Sit-up,hip_flexors,secondary
+Weighted Decline Sit-up,erector_spinae,secondary
+Weighted Donkey Calf Raise,calves,primary
+Weighted Donkey Calf Raise,hamstrings,secondary
+Weighted Donkey Calf Raise,gluteus_maximus,secondary
+Weighted Drop Push Up,pectoralis_major,primary
+Weighted Drop Push Up,triceps_brachii,secondary
+Weighted Drop Push Up,anterior_deltoid,secondary
+Weighted Front Plank,rectus_abdominis,primary
+Weighted Front Plank,anterior_deltoid,secondary
+Weighted Front Plank,erector_spinae,secondary
+Weighted Front Raise,anterior_deltoid,primary
+Weighted Front Raise,biceps_brachii,secondary
+Weighted Front Raise,forearms,secondary
+Weighted Hanging Leg-hip Raise,rectus_abdominis,primary
+Weighted Hanging Leg-hip Raise,hip_flexors,secondary
+Weighted Hanging Leg-hip Raise,erector_spinae,secondary
+Weighted Hyperextension (on Stability Ball),erector_spinae,primary
+Weighted Hyperextension (on Stability Ball),gluteus_maximus,secondary
+Weighted Hyperextension (on Stability Ball),hamstrings,secondary
+Weighted Kneeling Step With Swing,lateral_deltoid,primary
+Weighted Kneeling Step With Swing,triceps_brachii,secondary
+Weighted Kneeling Step With Swing,rectus_abdominis,secondary
+Weighted Lunge With Swing,gluteus_maximus,primary
+Weighted Lunge With Swing,quadriceps,secondary
+Weighted Lunge With Swing,hamstrings,secondary
+Weighted Lunge With Swing,calves,secondary
+Weighted Muscle Up,latissimus_dorsi,primary
+Weighted Muscle Up,biceps_brachii,secondary
+Weighted Muscle Up,triceps_brachii,secondary
+Weighted Muscle Up,lateral_deltoid,secondary
+Weighted Muscle Up,pectoralis_major,secondary
+Weighted Muscle Up (on Bar),latissimus_dorsi,primary
+Weighted Muscle Up (on Bar),biceps_brachii,secondary
+Weighted Muscle Up (on Bar),triceps_brachii,secondary
+Weighted Muscle Up (on Bar),lateral_deltoid,secondary
+Weighted Muscle Up (on Bar),forearms,secondary
+Weighted One Hand Pull Up,latissimus_dorsi,primary
+Weighted One Hand Pull Up,biceps_brachii,secondary
+Weighted One Hand Pull Up,forearms,secondary
+Weighted Overhead Crunch (on Stability Ball),rectus_abdominis,primary
+Weighted Overhead Crunch (on Stability Ball),obliques,secondary
+Weighted Overhead Crunch (on Stability Ball),erector_spinae,secondary
+Weighted Pull-up,latissimus_dorsi,primary
+Weighted Pull-up,biceps_brachii,secondary
+Weighted Pull-up,forearms,secondary
+Weighted Round Arm,lateral_deltoid,primary
+Weighted Round Arm,triceps_brachii,secondary
+Weighted Round Arm,trapezius,secondary
+Weighted Russian Twist,rectus_abdominis,primary
+Weighted Russian Twist,obliques,secondary
+Weighted Russian Twist,erector_spinae,secondary
+Weighted Russian Twist (legs Up),rectus_abdominis,primary
+Weighted Russian Twist (legs Up),obliques,secondary
+Weighted Russian Twist (legs Up),hip_flexors,secondary
+Weighted Russian Twist V. 2,rectus_abdominis,primary
+Weighted Russian Twist V. 2,obliques,secondary
+Weighted Russian Twist V. 2,erector_spinae,secondary
+Weighted Seated Bicep Curl (on Stability Ball),biceps_brachii,primary
+Weighted Seated Bicep Curl (on Stability Ball),forearms,secondary
+Weighted Seated Twist (on Stability Ball),rectus_abdominis,primary
+Weighted Seated Twist (on Stability Ball),obliques,secondary
+Weighted Seated Twist (on Stability Ball),erector_spinae,secondary
+Weighted Side Bend (on Stability Ball),rectus_abdominis,primary
+Weighted Side Bend (on Stability Ball),obliques,secondary
+Weighted Side Bend (on Stability Ball),erector_spinae,secondary
+Weighted Sissy Squat,quadriceps,primary
+Weighted Sissy Squat,gluteus_maximus,secondary
+Weighted Sissy Squat,hamstrings,secondary
+Weighted Sissy Squat,calves,secondary
+Weighted Squat,gluteus_maximus,primary
+Weighted Squat,quadriceps,secondary
+Weighted Squat,hamstrings,secondary
+Weighted Squat,calves,secondary
+Weighted Standing Curl,biceps_brachii,primary
+Weighted Standing Curl,forearms,secondary
+Weighted Standing Hand Squeeze,forearms,primary
+Weighted Standing Hand Squeeze,biceps_brachii,secondary
+Weighted Standing Hand Squeeze,triceps_brachii,secondary
+Weighted Straight Bar Dip,pectoralis_major,primary
+Weighted Straight Bar Dip,triceps_brachii,secondary
+Weighted Straight Bar Dip,anterior_deltoid,secondary
+Weighted Stretch Lunge,gluteus_maximus,primary
+Weighted Stretch Lunge,quadriceps,secondary
+Weighted Stretch Lunge,hamstrings,secondary
+Weighted Stretch Lunge,calves,secondary
+Weighted Svend Press,pectoralis_major,primary
+Weighted Svend Press,anterior_deltoid,secondary
+Weighted Svend Press,triceps_brachii,secondary
+Weighted Three Bench Dips,triceps_brachii,primary
+Weighted Three Bench Dips,pectoralis_major,secondary
+Weighted Three Bench Dips,anterior_deltoid,secondary
+Weighted Tricep Dips,triceps_brachii,primary
+Weighted Tricep Dips,pectoralis_major,secondary
+Weighted Tricep Dips,anterior_deltoid,secondary
+Weighted Triceps Dip On High Parallel Bars,triceps_brachii,primary
+Weighted Triceps Dip On High Parallel Bars,pectoralis_major,secondary
+Weighted Triceps Dip On High Parallel Bars,anterior_deltoid,secondary
+Wheel Rollout,rectus_abdominis,primary
+Wheel Rollout,erector_spinae,secondary
+Wide Grip Pull-up,latissimus_dorsi,primary
+Wide Grip Pull-up,biceps_brachii,secondary
+Wide Grip Pull-up,forearms,secondary
+Wide Grip Rear Pull-up,latissimus_dorsi,primary
+Wide Grip Rear Pull-up,biceps_brachii,secondary
+Wide Grip Rear Pull-up,forearms,secondary
+Wide Hand Push Up,pectoralis_major,primary
+Wide Hand Push Up,triceps_brachii,secondary
+Wide Hand Push Up,anterior_deltoid,secondary
+Wide-grip Chest Dip On High Parallel Bars,pectoralis_major,primary
+Wide-grip Chest Dip On High Parallel Bars,triceps_brachii,secondary
+Wide-grip Chest Dip On High Parallel Bars,anterior_deltoid,secondary
+Wind Sprints,rectus_abdominis,primary
+Wind Sprints,quadriceps,secondary
+Wind Sprints,hamstrings,secondary
+Wind Sprints,calves,secondary
+World Greatest Stretch,hamstrings,primary
+World Greatest Stretch,gluteus_maximus,secondary
+World Greatest Stretch,quadriceps,secondary
+World Greatest Stretch,calves,secondary
+Wrist Circles,forearms,primary
+Wrist Rollerer,forearms,primary
+Wrist Rollerer,biceps_brachii,secondary
+Wrist Rollerer,triceps_brachii,secondary
