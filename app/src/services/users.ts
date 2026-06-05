@@ -54,6 +54,8 @@ export interface OnboardParams {
   birth_date: string; // "YYYY-MM-DD"
   height_cm: number;
   weight_kg: number;
+  skeletal_muscle_kg?: number;
+  body_fat_pct?: number;
   career_level: "beginner" | "novice" | "intermediate" | "advanced";
   default_goals?: string[];
 }
