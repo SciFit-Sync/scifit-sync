@@ -128,13 +128,13 @@ export default function WL01Record() {
   const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
 
   // 하루 선택 시: 해당 날짜의 세션들을 합산
-  const day_total_volume = day_records.reduce((s, r) => s + (r.total_weight_kg ?? 0), 0);
+  const day_total_volume = day_records.reduce((s, r) => s + (r.total_volume_kg ?? 0), 0);
   const day_total_sets = day_records.reduce((s, r) => s + (r.total_sets ?? 0), 0);
 
-  // 통계 표시값 (날짜 선택·미선택 모두 총 중량 / 총 세트 / 총 시간 3개 표시)
+  // 통계 표시값 (날짜 선택·미선택 모두 총 볼륨 / 총 세트 / 총 시간 3개 표시)
   const top_stats = selected_day !== null
     ? [
-        { value: `${parseFloat(day_total_volume.toFixed(2))}kg`, label: "총 중량" },
+        { value: day_total_volume > 0 ? `${Math.round(day_total_volume).toLocaleString()}kg` : "-", label: "총 볼륨" },
         { value: `${day_total_sets}세트`, label: "총 세트" },
         { value: fmt_duration(total_duration || null), label: "총 시간" },
       ]
