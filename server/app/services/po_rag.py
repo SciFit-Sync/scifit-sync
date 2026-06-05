@@ -28,6 +28,7 @@ _CACHE_TTL = 604800.0  # 7d (논문 DB 업데이트 주기: 월 1회)
 
 # ── 캐시 헬퍼 ─────────────────────────────────────────────────────────────────
 
+
 def _cache_get(goal: str, equipment_type: str) -> tuple[bool, float | None]:
     entry = _cache.get((goal, equipment_type))
     if entry is None:
@@ -44,6 +45,7 @@ def _cache_set(goal: str, equipment_type: str, value: float | None) -> None:
 
 
 # ── 변환 헬퍼 ─────────────────────────────────────────────────────────────────
+
 
 def _convert_to_kg(increment_percent: float, user_1rm_kg: float) -> float:
     """% → 2.5kg 단위 반올림, [1.25, 10.0] kg 클램핑."""
@@ -76,8 +78,10 @@ def _build_prompt(goal: str, equipment_type: str, chunks: list[dict]) -> str:
 
 # ── 비동기 래퍼 (테스트 모킹 포인트) ─────────────────────────────────────────
 
+
 async def _call_search_async(query: str, top_k: int) -> list[dict]:
     from app.services.rag import search_chunks
+
     return await asyncio.to_thread(search_chunks, query, top_k)
 
 
@@ -86,6 +90,7 @@ async def _call_llm_async(prompt: str) -> str:
 
 
 # ── 공개 API ──────────────────────────────────────────────────────────────────
+
 
 async def rag_po_increment(
     goal: str,
@@ -100,10 +105,7 @@ async def rag_po_increment(
         return _convert_to_kg(cached_pct, user_1rm_kg)
 
     try:
-        query = (
-            f"{goal} resistance training progressive overload "
-            "weight increment recommendation"
-        )
+        query = f"{goal} resistance training progressive overload weight increment recommendation"
         chunks = await _call_search_async(query, 3)
 
         if not chunks:
