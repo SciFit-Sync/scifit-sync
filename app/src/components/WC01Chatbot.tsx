@@ -48,8 +48,9 @@ interface Message {
 /** 봇 답변에서 논문 인용 표기 제거 */
 function strip_citations(text: string): string {
   return text
-    .replace(/\[논문\s*\d+[^\]]*\]/g, "")      // [논문 N] 또는 [논문 N: 제목...]
-    .replace(/\(논문\s*\d+[:\s][^)]*\)/g, "")  // (논문 N: 제목)
+    .replace(/\[논문\s*\d+[^\]]*\]/g, "")          // [논문 N] 또는 [논문 N: 제목...]
+    .replace(/\(논문\s*\d+[:\s][^)]*\)/g, "")      // (논문 N: 제목)
+    .replace(/\s*\(\s*[A-Z][^)]{35,}\)/g, "")      // ( Paper Title...) — 영어 논문 제목 괄호
     .replace(/  +/g, " ")
     .trim();
 }
