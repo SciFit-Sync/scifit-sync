@@ -61,9 +61,7 @@ function routine_subtitle(item: RoutineSummary): string {
   if (item.target_muscle_names && item.target_muscle_names.length > 0) {
     parts.push(item.target_muscle_names.join(", "));
   }
-  if (parts.length > 0) return parts.join(" · ");
-  if (item.gym_name) return item.gym_name;
-  return "";
+  return parts.join(" · ");
 }
 
 export default function WM01Main() {
@@ -365,6 +363,7 @@ export default function WM01Main() {
                       )}
                       <Text style={styles.routine_sub}>
                         {format_date(item.created_at)}
+                        {item.gym_name ? `  ·  ${item.gym_name}` : ""}
                       </Text>
                     </View>
                     <TouchableOpacity
