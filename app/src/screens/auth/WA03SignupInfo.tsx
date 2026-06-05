@@ -13,17 +13,21 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { colors } from "../../assets/colors/colors";
 import { Octicons } from "@expo/vector-icons";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
 import { useAuthStore } from "../../stores/authStore";
-import { onboardUser } from "../../services/users";
+import { onboardUser, ocrInbody } from "../../services/users";
 
 type Gender = "female" | "male";
 type Experience = "헬린이" | "초급" | "중급" | "고급";
 
-const CAREER_MAP: Record<Experience, "beginner" | "novice" | "intermediate" | "advanced"> = {
+const CAREER_MAP: Record<
+  Experience,
+  "beginner" | "novice" | "intermediate" | "advanced"
+> = {
   헬린이: "beginner",
   초급: "novice",
   중급: "intermediate",
@@ -50,17 +54,59 @@ export default function WA03SignupInfo() {
   const [birth_date, set_birth_date] = useState("");
   const [height, set_height] = useState("");
   const [weight, set_weight] = useState("");
+  const [skeletal_muscle, set_skeletal_muscle] = useState("");
+  const [body_fat, set_body_fat] = useState("");
   const [gender, set_gender] = useState<Gender>("male");
   const [experience, set_experience] = useState<Experience | null>(null);
-  const [inbody_file, set_inbody_file] = useState<string | null>(null);
   const [show_date_picker, set_show_date_picker] = useState(false);
   const [loading, set_loading] = useState(false);
+  const [ocr_loading, set_ocr_loading] = useState(false);
 
-  const handle_pick_file = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
-    if (!result.canceled) {
-      set_inbody_file(result.assets[0].name);
+  const run_ocr = async (source: "camera" | "library") => {
+    try {
+      const perm =
+        source === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("권한 필요", "사진 접근 권한을 허용해주세요.");
+        return;
+      }
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({ quality: 0.5 })
+          : await ImagePicker.launchImageLibraryAsync({ quality: 0.5 });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      set_ocr_loading(true);
+      const asset = result.assets[0];
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const mime = asset.mimeType ?? "image/jpeg";
+      const m = await ocrInbody(access_token, base64, mime);
+      if (m.weight_kg != null) set_weight(String(m.weight_kg));
+      if (m.skeletal_muscle_kg != null) set_skeletal_muscle(String(m.skeletal_muscle_kg));
+      if (m.body_fat_pct != null) set_body_fat(String(m.body_fat_pct));
+      Alert.alert(
+        "인식 완료",
+        "추출된 값을 확인하고 수정 후 회원가입해주세요.",
+      );
+    } catch (e: any) {
+      Alert.alert(
+        "인식 실패",
+        e.message ?? "더 선명한 사진으로 다시 시도해주세요.",
+      );
+    } finally {
+      set_ocr_loading(false);
     }
+  };
+
+  const handle_ocr = () => {
+    Alert.alert("인바디 결과지 입력", "사진을 선택하세요", [
+      { text: "카메라로 촬영", onPress: () => run_ocr("camera") },
+      { text: "갤러리에서 선택", onPress: () => run_ocr("library") },
+      { text: "취소", style: "cancel" },
+    ]);
   };
 
   const experiences: Experience[] = ["헬린이", "초급", "중급", "고급"];
@@ -83,12 +129,16 @@ export default function WA03SignupInfo() {
 
     set_loading(true);
     try {
+      const skeletal_num = skeletal_muscle ? parseFloat(skeletal_muscle) : undefined;
+      const fat_num = body_fat ? parseFloat(body_fat) : undefined;
       await onboardUser(
         {
           gender,
           birth_date: parse_birth_date(birth_date),
           height_cm: height_num,
           weight_kg: weight_num,
+          skeletal_muscle_kg: skeletal_num && !isNaN(skeletal_num) ? skeletal_num : undefined,
+          body_fat_pct: fat_num && !isNaN(fat_num) ? fat_num : undefined,
           career_level: CAREER_MAP[experience],
         },
         access_token,
@@ -99,7 +149,10 @@ export default function WA03SignupInfo() {
         is_new_user: true,
       });
     } catch (e: any) {
-      Alert.alert("오류", e.message ?? "신체 정보 등록에 실패했어요. 다시 시도해주세요.");
+      Alert.alert(
+        "오류",
+        e.message ?? "신체 정보 등록에 실패했어요. 다시 시도해주세요.",
+      );
     } finally {
       set_loading(false);
     }
@@ -138,6 +191,25 @@ export default function WA03SignupInfo() {
               <View style={[styles.dot, styles.dotInactive]} />
               <View style={[styles.dot, styles.dotActive]} />
             </View>
+
+            {/* 인바디 OCR */}
+            <TouchableOpacity
+              style={[styles.ocr_button, ocr_loading && styles.button_disabled]}
+              onPress={handle_ocr}
+              disabled={ocr_loading}
+              activeOpacity={0.8}
+            >
+              {ocr_loading ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <Octicons name="device-camera" size={18} color={colors.primary} />
+                  <Text style={styles.ocr_button_text}>
+                    인바디 결과지 사진으로 자동 입력
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
             {/* 생년월일 */}
             <View style={styles.field}>
@@ -186,6 +258,38 @@ export default function WA03SignupInfo() {
                     keyboardType="numeric"
                   />
                   <Text style={styles.unit}>kg</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 골격근량 / 체지방률 */}
+            <View style={styles.row}>
+              <View style={[styles.field, styles.flex]}>
+                <Text style={styles.label}>골격근량</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.inputInner, styles.flex]}
+                    placeholder="골격근량 입력"
+                    placeholderTextColor={colors.border}
+                    value={skeletal_muscle}
+                    onChangeText={set_skeletal_muscle}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.unit}>kg</Text>
+                </View>
+              </View>
+              <View style={[styles.field, styles.flex]}>
+                <Text style={styles.label}>체지방률</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.inputInner, styles.flex]}
+                    placeholder="체지방률 입력"
+                    placeholderTextColor={colors.border}
+                    value={body_fat}
+                    onChangeText={set_body_fat}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.unit}>%</Text>
                 </View>
               </View>
             </View>
@@ -280,20 +384,6 @@ export default function WA03SignupInfo() {
               </View>
             </View>
 
-            {/* 인바디 업로드 */}
-            <View style={styles.field}>
-              <Text style={styles.label}>인바디 업로드 (선택)</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={handle_pick_file}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.inputText, !inbody_file && styles.placeholderText]}>
-                  {inbody_file || "파일 첨부"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             {/* 회원가입 버튼 */}
             <TouchableOpacity
               style={[styles.button, loading && { opacity: 0.5 }]}
@@ -382,7 +472,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     paddingVertical: 10,
   },
-  unit: { fontFamily: "medium", fontSize: 16, color: colors.primary, paddingLeft: 4 },
+  unit: {
+    fontFamily: "medium",
+    fontSize: 16,
+    color: colors.primary,
+    paddingLeft: 4,
+  },
   selectButton: {
     flex: 1,
     backgroundColor: colors.select,
@@ -391,7 +486,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   selectButtonActive: { backgroundColor: colors.primary },
-  selectButtonText: { fontFamily: "regular", fontSize: 14, color: colors.primary },
+  selectButtonText: {
+    fontFamily: "regular",
+    fontSize: 14,
+    color: colors.primary,
+  },
   selectButtonTextActive: { color: colors.white },
   button: {
     backgroundColor: colors.primary,
@@ -399,7 +498,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
-    height: 44,
   },
   buttonText: { fontFamily: "medium", fontSize: 16, color: colors.white },
+  ocr_button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  ocr_button_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.primary,
+  },
+  button_disabled: { opacity: 0.5 },
 });
