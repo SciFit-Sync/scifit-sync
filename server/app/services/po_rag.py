@@ -23,7 +23,7 @@ from llm import generate as _llm_generate  # noqa: E402
 
 # (goal, equipment_type) → (increment_percent_or_none, expires_at_monotonic)
 _cache: dict[tuple[str, str], tuple[float | None, float]] = {}
-_CACHE_TTL = 86400.0  # 24h
+_CACHE_TTL = 604800.0  # 7d (논문 DB 업데이트 주기: 월 1회)
 
 
 # ── 캐시 헬퍼 ─────────────────────────────────────────────────────────────────
