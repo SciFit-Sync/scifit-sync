@@ -1,0 +1,104 @@
+field,value,count
+bodyPart,Upper Arms,292
+bodyPart,Upper Legs,227
+bodyPart,Back,203
+bodyPart,Waist,169
+bodyPart,Chest,163
+bodyPart,Shoulders,143
+bodyPart,Lower Legs,59
+bodyPart,Lower Arms,37
+bodyPart,Cardio,29
+bodyPart,Neck,2
+target,Abs,169
+target,Pectorals,158
+target,Biceps,151
+target,Glutes,144
+target,Delts,143
+target,Triceps,141
+target,Upper Back,88
+target,Lats,81
+target,Calves,59
+target,Quads,44
+target,Forearms,37
+target,Cardiovascular System,29
+target,Hamstrings,28
+target,Spine,19
+target,Traps,15
+target,Adductors,6
+target,Serratus Anterior,5
+target,Abductors,5
+target,Levator Scapulae,2
+equipment,Body Weight,324
+equipment,Dumbbell,285
+equipment,Cable,157
+equipment,Barbell,154
+equipment,Leverage Machine,81
+equipment,Band,54
+equipment,Smith Machine,48
+equipment,Kettlebell,41
+equipment,Weighted,36
+equipment,Stability Ball,28
+equipment,Ez Barbell,22
+equipment,Sled Machine,15
+equipment,Assisted,14
+equipment,Medicine Ball,13
+equipment,Rope,10
+equipment,Roller,8
+equipment,"Dumbbell, Exercise Ball",7
+equipment,Resistance Band,7
+equipment,Bosu Ball,3
+equipment,Olympic Barbell,2
+equipment,Wheel Roller,2
+equipment,Assisted (towel),1
+equipment,Body Weight (with Resistance Band),1
+equipment,Trap Bar,1
+equipment,Dumbbell (used As Handles For Deeper Range),1
+equipment,Hammer,1
+equipment,"Ez Barbell, Exercise Ball",1
+equipment,Stationary Bike,1
+equipment,Upper Body Ergometer,1
+equipment,Elliptical Machine,1
+equipment,Skierg Machine,1
+equipment,Stepmill Machine,1
+equipment,Tire,1
+equipment,"Dumbbell, Exercise Ball, Tennis Ball",1
+secondaryMuscles,Shoulders,400
+secondaryMuscles,Hamstrings,289
+secondaryMuscles,Forearms,277
+secondaryMuscles,Triceps,268
+secondaryMuscles,Biceps,194
+secondaryMuscles,Quadriceps,161
+secondaryMuscles,Calves,147
+secondaryMuscles,Glutes,136
+secondaryMuscles,Core,94
+secondaryMuscles,Chest,91
+secondaryMuscles,Hip Flexors,77
+secondaryMuscles,Obliques,72
+secondaryMuscles,Lower Back,71
+secondaryMuscles,Rhomboids,54
+secondaryMuscles,Trapezius,47
+secondaryMuscles,Upper Back,37
+secondaryMuscles,Traps,33
+secondaryMuscles,Deltoids,28
+secondaryMuscles,Rear Deltoids,20
+secondaryMuscles,Brachialis,14
+secondaryMuscles,Back,11
+secondaryMuscles,Ankles,11
+secondaryMuscles,Feet,8
+secondaryMuscles,Rotator Cuff,6
+secondaryMuscles,Latissimus Dorsi,5
+secondaryMuscles,Soleus,4
+secondaryMuscles,Ankle Stabilizers,4
+secondaryMuscles,Wrists,3
+secondaryMuscles,Upper Chest,3
+secondaryMuscles,Wrist Extensors,2
+secondaryMuscles,Wrist Flexors,2
+secondaryMuscles,Sternocleidomastoid,2
+secondaryMuscles,Hands,2
+secondaryMuscles,Abdominals,2
+secondaryMuscles,Grip Muscles,1
+secondaryMuscles,Lower Abs,1
+secondaryMuscles,Inner Thighs,1
+secondaryMuscles,Shins,1
+secondaryMuscles,Groin,1
+secondaryMuscles,Lats,1
