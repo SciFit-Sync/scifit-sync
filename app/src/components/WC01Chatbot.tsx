@@ -45,10 +45,10 @@ interface Message {
   timestamp: number;
 }
 
-/** 봇 답변에서 [논문 N] 및 (논문 N: 제목) 표기 제거 */
+/** 봇 답변에서 논문 인용 표기 제거 */
 function strip_citations(text: string): string {
   return text
-    .replace(/\[논문\s*\d+\]/g, "")            // [논문 N]
+    .replace(/\[논문\s*\d+[^\]]*\]/g, "")      // [논문 N] 또는 [논문 N: 제목...]
     .replace(/\(논문\s*\d+[:\s][^)]*\)/g, "")  // (논문 N: 제목)
     .replace(/  +/g, " ")
     .trim();
