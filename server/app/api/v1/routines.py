@@ -866,18 +866,20 @@ async def _build_rag_profile(
 
     req: GenerateRoutineRequest | None = overrides or (body if isinstance(body, GenerateRoutineRequest) else None)
 
-    # 3. target_muscle_group_ids → UUID 또는 body_region 문자열로 해석
-    _REGION_ALIASES: dict[str, str] = {
-        "shoulder": "shoulders",
-        "shoulders": "shoulders",
-        "back": "back",
-        "chest": "chest",
-        "legs": "legs",
-        "leg": "legs",
-        "arms": "arms",
-        "arm": "arms",
-        "abs": "core",
-        "core": "core",
+    # 3. target_muscle_group_ids → UUID 또는 region 문자열로 해석
+    # DB body_region 값은 upper_body/lower_body/core/cardio 4종뿐이므로
+    # 프론트 region("chest" 등)을 MuscleGroup.name 집합으로 변환해 조회
+    _REGION_TO_MUSCLE_NAMES: dict[str, list[str]] = {
+        "chest": ["Pectorals"],
+        "back": ["Lats", "Upper Back", "Traps", "Spine", "Serratus Anterior"],
+        "shoulders": ["Delts", "Levator Scapulae"],
+        "shoulder": ["Delts", "Levator Scapulae"],
+        "legs": ["Quads", "Hamstrings", "Glutes", "Calves", "Adductors", "Abductors", "Hip Flexors"],
+        "leg": ["Quads", "Hamstrings", "Glutes", "Calves", "Adductors", "Abductors", "Hip Flexors"],
+        "arms": ["Biceps", "Triceps", "Forearms"],
+        "arm": ["Biceps", "Triceps", "Forearms"],
+        "abs": ["Abs"],
+        "core": ["Abs"],
     }
 
     target_muscle_ids: list[uuid.UUID] = []
@@ -894,25 +896,35 @@ async def _build_rag_profile(
                 target_muscle_ids.append(uid)
                 priority_specs.append(("uuid", uid))
             except ValueError:
-                normalized = _REGION_ALIASES.get(mid.lower(), mid.lower())
+                normalized = mid.lower()
                 body_regions.append(normalized)
                 priority_specs.append(("region", normalized))
 
     if body_regions:
-        region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.body_region.in_(body_regions)))).all()
-        target_muscle_ids.extend([row[0] for row in region_rows])
+        muscle_names: list[str] = []
+        for r in body_regions:
+            muscle_names.extend(_REGION_TO_MUSCLE_NAMES.get(r, []))
+        if muscle_names:
+            region_rows = (await db.execute(select(MuscleGroup.id).where(MuscleGroup.name.in_(muscle_names)))).all()
+            target_muscle_ids.extend([row[0] for row in region_rows])
 
     target_priority: list[str] = []
     if target_muscle_ids:
         mg_rows = (
-            await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
+            await db.execute(
+                select(MuscleGroup.id, MuscleGroup.name, MuscleGroup.name_ko).where(
+                    MuscleGroup.id.in_(target_muscle_ids)
+                )
+            )
         ).all()
-        target_muscle_names = [name for _, name in mg_rows]
-        # 선택 순서대로 우선순위 라벨 구성 (region은 라벨 그대로, uuid는 근육명) + 중복 제거
-        id_to_name = {str(mid): name for mid, name in mg_rows}
+        target_muscle_names = [name for _, name, _ in mg_rows]
+        # 선택 순서대로 우선순위 라벨 구성 + 중복 제거
+        # region 경로: body_region 문자열 그대로 (rag.py _REGION_KO가 한글 변환)
+        # uuid 경로: name_ko 사용 — 영어 슬러그가 focus 필드에 노출되는 문제 방지
+        id_to_name_ko = {str(mid): name_ko for mid, name, name_ko in mg_rows}
         seen_pri: set[str] = set()
         for kind, val in priority_specs:
-            label = val if kind == "region" else id_to_name.get(str(val))
+            label = val if kind == "region" else id_to_name_ko.get(str(val))
             if label and label not in seen_pri:
                 seen_pri.add(label)
                 target_priority.append(label)
