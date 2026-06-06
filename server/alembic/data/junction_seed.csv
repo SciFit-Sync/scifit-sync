@@ -1,0 +1,1150 @@
+exercise_name,equipment_id,source,confidence
+Alternate Lateral Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Alternate Lateral Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Assisted Standing Triceps Extension (with Towel),e6a22037-ad56-4e23-b10f-1d718a443276,seed,0.9
+Assisted Standing Triceps Extension (with Towel),cf32e0d1-1d00-4014-9ad0-acf6b20b90a7,seed,0.9
+Assisted Standing Triceps Extension (with Towel),6d981d81-6667-44bc-a240-dfd64f62134b,seed,0.9
+Assisted Triceps Dip (kneeling),8b92bac4-98be-4277-bae3-e45b39629d22,seed,0.9
+Assisted Triceps Dip (kneeling),2ca108c5-6153-5b7b-9b22-530ef902178c,seed,0.9
+Assisted Triceps Dip (kneeling),91dd2f21-b791-4ea8-8305-01482d045eaa,seed,0.9
+Assisted Triceps Dip (kneeling),b6f855d3-27cf-41cb-9696-fbacc05c8529,seed,0.9
+Cable Alternate Shoulder Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Alternate Shoulder Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Alternate Triceps Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Alternate Triceps Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Bar Lateral Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Bar Lateral Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Bench Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Bench Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Concentration Extension (on Knee),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Concentration Extension (on Knee),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Cross-over Lateral Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Cross-over Lateral Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Cross-over Reverse Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Cross-over Reverse Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Cross-over Variation,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Cross-over Variation,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Deadlift,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Deadlift,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Decline Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Decline Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Decline Seated Wide-grip Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Decline Seated Wide-grip Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Floor Seated Wide-grip Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Floor Seated Wide-grip Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Forward Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Forward Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Front Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Front Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Front Shoulder Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Front Shoulder Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Hammer Curl (with Rope),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Hammer Curl (with Rope),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable High Row (kneeling),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable High Row (kneeling),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Hip Adduction,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Hip Adduction,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Incline Bench Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Incline Bench Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Incline Fly (on Stability Ball),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Incline Fly (on Stability Ball),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Incline Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Incline Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Incline Pushdown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Incline Pushdown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Incline Triceps Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Incline Triceps Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Judo Flip,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Judo Flip,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Kneeling Crunch,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Kneeling Crunch,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Kneeling Triceps Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Kneeling Triceps Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lateral Pulldown (with Rope Attachment),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lateral Pulldown (with Rope Attachment),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lateral Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lateral Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Low Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Low Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Low Seated Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Low Seated Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lying Close-grip Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lying Close-grip Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lying Extension Pullover (with Rope Attachment),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lying Extension Pullover (with Rope Attachment),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lying Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lying Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lying Triceps Extension V. 2,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lying Triceps Extension V. 2,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Middle Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Middle Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Bent Over Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Bent Over Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Lateral Bent-over,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Lateral Bent-over,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Lateral Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Lateral Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Straight Back High Row (kneeling),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Straight Back High Row (kneeling),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Overhead Triceps Extension (rope Attachment),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Overhead Triceps Extension (rope Attachment),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Preacher Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Preacher Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pull Through (with Rope),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pull Through (with Rope),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pulldown (pro Lat Bar),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pulldown (pro Lat Bar),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pushdown (straight Arm) V. 2,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pushdown (straight Arm) V. 2,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pushdown (with Rope Attachment),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pushdown (with Rope Attachment),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pushdown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pushdown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rear Delt Row (stirrups),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rear Delt Row (stirrups),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rear Delt Row (with Rope),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rear Delt Row (with Rope),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rear Drive,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rear Drive,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rear Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rear Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Reverse Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Reverse-grip Pushdown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse-grip Pushdown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Reverse-grip Straight Back Seated High Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse-grip Straight Back Seated High Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Reverse Preacher Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse Preacher Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Reverse Wrist Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse Wrist Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Russian Twists (on Stability Ball),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Russian Twists (on Stability Ball),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Crunch,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Crunch,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated High Row (v-bar),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated High Row (v-bar),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated One Arm Alternate Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated One Arm Alternate Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Rear Lateral Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Rear Lateral Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Shoulder Internal Rotation,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Shoulder Internal Rotation,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Wide-grip Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Wide-grip Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Shoulder Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Shoulder Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Shrug,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Shrug,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Side Bend Crunch (bosu Ball),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Side Bend Crunch (bosu Ball),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Side Bend,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Side Bend,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Side Crunch,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Side Crunch,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Back Wrist Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Back Wrist Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Cross-over High Reverse Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Cross-over High Reverse Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Crunch,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Crunch,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Hip Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Hip Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Inner Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Inner Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Lift,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Lift,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing One Arm Triceps Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing One Arm Triceps Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Pulldown (with Rope),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Pulldown (with Rope),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Rear Delt Row (with Rope),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Rear Delt Row (with Rope),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Row (v-bar),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Row (v-bar),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Shoulder External Rotation,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Shoulder External Rotation,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Twist Row (v-bar),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Twist Row (v-bar),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Straight Arm Pulldown (with Rope),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Straight Arm Pulldown (with Rope),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Straight Arm Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Straight Arm Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Straight Back Seated Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Straight Back Seated Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Supine Reverse Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Supine Reverse Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Triceps Pushdown (v-bar),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Triceps Pushdown (v-bar),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Tuck Reverse Crunch,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Tuck Reverse Crunch,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Twist,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Twist,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Twisting Pull,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Twisting Pull,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Underhand Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Underhand Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Upright Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Upright Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Wrist Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Wrist Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Alternating Narrow Grip Seated Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Alternating Narrow Grip Seated Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Alternating Narrow Grip Seated Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Alternating Narrow Grip Seated Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Alternating Narrow Grip Seated Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Alternating Narrow Grip Seated Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Alternating Narrow Grip Seated Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Alternating Narrow Grip Seated Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Alternating Narrow Grip Seated Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Alternating Narrow Grip Seated Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Alternating Narrow Grip Seated Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Alternating Narrow Grip Seated Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Alternating Narrow Grip Seated Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Alternating Narrow Grip Seated Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Alternating Narrow Grip Seated Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Alternating Narrow Grip Seated Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Alternating Narrow Grip Seated Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever Back Extension,656293a3-578d-43e8-b80f-c224c0d93c0e,seed,0.9
+Lever Bicep Curl,c7ed172e-530b-4053-8970-76a1af1db288,seed,0.9
+Lever Bicep Curl,f9173625-8b40-46a9-b67b-4b2aba396968,seed,0.9
+Lever Bicep Curl,92127a9c-730e-4013-92ce-85873a4b4028,seed,0.9
+Lever Chest Press,13052afb-36e6-4fef-8e5d-e6048c40e9a6,seed,0.9
+Lever Chest Press,e4913cd6-efd3-43d5-981a-45b5bc239977,seed,0.9
+Lever Chest Press,4989dc12-d0be-580d-a9b6-219ebd81add2,seed,0.9
+Lever Chest Press,59c360a7-6bab-5bdd-af4f-f642a0b29089,seed,0.9
+Lever Chest Press,209b9675-eca3-4bb8-8246-42ffd3c88bfe,seed,0.9
+Lever Chest Press,67bda34c-d1b7-4ae7-aa43-11bb74ae40a7,seed,0.9
+Lever Chest Press,814ba304-6aa1-4ba7-ba97-04df06fd8848,seed,0.9
+Lever Chest Press,0c6816c6-27e5-4cb2-a998-09ae8ef3a566,seed,0.9
+Lever Chest Press,5d7c3d55-2f30-4d43-97f5-5cddce04c959,seed,0.9
+Lever Chest Press,15282ad6-a3fc-4be8-a95a-5e974632adff,seed,0.9
+Lever Chest Press,910c3910-c313-47a6-8c7f-9161eea7de3d,seed,0.9
+Lever Chest Press,20092f3c-4999-49bd-8ba6-4f51b5d0014e,seed,0.9
+Lever Chest Press,ab765661-eb45-424e-ac36-10df2dabd391,seed,0.9
+Lever Chest Press,5bfab158-11ac-4dac-8ea2-462a7e95b233,seed,0.9
+Lever Chest Press,33e41f49-5a0a-4a67-bb84-e296e897667b,seed,0.9
+Lever Chest Press,a330d5f3-7577-467f-8ea4-25bc6549c4d0,seed,0.9
+Lever Chest Press,de9899fe-ebe1-48d3-8f1d-e97fb3cab291,seed,0.9
+Lever Chest Press,ca83c9ee-1ef4-4061-9477-db0d4e5dc8b1,seed,0.9
+Lever Chest Press,8db23cf2-ff9a-580f-8615-55c1f5b7d2d8,seed,0.9
+Lever Front Pulldown,27632a4b-d5e9-40df-ba5a-6152d4153619,seed,0.9
+Lever Front Pulldown,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,seed,0.9
+Lever Front Pulldown,724fbe01-a574-4b36-a28e-dcdcfdfcdae5,seed,0.9
+Lever Front Pulldown,b9b0ee51-610e-4546-bbf1-6172c3736808,seed,0.9
+Lever Front Pulldown,73068157-25fc-4359-817f-e4820f8eaa3f,seed,0.9
+Lever Front Pulldown,92e82d08-8376-4b76-a3f6-9701d49d33a1,seed,0.9
+Lever Front Pulldown,ec620436-cabb-4f29-8813-1645eb4bd0ee,seed,0.9
+Lever Front Pulldown,ca6e2e7b-b2ee-4b0a-85fb-2ee516373357,seed,0.9
+Lever Front Pulldown,00f1ee81-9b15-43b8-aa1e-f4497ce00ed9,seed,0.9
+Lever Front Pulldown,c0e9d8dd-ef31-449c-92a0-5f533132e578,seed,0.9
+Lever Front Pulldown,568857d6-f3e0-5905-9f60-18ce5180a4e1,seed,0.9
+Lever Front Pulldown,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,seed,0.9
+Lever High Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever High Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever High Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever High Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever High Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever High Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever High Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever High Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever High Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever High Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever High Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever High Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever High Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever High Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever High Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever High Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever High Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever Kneeling Leg Curl,7bb7197f-89dc-466a-906d-15e1b8b0906b,seed,0.9
+Lever Kneeling Leg Curl,9e7a9577-1a5e-49bf-bf5c-7a990bbdb227,seed,0.9
+Lever Kneeling Leg Curl,0375f89d-ad2e-42bc-a2c7-3a4482e0ffbc,seed,0.9
+Lever Kneeling Leg Curl,7331485c-c1c0-4798-b157-b1cac104f378,seed,0.9
+Lever Kneeling Leg Curl,1bbfc63e-e90a-4d6f-91fa-d427746c461c,seed,0.9
+Lever Kneeling Leg Curl,468015e1-14ae-4df5-bf34-dc7e479dbc9f,seed,0.9
+Lever Kneeling Leg Curl,5d130ddc-e1c6-45d9-af22-5378ecdc570a,seed,0.9
+Lever Kneeling Leg Curl,7d60b6f1-912d-5d6b-9585-2ac56d8f4c1a,seed,0.9
+Lever Kneeling Leg Curl,d12dd92d-9357-59ab-a391-9883b0bc994c,seed,0.9
+Lever Lateral Raise,8382e747-afcd-470b-b41f-7a0dd3e2a834,seed,0.9
+Lever Lateral Raise,69a902e8-51c5-405b-bb7c-76cbf2a05acd,seed,0.9
+Lever Lateral Raise,1c1c2fc5-6230-4763-8a32-193aeba72a5f,seed,0.9
+Lever Leg Extension,ca9ba9fb-5a5a-56c1-9937-73c500b62220,seed,0.9
+Lever Leg Extension,a10ba94c-8406-4a24-b2ba-4b4a4e3dc580,seed,0.9
+Lever Leg Extension,f54d70f0-9362-4330-8e4f-4c61faa36b92,seed,0.9
+Lever Leg Extension,f13b498f-5922-5387-806b-be9639fee4c3,seed,0.9
+Lever Lying Leg Curl,7bb7197f-89dc-466a-906d-15e1b8b0906b,seed,0.9
+Lever Lying Leg Curl,9e7a9577-1a5e-49bf-bf5c-7a990bbdb227,seed,0.9
+Lever Lying Leg Curl,0375f89d-ad2e-42bc-a2c7-3a4482e0ffbc,seed,0.9
+Lever Lying Leg Curl,7331485c-c1c0-4798-b157-b1cac104f378,seed,0.9
+Lever Lying Leg Curl,1bbfc63e-e90a-4d6f-91fa-d427746c461c,seed,0.9
+Lever Lying Leg Curl,468015e1-14ae-4df5-bf34-dc7e479dbc9f,seed,0.9
+Lever Lying Leg Curl,5d130ddc-e1c6-45d9-af22-5378ecdc570a,seed,0.9
+Lever Lying Leg Curl,7d60b6f1-912d-5d6b-9585-2ac56d8f4c1a,seed,0.9
+Lever Lying Leg Curl,d12dd92d-9357-59ab-a391-9883b0bc994c,seed,0.9
+Lever Military Press,74a84bde-b231-4aa9-9046-e1e1c935bada,seed,0.9
+Lever Military Press,a97c569a-fda7-5431-b694-14fac355921d,seed,0.9
+Lever Military Press,77138264-6d7e-422d-b23f-033ffab52c10,seed,0.9
+Lever Military Press,d9b7ac61-fdd3-4ab7-8be0-27b7d505df0d,seed,0.9
+Lever Military Press,7c8d3d90-04b9-432b-ab25-22d706821801,seed,0.9
+Lever Military Press,d45d8acd-a416-4170-9a2e-5e65c3a573ae,seed,0.9
+Lever Military Press,8c53382f-ef12-4f5e-aaca-c82c07ec35b0,seed,0.9
+Lever Military Press,8420631d-e82e-5b73-8d15-d957c90b4254,seed,0.9
+Lever Military Press,48255be6-dd0b-564a-9c80-65969f2f7f81,seed,0.9
+Lever Narrow Grip Seated Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Narrow Grip Seated Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Narrow Grip Seated Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Narrow Grip Seated Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Narrow Grip Seated Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Narrow Grip Seated Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Narrow Grip Seated Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Narrow Grip Seated Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Narrow Grip Seated Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Narrow Grip Seated Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Narrow Grip Seated Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Narrow Grip Seated Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Narrow Grip Seated Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Narrow Grip Seated Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Narrow Grip Seated Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Narrow Grip Seated Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Narrow Grip Seated Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever One Arm Shoulder Press,74a84bde-b231-4aa9-9046-e1e1c935bada,seed,0.9
+Lever One Arm Shoulder Press,a97c569a-fda7-5431-b694-14fac355921d,seed,0.9
+Lever One Arm Shoulder Press,77138264-6d7e-422d-b23f-033ffab52c10,seed,0.9
+Lever One Arm Shoulder Press,d9b7ac61-fdd3-4ab7-8be0-27b7d505df0d,seed,0.9
+Lever One Arm Shoulder Press,7c8d3d90-04b9-432b-ab25-22d706821801,seed,0.9
+Lever One Arm Shoulder Press,d45d8acd-a416-4170-9a2e-5e65c3a573ae,seed,0.9
+Lever One Arm Shoulder Press,8c53382f-ef12-4f5e-aaca-c82c07ec35b0,seed,0.9
+Lever One Arm Shoulder Press,8420631d-e82e-5b73-8d15-d957c90b4254,seed,0.9
+Lever One Arm Shoulder Press,48255be6-dd0b-564a-9c80-65969f2f7f81,seed,0.9
+Lever Overhand Triceps Dip,8b92bac4-98be-4277-bae3-e45b39629d22,seed,0.9
+Lever Overhand Triceps Dip,2ca108c5-6153-5b7b-9b22-530ef902178c,seed,0.9
+Lever Overhand Triceps Dip,91dd2f21-b791-4ea8-8305-01482d045eaa,seed,0.9
+Lever Overhand Triceps Dip,b6f855d3-27cf-41cb-9696-fbacc05c8529,seed,0.9
+Lever Preacher Curl,67ee5817-ce22-40e8-b40d-96a8c505cba4,seed,0.9
+Lever Preacher Curl,39109cfa-6ee4-4a7d-a931-1fd4a02c3851,seed,0.9
+Lever Preacher Curl,45efe227-5806-5d60-90e3-30dd1850c16a,seed,0.9
+Lever Reverse Hyperextension,ca9ba9fb-5a5a-56c1-9937-73c500b62220,seed,0.9
+Lever Reverse Hyperextension,a10ba94c-8406-4a24-b2ba-4b4a4e3dc580,seed,0.9
+Lever Reverse Hyperextension,f54d70f0-9362-4330-8e4f-4c61faa36b92,seed,0.9
+Lever Reverse Hyperextension,f13b498f-5922-5387-806b-be9639fee4c3,seed,0.9
+Lever Seated Crunch (chest Pad),03814c50-4988-42fa-9358-b09ded728116,seed,0.9
+Lever Seated Crunch (chest Pad),c33f7772-e9ec-485b-8f23-5378f504d995,seed,0.9
+Lever Seated Crunch (chest Pad),312c973a-1aa9-4bc2-aa19-c383ba560fcf,seed,0.9
+Lever Seated Crunch (chest Pad),c1415ccb-9224-4781-9c84-8a74d9442f72,seed,0.9
+Lever Seated Crunch (chest Pad),b2ccccfe-ac97-4fbc-aa75-dc92f9a9f4fb,seed,0.9
+Lever Seated Fly,344e3a37-a266-477b-8ffd-3f03e00cf2c8,seed,0.9
+Lever Seated Hip Adduction,3194d412-0a32-505b-a2a7-ab0432506d7f,seed,0.9
+Lever Seated Leg Curl,7bb7197f-89dc-466a-906d-15e1b8b0906b,seed,0.9
+Lever Seated Leg Curl,9e7a9577-1a5e-49bf-bf5c-7a990bbdb227,seed,0.9
+Lever Seated Leg Curl,0375f89d-ad2e-42bc-a2c7-3a4482e0ffbc,seed,0.9
+Lever Seated Leg Curl,7331485c-c1c0-4798-b157-b1cac104f378,seed,0.9
+Lever Seated Leg Curl,1bbfc63e-e90a-4d6f-91fa-d427746c461c,seed,0.9
+Lever Seated Leg Curl,468015e1-14ae-4df5-bf34-dc7e479dbc9f,seed,0.9
+Lever Seated Leg Curl,5d130ddc-e1c6-45d9-af22-5378ecdc570a,seed,0.9
+Lever Seated Leg Curl,7d60b6f1-912d-5d6b-9585-2ac56d8f4c1a,seed,0.9
+Lever Seated Leg Curl,d12dd92d-9357-59ab-a391-9883b0bc994c,seed,0.9
+Lever Seated Leg Raise Crunch,03814c50-4988-42fa-9358-b09ded728116,seed,0.9
+Lever Seated Leg Raise Crunch,c33f7772-e9ec-485b-8f23-5378f504d995,seed,0.9
+Lever Seated Leg Raise Crunch,312c973a-1aa9-4bc2-aa19-c383ba560fcf,seed,0.9
+Lever Seated Leg Raise Crunch,c1415ccb-9224-4781-9c84-8a74d9442f72,seed,0.9
+Lever Seated Leg Raise Crunch,b2ccccfe-ac97-4fbc-aa75-dc92f9a9f4fb,seed,0.9
+Lever Seated Reverse Fly (parallel Grip),b4975333-9543-4b69-8926-dd3c9e4e0fb6,seed,0.9
+Lever Seated Reverse Fly (parallel Grip),9f5ad84b-ff44-5267-83e5-b1eaf7e3bf8d,seed,0.9
+Lever Seated Reverse Fly (parallel Grip),f97ee435-5cd5-44dd-87e3-fa35a7bfce54,seed,0.9
+Lever Seated Reverse Fly (parallel Grip),f6600405-5fd9-4aa5-864a-0d5788e79546,seed,0.9
+Lever Seated Reverse Fly (parallel Grip),d1547e9f-ba27-5993-9b4e-6f5d5f7661e8,seed,0.9
+Lever Seated Reverse Fly,b4975333-9543-4b69-8926-dd3c9e4e0fb6,seed,0.9
+Lever Seated Reverse Fly,9f5ad84b-ff44-5267-83e5-b1eaf7e3bf8d,seed,0.9
+Lever Seated Reverse Fly,f97ee435-5cd5-44dd-87e3-fa35a7bfce54,seed,0.9
+Lever Seated Reverse Fly,f6600405-5fd9-4aa5-864a-0d5788e79546,seed,0.9
+Lever Seated Reverse Fly,d1547e9f-ba27-5993-9b4e-6f5d5f7661e8,seed,0.9
+Lever Shoulder Press,74a84bde-b231-4aa9-9046-e1e1c935bada,seed,0.9
+Lever Shoulder Press,a97c569a-fda7-5431-b694-14fac355921d,seed,0.9
+Lever Shoulder Press,77138264-6d7e-422d-b23f-033ffab52c10,seed,0.9
+Lever Shoulder Press,d9b7ac61-fdd3-4ab7-8be0-27b7d505df0d,seed,0.9
+Lever Shoulder Press,7c8d3d90-04b9-432b-ab25-22d706821801,seed,0.9
+Lever Shoulder Press,d45d8acd-a416-4170-9a2e-5e65c3a573ae,seed,0.9
+Lever Shoulder Press,8c53382f-ef12-4f5e-aaca-c82c07ec35b0,seed,0.9
+Lever Shoulder Press,8420631d-e82e-5b73-8d15-d957c90b4254,seed,0.9
+Lever Shoulder Press,48255be6-dd0b-564a-9c80-65969f2f7f81,seed,0.9
+Lever T Bar Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever T Bar Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever T Bar Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever T Bar Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever T Bar Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever T Bar Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever T Bar Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever T Bar Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever T Bar Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever T Bar Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever T Bar Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever T Bar Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever T Bar Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever T Bar Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever T Bar Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever T Bar Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever T Bar Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever Triceps Extension,e6a22037-ad56-4e23-b10f-1d718a443276,seed,0.9
+Lever Triceps Extension,cf32e0d1-1d00-4014-9ad0-acf6b20b90a7,seed,0.9
+Lever Triceps Extension,6d981d81-6667-44bc-a240-dfd64f62134b,seed,0.9
+Reverse Grip Machine Lat Pulldown,27632a4b-d5e9-40df-ba5a-6152d4153619,seed,0.9
+Reverse Grip Machine Lat Pulldown,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,seed,0.9
+Reverse Grip Machine Lat Pulldown,724fbe01-a574-4b36-a28e-dcdcfdfcdae5,seed,0.9
+Reverse Grip Machine Lat Pulldown,b9b0ee51-610e-4546-bbf1-6172c3736808,seed,0.9
+Reverse Grip Machine Lat Pulldown,73068157-25fc-4359-817f-e4820f8eaa3f,seed,0.9
+Reverse Grip Machine Lat Pulldown,92e82d08-8376-4b76-a3f6-9701d49d33a1,seed,0.9
+Reverse Grip Machine Lat Pulldown,ec620436-cabb-4f29-8813-1645eb4bd0ee,seed,0.9
+Reverse Grip Machine Lat Pulldown,ca6e2e7b-b2ee-4b0a-85fb-2ee516373357,seed,0.9
+Reverse Grip Machine Lat Pulldown,00f1ee81-9b15-43b8-aa1e-f4497ce00ed9,seed,0.9
+Reverse Grip Machine Lat Pulldown,c0e9d8dd-ef31-449c-92a0-5f533132e578,seed,0.9
+Reverse Grip Machine Lat Pulldown,568857d6-f3e0-5905-9f60-18ce5180a4e1,seed,0.9
+Reverse Grip Machine Lat Pulldown,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,seed,0.9
+Sled 45° Leg Press,b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Sled 45° Leg Press,351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Sled 45° Leg Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Sled 45° Leg Press,22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Sled 45° Leg Press,1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Sled 45° Leg Press,21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Sled 45° Leg Wide Press,b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Sled 45° Leg Wide Press,351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Sled 45° Leg Wide Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Sled 45° Leg Wide Press,22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Sled 45° Leg Wide Press,1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Sled 45° Leg Wide Press,21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Sled Closer Hack Squat,602a5d88-860c-4e29-b93f-274a45b7278e,seed,0.9
+Sled Closer Hack Squat,df067c60-2308-4fde-b89c-f23caa796db7,seed,0.9
+Sled Closer Hack Squat,20f53b69-e1d9-4cd1-8f40-09fe644c4141,seed,0.9
+Sled Closer Hack Squat,8e672b7c-89b9-5596-aaa4-f20d888b3386,seed,0.9
+Sled Closer Hack Squat,f19ec570-cfe3-5093-8bc2-764ce5e43d26,seed,0.9
+Sled Hack Squat,602a5d88-860c-4e29-b93f-274a45b7278e,seed,0.9
+Sled Hack Squat,df067c60-2308-4fde-b89c-f23caa796db7,seed,0.9
+Sled Hack Squat,20f53b69-e1d9-4cd1-8f40-09fe644c4141,seed,0.9
+Sled Hack Squat,8e672b7c-89b9-5596-aaa4-f20d888b3386,seed,0.9
+Sled Hack Squat,f19ec570-cfe3-5093-8bc2-764ce5e43d26,seed,0.9
+Sled Lying Squat,41428c51-d3da-45dc-8d06-316247033d1d,seed,0.9
+Sled Lying Squat,b036a564-a3ef-4cf9-b2ba-33a633ec2b94,seed,0.9
+Sled Lying Squat,4f0113a1-b2cf-49d1-b9ad-843049a4b94b,seed,0.9
+Smith Back Shrug,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Behind Neck Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Bent Knee Good Morning,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Chair Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Close-grip Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Deadlift,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Decline Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Decline Reverse-grip Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Hack Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Hip Raise,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Incline Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Incline Reverse-grip Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Incline Shoulder Raises,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Leg Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Narrow Row,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Rear Delt Row,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Reverse Calf Raises,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Reverse-grip Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Seated Shoulder Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Shoulder Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Shrug,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Single Leg Split Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Sprint Lunge,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Standing Back Wrist Curl,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Standing Behind Head Military Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Standing Leg Calf Raise,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Standing Military Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Upright Row,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Twin Handle Parallel Grip Lat Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Twin Handle Parallel Grip Lat Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Kickback,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Kickback,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Twist (up-down),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Twist (up-down),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Shoulder Press V. 2,74a84bde-b231-4aa9-9046-e1e1c935bada,seed,0.9
+Lever Shoulder Press V. 2,a97c569a-fda7-5431-b694-14fac355921d,seed,0.9
+Lever Shoulder Press V. 2,77138264-6d7e-422d-b23f-033ffab52c10,seed,0.9
+Lever Shoulder Press V. 2,d9b7ac61-fdd3-4ab7-8be0-27b7d505df0d,seed,0.9
+Lever Shoulder Press V. 2,7c8d3d90-04b9-432b-ab25-22d706821801,seed,0.9
+Lever Shoulder Press V. 2,d45d8acd-a416-4170-9a2e-5e65c3a573ae,seed,0.9
+Lever Shoulder Press V. 2,8c53382f-ef12-4f5e-aaca-c82c07ec35b0,seed,0.9
+Lever Shoulder Press V. 2,8420631d-e82e-5b73-8d15-d957c90b4254,seed,0.9
+Lever Shoulder Press V. 2,48255be6-dd0b-564a-9c80-65969f2f7f81,seed,0.9
+Cable Reverse Crunch,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse Crunch,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Crunch (with Rope Attachment),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Crunch (with Rope Attachment),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Decline One Arm Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Decline One Arm Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Decline Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Decline Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Decline Chest Fly,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Decline Chest Fly,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Fly On Exercise Ball,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Fly On Exercise Ball,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Incline Fly On Exercise Ball,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Incline Fly On Exercise Ball,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Incline Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Incline Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Incline Press On Exercise Ball,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Incline Press On Exercise Ball,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Press On Exercise Ball,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Press On Exercise Ball,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Press On Exercise Ball,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Press On Exercise Ball,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Up Straight Crossovers,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Up Straight Crossovers,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Upper Chest Crossovers,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Upper Chest Crossovers,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Incline Chest Press,13052afb-36e6-4fef-8e5d-e6048c40e9a6,seed,0.9
+Lever Incline Chest Press,e4913cd6-efd3-43d5-981a-45b5bc239977,seed,0.9
+Lever Incline Chest Press,4989dc12-d0be-580d-a9b6-219ebd81add2,seed,0.9
+Lever Incline Chest Press,59c360a7-6bab-5bdd-af4f-f642a0b29089,seed,0.9
+Lever Incline Chest Press,209b9675-eca3-4bb8-8246-42ffd3c88bfe,seed,0.9
+Lever Incline Chest Press,67bda34c-d1b7-4ae7-aa43-11bb74ae40a7,seed,0.9
+Lever Incline Chest Press,814ba304-6aa1-4ba7-ba97-04df06fd8848,seed,0.9
+Lever Incline Chest Press,0c6816c6-27e5-4cb2-a998-09ae8ef3a566,seed,0.9
+Lever Incline Chest Press,5d7c3d55-2f30-4d43-97f5-5cddce04c959,seed,0.9
+Lever Incline Chest Press,15282ad6-a3fc-4be8-a95a-5e974632adff,seed,0.9
+Lever Incline Chest Press,910c3910-c313-47a6-8c7f-9161eea7de3d,seed,0.9
+Lever Incline Chest Press,20092f3c-4999-49bd-8ba6-4f51b5d0014e,seed,0.9
+Lever Incline Chest Press,ab765661-eb45-424e-ac36-10df2dabd391,seed,0.9
+Lever Incline Chest Press,5bfab158-11ac-4dac-8ea2-462a7e95b233,seed,0.9
+Lever Incline Chest Press,33e41f49-5a0a-4a67-bb84-e296e897667b,seed,0.9
+Lever Incline Chest Press,a330d5f3-7577-467f-8ea4-25bc6549c4d0,seed,0.9
+Lever Incline Chest Press,de9899fe-ebe1-48d3-8f1d-e97fb3cab291,seed,0.9
+Lever Incline Chest Press,ca83c9ee-1ef4-4061-9477-db0d4e5dc8b1,seed,0.9
+Lever Incline Chest Press,8db23cf2-ff9a-580f-8615-55c1f5b7d2d8,seed,0.9
+Lever Decline Chest Press,13052afb-36e6-4fef-8e5d-e6048c40e9a6,seed,0.9
+Lever Decline Chest Press,e4913cd6-efd3-43d5-981a-45b5bc239977,seed,0.9
+Lever Decline Chest Press,4989dc12-d0be-580d-a9b6-219ebd81add2,seed,0.9
+Lever Decline Chest Press,59c360a7-6bab-5bdd-af4f-f642a0b29089,seed,0.9
+Lever Decline Chest Press,209b9675-eca3-4bb8-8246-42ffd3c88bfe,seed,0.9
+Lever Decline Chest Press,67bda34c-d1b7-4ae7-aa43-11bb74ae40a7,seed,0.9
+Lever Decline Chest Press,814ba304-6aa1-4ba7-ba97-04df06fd8848,seed,0.9
+Lever Decline Chest Press,0c6816c6-27e5-4cb2-a998-09ae8ef3a566,seed,0.9
+Lever Decline Chest Press,5d7c3d55-2f30-4d43-97f5-5cddce04c959,seed,0.9
+Lever Decline Chest Press,15282ad6-a3fc-4be8-a95a-5e974632adff,seed,0.9
+Lever Decline Chest Press,910c3910-c313-47a6-8c7f-9161eea7de3d,seed,0.9
+Lever Decline Chest Press,20092f3c-4999-49bd-8ba6-4f51b5d0014e,seed,0.9
+Lever Decline Chest Press,ab765661-eb45-424e-ac36-10df2dabd391,seed,0.9
+Lever Decline Chest Press,5bfab158-11ac-4dac-8ea2-462a7e95b233,seed,0.9
+Lever Decline Chest Press,33e41f49-5a0a-4a67-bb84-e296e897667b,seed,0.9
+Lever Decline Chest Press,a330d5f3-7577-467f-8ea4-25bc6549c4d0,seed,0.9
+Lever Decline Chest Press,de9899fe-ebe1-48d3-8f1d-e97fb3cab291,seed,0.9
+Lever Decline Chest Press,ca83c9ee-1ef4-4061-9477-db0d4e5dc8b1,seed,0.9
+Lever Decline Chest Press,8db23cf2-ff9a-580f-8615-55c1f5b7d2d8,seed,0.9
+Machine Inner Chest Press,13052afb-36e6-4fef-8e5d-e6048c40e9a6,seed,0.9
+Machine Inner Chest Press,e4913cd6-efd3-43d5-981a-45b5bc239977,seed,0.9
+Machine Inner Chest Press,4989dc12-d0be-580d-a9b6-219ebd81add2,seed,0.9
+Machine Inner Chest Press,59c360a7-6bab-5bdd-af4f-f642a0b29089,seed,0.9
+Machine Inner Chest Press,209b9675-eca3-4bb8-8246-42ffd3c88bfe,seed,0.9
+Machine Inner Chest Press,67bda34c-d1b7-4ae7-aa43-11bb74ae40a7,seed,0.9
+Machine Inner Chest Press,814ba304-6aa1-4ba7-ba97-04df06fd8848,seed,0.9
+Machine Inner Chest Press,0c6816c6-27e5-4cb2-a998-09ae8ef3a566,seed,0.9
+Machine Inner Chest Press,5d7c3d55-2f30-4d43-97f5-5cddce04c959,seed,0.9
+Machine Inner Chest Press,15282ad6-a3fc-4be8-a95a-5e974632adff,seed,0.9
+Machine Inner Chest Press,910c3910-c313-47a6-8c7f-9161eea7de3d,seed,0.9
+Machine Inner Chest Press,20092f3c-4999-49bd-8ba6-4f51b5d0014e,seed,0.9
+Machine Inner Chest Press,ab765661-eb45-424e-ac36-10df2dabd391,seed,0.9
+Machine Inner Chest Press,5bfab158-11ac-4dac-8ea2-462a7e95b233,seed,0.9
+Machine Inner Chest Press,33e41f49-5a0a-4a67-bb84-e296e897667b,seed,0.9
+Machine Inner Chest Press,a330d5f3-7577-467f-8ea4-25bc6549c4d0,seed,0.9
+Machine Inner Chest Press,de9899fe-ebe1-48d3-8f1d-e97fb3cab291,seed,0.9
+Machine Inner Chest Press,ca83c9ee-1ef4-4061-9477-db0d4e5dc8b1,seed,0.9
+Machine Inner Chest Press,8db23cf2-ff9a-580f-8615-55c1f5b7d2d8,seed,0.9
+Smith Wide Grip Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Wide Grip Decline Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Lever Unilateral Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Unilateral Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Unilateral Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Unilateral Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Unilateral Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Unilateral Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Unilateral Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Unilateral Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Unilateral Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Unilateral Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Unilateral Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Unilateral Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Unilateral Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Unilateral Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Unilateral Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Unilateral Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Unilateral Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Cable Incline Bench Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Incline Bench Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Palm Rotational Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Palm Rotational Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Crossover Seated Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Crossover Seated Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Elevated Seated Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Elevated Seated Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Extension Incline Bench Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Extension Incline Bench Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Seated Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Seated Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Upper Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Upper Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Wide Grip Rear Pulldown Behind Neck,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Wide Grip Rear Pulldown Behind Neck,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever One Arm Lateral Wide Pulldown,27632a4b-d5e9-40df-ba5a-6152d4153619,seed,0.9
+Lever One Arm Lateral Wide Pulldown,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,seed,0.9
+Lever One Arm Lateral Wide Pulldown,724fbe01-a574-4b36-a28e-dcdcfdfcdae5,seed,0.9
+Lever One Arm Lateral Wide Pulldown,b9b0ee51-610e-4546-bbf1-6172c3736808,seed,0.9
+Lever One Arm Lateral Wide Pulldown,73068157-25fc-4359-817f-e4820f8eaa3f,seed,0.9
+Lever One Arm Lateral Wide Pulldown,92e82d08-8376-4b76-a3f6-9701d49d33a1,seed,0.9
+Lever One Arm Lateral Wide Pulldown,ec620436-cabb-4f29-8813-1645eb4bd0ee,seed,0.9
+Lever One Arm Lateral Wide Pulldown,ca6e2e7b-b2ee-4b0a-85fb-2ee516373357,seed,0.9
+Lever One Arm Lateral Wide Pulldown,00f1ee81-9b15-43b8-aa1e-f4497ce00ed9,seed,0.9
+Lever One Arm Lateral Wide Pulldown,c0e9d8dd-ef31-449c-92a0-5f533132e578,seed,0.9
+Lever One Arm Lateral Wide Pulldown,568857d6-f3e0-5905-9f60-18ce5180a4e1,seed,0.9
+Lever One Arm Lateral Wide Pulldown,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,seed,0.9
+Lever Reverse Grip Vertical Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Reverse Grip Vertical Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Reverse Grip Vertical Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Reverse Grip Vertical Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Reverse Grip Vertical Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Reverse Grip Vertical Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Reverse Grip Vertical Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Reverse Grip Vertical Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Reverse Grip Vertical Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Reverse Grip Vertical Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Reverse Grip Vertical Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Reverse Grip Vertical Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Reverse Grip Vertical Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Reverse Grip Vertical Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Reverse Grip Vertical Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Reverse Grip Vertical Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Reverse Grip Vertical Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever Reverse T-bar Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Reverse T-bar Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Reverse T-bar Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Reverse T-bar Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Reverse T-bar Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Reverse T-bar Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Reverse T-bar Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Reverse T-bar Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Reverse T-bar Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Reverse T-bar Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Reverse T-bar Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Reverse T-bar Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Reverse T-bar Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Reverse T-bar Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Reverse T-bar Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Reverse T-bar Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Reverse T-bar Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever Seated Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Seated Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Seated Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Seated Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Seated Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Seated Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Seated Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Seated Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Seated Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Seated Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Seated Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Seated Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Seated Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Seated Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Seated Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Seated Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Seated Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever T-bar Reverse Grip Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever T-bar Reverse Grip Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever T-bar Reverse Grip Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever T-bar Reverse Grip Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever T-bar Reverse Grip Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever T-bar Reverse Grip Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever T-bar Reverse Grip Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever T-bar Reverse Grip Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever T-bar Reverse Grip Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever T-bar Reverse Grip Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever T-bar Reverse Grip Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever T-bar Reverse Grip Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever T-bar Reverse Grip Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever T-bar Reverse Grip Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever T-bar Reverse Grip Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever T-bar Reverse Grip Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever T-bar Reverse Grip Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Lever One Arm Lateral High Row,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever One Arm Lateral High Row,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever One Arm Lateral High Row,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever One Arm Lateral High Row,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever One Arm Lateral High Row,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever One Arm Lateral High Row,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever One Arm Lateral High Row,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever One Arm Lateral High Row,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever One Arm Lateral High Row,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever One Arm Lateral High Row,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever One Arm Lateral High Row,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever One Arm Lateral High Row,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever One Arm Lateral High Row,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever One Arm Lateral High Row,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever One Arm Lateral High Row,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever One Arm Lateral High Row,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever One Arm Lateral High Row,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Smith Bent Over Row,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith One Arm Row,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Reverse Grip Bent Over Row,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Cable Standing Calf Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Calf Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing One Leg Calf Raise,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing One Leg Calf Raise,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Smith One Leg Floor Calf Raise,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Seated One Leg Calf Raise,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Toe Raise,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Cable Reverse One Arm Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse One Arm Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Sled 45 Degrees One Leg Press,b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Sled 45 Degrees One Leg Press,351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Sled 45 Degrees One Leg Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Sled 45 Degrees One Leg Press,22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Sled 45 Degrees One Leg Press,1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Sled 45 Degrees One Leg Press,21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Smith Seated Wrist Curl,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Front Squat (clean Grip),f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Low Bar Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Lever Seated Dip,8b92bac4-98be-4277-bae3-e45b39629d22,seed,0.9
+Lever Seated Dip,2ca108c5-6153-5b7b-9b22-530ef902178c,seed,0.9
+Lever Seated Dip,91dd2f21-b791-4ea8-8305-01482d045eaa,seed,0.9
+Lever Seated Dip,b6f855d3-27cf-41cb-9696-fbacc05c8529,seed,0.9
+Lever Seated Crunch,03814c50-4988-42fa-9358-b09ded728116,seed,0.9
+Lever Seated Crunch,c33f7772-e9ec-485b-8f23-5378f504d995,seed,0.9
+Lever Seated Crunch,312c973a-1aa9-4bc2-aa19-c383ba560fcf,seed,0.9
+Lever Seated Crunch,c1415ccb-9224-4781-9c84-8a74d9442f72,seed,0.9
+Lever Seated Crunch,b2ccccfe-ac97-4fbc-aa75-dc92f9a9f4fb,seed,0.9
+Sled 45° Leg Press (side Pov),b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Sled 45° Leg Press (side Pov),351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Sled 45° Leg Press (side Pov),f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Sled 45° Leg Press (side Pov),22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Sled 45° Leg Press (side Pov),1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Sled 45° Leg Press (side Pov),21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Sled 45° Leg Press (back Pov),b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Sled 45° Leg Press (back Pov),351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Sled 45° Leg Press (back Pov),f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Sled 45° Leg Press (back Pov),22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Sled 45° Leg Press (back Pov),1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Sled 45° Leg Press (back Pov),21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Lever Incline Chest Press V. 2,13052afb-36e6-4fef-8e5d-e6048c40e9a6,seed,0.9
+Lever Incline Chest Press V. 2,e4913cd6-efd3-43d5-981a-45b5bc239977,seed,0.9
+Lever Incline Chest Press V. 2,4989dc12-d0be-580d-a9b6-219ebd81add2,seed,0.9
+Lever Incline Chest Press V. 2,59c360a7-6bab-5bdd-af4f-f642a0b29089,seed,0.9
+Lever Incline Chest Press V. 2,209b9675-eca3-4bb8-8246-42ffd3c88bfe,seed,0.9
+Lever Incline Chest Press V. 2,67bda34c-d1b7-4ae7-aa43-11bb74ae40a7,seed,0.9
+Lever Incline Chest Press V. 2,814ba304-6aa1-4ba7-ba97-04df06fd8848,seed,0.9
+Lever Incline Chest Press V. 2,0c6816c6-27e5-4cb2-a998-09ae8ef3a566,seed,0.9
+Lever Incline Chest Press V. 2,5d7c3d55-2f30-4d43-97f5-5cddce04c959,seed,0.9
+Lever Incline Chest Press V. 2,15282ad6-a3fc-4be8-a95a-5e974632adff,seed,0.9
+Lever Incline Chest Press V. 2,910c3910-c313-47a6-8c7f-9161eea7de3d,seed,0.9
+Lever Incline Chest Press V. 2,20092f3c-4999-49bd-8ba6-4f51b5d0014e,seed,0.9
+Lever Incline Chest Press V. 2,ab765661-eb45-424e-ac36-10df2dabd391,seed,0.9
+Lever Incline Chest Press V. 2,5bfab158-11ac-4dac-8ea2-462a7e95b233,seed,0.9
+Lever Incline Chest Press V. 2,33e41f49-5a0a-4a67-bb84-e296e897667b,seed,0.9
+Lever Incline Chest Press V. 2,a330d5f3-7577-467f-8ea4-25bc6549c4d0,seed,0.9
+Lever Incline Chest Press V. 2,de9899fe-ebe1-48d3-8f1d-e97fb3cab291,seed,0.9
+Lever Incline Chest Press V. 2,ca83c9ee-1ef4-4061-9477-db0d4e5dc8b1,seed,0.9
+Lever Incline Chest Press V. 2,8db23cf2-ff9a-580f-8615-55c1f5b7d2d8,seed,0.9
+Lever Preacher Curl V. 2,67ee5817-ce22-40e8-b40d-96a8c505cba4,seed,0.9
+Lever Preacher Curl V. 2,39109cfa-6ee4-4a7d-a931-1fd4a02c3851,seed,0.9
+Lever Preacher Curl V. 2,45efe227-5806-5d60-90e3-30dd1850c16a,seed,0.9
+Lever Hammer Grip Preacher Curl,67ee5817-ce22-40e8-b40d-96a8c505cba4,seed,0.9
+Lever Hammer Grip Preacher Curl,39109cfa-6ee4-4a7d-a931-1fd4a02c3851,seed,0.9
+Lever Hammer Grip Preacher Curl,45efe227-5806-5d60-90e3-30dd1850c16a,seed,0.9
+Lever Reverse Grip Preacher Curl,67ee5817-ce22-40e8-b40d-96a8c505cba4,seed,0.9
+Lever Reverse Grip Preacher Curl,39109cfa-6ee4-4a7d-a931-1fd4a02c3851,seed,0.9
+Lever Reverse Grip Preacher Curl,45efe227-5806-5d60-90e3-30dd1850c16a,seed,0.9
+Smith Machine Decline Close Grip Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Smith Machine Reverse Decline Close Grip Bench Press,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Cable Close Grip Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Close Grip Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Concentration Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Concentration Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Drag Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Drag Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Preacher Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Preacher Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Lying Bicep Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lying Bicep Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Reverse Preacher Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Reverse Preacher Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Overhead Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Overhead Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Overhead Curl On Exercise Ball,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Overhead Curl On Exercise Ball,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Pulldown Bicep Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Pulldown Bicep Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Hammer Preacher Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Hammer Preacher Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope One Arm Hammer Preacher Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope One Arm Hammer Preacher Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated One Arm Concentration Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated One Arm Concentration Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Overhead Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Overhead Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Squatting Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Squatting Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Two Arm Curl On Incline Bench,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Two Arm Curl On Incline Bench,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Smith Machine Bicep Curl,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Cable Squat Row (with Rope Attachment),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Squat Row (with Rope Attachment),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable High Pulley Overhead Tricep Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable High Pulley Overhead Tricep Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable One Arm Tricep Pushdown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Tricep Pushdown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope High Pulley Overhead Tricep Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope High Pulley Overhead Tricep Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Incline Tricep Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Incline Tricep Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Rope Lying On Floor Tricep Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Rope Lying On Floor Tricep Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Standing Reverse Grip One Arm Overhead Tricep Extension,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Standing Reverse Grip One Arm Overhead Tricep Extension,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Two Arm Tricep Kickback,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Two Arm Tricep Kickback,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Smith Machine Incline Tricep Extension,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Cable Seated Chest Press,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Chest Press,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Pullover,91b90e10-cf49-4586-8bf2-f95b474f015b,seed,0.9
+Lever Hip Extension V. 2,ca9ba9fb-5a5a-56c1-9937-73c500b62220,seed,0.9
+Lever Hip Extension V. 2,a10ba94c-8406-4a24-b2ba-4b4a4e3dc580,seed,0.9
+Lever Hip Extension V. 2,f54d70f0-9362-4330-8e4f-4c61faa36b92,seed,0.9
+Lever Hip Extension V. 2,f13b498f-5922-5387-806b-be9639fee4c3,seed,0.9
+Lever Alternate Leg Press,b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Lever Alternate Leg Press,351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Lever Alternate Leg Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Lever Alternate Leg Press,22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Lever Alternate Leg Press,1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Lever Alternate Leg Press,21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Lever Shoulder Press V. 3,74a84bde-b231-4aa9-9046-e1e1c935bada,seed,0.9
+Lever Shoulder Press V. 3,a97c569a-fda7-5431-b694-14fac355921d,seed,0.9
+Lever Shoulder Press V. 3,77138264-6d7e-422d-b23f-033ffab52c10,seed,0.9
+Lever Shoulder Press V. 3,d9b7ac61-fdd3-4ab7-8be0-27b7d505df0d,seed,0.9
+Lever Shoulder Press V. 3,7c8d3d90-04b9-432b-ab25-22d706821801,seed,0.9
+Lever Shoulder Press V. 3,d45d8acd-a416-4170-9a2e-5e65c3a573ae,seed,0.9
+Lever Shoulder Press V. 3,8c53382f-ef12-4f5e-aaca-c82c07ec35b0,seed,0.9
+Lever Shoulder Press V. 3,8420631d-e82e-5b73-8d15-d957c90b4254,seed,0.9
+Lever Shoulder Press V. 3,48255be6-dd0b-564a-9c80-65969f2f7f81,seed,0.9
+Cable Lat Pulldown Full Range Of Motion,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lat Pulldown Full Range Of Motion,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Seated Twist,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Seated Twist,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Triceps Pushdown (v-bar) (with Arm Blaster),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Triceps Pushdown (v-bar) (with Arm Blaster),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Reverse Grip Triceps Pushdown (sz-bar) (with Arm Blaster),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Reverse Grip Triceps Pushdown (sz-bar) (with Arm Blaster),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Thibaudeau Kayak Row,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Thibaudeau Kayak Row,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Horizontal One Leg Press,b2640296-a9cf-4722-a1b3-2eafeab53059,seed,0.9
+Lever Horizontal One Leg Press,351ce983-fa20-5676-a05c-37e7cf9b4837,seed,0.9
+Lever Horizontal One Leg Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,seed,0.9
+Lever Horizontal One Leg Press,22523f1a-dfbf-482f-8247-196e1f894688,seed,0.9
+Lever Horizontal One Leg Press,1bde4266-92b5-429b-9f9d-ecbadf143715,seed,0.9
+Lever Horizontal One Leg Press,21524b6c-e1e3-45cc-b82e-c258dc963044,seed,0.9
+Cable Lateral Pulldown With V-bar,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Lateral Pulldown With V-bar,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Reverse Grip Lateral Pulldown,27632a4b-d5e9-40df-ba5a-6152d4153619,seed,0.9
+Lever Reverse Grip Lateral Pulldown,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,seed,0.9
+Lever Reverse Grip Lateral Pulldown,724fbe01-a574-4b36-a28e-dcdcfdfcdae5,seed,0.9
+Lever Reverse Grip Lateral Pulldown,b9b0ee51-610e-4546-bbf1-6172c3736808,seed,0.9
+Lever Reverse Grip Lateral Pulldown,73068157-25fc-4359-817f-e4820f8eaa3f,seed,0.9
+Lever Reverse Grip Lateral Pulldown,92e82d08-8376-4b76-a3f6-9701d49d33a1,seed,0.9
+Lever Reverse Grip Lateral Pulldown,ec620436-cabb-4f29-8813-1645eb4bd0ee,seed,0.9
+Lever Reverse Grip Lateral Pulldown,ca6e2e7b-b2ee-4b0a-85fb-2ee516373357,seed,0.9
+Lever Reverse Grip Lateral Pulldown,00f1ee81-9b15-43b8-aa1e-f4497ce00ed9,seed,0.9
+Lever Reverse Grip Lateral Pulldown,c0e9d8dd-ef31-449c-92a0-5f533132e578,seed,0.9
+Lever Reverse Grip Lateral Pulldown,568857d6-f3e0-5905-9f60-18ce5180a4e1,seed,0.9
+Lever Reverse Grip Lateral Pulldown,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,seed,0.9
+Smith Sumo Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Lever Lying Two-one Leg Curl,7bb7197f-89dc-466a-906d-15e1b8b0906b,seed,0.9
+Lever Lying Two-one Leg Curl,9e7a9577-1a5e-49bf-bf5c-7a990bbdb227,seed,0.9
+Lever Lying Two-one Leg Curl,0375f89d-ad2e-42bc-a2c7-3a4482e0ffbc,seed,0.9
+Lever Lying Two-one Leg Curl,7331485c-c1c0-4798-b157-b1cac104f378,seed,0.9
+Lever Lying Two-one Leg Curl,1bbfc63e-e90a-4d6f-91fa-d427746c461c,seed,0.9
+Lever Lying Two-one Leg Curl,468015e1-14ae-4df5-bf34-dc7e479dbc9f,seed,0.9
+Lever Lying Two-one Leg Curl,5d130ddc-e1c6-45d9-af22-5378ecdc570a,seed,0.9
+Lever Lying Two-one Leg Curl,7d60b6f1-912d-5d6b-9585-2ac56d8f4c1a,seed,0.9
+Lever Lying Two-one Leg Curl,d12dd92d-9357-59ab-a391-9883b0bc994c,seed,0.9
+Lever Bent-over Row With V-bar,dc823fdb-8cc0-59db-8d4a-7fd03575723d,seed,0.9
+Lever Bent-over Row With V-bar,be8c8a43-281e-5331-8539-e5ecf1b2cba1,seed,0.9
+Lever Bent-over Row With V-bar,e4b68832-bd2d-4996-a062-f08c96736e23,seed,0.9
+Lever Bent-over Row With V-bar,d5123039-4a87-4e5c-97fd-bfcff2e65ed8,seed,0.9
+Lever Bent-over Row With V-bar,98aeba22-b028-49c2-adfb-b74ac5384589,seed,0.9
+Lever Bent-over Row With V-bar,22cbf7fd-44b5-429f-99dd-c90cf252935a,seed,0.9
+Lever Bent-over Row With V-bar,462123c8-665c-4973-b92f-af706f03ca79,seed,0.9
+Lever Bent-over Row With V-bar,b4b7db6f-fbd9-4a84-b21f-58328c0b0d00,seed,0.9
+Lever Bent-over Row With V-bar,b6bc5c86-ff02-48a0-a35c-9ee42172700f,seed,0.9
+Lever Bent-over Row With V-bar,4cfb1e70-3807-469a-8b56-072766c52ab4,seed,0.9
+Lever Bent-over Row With V-bar,fde366f4-3d4a-434d-b9ea-953ac2450e3d,seed,0.9
+Lever Bent-over Row With V-bar,ae593cd8-56a9-4175-ac62-599358819a80,seed,0.9
+Lever Bent-over Row With V-bar,1a4c5c46-b772-42eb-8d8f-d3193c870411,seed,0.9
+Lever Bent-over Row With V-bar,6d072212-c936-5af1-8dc5-6f05a5deb1b2,seed,0.9
+Lever Bent-over Row With V-bar,06d73bb4-7fce-51b6-ad03-e877eb6aaaf4,seed,0.9
+Lever Bent-over Row With V-bar,c92e39a8-4faf-59d4-9bcb-fad9de96c2df,seed,0.9
+Lever Bent-over Row With V-bar,14eea95a-3c5f-5e5d-a31e-37ac32953b2a,seed,0.9
+Cable Assisted Inverse Leg Curl,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Assisted Inverse Leg Curl,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Smith Full Squat,f6fe186b-bff6-40ee-9672-23abbe856b6d,seed,0.9
+Cable One Arm Pulldown,e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable One Arm Pulldown,bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Cable Kneeling Rear Delt Row (with Rope) (male),e94bec5c-a634-58e9-872f-8f63eee2b625,seed,0.7
+Cable Kneeling Rear Delt Row (with Rope) (male),bf3d0dde-84e3-510c-a43c-d0b017565431,seed,0.7
+Lever Standing Chest Press,13052afb-36e6-4fef-8e5d-e6048c40e9a6,seed,0.9
+Lever Standing Chest Press,e4913cd6-efd3-43d5-981a-45b5bc239977,seed,0.9
+Lever Standing Chest Press,4989dc12-d0be-580d-a9b6-219ebd81add2,seed,0.9
+Lever Standing Chest Press,59c360a7-6bab-5bdd-af4f-f642a0b29089,seed,0.9
+Lever Standing Chest Press,209b9675-eca3-4bb8-8246-42ffd3c88bfe,seed,0.9
+Lever Standing Chest Press,67bda34c-d1b7-4ae7-aa43-11bb74ae40a7,seed,0.9
+Lever Standing Chest Press,814ba304-6aa1-4ba7-ba97-04df06fd8848,seed,0.9
+Lever Standing Chest Press,0c6816c6-27e5-4cb2-a998-09ae8ef3a566,seed,0.9
+Lever Standing Chest Press,5d7c3d55-2f30-4d43-97f5-5cddce04c959,seed,0.9
+Lever Standing Chest Press,15282ad6-a3fc-4be8-a95a-5e974632adff,seed,0.9
+Lever Standing Chest Press,910c3910-c313-47a6-8c7f-9161eea7de3d,seed,0.9
+Lever Standing Chest Press,20092f3c-4999-49bd-8ba6-4f51b5d0014e,seed,0.9
+Lever Standing Chest Press,ab765661-eb45-424e-ac36-10df2dabd391,seed,0.9
+Lever Standing Chest Press,5bfab158-11ac-4dac-8ea2-462a7e95b233,seed,0.9
+Lever Standing Chest Press,33e41f49-5a0a-4a67-bb84-e296e897667b,seed,0.9
+Lever Standing Chest Press,a330d5f3-7577-467f-8ea4-25bc6549c4d0,seed,0.9
+Lever Standing Chest Press,de9899fe-ebe1-48d3-8f1d-e97fb3cab291,seed,0.9
+Lever Standing Chest Press,ca83c9ee-1ef4-4061-9477-db0d4e5dc8b1,seed,0.9
+Lever Standing Chest Press,8db23cf2-ff9a-580f-8615-55c1f5b7d2d8,seed,0.9
+Lever Seated Crunch V. 2,03814c50-4988-42fa-9358-b09ded728116,seed,0.9
+Lever Seated Crunch V. 2,c33f7772-e9ec-485b-8f23-5378f504d995,seed,0.9
+Lever Seated Crunch V. 2,312c973a-1aa9-4bc2-aa19-c383ba560fcf,seed,0.9
+Lever Seated Crunch V. 2,c1415ccb-9224-4781-9c84-8a74d9442f72,seed,0.9
+Lever Seated Crunch V. 2,b2ccccfe-ac97-4fbc-aa75-dc92f9a9f4fb,seed,0.9
+Assisted Chest Dip (kneeling),8b92bac4-98be-4277-bae3-e45b39629d22,gemini,0.7
+Assisted Chest Dip (kneeling),2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Assisted Chest Dip (kneeling),91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Assisted Chest Dip (kneeling),b6f855d3-27cf-41cb-9696-fbacc05c8529,gemini,0.7
+Assisted Parallel Close Grip Pull-up,2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Assisted Parallel Close Grip Pull-up,91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Assisted Parallel Close Grip Pull-up,27632a4b-d5e9-40df-ba5a-6152d4153619,gemini,0.7
+Assisted Parallel Close Grip Pull-up,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,gemini,0.7
+Assisted Parallel Close Grip Pull-up,73068157-25fc-4359-817f-e4820f8eaa3f,gemini,0.7
+Assisted Parallel Close Grip Pull-up,92e82d08-8376-4b76-a3f6-9701d49d33a1,gemini,0.7
+Assisted Parallel Close Grip Pull-up,ec620436-cabb-4f29-8813-1645eb4bd0ee,gemini,0.7
+Assisted Parallel Close Grip Pull-up,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,gemini,0.7
+Assisted Pull-up,2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Assisted Pull-up,91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Assisted Pull-up,27632a4b-d5e9-40df-ba5a-6152d4153619,gemini,0.7
+Assisted Pull-up,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,gemini,0.7
+Assisted Pull-up,73068157-25fc-4359-817f-e4820f8eaa3f,gemini,0.7
+Assisted Pull-up,92e82d08-8376-4b76-a3f6-9701d49d33a1,gemini,0.7
+Assisted Pull-up,ec620436-cabb-4f29-8813-1645eb4bd0ee,gemini,0.7
+Assisted Pull-up,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,gemini,0.7
+Lever Assisted Chin-up,2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Lever Assisted Chin-up,91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Lever Assisted Chin-up,27632a4b-d5e9-40df-ba5a-6152d4153619,gemini,0.7
+Lever Assisted Chin-up,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,gemini,0.7
+Lever Assisted Chin-up,73068157-25fc-4359-817f-e4820f8eaa3f,gemini,0.7
+Lever Assisted Chin-up,92e82d08-8376-4b76-a3f6-9701d49d33a1,gemini,0.7
+Lever Assisted Chin-up,ec620436-cabb-4f29-8813-1645eb4bd0ee,gemini,0.7
+Lever Assisted Chin-up,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,gemini,0.7
+Lever Deadlift,f6fe186b-bff6-40ee-9672-23abbe856b6d,gemini,0.7
+Lever Gripless Shrug,f6fe186b-bff6-40ee-9672-23abbe856b6d,gemini,0.7
+Lever Kneeling Twist,03814c50-4988-42fa-9358-b09ded728116,gemini,0.7
+Lever Kneeling Twist,c33f7772-e9ec-485b-8f23-5378f504d995,gemini,0.7
+Lever Kneeling Twist,1cf084a3-bc08-4875-9163-4e6aeee6a055,gemini,0.7
+Lever Kneeling Twist,312c973a-1aa9-4bc2-aa19-c383ba560fcf,gemini,0.7
+Lever Kneeling Twist,c1415ccb-9224-4781-9c84-8a74d9442f72,gemini,0.7
+Lever Kneeling Twist,b2ccccfe-ac97-4fbc-aa75-dc92f9a9f4fb,gemini,0.7
+Lever Seated Calf Raise,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Seated Calf Raise,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Seated Calf Raise,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Seated Calf Raise,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Seated Calf Raise,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Seated Calf Raise,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Seated Calf Raise,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Seated Calf Raise,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Seated Calf Raise,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Seated Calf Raise,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Seated Calf Raise,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Lever Seated Hip Abduction,3194d412-0a32-505b-a2a7-ab0432506d7f,gemini,0.7
+Lever Seated Hip Abduction,9696a691-2dff-5b7f-90d3-7ea38f576381,gemini,0.7
+Lever Shrug,f6fe186b-bff6-40ee-9672-23abbe856b6d,gemini,0.7
+Lever Standing Calf Raise,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Standing Calf Raise,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Standing Calf Raise,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Standing Calf Raise,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Standing Calf Raise,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Standing Calf Raise,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Standing Calf Raise,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Standing Calf Raise,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Standing Calf Raise,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Standing Calf Raise,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Standing Calf Raise,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Sled 45° Calf Press,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Sled 45° Calf Press,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Sled 45° Calf Press,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Sled 45° Calf Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Sled 45° Calf Press,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Sled 45° Calf Press,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Sled 45° Calf Press,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Sled 45° Calf Press,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Sled 45° Calf Press,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Sled 45° Calf Press,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Sled 45° Calf Press,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Sled Forward Angled Calf Raise,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Sled Forward Angled Calf Raise,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Sled Forward Angled Calf Raise,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Sled Forward Angled Calf Raise,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Sled Forward Angled Calf Raise,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Sled Forward Angled Calf Raise,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Sled Forward Angled Calf Raise,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Sled Forward Angled Calf Raise,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Sled Forward Angled Calf Raise,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Sled Forward Angled Calf Raise,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Sled Forward Angled Calf Raise,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Lever Donkey Calf Raise,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Donkey Calf Raise,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Donkey Calf Raise,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Donkey Calf Raise,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Donkey Calf Raise,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Donkey Calf Raise,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Donkey Calf Raise,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Donkey Calf Raise,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Donkey Calf Raise,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Donkey Calf Raise,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Donkey Calf Raise,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Hack Calf Raise,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Hack Calf Raise,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Hack Calf Raise,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Hack Calf Raise,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Hack Calf Raise,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Hack Calf Raise,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Hack Calf Raise,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Hack Calf Raise,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Hack Calf Raise,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Hack Calf Raise,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Hack Calf Raise,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Hack One Leg Calf Raise,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Hack One Leg Calf Raise,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Hack One Leg Calf Raise,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Hack One Leg Calf Raise,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Hack One Leg Calf Raise,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Hack One Leg Calf Raise,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Hack One Leg Calf Raise,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Hack One Leg Calf Raise,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Hack One Leg Calf Raise,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Hack One Leg Calf Raise,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Hack One Leg Calf Raise,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Seated Squat Calf Raise On Leg Press Machine,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Sled Calf Press On Leg Press,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Sled Calf Press On Leg Press,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Sled Calf Press On Leg Press,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Sled Calf Press On Leg Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Sled Calf Press On Leg Press,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Sled Calf Press On Leg Press,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Sled Calf Press On Leg Press,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Sled Calf Press On Leg Press,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Sled Calf Press On Leg Press,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Sled Calf Press On Leg Press,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Sled Calf Press On Leg Press,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Sled One Leg Calf Press On Leg Press,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Sled One Leg Calf Press On Leg Press,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Sled One Leg Calf Press On Leg Press,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Sled One Leg Calf Press On Leg Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Sled One Leg Calf Press On Leg Press,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Sled One Leg Calf Press On Leg Press,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Sled One Leg Calf Press On Leg Press,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Sled One Leg Calf Press On Leg Press,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Sled One Leg Calf Press On Leg Press,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Sled One Leg Calf Press On Leg Press,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Sled One Leg Calf Press On Leg Press,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Assisted Standing Chin-up,2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Assisted Standing Chin-up,91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Assisted Standing Chin-up,27632a4b-d5e9-40df-ba5a-6152d4153619,gemini,0.7
+Assisted Standing Chin-up,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,gemini,0.7
+Assisted Standing Chin-up,73068157-25fc-4359-817f-e4820f8eaa3f,gemini,0.7
+Assisted Standing Chin-up,92e82d08-8376-4b76-a3f6-9701d49d33a1,gemini,0.7
+Assisted Standing Chin-up,ec620436-cabb-4f29-8813-1645eb4bd0ee,gemini,0.7
+Assisted Standing Chin-up,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,gemini,0.7
+Assisted Standing Pull-up,2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Assisted Standing Pull-up,91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Assisted Standing Pull-up,27632a4b-d5e9-40df-ba5a-6152d4153619,gemini,0.7
+Assisted Standing Pull-up,fa0d0b81-9759-5f4b-8567-ba9a23a0a4ea,gemini,0.7
+Assisted Standing Pull-up,73068157-25fc-4359-817f-e4820f8eaa3f,gemini,0.7
+Assisted Standing Pull-up,92e82d08-8376-4b76-a3f6-9701d49d33a1,gemini,0.7
+Assisted Standing Pull-up,ec620436-cabb-4f29-8813-1645eb4bd0ee,gemini,0.7
+Assisted Standing Pull-up,325e25e2-4b64-5d2b-8e8e-e6871f9657b3,gemini,0.7
+Lever Gripless Shrug V. 2,f6fe186b-bff6-40ee-9672-23abbe856b6d,gemini,0.7
+Assisted Sit-up,03814c50-4988-42fa-9358-b09ded728116,gemini,0.7
+Assisted Sit-up,c33f7772-e9ec-485b-8f23-5378f504d995,gemini,0.7
+Assisted Sit-up,1cf084a3-bc08-4875-9163-4e6aeee6a055,gemini,0.7
+Assisted Sit-up,312c973a-1aa9-4bc2-aa19-c383ba560fcf,gemini,0.7
+Assisted Sit-up,c1415ccb-9224-4781-9c84-8a74d9442f72,gemini,0.7
+Assisted Sit-up,b2ccccfe-ac97-4fbc-aa75-dc92f9a9f4fb,gemini,0.7
+Lever Calf Press,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Calf Press,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Calf Press,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Calf Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Calf Press,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Calf Press,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Calf Press,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Calf Press,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Calf Press,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Calf Press,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Calf Press,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Lever Rotary Calf,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Rotary Calf,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Rotary Calf,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Rotary Calf,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Rotary Calf,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Rotary Calf,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Rotary Calf,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Rotary Calf,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Rotary Calf,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Rotary Calf,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Rotary Calf,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Sled Lying Calf Press,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Sled Lying Calf Press,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Sled Lying Calf Press,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Sled Lying Calf Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Sled Lying Calf Press,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Sled Lying Calf Press,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Sled Lying Calf Press,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Sled Lying Calf Press,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Sled Lying Calf Press,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Sled Lying Calf Press,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Sled Lying Calf Press,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Lever Seated Calf Press,b2640296-a9cf-4722-a1b3-2eafeab53059,gemini,0.7
+Lever Seated Calf Press,602a5d88-860c-4e29-b93f-274a45b7278e,gemini,0.7
+Lever Seated Calf Press,351ce983-fa20-5676-a05c-37e7cf9b4837,gemini,0.7
+Lever Seated Calf Press,f9fadf1e-6004-5297-b8d3-7b7a9c1a1bb1,gemini,0.7
+Lever Seated Calf Press,df067c60-2308-4fde-b89c-f23caa796db7,gemini,0.7
+Lever Seated Calf Press,22523f1a-dfbf-482f-8247-196e1f894688,gemini,0.7
+Lever Seated Calf Press,1bde4266-92b5-429b-9f9d-ecbadf143715,gemini,0.7
+Lever Seated Calf Press,21524b6c-e1e3-45cc-b82e-c258dc963044,gemini,0.7
+Lever Seated Calf Press,20f53b69-e1d9-4cd1-8f40-09fe644c4141,gemini,0.7
+Lever Seated Calf Press,8e672b7c-89b9-5596-aaa4-f20d888b3386,gemini,0.7
+Lever Seated Calf Press,f19ec570-cfe3-5093-8bc2-764ce5e43d26,gemini,0.7
+Assisted Wide-grip Chest Dip (kneeling),8b92bac4-98be-4277-bae3-e45b39629d22,gemini,0.7
+Assisted Wide-grip Chest Dip (kneeling),2ca108c5-6153-5b7b-9b22-530ef902178c,gemini,0.7
+Assisted Wide-grip Chest Dip (kneeling),91dd2f21-b791-4ea8-8305-01482d045eaa,gemini,0.7
+Assisted Wide-grip Chest Dip (kneeling),b6f855d3-27cf-41cb-9696-fbacc05c8529,gemini,0.7
+Lever Seated Good Morning,f6fe186b-bff6-40ee-9672-23abbe856b6d,gemini,0.7
