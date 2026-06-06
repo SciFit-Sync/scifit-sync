@@ -180,9 +180,7 @@ class TestCalculateIncrease:
         from app.services.po import INCREASE
 
         for goal_map in INCREASE.values():
-            assert "cardio" not in goal_map, (
-                "cardio가 INCREASE dict에 존재하면 안 됨 — 호출부에서 제외"
-            )
+            assert "cardio" not in goal_map, "cardio가 INCREASE dict에 존재하면 안 됨 — 호출부에서 제외"
 
     def test_cardio_fallback_if_called(self):
         """cardio가 실수로 호출되면 unknown category 경로로 1.25 증분 fallback."""
