@@ -20,12 +20,15 @@ interface WorkoutSessionState {
   session_started_at: string | null;
   /** 루틴 상세 페이지 누적 체류 시간 (ms) — 탭 이탈 시마다 합산 */
   page_elapsed_ms: number;
+  /** 현재 루틴 상세 페이지 진입 시각 (ms) — 페이지에 있는 동안만 존재, 이탈 시 null */
+  detail_page_enter_ms: number | null;
   /** set_id → 체크 여부 */
   checked_sets: Record<string, boolean>;
 
   set_owner: (user_id: string) => void;
   set_session: (routine_id: string, session_id: string, started_at: string) => void;
   add_page_elapsed: (ms: number) => void;
+  set_detail_page_enter: (ms: number | null) => void;
   toggle_set: (set_id: string, is_done: boolean) => void;
   clear: () => void;
 }
@@ -38,6 +41,7 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
       session_id: null,
       session_started_at: null,
       page_elapsed_ms: 0,
+      detail_page_enter_ms: null,
       checked_sets: {},
 
       set_owner: (user_id) => set({ owner_user_id: user_id }),
@@ -47,6 +51,8 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
 
       add_page_elapsed: (ms) =>
         set((state) => ({ page_elapsed_ms: state.page_elapsed_ms + ms })),
+
+      set_detail_page_enter: (ms) => set({ detail_page_enter_ms: ms }),
 
       toggle_set: (set_id, is_done) =>
         set((state) => ({
@@ -60,6 +66,7 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
           session_id: null,
           session_started_at: null,
           page_elapsed_ms: 0,
+          detail_page_enter_ms: null,
           checked_sets: {},
         }),
     }),
