@@ -1,0 +1,9 @@
+load_mode,workoutx_equipment,default_bar_weight_kg,load_calc_formula,baseline,notes
+barbell,"Barbell, Olympic Barbell",20,bar_weight + added,yes,"기존 generic Barbell 행에서 추출(20kg)"
+ez_barbell,Ez Barbell,10,bar_weight + added,yes,"기존 generic EZ Bar 행에서 추출(10kg). D8 별도 유지"
+trap_bar,Trap Bar,25,bar_weight + added,yes,"25kg 확정(사용자 2026-06-06)"
+dumbbell,"Dumbbell, Dumbbell variants",0,added,yes,"바 무게 없음. 증분 패턴(기존 행): 1~10=2.0 / 11~14=2.5 / 15~16=5.0 kg"
+bodyweight,"Body Weight, Body Weight (with Resistance Band)",0,body_weight ± added,yes,"풀업바·딥스대 포함(baseline). 자체 기구 행 불요"
+weighted,Weighted,0,body_weight + added,yes,"체중+외부부하(딥/풀업 가중 등). D13 별도 — bodyweight와 분리"
+kettlebell,Kettlebell,0,added,yes,"데이터 없음. added(사용자 입력)"
+band,"Band, Resistance Band",0,added(variable),yes,"탄성 부하. 표준 무게 없음 — added/별도 정책"

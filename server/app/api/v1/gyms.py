@@ -19,7 +19,6 @@ from app.core.exceptions import ConflictError, ExternalServiceError, NotFoundErr
 from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
-    EquipmentMuscle,
     EquipmentReport,
     EquipmentReportStatus,
     EquipmentSuggestion,
@@ -28,7 +27,7 @@ from app.models import (
     User,
     UserGym,
 )
-from app.models.exercise import Exercise, ExerciseMuscle
+from app.models.exercise import Exercise, ExerciseEquipment, ExerciseMuscle
 from app.schemas.common import SuccessResponse
 from app.schemas.gyms import (
     AddGymEquipmentRequest,
@@ -48,6 +47,7 @@ from app.schemas.gyms import (
     SuggestEquipmentData,
     SuggestEquipmentRequest,
 )
+from app.services.load_calc import FREEWEIGHT_MODES
 
 logger = logging.getLogger(__name__)
 
@@ -544,7 +544,7 @@ async def list_equipments_by_muscle(
 ):
     """특정 근육군을 타깃으로 하는 기구 목록을 머신(헬스장별)과 프리웨이트(공통)로 분리하여 반환한다.
 
-    - machines[]: 해당 헬스장(gym_id)이 보유한 머신/케이블만. equipment_muscles 백필 기반.
+    - machines[]: 해당 헬스장(gym_id)이 보유한 머신/케이블만. exercise_equipment 정션 기반.
     - free_weights[]: 전 헬스장 공통. exercise_muscles의 primary 운동 중 프리웨이트 기구에 연결된 운동.
     """
     # muscle_group_id 필수 검증
@@ -567,39 +567,38 @@ async def list_equipments_by_muscle(
         raise NotFoundError(message="헬스장을 찾을 수 없습니다.")
 
     # ── 머신 목록 ─────────────────────────────────────────────────────────────
-    # equipment_muscles em JOIN equipments e(is_freeweight=false)
-    # JOIN gym_equipments ge(ge.gym_id=path) WHERE em.muscle_group_id=q AND em.involvement=q
+    # exercise_equipment 정션 ⋈ exercise_muscles ⋈ gym_equipments(머신 운동)
+    # exercise_equipment는 머신(cable/machine) 운동만 보유하므로 equipment_type 필터 불필요.
     machine_rows = (
         await db.execute(
             select(
-                Equipment.id,
-                Equipment.movement_label_ko,
-                Equipment.name,
+                Equipment.id.label("equipment_id"),
+                Equipment.name.label("eq_name"),
                 Equipment.equipment_type,
                 Equipment.image_url,
+                Exercise.id.label("exercise_id"),
+                Exercise.name.label("ex_name"),
             )
-            .join(EquipmentMuscle, EquipmentMuscle.equipment_id == Equipment.id)
+            .join(ExerciseEquipment, ExerciseEquipment.equipment_id == Equipment.id)
+            .join(Exercise, Exercise.id == ExerciseEquipment.exercise_id)
+            .join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
             .join(
                 GymEquipment,
                 (GymEquipment.equipment_id == Equipment.id) & (GymEquipment.gym_id == gym_uuid),
             )
             .where(
-                EquipmentMuscle.muscle_group_id == mg_uuid,
-                EquipmentMuscle.involvement == involvement,
-                Equipment.equipment_type.notin_(["barbell", "dumbbell", "bodyweight"]),
+                ExerciseMuscle.muscle_group_id == mg_uuid,
+                ExerciseMuscle.involvement == involvement,
             )
-            .order_by(Equipment.name)
+            .distinct()
+            .order_by(Exercise.name)
         )
     ).all()
 
-    # 브랜드명은 별도 조회 없이 equipment.brand 관계 활용 시 N+1 발생.
-    # 여기서는 equipment_id로 brand JOIN을 추가한 subquery 대신
-    # 단순 selectinload 없이 brand_id 조인으로 처리한다 (brand_name 필요 시 join 확장 가능).
-    # PR-1 범위에서는 brand 없이 반환 (필요 시 후속 PR에서 JOIN 추가).
     machines: list[MachineItem] = [
         MachineItem(
-            equipment_id=str(row.id),
-            label=row.movement_label_ko or row.name,
+            equipment_id=str(row.equipment_id),
+            label=row.ex_name or row.eq_name,
             equipment_type=str(row.equipment_type),
             image_url=row.image_url,
             brand=None,
@@ -608,26 +607,21 @@ async def list_equipments_by_muscle(
     ]
 
     # ── 프리웨이트 목록 ───────────────────────────────────────────────────────
-    # exercise_muscles xm JOIN exercises x JOIN equipments e ON e.id = x.default_equipment_id
-    # WHERE xm.muscle_group_id=q AND xm.involvement='primary'
-    # 프리웨이트는 항상 involvement='primary' 기준으로 운동 선택
-    # (involvement 쿼리 파라미터는 머신에만 적용; 프리웨이트는 primary 고정)
-    # PR-4.5: exercise_equipment_map → exercises.default_equipment_id (default 기구 미지정 운동은 INNER JOIN으로 제외)
+    # Exercise.load_mode ∈ baseline 8종(프리웨이트 항상 가용, equipment_id=NULL)
+    # involvement 파라미터는 머신에만 적용; 프리웨이트는 primary 고정.
     fw_rows = (
         await db.execute(
             select(
                 Exercise.id,
                 Exercise.name,
                 Exercise.name_en,
-                Equipment.id.label("equipment_id"),
-                Equipment.equipment_type,
+                Exercise.load_mode,
             )
             .join(ExerciseMuscle, ExerciseMuscle.exercise_id == Exercise.id)
-            .join(Equipment, Equipment.id == Exercise.default_equipment_id)
             .where(
                 ExerciseMuscle.muscle_group_id == mg_uuid,
                 ExerciseMuscle.involvement == "primary",
-                Equipment.equipment_type.in_(["barbell", "dumbbell", "bodyweight"]),
+                Exercise.load_mode.in_(list(FREEWEIGHT_MODES)),
             )
             .distinct()
             .order_by(Exercise.name)
@@ -639,8 +633,8 @@ async def list_equipments_by_muscle(
             exercise_id=str(row.id),
             name=row.name,
             name_en=row.name_en,
-            equipment_id=str(row.equipment_id) if row.equipment_id else None,
-            equipment_type=str(row.equipment_type) if row.equipment_type else None,
+            equipment_id=None,
+            equipment_type=str(row.load_mode) if row.load_mode else None,
         )
         for row in fw_rows
     ]
