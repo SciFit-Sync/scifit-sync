@@ -83,6 +83,9 @@ class ExerciseMuscle(Base):
         )
     )
     activation_pct: Mapped[int | None] = mapped_column(Integer, default=None)
+    # activation_pct 출처 구분(anatomy_seed=해부학 시드 salvage / gemini=LLM 추정 / NULL=미보유).
+    # 검증값과 추정값을 섞을 때 나중에 추정값만 재검증·교체하기 위한 메타.
+    activation_source: Mapped[str | None] = mapped_column(String(20), default=None)
 
     exercise: Mapped["Exercise"] = relationship(back_populates="muscle_maps")
     muscle_group: Mapped["MuscleGroup"] = relationship()
