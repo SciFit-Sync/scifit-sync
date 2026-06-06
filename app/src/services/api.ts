@@ -64,8 +64,11 @@ export async function apiFetch<T>(
     const refreshed = await refreshTokens();
     if (refreshed) {
       res = await send(useAuthStore.getState().accessToken ?? undefined);
-    } else {
-      // refresh 토큰도 만료/무효 → 로그아웃하여 로그인 화면으로 복귀
+    }
+    // refresh 토큰도 만료/무효이거나, 재발급 후 재시도도 여전히 401이면
+    // (시계 skew·refresh 직후 family revoke 등) → 로그아웃하여 로그인 화면으로 복귀.
+    // 사용자가 깨진/빈 화면에 갇히지 않도록 한다.
+    if (!refreshed || res.status === 401) {
       await useAuthStore.getState().clearAuth();
       throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
     }
