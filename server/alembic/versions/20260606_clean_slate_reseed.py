@@ -146,6 +146,5 @@ def downgrade() -> None:
     # forward-only: 클린슬레이트는 비가역(wipe된 레퍼런스/루틴/스키마 복원 불가).
     # 롤백이 필요하면 마이그 전 백업(db-export 스냅샷)에서 복구할 것.
     raise RuntimeError(
-        "clean_slate_reseed 는 비가역 마이그레이션입니다. "
-        "롤백하려면 적용 전 백업에서 복구하세요(downgrade 미지원)."
+        "clean_slate_reseed 는 비가역 마이그레이션입니다. 롤백하려면 적용 전 백업에서 복구하세요(downgrade 미지원)."
     )
