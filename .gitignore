@@ -75,3 +75,4 @@ mlops/data/emb_*/
 mlops/eval/reports/*.md
 !mlops/eval/reports/README.md
 app/package-lock.json
+docs/handoff/.phase4-specs/
