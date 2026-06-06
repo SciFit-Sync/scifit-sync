@@ -75,6 +75,7 @@ class SessionCalendarItem(BaseModel):
     routine_id: str | None = None
     routine_name: str | None = None
     fitness_goals: list[str] = []
+    target_muscle_names: list[str] = []
     duration_minutes: int | None = None
     gym_name: str | None = None
     total_volume_kg: float = 0.0
