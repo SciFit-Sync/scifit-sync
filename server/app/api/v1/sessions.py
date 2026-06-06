@@ -451,6 +451,7 @@ async def _check_and_create_po_notifications(
         ).scalar_one_or_none()
         user_1rm_kg = float(user_1rm_row) if user_1rm_row is not None else None
         increment_override = await po_rag.rag_po_increment(goal, category, user_1rm_kg)
+        po_source = "논문 기반" if increment_override is not None else "기본값"
 
         result = po.calculate_increase(
             category=category,
@@ -471,7 +472,7 @@ async def _check_and_create_po_notifications(
                     user_id=user.id,
                     type=NotificationType.PO_SUGGESTION,
                     title="더 무거운 기구를 사용해보세요",
-                    body=f"{ex_name}: {result['message']}",
+                    body=f"{ex_name}: {result['message']} [{po_source}]",
                     data_json={
                         "routine_exercise_id": str(rex_id),
                         "exercise_id": str(rex.exercise_id),
@@ -484,7 +485,7 @@ async def _check_and_create_po_notifications(
                     user_id=user.id,
                     type=NotificationType.PO_SUGGESTION,
                     title="중량 증가를 권장해요",
-                    body=f"{ex_name} {cur_max_weight}kg → {result['new_weight']}kg으로 올려보세요",
+                    body=f"{ex_name} {cur_max_weight}kg → {result['new_weight']}kg으로 올려보세요 [{po_source}]",
                     data_json={
                         "routine_exercise_id": str(rex_id),
                         "exercise_id": str(rex.exercise_id),
