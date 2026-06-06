@@ -70,6 +70,16 @@ _REST_GOAL_DEFAULTS: dict[str, tuple[int, int, int]] = {
     "rehabilitation": (60, 30, 90),
 }
 
+_BODY_PART_KO: dict[str, str] = {
+    "chest": "가슴",
+    "back": "등",
+    "shoulder": "어깨",
+    "shoulders": "어깨",
+    "legs": "하체",
+    "arms": "팔",
+    "abs": "복근",
+}
+
 
 def _fmt_seconds(s: int) -> str:
     if s < 60:
@@ -566,18 +576,32 @@ async def list_sessions(
     )
 
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
-    # day_id → (routine_id, routine_name, fitness_goals)
-    routine_info_by_day: dict[str, tuple[str, str, list[str]]] = {}
+    # day_id → (routine_id, routine_name, fitness_goals, target_muscle_group_ids)
+    routine_info_by_day: dict[str, tuple[str, str, list[str], list[str]]] = {}
 
     if day_ids:
         name_rows = (
             await db.execute(
-                select(RoutineDay.id, WorkoutRoutine.id, WorkoutRoutine.name, WorkoutRoutine.fitness_goals)
+                select(
+                    RoutineDay.id,
+                    WorkoutRoutine.id,
+                    WorkoutRoutine.name,
+                    WorkoutRoutine.fitness_goals,
+                    WorkoutRoutine.target_muscle_group_ids,
+                )
                 .join(WorkoutRoutine, RoutineDay.routine_id == WorkoutRoutine.id)
                 .where(RoutineDay.id.in_(day_ids))
             )
         ).all()
-        routine_info_by_day = {str(did): (str(rid), rname, goals or []) for did, rid, rname, goals in name_rows}
+        routine_info_by_day = {
+            str(did): (
+                str(rid),
+                rname,
+                goals or [],
+                [_BODY_PART_KO.get(m, m) for m in (muscles or [])],
+            )
+            for did, rid, rname, goals, muscles in name_rows
+        }
 
     gym_ids = [r.gym_id for r in rows if r.gym_id]
     gym_name_by_id: dict[str, str] = {}
@@ -606,7 +630,7 @@ async def list_sessions(
         ).all()
         session_agg = {str(sid): (float(vol), int(sets), float(weight)) for sid, vol, sets, weight in agg_rows}
 
-    _no_info: tuple[str | None, str | None, list[str]] = (None, None, [])
+    _no_info: tuple[str | None, str | None, list[str], list[str]] = (None, None, [], [])
 
     # 완료된 세트가 있는 세션만 표시 + 같은 날 같은 루틴은 1건으로 합산
     merged: dict[str, SessionCalendarItem] = {}
@@ -635,6 +659,7 @@ async def list_sessions(
                 routine_id=routine_id_val,
                 routine_name=info[1],
                 fitness_goals=info[2],
+                target_muscle_names=info[3],
                 duration_minutes=duration or 0,
                 gym_name=gym_name_by_id.get(str(s.gym_id)) if s.gym_id else None,
                 total_volume_kg=vol,
