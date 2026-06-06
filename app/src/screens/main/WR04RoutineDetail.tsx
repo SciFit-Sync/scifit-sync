@@ -137,19 +137,25 @@ export default function WR04RoutineDetail() {
   const ws_toggle_set = useWorkoutSessionStore((s) => s.toggle_set);
   const ws_clear = useWorkoutSessionStore((s) => s.clear);
   const ws_add_page_elapsed = useWorkoutSessionStore((s) => s.add_page_elapsed);
+  const ws_set_detail_page_enter = useWorkoutSessionStore((s) => s.set_detail_page_enter);
   const ws_routine_id = useWorkoutSessionStore((s) => s.routine_id);
   const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
-  const ws_session_started_at = useWorkoutSessionStore((s) => s.session_started_at);
+  const ws_session_started_at = useWorkoutSessionStore(
+    (s) => s.session_started_at,
+  );
   const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
 
   // 이번 마운트의 진입 시각 — 언마운트 시 누적 체류 시간에 합산
   const mount_time_ref = useRef<number>(Date.now());
 
-  // 언마운트 시 이번 방문 체류 시간 저장 (탭 이탈 등)
+  // 마운트 시 진입 시각 기록, 언마운트 시 누적 후 초기화
   useEffect(() => {
+    mount_time_ref.current = Date.now();
+    ws_set_detail_page_enter(mount_time_ref.current);
     return () => {
       ws_add_page_elapsed(Date.now() - mount_time_ref.current);
+      ws_set_detail_page_enter(null);
     };
   }, []);
 
@@ -547,7 +553,9 @@ export default function WR04RoutineDetail() {
   const goals_label = (() => {
     const parts: string[] = [];
     if (detail?.fitness_goals && detail.fitness_goals.length > 0) {
-      parts.push(detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", "));
+      parts.push(
+        detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", "),
+      );
     }
     if (detail?.target_muscle_names && detail.target_muscle_names.length > 0) {
       parts.push(detail.target_muscle_names.join(", "));
@@ -636,7 +644,12 @@ export default function WR04RoutineDetail() {
         session_id_ref.current = data.session_id;
         session_promise_ref.current = null;
         set_session_started(true);
-        if (routine_id) ws_set_session(routine_id, data.session_id, data.started_at);
+        if (routine_id) {
+          // 서버가 naive UTC("2026-06-06T09:30:00")를 내려주므로 Z를 붙여 UTC로 파싱
+          // Z 없이 파싱하면 브라우저가 KST로 해석해 9h 빠른 값이 되어 duration이 0이 됨
+          const started_at_utc = data.started_at.endsWith("Z") ? data.started_at : data.started_at + "Z";
+          ws_set_session(routine_id, data.session_id, started_at_utc);
+        }
         return data.session_id;
       })
       .catch((e) => {
@@ -689,7 +702,11 @@ export default function WR04RoutineDetail() {
         finished_at = new Date(started + total_ms).toISOString();
       }
 
-      await finishSession(token, session_id_ref.current, finished_at ? { finished_at } : undefined);
+      await finishSession(
+        token,
+        session_id_ref.current,
+        finished_at ? { finished_at } : undefined,
+      );
       ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
       query_client.invalidateQueries({ queryKey: ["sessions"] });
       query_client.invalidateQueries({ queryKey: ["session-stats"] });
@@ -832,7 +849,9 @@ export default function WR04RoutineDetail() {
                   <View style={styles.exercise_info}>
                     <Text style={styles.exercise_name}>{exercise.name}</Text>
                     {exercise.equipment_name && (
-                      <Text style={styles.equipment_label}>{exercise.equipment_name}</Text>
+                      <Text style={styles.equipment_label}>
+                        {exercise.equipment_name}
+                      </Text>
                     )}
                     <Text style={styles.exercise_sub}>
                       세트 {exercise.sets.filter((s) => s.is_done).length}/
@@ -1543,7 +1562,7 @@ const styles = StyleSheet.create({
   equipment_label: {
     fontFamily: "regular",
     fontSize: 12,
-    color: colors.gray500,
+    color: colors.gray,
   },
   exercise_sub: {
     fontFamily: "regular",
@@ -2071,13 +2090,13 @@ const styles = StyleSheet.create({
   finish_btn: {
     marginTop: 16,
     backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 8,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   finish_btn_text: {
-    fontFamily: "semibold",
+    fontFamily: "medium",
     fontSize: 16,
     color: colors.white,
   },
