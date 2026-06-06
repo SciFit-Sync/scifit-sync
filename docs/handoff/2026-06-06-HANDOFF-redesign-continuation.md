@@ -2,7 +2,7 @@
 
 > 작성 2026-06-06 · **다른 세션이 이 문서 하나로 이어받아 실행** 가능하도록 작성.
 > 단일 정본(SOT) = [`docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md).
-> 상태: **PR #297 — CI GREEN(lint/test-mlops/test-server 전부 pass)·MERGEABLE·리뷰 승인 대기. 코드 구현 100% — DB 적용(prod)·Phase 7(Gemini junction/activation 백필)만 남음.** branch `feat/jingyu/equipment-workoutx-redesign` → base `develop`. 진행 상세 §10, PR/CI §11.
+> 상태: **PR #297 develop 머지 완료(91ae6f8).** 🔴 **배포 안전 fix PR #300(→develop) CI GREEN·리뷰 대기 — 이 PR이 develop에 먼저 들어가기 전엔 develop→main 릴리스 금지(자동 배포 크래시). 상세 §12.** 코드 구현 100% — DB 적용(prod 자동)·Phase 7(Gemini junction/activation salvage)만 남음. 진행 §10, PR/CI §11, **배포 크래시 결함+처방 §12**.
 
 ---
 
@@ -198,3 +198,32 @@
 ### 교훈 (다음 세션 반영)
 - 마이그/모든 파일 Edit 후에도 push 전 `ruff format --check server/ mlops/`(CI 동일 명령) 필수.
 - 핵심 테스트만 돌리지 말 것 — CI는 전체 suite 실행. 계약 변경 시 `test_gym_muscle_equipments` 같은 mock 기반 테스트도 전수 갱신.
+
+## 12. 🚀 배포 자동화 + 🔴 크래시 결함 + 처방 PR #300 (2026-06-06)
+
+### deploy.yml = main push 시 마이그 자동 실행
+- `.github/workflows/deploy.yml`: `on: push [main]` → ECS Fargate one-off 로 `alembic upgrade head` 자동 실행(`:97`). 실패 시 `:110` exit 1, update-service(`:113`, 신코드 롤아웃)는 마이그 성공 후. 원래 백업 step 없음.
+- 즉 **develop→main 머지 = clean_slate(전체 wipe)+reseed_workoutx 자동 적용 시도**. head 체인 = remap_default_equip→clean_slate_reseed→reseed_workoutx(단일 leaf). clean_slate downgrade=RuntimeError(forward-only).
+
+### 🔴 발견 — 현재 자동 배포는 크래시한다 (코드 전수검증)
+1. **Dockerfile COPY 누락(치명)** — `reseed_workoutx`가 읽는 `reseed_*.csv/json` **4파일이 `server/Dockerfile`에 없음**(`:56`이 `equipments_seed.csv` 1개만 COPY) → ECS `upgrade head` 의 `open()`에서 `FileNotFoundError`. (파일은 git tracked지만 이미지 미포함.)
+2. **단일 트랜잭션 롤백** — `alembic.ini`/`env.py` 모두 `transaction_per_migration` 미설정 → reseed 크래시 시 clean_slate DELETE16+DROP2까지 **전체 ROLLBACK**. 데이터는 우연히 보존되나 exitCode≠0 → 배포 실패(신코드 롤아웃 안 됨).
+3. **파괴적 wipe 자동 경로** — 출시 후(실데이터) 재실행 시 영구 삭제. 데이터 보존은 안전장치 아닌 우연(파일 부재+단일 트랜잭션). 런북(수동 적용 의도, 90fdccc가 alembic head로 올림)과 불일치.
+
+### 현황 (2026-06-06 fetch)
+- PR #297 develop 머지 완료(91ae6f8). **origin/main 재설계 마이그 없음 + main향 열린 PR 없음 = 배포 미발생(아직 안전)**. 단 develop=팀 통합 브랜치(위로 #296/#298/#294 적층) → **다음 develop→main 릴리스가 자동 트리거**. fix 선반영 시급.
+
+### 처방 — PR #300 (`fix/jingyu/reseed-deploy-safety` → develop, 커밋 b61590d)
+수동 적용 불가 조건 → **자동 배포가 안전하게 완결**되도록(head 분리·수동 선적용은 "사람이 prod에 손댐" 전제라 제외):
+1. **reseed 4파일 `mlops/data/` → `server/alembic/data/` 이전**(`git mv`). 기존 `COPY server/ /app/`에 자동 포함 → Dockerfile 별도 COPY 불요·**재발 차단**. `_resolve_data()` 단일 경로화(`20260605_seed_muscle_activation` 패턴). `.gitattributes` 경로 동반 갱신.
+2. **`clean_slate` 출시후 가드** — `workout_routines/logs/log_sets/1rm/programs` 존재 + `ALLOW_CLEAN_SLATE_WIPE` 미설정이면 `RuntimeError` abort. **pre-launch(0행) 통과** → 자동 재시드 1회 완료, 단일 트랜잭션이라 abort=ROLLBACK(무손상). 출시 후 오발 차단.
+3. **`deploy.yml` migration 앞 `pg_dump→S3` 백업**(조건부) — `PROD_DATABASE_URL`(direct, pooler 아님)+`BACKUP_S3_URI` secret 있으면 활성, 없으면 경고 후 skip. 실패 시 exit 1로 마이그 차단.
+
+### 검증 + 상태
+단일 head(`reseed_workoutx`) · 데이터 4파일 새 경로 resolve · `ruff format`+`check` · **454 passed**(1 fail=`test_chat` 로컬 DB, 무관) · papers write 0 · **CI GREEN**(lint·test-mlops·test-server) · MERGEABLE·BLOCKED(리뷰 대기).
+
+### 머지 후 흐름
+**PR #300 develop 머지** → 이후 develop→main 릴리스 시 **자동 배포가 안전하게 1회 재시드 완료**(수동 0, pre-launch라 wipe 손실 0, 이후 배포는 alembic no-op). 🔴 **실사용자 발생(출시) 후엔** `PROD_DATABASE_URL`·`BACKUP_S3_URI` 두 secret을 GitHub에 등록해야 백업이 실제 동작(사용자 데이터는 db-export에 없음 — RLS, 레퍼런스만).
+
+### 교훈
+배포 안전은 alembic head 체인·트랜잭션뿐 아니라 **Dockerfile COPY(마이그가 읽는 데이터 파일이 이미지에 들어가는지)**까지 검증해야 한다. head 체인만 보고 "안전" 단정 금지(이전 분석이 이 결함을 놓침).
