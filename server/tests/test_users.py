@@ -273,9 +273,7 @@ class TestOcrInbody:
     async def test_extracts_height_and_gender(self, client, monkeypatch):
         monkeypatch.setattr(
             "app.api.v1.users.generate_vision",
-            lambda *a, **k: (
-                '{"weight_kg": 72.5, "height_cm": 175.0, "gender": "male", "measured_at": null}'
-            ),
+            lambda *a, **k: '{"weight_kg": 72.5, "height_cm": 175.0, "gender": "male", "measured_at": null}',
         )
         resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
         assert resp.status_code == 200
