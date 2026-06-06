@@ -205,6 +205,15 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         if not po.check_po_trigger(recent_max_reps, goal):
             continue
 
+        # Exercise.name + load_mode 함께 조회 (N+1 방지)
+        ex_row = (await db.execute(select(Exercise.name, Exercise.load_mode).where(Exercise.id == exercise_id))).first()
+        ex_name = (ex_row.name if ex_row else None) or "운동"
+        lm = ex_row.load_mode if ex_row else None
+
+        # cardio는 부하 개념이 없어 PO 대상 제외
+        if lm == "cardio":
+            continue
+
         equipment_id = (
             await db.execute(
                 select(RoutineExercise.equipment_id)
@@ -212,7 +221,6 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
                 .where(
                     WorkoutLogSet.workout_log_id == s.id,
                     WorkoutLogSet.exercise_id == exercise_id,
-                    RoutineExercise.equipment_id.is_not(None),
                 )
                 .limit(1)
             )
@@ -222,7 +230,9 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         if equipment_id:
             equipment = (await db.execute(select(Equipment).where(Equipment.id == equipment_id))).scalar_one_or_none()
 
-        eq_type = str(equipment.equipment_type) if equipment else "machine"
+        # load_mode를 1차 소스로 사용. 머신(cable/machine)이고 실물 equipment가 있으면 그대로,
+        # 프리웨이트는 load_mode로 직접 분류. load_mode가 None인 레거시 데이터는 'machine' 안전망.
+        cat = lm or (str(equipment.equipment_type) if equipment else "machine")
         max_stack = equipment.max_stack if equipment else None
 
         stats = (
@@ -241,11 +251,7 @@ async def _create_po_notifications(s: WorkoutLog, user_id: uuid.UUID, db: AsyncS
         current_weight = float(stats.weight or 0)
         current_sets = int(stats.sets or 0)
 
-        result = po.calculate_increase(eq_type, goal, current_weight, current_sets, max_stack)
-
-        ex_name = (
-            await db.execute(select(Exercise.name).where(Exercise.id == exercise_id))
-        ).scalar_one_or_none() or "운동"
+        result = po.calculate_increase(cat, goal, current_weight, current_sets, max_stack)
 
         if result["message"]:
             title = "기구 변경 권장"
@@ -493,9 +499,15 @@ async def _check_and_create_po_notifications(
     rex_map = {rex.id: rex for rex in rex_records}
 
     exercise_ids = list({rex.exercise_id for rex in rex_records})
-    ex_name_map: dict[str, str] = dict(
-        (await db.execute(select(Exercise.id, Exercise.name).where(Exercise.id.in_(exercise_ids)))).all()
-    )
+    # id → (name, load_mode) 로 구조 변경: load_mode를 같은 쿼리에서 가져와 N+1 방지
+    ex_meta_map: dict = {
+        r.id: (r.name, r.load_mode)
+        for r in (
+            await db.execute(
+                select(Exercise.id, Exercise.name, Exercise.load_mode).where(Exercise.id.in_(exercise_ids))
+            )
+        ).all()
+    }
 
     equip_ids = list({rex.equipment_id for rex in rex_records if rex.equipment_id})
     equip_map: dict = {}
@@ -518,18 +530,32 @@ async def _check_and_create_po_notifications(
         if rex is None:
             continue
 
-        ex_name = str(ex_name_map.get(rex.exercise_id, "운동"))
+        name, lm = ex_meta_map.get(rex.exercise_id, ("운동", None))
+        ex_name = str(name)
 
-        equipment_type = "barbell"
+        # cardio는 부하 개념이 없어 PO 대상 제외
+        if lm == "cardio":
+            continue
+
+        # load_mode를 1차 소스로 사용.
+        # load_mode가 None인 레거시 데이터는 'barbell' 안전망(재시드 후 실질 영향 0).
         max_stack = None
-        if rex.equipment_id:
+        if lm in ("cable", "machine") and rex.equipment_id:
             equip = equip_map.get(rex.equipment_id)
             if equip:
-                equipment_type = str(equip.equipment_type)
+                category = lm
                 max_stack = equip.max_stack
+            else:
+                category = lm or "barbell"
+        else:
+            category = lm or "barbell"
+            if rex.equipment_id:
+                equip = equip_map.get(rex.equipment_id)
+                if equip:
+                    max_stack = equip.max_stack
 
         result = po.calculate_increase(
-            category=equipment_type,
+            category=category,
             goal=goal,
             current_weight=float(cur_max_weight or 0),
             current_sets=int(set_count),
