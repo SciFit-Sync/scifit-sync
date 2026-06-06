@@ -17,7 +17,7 @@ import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { getMe, updateBody, ocrInbody } from "../../services/users";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
 
@@ -143,6 +143,13 @@ export default function WP02EditBodyInfo() {
     const sm =
       skeletal_muscle.trim() !== "" ? parseFloat(skeletal_muscle) : undefined;
     const bf = body_fat.trim() !== "" ? parseFloat(body_fat) : undefined;
+
+    // 골격근량/체지방률 저장 시 체중 필수 (백엔드 정책)
+    if ((sm !== undefined || bf !== undefined) && w === undefined) {
+      Alert.alert("알림", "골격근량·체지방률 저장 시 몸무게를 입력해주세요.");
+      return;
+    }
+
     set_saving(true);
     try {
       await updateBody(token, {
@@ -210,7 +217,7 @@ export default function WP02EditBodyInfo() {
                       color={colors.primary}
                     />
                     <Text style={styles.ocr_button_text}>
-                      인바디 결과지 사진으로 입력
+                      인바디 결과지 사진으로 자동 입력
                     </Text>
                   </>
                 )}
