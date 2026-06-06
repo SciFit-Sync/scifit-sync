@@ -2,7 +2,7 @@
 
 > 작성 2026-06-06 · **다른 세션이 이 문서 하나로 이어받아 실행** 가능하도록 작성.
 > 단일 정본(SOT) = [`docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md).
-> 상태: **Phase 1~4 + clean_slate/재시드 마이그 + 테스트 전부 완료 (195 passed · app.main OK · alembic single head · ruff clean · papers 불가침). 코드 구현 100% — DB 적용(prod)·Phase 7(Gemini junction/activation 백필)만 남음.** branch `feat/jingyu/equipment-workoutx-redesign`. PR 준비 완료. 진행 상세 §10.
+> 상태: **PR #297 — CI GREEN(lint/test-mlops/test-server 전부 pass)·MERGEABLE·리뷰 승인 대기. 코드 구현 100% — DB 적용(prod)·Phase 7(Gemini junction/activation 백필)만 남음.** branch `feat/jingyu/equipment-workoutx-redesign` → base `develop`. 진행 상세 §10, PR/CI §11.
 
 ---
 
@@ -171,3 +171,30 @@
 - **DB 적용 (prod hnwegx)**: 런북 [`2026-06-06-prod-reseed-runbook.md`](2026-06-06-prod-reseed-runbook.md)대로 — ① 백업(papers/paper_chunks 행수 기록 + db-export 스냅샷) ② server/.env를 prod service role URL로 교체 ③ `alembic upgrade head`(clean_slate→reseed_workoutx 순차) ④ 검증 SQL(papers 행수 불변·load_mode NULL 0·exercise_muscles primary 결손 0·orphan 0). gyms에 더찬스짐(ecdd073b) 존재 전제.
 - **Phase 7 (Gemini 후속, 재시드 후)**: exercise_equipment junction(머신↔운동 N:M — 현재 비움이라 머신 루틴 가용성 0) + activation_pct 백필(현재 전부 NULL). G2 머신 160운동 정션 매핑 포함.
 - **Phase 5 프론트** (WR01RoutineCreate/WH02Analysis 부위 10분류) + **CI** app tsc/lint job — 미착수.
+
+## 11. 🟢 PR & CI 상태 (2026-06-06)
+
+**PR #297** (base `develop`) — **CI GREEN**: lint · test-mlops · test-server 전부 pass. `MERGEABLE` / `BLOCKED`(=리뷰 승인 대기, 코드 문제 아님).
+
+### PR 정리 + 충돌/CI 해결 커밋
+| 커밋 | 내용 |
+|---|---|
+| `d72ab3d` | PR 정리 — 설계 과정 산출물/중복 docs 11건 제거 + reseed 데이터 `linguist-generated` 마킹(.gitattributes) |
+| `fab2085` | develop merge 충돌 해결 — sessions.py PO 이중알림 리팩토링(develop) 채택 + load_mode 정합(`equipment_type`→`category` semantic fix), test_po 합집합 |
+| `83e9872` | CI lint fix — clean_slate 마이그 ruff format(docstring Edit 후 누락분) |
+| `7f0ce13` | test_gym_muscle_equipments mock 갱신 — gyms 정션 계약(`ex_name`/`eq_name`/`load_mode`), Phase 6 누락분 |
+
+### diff 규모
+- **실코드 ~2,800줄**(py 1,302 + 마이그 913 + 테스트 353). 데이터 35k줄(reseed JSON)은 `linguist-generated`로 GitHub diff 접힘.
+- 로컬 전체 **451 passed** (잔여 1 = `test_chat` DB 의존, 알려진 환경 — CI는 DB로 통과).
+- admin 17건 로컬 실패는 `ADMIN_API_TOKEN` env 덮어쓰기 탓(CI 무관, conftest 기본값으로 통과).
+
+### 다음 (PR 머지 후)
+1. 리뷰 승인 → develop 머지
+2. **prod 적용**: 런북대로 백업(papers 행수 기록) → `alembic upgrade head`(clean_slate→reseed_workoutx) → 검증 SQL
+3. **Phase 7**: exercise_equipment junction(머신↔운동 Gemini 검증) + activation_pct 백필
+4. **Phase 5**: 프론트 부위 10분류 + CI app tsc/lint job
+
+### 교훈 (다음 세션 반영)
+- 마이그/모든 파일 Edit 후에도 push 전 `ruff format --check server/ mlops/`(CI 동일 명령) 필수.
+- 핵심 테스트만 돌리지 말 것 — CI는 전체 suite 실행. 계약 변경 시 `test_gym_muscle_equipments` 같은 mock 기반 테스트도 전수 갱신.
