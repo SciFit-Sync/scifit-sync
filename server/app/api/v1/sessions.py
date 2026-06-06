@@ -568,8 +568,12 @@ async def list_sessions(
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
     # day_id → (routine_id, routine_name, fitness_goals, target_muscle_group_ids)
     _BODY_PART_KO: dict[str, str] = {
-        "chest": "가슴", "back": "등", "shoulder": "어깨",
-        "legs": "하체", "arms": "팔", "abs": "복근",
+        "chest": "가슴",
+        "back": "등",
+        "shoulder": "어깨",
+        "legs": "하체",
+        "arms": "팔",
+        "abs": "복근",
     }
     routine_info_by_day: dict[str, tuple[str, str, list[str], list[str]]] = {}
 
@@ -577,8 +581,11 @@ async def list_sessions(
         name_rows = (
             await db.execute(
                 select(
-                    RoutineDay.id, WorkoutRoutine.id, WorkoutRoutine.name,
-                    WorkoutRoutine.fitness_goals, WorkoutRoutine.target_muscle_group_ids,
+                    RoutineDay.id,
+                    WorkoutRoutine.id,
+                    WorkoutRoutine.name,
+                    WorkoutRoutine.fitness_goals,
+                    WorkoutRoutine.target_muscle_group_ids,
                 )
                 .join(WorkoutRoutine, RoutineDay.routine_id == WorkoutRoutine.id)
                 .where(RoutineDay.id.in_(day_ids))
@@ -586,7 +593,9 @@ async def list_sessions(
         ).all()
         routine_info_by_day = {
             str(did): (
-                str(rid), rname, goals or [],
+                str(rid),
+                rname,
+                goals or [],
                 [_BODY_PART_KO.get(m, m) for m in (muscles or [])],
             )
             for did, rid, rname, goals, muscles in name_rows
