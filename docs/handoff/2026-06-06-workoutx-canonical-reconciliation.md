@@ -1,5 +1,10 @@
 # WorkoutX 캐노니컬 전환 + 클린슬레이트 재시드 — 종합 정리
 
+> ⚠️ **SOT 주의 (2026-06-06)** — 본 문서 초반의 "DB 스키마 변경 불필요 / `equipment_type` 유지 / `default_equipment_id`로 시드"
+> 류 서술은 (B) 결정(generic 행 제거 + load_mode + N:M 정션) 이전 단계의 것으로 **무효(superseded)**.
+> 단일 정본 = [`../spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md).
+> 본 문서는 PR reconciliation·activation 병합 맵(§2.1) 근거로만 참조할 것.
+
 > 작성 2026-06-06 · prod(hnwegx) 실측 + 전체 마이그레이션/시드 감사 기반
 > 결정 방향: **WorkoutX 원본 분류를 캐노니컬 표준으로 채택** + **논문 제외 데이터 클린슬레이트 재시드**
 > 정합성 우선순위(사용자 지정): ① DB↔데이터 ② DB↔백엔드 ③ DB↔프론트엔드

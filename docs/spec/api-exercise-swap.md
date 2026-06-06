@@ -1,3 +1,7 @@
+> ⚠️ **갱신 예정 (2026-06-06)** — 운동-기구 재설계(WorkoutX)로 `routine_exercises.equipment_id`가
+> **NULL 허용**(D7)으로 바뀐다. 프리웨이트 종목 교체는 `equipment_id` 생략/NULL 정상, **머신만** 실물 기구 필수.
+> 본 문서의 NOT NULL 전제 부분은 무효. 신정본 = [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md).
+
 # 🔄 운동 변경 선택 (루틴 종목 교체)
 
 ## 📌 개요

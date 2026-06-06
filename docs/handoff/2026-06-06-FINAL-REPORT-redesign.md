@@ -75,20 +75,20 @@
 
 **codex #2 발견 → 수정 완료**:
 - 🟠 program_routines 과삭제 → programs/program_routines를 **명시 wipe로 이동**(루틴 종속)
-- 🟡 non-empty 환경 부분파괴(log set만 소실) → **hard-fail(abort)** 로 변경
+- 🟡 non-empty 부분파괴 → **D15 '전체 wipe'(workout_logs 헤더까지) 로 해소**, 건수 WARNING 로깅
 
 ⚠️ **DRAFT — 자동 실행 금지.** alembic 체인 투입 전: 백업 + 모델/코드 동반 변경(§3) + 재시드 마이그보다 선행 배치 필수.
 
 ---
 
-## 5. 🔴 구현 전 잠가야 할 사용자 결정 (4건)
+## 5. ✅ 사용자 결정 확정 (4건, 2026-06-06)
 
-> 이걸 정하기 전 착수하면 재마이그 확실 (codex #1 우선순위).
+> 모두 스펙 D13~D16 + 마이그/문서에 반영 완료.
 
-1. **wipe 범위** — "루틴만"은 FK상 불가(`workout_log_sets`→exercises RESTRICT). 현재 마이그는 **routines + log_sets + 1rm + program**까지 wipe(pre-launch ~0행, non-empty면 abort). 이대로 OK? (대안: exercises ID 안정유지=재설계와 상충)
-2. **머신 선택 의미론** — `is_default`를 빼면(당신 결정) movement_label 제거 후 "어느 머신 보여줄지"가 임의선택으로 퇴화(codex #1/#3). `exercise_equipment`에 `display_rank`/대표머신 다시 넣을지?
-3. **`load_mode` 어휘** — `weighted`(체중+외부부하 36개)를 bodyweight로 뭉개면 부하의미 섞임. **`weighted` 독립 추가** 권장(11종). OK?
-4. **SOT 정리** — `reconciliation`/`database-schema.md`/`erd-v2.3.md`가 구(舊)정본과 충돌. redesign 스펙을 단일 SOT로 굳히고 나머지 superseded 처리할지?
+1. **wipe 범위 = 전체 wipe (D15)** — 루틴+프로그램+`workout_logs`/`log_sets`/`user_exercise_1rm`+레퍼런스 전량. users/chat/profile/논문 보존. ("루틴만"은 FK상 불가했음) → 마이그 반영, non-empty도 진행+WARNING.
+2. **머신 선택 = (b) (D14)** — LLM이 운동 선택 → `exercise_equipment ⋈ gym_equipments`로 M' 도출, M'≥2면 LLM 택1. **is_default 불필요.** → 스펙 §5 반영.
+3. **`load_mode`에 `weighted` 독립 (D13)** — 11종. → 스펙 §3/§4/§6 + seed 재작성 노트 반영.
+4. **SOT 정리 = 문서 업데이트 (D16)** — `database-schema.md`/`erd-v2.3.md`/`api-exercise-swap.md`/`templates/README.md`/`reconciliation`에 **superseded 배너** 부착 완료(전면 재작성은 구현 단계).
 
 **기타 codex 지적(자율 반영 예정, 이견 시 알려주세요)**: Hip Flexors activation 1:1 유지(drop 모순 제거), name_ko UNIQUE 충돌 해소규칙, secondary 매핑 provenance, frozen exercises.json 사용, CI에 app/ tsc 추가.
 

@@ -5,7 +5,8 @@ Revises: 20260606_remap_default_equip
 Create Date: 2026-06-06
 
 ⚠️⚠️ DRAFT — 자동 실행 금지. server/alembic/versions/ 로 옮기기 전 아래 선결 필수 ⚠️⚠️
-  1) 파괴적: exercises/equipments/muscle_groups/루틴/log_sets/1rm 전부 wipe. **사전 백업 필수**
+  1) 파괴적('전체 wipe'): exercises/equipments/muscle_groups + 루틴·프로그램 +
+     workout_logs/workout_log_sets/user_exercise_1rm 전부 wipe (논문/users/chat/profile 보존). **사전 백업 필수**
      (현 백업: docs/handoff/db-export/*.csv — 실행 직전 타임스탬프 스냅샷 1회 더 권장).
   2) 모델/코드 동반 변경 필수: 이 마이그가 DROP하는 컬럼/테이블을 ORM이 아직 참조한다
      (default_equipment_id, equipment_muscles/EquipmentMuscle, movement_label_*, is_freeweight,
@@ -42,19 +43,19 @@ def upgrade() -> None:
     # 본 마이그는 papers/paper_chunks에 대한 어떠한 DELETE/DROP/ALTER도 수행하지 않는다.
     # =========================================================================
 
-    # 선결 hard-fail (codex #2): pre-launch 0행 가정이 깨지면 ABORT.
-    #   이유 — workout_logs.routine_day_id / workout_log_sets.routine_exercise_id 는 SET NULL 이라
-    #   루틴 wipe 시 로그 '헤더'는 남고 set 이력만 사라지는 '부분 파괴'가 발생한다(workout.py).
-    #   실데이터가 있으면 경고로 넘기지 않고 멈춰서 운영자가 명시적으로 처리(백업/전체 wipe 결정)하게 한다.
+    # 사용자 결정: '전체 wipe' — 운동 기록 헤더(workout_logs)까지 포함해 전량 삭제.
+    #   codex #2의 '부분 파괴' 우려는 log_sets만 지우고 헤더를 남길 때의 문제였는데,
+    #   헤더까지 전부 wipe하므로 해소된다. 의도된 전체 초기화라 abort하지 않고 건수만 로깅한다.
+    #   (적용 전 백업은 별도 확보 — db-export 스냅샷.)
     log_cnt = conn.execute(sa.text("SELECT count(*) FROM workout_logs")).scalar_one()
     set_cnt = conn.execute(sa.text("SELECT count(*) FROM workout_log_sets")).scalar_one()
     orm_cnt = conn.execute(sa.text("SELECT count(*) FROM user_exercise_1rm")).scalar_one()
     if log_cnt or set_cnt or orm_cnt:
-        raise RuntimeError(
-            "clean-slate reseed ABORT: 운동 기록/1RM 실데이터 존재 "
-            f"(workout_logs={log_cnt}, workout_log_sets={set_cnt}, user_exercise_1rm={orm_cnt}). "
-            "이 마이그는 set/1rm을 wipe하고 log 헤더만 남겨 부분 파괴가 발생한다. "
-            "백업 후 workout_logs 처리 정책을 확정하고 본 가드를 명시적으로 조정한 뒤 재실행할 것."
+        logging.getLogger("alembic").warning(
+            "clean-slate '전체 wipe': workout_logs=%s, workout_log_sets=%s, user_exercise_1rm=%s 행 전량 삭제. 백업 확보 필수.",
+            log_cnt,
+            set_cnt,
+            orm_cnt,
         )
 
     # =========================================================================
@@ -78,8 +79,10 @@ def upgrade() -> None:
     op.execute("DELETE FROM routine_days")
     op.execute("DELETE FROM workout_routines")
 
-    # 2) exercises RESTRICT 자식 선비움 (pre-launch 0행, 멱등).
+    # 2) 운동 기록 '전체 wipe'. workout_log_sets→workout_logs(CASCADE) +
+    #    workout_log_sets→exercises(RESTRICT)라 set 먼저 → log 헤더 → 1rm 순(모두 exercises 앞).
     op.execute("DELETE FROM workout_log_sets")
+    op.execute("DELETE FROM workout_logs")
     op.execute("DELETE FROM user_exercise_1rm")
 
     # 3) muscle_groups RESTRICT 자식 선비움 (exercise_muscles).

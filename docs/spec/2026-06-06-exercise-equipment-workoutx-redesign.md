@@ -36,16 +36,20 @@
 | D8 | EZ Barbell / Trap Bar = **별도 load_mode 유지** (bar 무게 다름) |
 | D9 | activation% = 기존 해부학 시드(3893행) → 병합 맵으로 salvage(MAX, primary 우선) |
 | D10 | 한글명(운동·근육) = Gemini 일괄 → 파일 → 사용자 검증 |
-| D11 | **클린슬레이트 재시드**(논문 제외), 사용자 데이터는 **루틴만** wipe |
+| D11 | **클린슬레이트 재시드**(논문 제외). wipe 범위는 D15로 확정 |
 | D12 | 머신↔실물기구 매핑 = Gemini 판단 → 파일 → 사용자 검증 (실물 기구 적재 후) |
+| **D13** | **`load_mode`에 `weighted` 독립 추가** (체중+외부부하 36개를 bodyweight와 분리; codex#1) |
+| **D14** | **머신 선택 = (b)**: LLM이 운동선택 → 정션⋈gym으로 M' 도출, M'≥2면 LLM 택1. is_default 불필요 (§5) |
+| **D15** | **wipe 범위 = 전체 wipe** (루틴+프로그램+workout_logs/log_sets/1rm + 레퍼런스). "루틴만"은 FK상 불가(codex#1/#2). users/chat/profile/논문 보존 |
+| **D16** | **SOT 정리 = 관련 문서 업데이트**: database-schema.md·erd-v2.3·reconciliation·templates·api-exercise-swap를 본 스펙 기준으로 갱신/superseded (codex#1/#3) |
 
 ## 3. 목표 스키마 (before → after)
 
 ### exercises (동작)
 ```
 유지: id, name(ko), name_en(UQ), description, gif_url
-+ load_mode  enum-varchar: barbell|ez_barbell|trap_bar|dumbbell|bodyweight|
-             kettlebell|band|cable|machine|cardio   (WorkoutX equipment→class)
++ load_mode  enum-varchar: barbell|ez_barbell|trap_bar|dumbbell|bodyweight|weighted|
+             kettlebell|band|cable|machine|cardio   (WorkoutX equipment→class, D13: weighted 독립)
   category   = WorkoutX bodyPart (varchar, 변경무)
 - default_equipment_id   (제거 → 정션/load_mode 대체)
 ```
@@ -92,7 +96,7 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
 
 ## 4. load_calc 변경 (`services/load_calc.py`)
 - 분기 기준: `equipment.equipment_type` → **`exercise.load_mode`**
-- 프리웨이트 상수: `barbell=20, ez_barbell=10, trap_bar≈20, dumbbell/kettlebell/band=added, bodyweight=bw(±)`
+- 프리웨이트 상수: `barbell=20, ez_barbell=10, trap_bar≈20, dumbbell/kettlebell/band=added, bodyweight=bw(±), weighted=bw+added`
 - cable/machine: `routine_exercises.equipment_id`(실물)의 pulley_ratio/stack/has_weight_assist 사용
 - 100% 커버리지 테스트 갱신(load_mode 케이스).
 
@@ -101,12 +105,18 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
 ```
 운동 E 가용(gym G) ⟺
   E.primary 근육 ∈ 선택부위(exercise_muscles)
-  AND ( E.load_mode ∈ {barbell,ez_barbell,trap_bar,dumbbell,bodyweight,kettlebell,band}  -- baseline 항상
-        OR ∃ exercise_equipment(E, m) where m ∈ gym_equipments(G) )                       -- 머신
+  AND ( E.load_mode ∈ {barbell,ez_barbell,trap_bar,dumbbell,bodyweight,weighted,kettlebell,band}  -- baseline 항상
+        OR ∃ exercise_equipment(E, m) where m ∈ gym_equipments(G) )                              -- 머신
 ```
 - `_build_rag_profile`: machine_stmt/free_stmt 통합 → 운동-중심 단일 쿼리.
 - `rag.py _build_routine_prompt`: "equipment label" 계약 → **운동(exercise) 계약**으로. `[MACHINE]/[FREE]` 태깅 제거.
 - `_resolve_label_to_ids`: 라벨→기구 → 운동→(load_mode/머신) 해석으로.
+
+**머신 선택 의미론 (D14 = (b)):** LLM이 운동 선택 → `exercise_equipment ⋈ gym_equipments(G)`로 그 gym의 매칭 기구 M' 도출.
+- 프리웨이트(load_mode∈baseline) → `equipment_id = NULL` (정션 무관, 항상 가용)
+- 머신 운동 M'=0 → 후보 제외(그 gym 불가) / M'=1 → 자동 / **M'≥2 → LLM이 펼쳐진 (운동×기구) 후보에서 택1**
+- is_default/display_rank 불필요. 후보가 (exercise_id, equipment_id) 쌍을 들고 있어 LLM 선택이 곧 결정적 해석.
+- ⚠️ M'≥2 펼치기 시 "동일 동작·하드웨어만 다름 — 하나만" 프롬프트 명시(중복 처방 방지).
 
 ## 6. 데이터 소스 & 매핑 규칙
 
@@ -121,7 +131,8 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
 | gifUrl | exercises.gif_url |
 
 ### equipment(34) → load_mode class 룩업
-주 토큰 기준: Barbell/Olympic→barbell, Ez Barbell→ez_barbell, Trap Bar→trap_bar, Dumbbell(+compound)→dumbbell, Body Weight(+variant)/Weighted→bodyweight, Kettlebell→kettlebell, Band/Resistance Band→band, Cable→cable, Leverage/Smith/Sled/Hammer/Assisted→machine, Elliptical/Bike/Skierg/Stepmill/Ergometer→cardio, Ball/Roller/Rope/Tire→bodyweight(accessory). **초안 후 사용자 검토.**
+주 토큰 기준: Barbell/Olympic→barbell, Ez Barbell→ez_barbell, Trap Bar→trap_bar, Dumbbell(+compound)→dumbbell, Body Weight(+variant)→bodyweight, **Weighted→weighted(D13, 별도)**, Kettlebell→kettlebell, Band/Resistance Band→band, Cable→cable, Leverage/Smith/Sled/Hammer/Assisted→machine, Elliptical/Bike/Skierg/Stepmill/Ergometer→cardio, Ball/Roller/Rope/Tire→bodyweight(accessory). **초안 후 사용자 검토.**
+> ⚠️ codex#3: `mlops/scripts/seed_exercises_workoutx.py`의 `WORKOUTX_TARGET_TO_CATEGORY`(target→6부위)·`WORKOUTX_EQUIPMENT_TO_TYPE`(ez/trap→barbell 붕괴, kettlebell/band/cardio 누락)를 **재작성**: category=bodyPart 그대로, equipment→load_mode 11종 보존, 미지원값 skip 아닌 fail-fast.
 
 ### 근육 정규화 → `docs/handoff/workoutx-raw/muscle_normalization.md`
 ### 머신↔실물기구 N:M → Gemini 판단 + 검증 파일(실물 머신 기준). **실물 기구 적재 후 실행(§7 순서).**
@@ -134,7 +145,7 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
 
 **순서:**
 1. **스키마 변경** 마이그(load_mode 추가, exercise_equipment 신설, eem/equipment_muscles/movement_label/default_equipment_id/is_freeweight 제거, routine_exercises.equipment_id NULL 허용)
-2. **초기화**: muscle_groups/exercises/exercise_muscles/equipments/gym_equipments + **workout_routines(+cascade)** wipe. 논문(papers/paper_chunks/Chroma) 보존. (logs/1rm 0행 확인 후)
+2. **초기화 (D15 = 전체 wipe)**: muscle_groups/exercises/exercise_muscles/equipments/gym_equipments/equipment_reports/equipment_suggestions + **routine 계열 + programs/program_routines + workout_logs/workout_log_sets/user_exercise_1rm 전량** wipe. **논문(papers/paper_chunks/Chroma)·users·chat·profile 보존.** FK 안전순서는 마이그 draft 참조.
 3. **재시드 (WorkoutX 기준, 의존순)**:
    a. muscle_groups 20 (+name_ko)
    b. **실물 기구**(equipments) + gym_equipments  ← 머신 N:M 선결
@@ -143,7 +154,7 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
    e. **머신 정션**(exercise_equipment): Gemini 매핑 검증본 적재
 4. **백엔드 정합**(enum/region맵/rag/load_calc) → **프론트 정합**(부위 UI)
 
-**선결 확인**: `workout_logs`/`workout_log_sets`/`user_exercise_1rm` 0행 여부(아니면 wipe 범위 재논의).
+**선결 확인**: 적용 전 백업(db-export 스냅샷). 전체 wipe라 0행 아니어도 진행하되 건수 로깅(마이그가 WARNING).
 
 ## 8. PR 처분
 - ✅ 유지: **#281**(루틴 품질)
