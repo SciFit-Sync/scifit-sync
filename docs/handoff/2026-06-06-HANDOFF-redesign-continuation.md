@@ -198,3 +198,19 @@
 ### 교훈 (다음 세션 반영)
 - 마이그/모든 파일 Edit 후에도 push 전 `ruff format --check server/ mlops/`(CI 동일 명령) 필수.
 - 핵심 테스트만 돌리지 말 것 — CI는 전체 suite 실행. 계약 변경 시 `test_gym_muscle_equipments` 같은 mock 기반 테스트도 전수 갱신.
+
+## 12. 🚀 배포 자동화 & 백업 안전 분석 (2026-06-06)
+
+### deploy.yml = main push 시 마이그 자동 실행
+- `.github/workflows/deploy.yml`: `on: push: branches: [main]` → ECS Fargate one-off task로 **`alembic upgrade head` 자동 실행**(line 97). 백업 step 없음.
+- 즉 **develop→main 머지 = clean_slate(전체 wipe) + reseed_workoutx 자동 적용**. clean_slate는 downgrade 미지원(forward-only).
+
+### 안전 판단: 현재 안전 (pre-launch 조건부)
+- ✅ **prod pre-launch** (실사용자 루틴/기록 0, 2026-06-06 유저 재확인). clean_slate가 wipe하는 사용자 데이터(`workout_routines`/`workout_logs`/`workout_log_sets`/`user_exercise_1rm`/`programs`/`program_routines`)가 0행이라 잃을 것 없음.
+- ✅ **db-export 레퍼런스 백업 충분**: muscle_groups/exercises/exercise_muscles/equipment_brands/equipments/equipment_muscles/gyms/gym_equipments/user_gyms/exercise_equipment_map 덤프(`export_prod_tables.py`, ANON PostgREST). 사용자 데이터는 RLS로 미포함 → pre-launch라 무관.
+- ✅ **더찬스짐(`ecdd073b`) prod gyms 존재** → reseed gym_equipments 33건 적재 가능(없으면 FK 안전 skip).
+- ✅ alembic single head(clean_slate→reseed_workoutx) → 자동 순차 적용.
+
+### ⚠️ 향후 출시(실사용자 발생) 후엔 — 반드시 강화
+- 사용자 데이터(루틴/로그/1rm/프로그램)는 db-export에 **없음**(레퍼런스만). 실사용자 생긴 뒤 파괴적 마이그 적용 시 **반드시 사용자 데이터도 백업** — `deploy.yml` migration step **앞에** `pg_dump→S3` 추가 권장(옵션 A).
+- 백업 CSV는 구 스키마라 롤백은 단순 import 불가(스키마 역변환 필요) = 실무상 forward-only.
