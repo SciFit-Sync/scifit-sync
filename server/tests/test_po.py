@@ -186,3 +186,20 @@ class TestCalculateIncrease:
         """cardio가 실수로 호출되면 unknown category 경로로 1.25 증분 fallback."""
         result = calculate_increase("cardio", "hypertrophy", 0.0, 3)
         assert result["new_weight"] == 1.25
+
+    # --- develop: increment_override (RAG 동적 증분) ---
+
+    def test_increment_override_used(self):
+        result = calculate_increase("cable", "hypertrophy", 50.0, 3, increment_override=3.0)
+        assert result["new_weight"] == 53.0
+        assert result["new_sets"] == 3
+        assert result["overflow"] is False
+
+    def test_increment_override_none_uses_hardcoded(self):
+        result = calculate_increase("cable", "hypertrophy", 50.0, 3, increment_override=None)
+        assert result["new_weight"] == 52.5
+
+    def test_increment_override_with_max_stack_overflow(self):
+        result = calculate_increase("cable", "hypertrophy", 49.0, 3, max_stack=50.0, increment_override=3.0)
+        assert result["new_weight"] == 50.0
+        assert result["overflow"] is True

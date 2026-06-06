@@ -45,9 +45,14 @@ interface Message {
   timestamp: number;
 }
 
-/** 봇 답변에서 [논문 N] 표기 제거 */
+/** 봇 답변에서 논문 인용 표기 제거 */
 function strip_citations(text: string): string {
-  return text.replace(/\[논문\s*\d+\]/g, "").replace(/  +/g, " ").trim();
+  return text
+    .replace(/\[논문\s*\d+[^\]]*\]/g, "")          // [논문 N] 또는 [논문 N: 제목...]
+    .replace(/\(논문\s*\d+[:\s][^)]*\)/g, "")      // (논문 N: 제목)
+    .replace(/\s*\(\s*[A-Z][^)]{35,}\)/g, "")      // ( Paper Title...) — 영어 논문 제목 괄호
+    .replace(/  +/g, " ")
+    .trim();
 }
 
 interface Props {
@@ -73,7 +78,10 @@ export default function WC01Chatbot({ onClose }: Props) {
   const [input, set_input] = useState("");
   const [is_sending, set_is_sending] = useState(false);
   const [session_id, set_session_id] = useState<string | undefined>(undefined);
-  const [expanded_sources, set_expanded_sources] = useState<Record<string, boolean>>({});
+  const [papers_modal, set_papers_modal] = useState<PaperSource[] | null>(null);
+  const papers_overlay_anim = useRef(new Animated.Value(0)).current;
+  const papers_sheet_anim = useRef(new Animated.Value(400)).current;
+  const SHEET_DUR = 250;
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
@@ -168,6 +176,23 @@ export default function WC01Chatbot({ onClose }: Props) {
       }
     })();
   }, []); // access_token은 마운트 시 한 번만 읽으면 되므로 의도적으로 [] 사용
+
+  const open_papers = (sources: PaperSource[]) => {
+    set_papers_modal(sources);
+    papers_overlay_anim.setValue(0);
+    papers_sheet_anim.setValue(400);
+    Animated.parallel([
+      Animated.timing(papers_overlay_anim, { toValue: 1, duration: SHEET_DUR, useNativeDriver: true }),
+      Animated.timing(papers_sheet_anim, { toValue: 0, duration: SHEET_DUR, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const close_papers = () => {
+    Animated.parallel([
+      Animated.timing(papers_overlay_anim, { toValue: 0, duration: SHEET_DUR, useNativeDriver: true }),
+      Animated.timing(papers_sheet_anim, { toValue: 400, duration: SHEET_DUR, useNativeDriver: true }),
+    ]).start(() => set_papers_modal(null));
+  };
 
   const handle_new_chat = async () => {
     // 저장된 대화 삭제 + 세션 초기화
@@ -384,51 +409,15 @@ export default function WC01Chatbot({ onClose }: Props) {
                           </Text>
                         </View>
                         {message.sources && message.sources.length > 0 && (
-                          <View style={styles.sources_section}>
-                            <TouchableOpacity
-                              style={styles.sources_btn}
-                              onPress={() =>
-                                set_expanded_sources((prev) => ({
-                                  ...prev,
-                                  [message.id]: !prev[message.id],
-                                }))
-                              }
-                              activeOpacity={0.8}
-                            >
-                              <Text style={styles.sources_btn_text}>
-                                논문 근거 확인하기
-                              </Text>
-                            </TouchableOpacity>
-                            {expanded_sources[message.id] && (
-                              <View style={styles.papers_list}>
-                                {message.sources.map((s, i) => (
-                                  <View key={i} style={styles.paper_card}>
-                                    <Text style={styles.paper_title} numberOfLines={3}>
-                                      {s.title ?? `논문 ${i + 1}`}
-                                    </Text>
-                                    {s.doi ? (
-                                      <TouchableOpacity
-                                        style={styles.paper_link_btn}
-                                        onPress={() =>
-                                          Linking.openURL(`https://doi.org/${s.doi}`)
-                                        }
-                                        activeOpacity={0.8}
-                                      >
-                                        <Text style={styles.paper_link_text}>
-                                          논문 링크
-                                        </Text>
-                                        <Octicons
-                                          name="arrow-right"
-                                          size={12}
-                                          color={colors.primary}
-                                        />
-                                      </TouchableOpacity>
-                                    ) : null}
-                                  </View>
-                                ))}
-                              </View>
-                            )}
-                          </View>
+                          <TouchableOpacity
+                            style={styles.sources_btn}
+                            onPress={() => open_papers(message.sources!)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.sources_btn_text}>
+                              논문 근거 확인하기
+                            </Text>
+                          </TouchableOpacity>
                         )}
                         {message.chips && (
                           <View style={styles.chips_container}>
@@ -498,6 +487,68 @@ export default function WC01Chatbot({ onClose }: Props) {
               </TouchableOpacity>
             </View>
           </Animated.View>
+
+          {/* 논문 근거 바텀시트 */}
+          {papers_modal && (
+            <>
+              <Animated.View
+                style={[styles.papers_backdrop, { opacity: papers_overlay_anim }]}
+                pointerEvents="none"
+              />
+              <View style={styles.papers_overlay_container}>
+                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={close_papers} />
+                <Animated.View
+                  style={[styles.papers_sheet, { transform: [{ translateY: papers_sheet_anim }] }]}
+                >
+                  {/* 핸들 */}
+                  <View style={styles.papers_handle} />
+
+                  {/* 헤더 */}
+                  <View style={styles.papers_header}>
+                    <View style={styles.papers_header_side} />
+                    <Text style={styles.papers_title}>논문 근거</Text>
+                    <TouchableOpacity style={styles.papers_header_side} onPress={close_papers}>
+                      <Octicons name="x" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 논문 목록 */}
+                  <ScrollView
+                    style={styles.papers_scroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.papers_scroll_content}
+                  >
+                    {papers_modal.map((s, i) => (
+                      <View key={i} style={styles.paper_card}>
+                        <Text style={styles.paper_title}>
+                          {s.title ?? `논문 ${i + 1}`}
+                        </Text>
+                        {s.doi ? (
+                          <TouchableOpacity
+                            style={styles.paper_link_btn}
+                            onPress={() => Linking.openURL(`https://doi.org/${s.doi}`)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.paper_link_text}>논문 링크</Text>
+                            <Octicons name="arrow-right" size={13} color={colors.primary} />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    ))}
+                  </ScrollView>
+
+                  {/* 확인 버튼 */}
+                  <TouchableOpacity
+                    style={styles.papers_confirm_btn}
+                    onPress={close_papers}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.papers_confirm_text}>확인</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            </>
+          )}
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -661,11 +712,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sources_section: {
-    gap: 8,
-    alignSelf: "flex-start",
-    maxWidth: "80%",
-  },
   sources_btn: {
     borderWidth: 1,
     borderColor: colors.primary,
@@ -673,37 +719,109 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: colors.white,
+    alignSelf: "flex-start",
   },
   sources_btn_text: {
     fontFamily: "regular",
     fontSize: 13,
     color: colors.primary,
   },
-  papers_list: {
-    gap: 8,
+
+  // 논문 바텀시트
+  papers_backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  papers_overlay_container: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "flex-end",
+  },
+  papers_sheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    maxHeight: "75%",
+  },
+  papers_handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  papers_header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+  },
+  papers_header_side: {
+    width: 24,
+    alignItems: "flex-end",
+  },
+  papers_title: {
+    fontFamily: "semibold",
+    fontSize: 18,
+    color: colors.primary,
+  },
+  papers_scroll: {
+    flexGrow: 0,
+    marginBottom: 16,
+  },
+  papers_scroll_content: {
+    gap: 12,
   },
   paper_card: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
-    gap: 8,
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
     backgroundColor: colors.white,
   },
   paper_title: {
-    fontFamily: "medium",
-    fontSize: 13,
+    fontFamily: "semibold",
+    fontSize: 14,
     color: colors.primary,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   paper_link_btn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   paper_link_text: {
     fontFamily: "regular",
-    fontSize: 12,
+    fontSize: 13,
     color: colors.primary,
+  },
+  papers_confirm_btn: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  papers_confirm_text: {
+    fontFamily: "medium",
+    fontSize: 16,
+    color: colors.white,
   },
 });

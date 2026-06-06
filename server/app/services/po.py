@@ -103,6 +103,7 @@ def calculate_increase(
     current_weight: float,
     current_sets: int,
     max_stack: float | None = None,
+    increment_override: float | None = None,
 ) -> dict:
     """PO 트리거 시 증가량을 계산한다.
 
@@ -120,12 +121,12 @@ def calculate_increase(
         {
             "new_weight": float,
             "new_sets": int,
-            "overflow": bool,        # max_stack 초과 여부
-            "message": str | None,   # 사용자 알림 메시지
+            "overflow": bool,
+            "message": str | None,
         }
     """
     goal_map = INCREASE.get(goal, INCREASE["endurance"])
-    increment = goal_map.get(category, 1.25)
+    increment = increment_override if increment_override is not None else goal_map.get(category, 1.25)
 
     new_weight = current_weight + increment
     new_sets = current_sets

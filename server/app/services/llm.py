@@ -94,6 +94,51 @@ def generate(prompt: str) -> str:
         return response.choices[0].message.content.strip()
 
 
+def _openai_vision(client, prompt: str, image_bytes: bytes, mime_type: str) -> str:
+    import base64
+
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}},
+                ],
+            }
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+def generate_vision(prompt: str, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """이미지 + 프롬프트를 멀티모달 LLM에 전달하고 텍스트 응답을 반환한다.
+
+    인바디 결과지 OCR 등 vision 작업용. Gemini(기본) 실패 시 GPT-4o-mini vision fallback.
+    """
+    if LLM_PROVIDER == "openai":
+        return _openai_vision(_get_openai(), prompt, image_bytes, mime_type)
+
+    # Gemini (기본)
+    try:
+        from google.genai import types
+
+        client = _get_gemini()
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                prompt,
+            ],
+        )
+        return response.text.strip()
+    except Exception as e:
+        logger.warning("Gemini vision 실패 (%s), GPT-4o-mini vision fallback 시도", e)
+        return _openai_vision(_get_openai(), prompt, image_bytes, mime_type)
+
+
 def _openai_stream(client, prompt: str) -> Iterator[str]:
     stream = client.chat.completions.create(
         model=OPENAI_MODEL,

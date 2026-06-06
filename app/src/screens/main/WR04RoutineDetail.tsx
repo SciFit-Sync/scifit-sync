@@ -544,9 +544,16 @@ export default function WR04RoutineDetail() {
     }
   };
 
-  const goals_label = detail?.fitness_goals
-    ? detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(" · ")
-    : null;
+  const goals_label = (() => {
+    const parts: string[] = [];
+    if (detail?.fitness_goals && detail.fitness_goals.length > 0) {
+      parts.push(detail.fitness_goals.map((g) => GOAL_LABELS[g] ?? g).join(", "));
+    }
+    if (detail?.target_muscle_names && detail.target_muscle_names.length > 0) {
+      parts.push(detail.target_muscle_names.join(", "));
+    }
+    return parts.length > 0 ? parts.join(" · ") : null;
+  })();
 
   const handle_delete_confirm = () => {
     Alert.alert(

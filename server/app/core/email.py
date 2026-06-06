@@ -30,7 +30,7 @@ async def send_otp_email(to_email: str, otp_code: str) -> None:
 
     # 개발 환경 또는 SMTP 미설정 → 로그로만 출력
     if settings.ENV == "development" or not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-        logger.warning("[DEV] OTP email skipped (no SMTP config). %s → %s", to_email, otp_code)
+        logger.info("[DEV] OTP email skipped (no SMTP config). email=%s", to_email)
         return
 
     subject = "[SciFit-Sync] 이메일 인증번호"
