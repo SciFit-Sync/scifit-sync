@@ -39,6 +39,10 @@ jobs:
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           OPENALEX_MAILTO: ${{ secrets.OPENALEX_MAILTO }}
+          # 무료 러너 CPU BGE 임베딩 병목으로 120분 timeout 초과(직전 run은 embed 38%서 cancel).
+          # 한 회차 상한을 기본 300 → 60으로 축소: 60편이면 crawl+embed ≈ 75분 < 120분(마진 확보).
+          # config.py가 이 env를 읽어 MAX_PAPERS_PER_RUN에 반영. 근본책(GPU 임베딩 분리)은 별도 진행.
+          MAX_PAPERS_PER_RUN: "60"
 
       - name: Report success
         if: success()

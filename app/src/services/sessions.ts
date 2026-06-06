@@ -6,6 +6,7 @@ export interface SessionCalendarItem {
   routine_id: string | null;
   routine_name: string | null;
   fitness_goals: string[];
+  target_muscle_names: string[];
   duration_minutes: number | null;
   gym_name: string | null;
   total_volume_kg: number;

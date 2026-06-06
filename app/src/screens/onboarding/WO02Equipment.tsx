@@ -85,10 +85,6 @@ export default function WO02Equipment() {
     (navigation as any).navigate("WO03OneRM");
   };
 
-  const handle_skip = () => {
-    (navigation as any).navigate("WO03OneRM");
-  };
-
   const handle_add = () => {
     (navigation as any).navigate("WO02EquipmentRegister", { gym_id });
   };
@@ -293,9 +289,6 @@ export default function WO02Equipment() {
           >
             <Text style={styles.next_button_text}>다음</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handle_skip}>
-            <Text style={styles.skip_text}>건너뛰기</Text>
-          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -444,10 +437,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
-  skip_text: {
-    fontFamily: "regular",
-    fontSize: 14,
-    color: colors.primary,
-    textAlign: "center",
-  },
 });

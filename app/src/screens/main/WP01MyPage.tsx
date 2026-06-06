@@ -77,6 +77,8 @@ export default function WP01MyPage() {
       m?.weight_kg ? `${m.weight_kg}kg` : null,
       p?.age ? `${p.age}세` : null,
       p?.gender ? GENDER_LABEL[p.gender] : null,
+      m?.skeletal_muscle_kg ? `골격근량 ${m.skeletal_muscle_kg}kg` : null,
+      m?.body_fat_pct ? `체지방률 ${m.body_fat_pct}%` : null,
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(" · ") : "미입력";
   })();
