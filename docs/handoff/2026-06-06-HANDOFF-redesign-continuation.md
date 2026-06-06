@@ -58,13 +58,13 @@
 |---|---|
 | `equipments.csv` | **132 머신** (machine 130 + cable 2). 비머신 0, 브랜드없음 0. generic 프리웨이트·Assisted placeholder·Smith 중복 제거 완료 |
 | `equipment_brands.csv` | 14개. NEM→Newtech dedup 완료. 미사용 7개(Technogym 등) **유지 결정**. dangling 0 |
-| `gym_equipments.csv` | 32건. orphan 0 |
+| `gym_equipments.csv` | **33건**(Smith `f6fe186b` 등록 추가, 2026-06-06). orphan 0 |
 | `freeweight_load_modes.csv` | barbell20·ez10·**trap25(확정)**·dumbbell증분·weighted=bw+added 등 |
 
 **✅ 완료 (2026-06-06)**: `equipments.csv` 132행 **한글 `name` 머지 완료** (유저 `equipments 1.xlsx` 140행 → id 기준 132 공통행 채움, 빈 행 0. 백업 `equipments.csv.bak`).
 
 **🔴 머신 2종 흡수 주의 (감사: [`2026-06-06-baseline-equipment-gap-audit.md`](2026-06-06-baseline-equipment-gap-audit.md))**: xlsx에만 있던 8개 generic 중 프리웨이트 6종은 `freeweight_load_modes.csv`에 baseline 기록 완비(✅). 그러나 머신 2종(Smith machine·Assisted Pull-up Machine)은 generic 부활 불요지만 다음 3건이 공백 — 재시드 전 반드시 처리:
-- **G1(P0)**: Smith 실물 `f6fe186b`(Panatta, bar 15kg)이 gym_equipments **미등록** → Smith 48운동 증발. 더찬스짐 실재 시 등록.
+- **G1(P0)** ✅ 해결: Smith 실물 `f6fe186b`(Panatta, bar 15kg) — 유저 확인 더찬스짐 실재 → `gym_equipments.csv` 등록 완료(32→33행). Smith 48운동 복구.
 - **G2(P0)**: 머신-클래스 **160운동**(Smith48+Leverage81+Sled15+Assisted/Hammer16)→실물 행 정션 산출물 미작성(Phase 7).
 - **G3(P1)**: `load_calc.py` machine 분기가 has_weight_assist 미반영 → 어시스티드 머신 부호반대 오계산(Phase 4 수정). G4: Assisted 15운동 다수가 스트레치 → machine 오분류 위험.
 

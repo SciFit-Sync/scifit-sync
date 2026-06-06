@@ -44,7 +44,8 @@
 
 ## 3. 🔴 확정 공백 4건 (사용자 직관이 맞았던 부분)
 
-### G1 (P0) — Smith 실물이 어느 gym에도 미등록 → Smith 운동 48개 증발
+### G1 (P0) — ✅ 해결(2026-06-06) — Smith 실물이 어느 gym에도 미등록 → Smith 운동 48개 증발
+> **처리됨**: 유저 확인 "더찬스짐에 스미스 머신 실재" → `gym_equipments.csv`에 `f6fe186b`(Smith machine) 더찬스짐(`ecdd073b`) 등록 완료(32→33행, orphan 0). Smith 48운동 가용성 복구.
 - WorkoutX `exercises.json`에서 `equipment="Smith Machine"` = **48운동**. SOT §6에서 `Smith→load_mode=machine`.
 - D4 가용성 규칙: 머신은 `exercise_equipment ⋈ gym_equipments`로만 노출. 그런데 Smith 실물(f6fe186b)이 gym_equipments 0건 → 테스트 gym(더찬스짐)에서 **M'=0 전량 제외 = 48운동 증발**.
 - **조치**: 더찬스짐에 스미스 머신이 실재하면 `gym_equipments.csv`에 f6fe186b 등록. (현실 사실 = 사용자 확인 필요)
