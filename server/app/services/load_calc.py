@@ -7,9 +7,27 @@ RANGES: dict[str, tuple[float, float]] = {
     "rehabilitation": (0.40, 0.55),
 }
 
+# 프리웨이트 load_mode → 바/레버 기본 무게(kg).
+# 출처: docs/handoff/workoutx-raw/freeweight_load_modes.csv (D8: ez/trap 별도 바 무게).
+FREEWEIGHT_BAR_KG: dict[str, float] = {
+    "barbell": 20.0,
+    "ez_barbell": 10.0,
+    "trap_bar": 25.0,
+    "dumbbell": 0.0,  # 바 무게 없음 — added만
+    "kettlebell": 0.0,  # added만
+    "band": 0.0,  # added(가변), 표준 무게 없음
+}
+
+# 전 헬스장 항상 가용(baseline) load_mode 집합 — routine_exercises.equipment_id=NULL.
+FREEWEIGHT_MODES: frozenset[str] = frozenset(
+    {"barbell", "ez_barbell", "trap_bar", "dumbbell", "bodyweight", "weighted", "kettlebell", "band"}
+)
+# gym_equipments 등록 실물로만 가용 — exercise_equipment ⋈ gym_equipments 필터 대상.
+MACHINE_MODES: frozenset[str] = frozenset({"cable", "machine"})
+
 
 def calculate_effective_weight(
-    equipment_type: str,
+    load_mode: str,
     *,
     stack: float | None = None,
     added: float | None = None,
@@ -18,24 +36,36 @@ def calculate_effective_weight(
     bar_weight: float | None = None,
     has_weight_assist: bool = False,
 ) -> float:
-    """도르래 비율 보정을 적용한 실효 부하를 계산한다."""
-    match equipment_type:
+    """운동의 load_mode 기준 실효 부하(kg)를 계산한다.
+
+    프리웨이트는 모듈 상수(FREEWEIGHT_BAR_KG)로, cable/machine은 실물 equipment 행의
+    pulley_ratio/stack/bar_weight/has_weight_assist를 사용한다.
+    """
+    a = added or 0.0
+    bw = body_weight or 0.0
+    match load_mode:
         case "cable" | "machine":
-            s = stack or 0.0
-            return s / pulley_ratio + (bar_weight or 0.0)
-        case "barbell":
-            return (bar_weight or 0.0) + (added or 0.0)
-        case "dumbbell":
-            return added or 0.0
-        case "bodyweight":
-            bw = body_weight or 0.0
+            ratio = pulley_ratio if pulley_ratio else 1.0
+            s = (stack or 0.0) / ratio
+            # G3: 어시스티드 머신(Assisted Dip/Chin 등)은 스택이 체중을 상쇄한다.
             if has_weight_assist:
-                return bw - (stack or 0.0)
-            return bw + (added or 0.0)
+                return bw - s
+            return s + (bar_weight or 0.0)
+        case "barbell" | "ez_barbell" | "trap_bar":
+            return FREEWEIGHT_BAR_KG[load_mode] + a
+        case "dumbbell" | "kettlebell" | "band":
+            return a
+        case "bodyweight":
+            # 가중 변형(가중 풀업/딥 등)은 load_mode='weighted'로 분리된다(D13).
+            return bw + a
+        case "weighted":
+            return bw + a
+        case "cardio":
+            return 0.0  # 부하 개념 없음
         case _:
             raise ValidationError(
-                message=f"알 수 없는 equipment_type입니다: {equipment_type}",
-                details={"equipment_type": equipment_type},
+                message=f"알 수 없는 load_mode입니다: {load_mode}",
+                details={"load_mode": load_mode},
             )
 
 
@@ -53,16 +83,17 @@ def estimate_1rm(effective_weight: float, reps: int) -> float:
 
 def effective_to_stack_weight(
     effective_kg: float,
-    equipment_type: str,
+    load_mode: str,
     pulley_ratio: float = 1.0,
     bar_weight: float | None = None,
 ) -> float | None:
-    """실효 부하(근육 하중) → 장비 스택 설정값 역변환.
+    """실효 부하(근육 하중) → 머신 스택 설정값 역변환.
 
-    cable/machine은 stack = (effective - bar_weight) * pulley_ratio.
-    barbell/dumbbell/bodyweight는 None 반환 (effective를 그대로 사용).
+    cable/machine만 stack = (effective - bar_weight) * pulley_ratio.
+    프리웨이트(barbell/ez_barbell/trap_bar/dumbbell/bodyweight/weighted/kettlebell/band)와
+    cardio는 None 반환 (effective를 그대로 표시값으로 사용).
     """
-    if equipment_type in ("cable", "machine"):
+    if load_mode in MACHINE_MODES:
         bw = bar_weight or 0.0
         return max((effective_kg - bw) * max(pulley_ratio, 0.01), 0.0)
     return None
