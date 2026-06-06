@@ -112,7 +112,6 @@ export default function WR04RoutineDetail() {
   const token = useAuthStore((s) => s.accessToken) ?? "";
 
   const query_client = useQueryClient();
-  const [selected_day_idx, set_selected_day_idx] = useState(0);
   const [exercises, set_exercises] = useState<Exercise[]>([]);
   const [editing_exercise_id, set_editing_exercise_id] = useState<
     string | null
@@ -203,18 +202,17 @@ export default function WR04RoutineDetail() {
     enabled: !!token && !!routine_id,
   });
 
-  // API 데이터 → 로컬 exercises 변환 (day 인덱스 변경 시 재초기화)
+  // API 데이터 → 로컬 exercises 변환 (전체 day 합산 flat 목록)
   // store_ready: AsyncStorage 수화가 완료된 뒤에만 실행해야 체크 상태가 올바르게 복원됨
   useEffect(() => {
     if (!detail || !store_ready) return;
-    const day = detail.days[selected_day_idx];
-    if (!day) {
+    if (!detail.days.length) {
       set_exercises([]);
       return;
     }
-    const sorted = [...day.exercises].sort(
-      (a, b) => a.order_index - b.order_index,
-    );
+    const sorted = detail.days
+      .flatMap((d) => d.exercises)
+      .sort((a, b) => a.order_index - b.order_index);
     const base = sorted.map(api_to_exercise);
 
     // 이 루틴의 진행 중 세션이 스토어에 있으면 체크 상태 복원
@@ -239,7 +237,7 @@ export default function WR04RoutineDetail() {
     } else {
       set_exercises(base);
     }
-  }, [detail, selected_day_idx, store_ready]);
+  }, [detail, store_ready]);
 
   // ws_session_id 가 나중에 도착하면 (ensure_session async 완료) ref / 버튼 동기화
   useEffect(() => {
@@ -635,10 +633,9 @@ export default function WR04RoutineDetail() {
   const ensure_session = (): Promise<string> => {
     if (session_id_ref.current) return Promise.resolve(session_id_ref.current);
     if (session_promise_ref.current) return session_promise_ref.current;
-    const day = detail?.days[selected_day_idx];
     const p = startSession(token, {
       routine_id: routine_id ?? undefined,
-      routine_day_id: day?.routine_day_id ?? undefined,
+      routine_day_id: detail?.days[0]?.routine_day_id ?? undefined,
     })
       .then((data) => {
         session_id_ref.current = data.session_id;
@@ -757,7 +754,6 @@ export default function WR04RoutineDetail() {
     );
   }
 
-  const has_multiple_days = (detail?.days.length ?? 0) > 1;
 
   return (
     <View style={styles.container}>
@@ -799,35 +795,6 @@ export default function WR04RoutineDetail() {
           </View>
           {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
 
-          {/* 데이 선택 탭 (다중 날 루틴) */}
-          {has_multiple_days && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.day_tabs}
-            >
-              {detail!.days.map((day, idx) => (
-                <TouchableOpacity
-                  key={day.routine_day_id}
-                  style={[
-                    styles.day_tab,
-                    selected_day_idx === idx && styles.day_tab_active,
-                  ]}
-                  onPress={() => set_selected_day_idx(idx)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.day_tab_text,
-                      selected_day_idx === idx && styles.day_tab_text_active,
-                    ]}
-                  >
-                    {day.label || `Day ${day.day_number}`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
 
           {/* 운동 목록 */}
           {exercises.map((exercise) => {
@@ -1512,29 +1479,6 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
 
-  // 데이 탭
-  day_tabs: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  day_tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: colors.select,
-  },
-  day_tab_active: {
-    backgroundColor: colors.primary,
-  },
-  day_tab_text: {
-    fontFamily: "medium",
-    fontSize: 13,
-    color: colors.bluegray,
-  },
-  day_tab_text_active: {
-    color: colors.white,
-  },
 
   // 운동 카드
   exercise_card: {
