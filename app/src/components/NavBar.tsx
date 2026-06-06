@@ -1,7 +1,10 @@
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Octicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useQuery } from "@tanstack/react-query";
 import { colors } from "../assets/colors/colors";
+import { useAuthStore } from "../stores/authStore";
+import { getNotifications } from "../services/notifications";
 
 type TabName =
   | "WM01Main"
@@ -26,6 +29,15 @@ const tabs: TabItem[] = [
 export default function BottomNavBar() {
   const navigation = useNavigation();
   const route = useRoute();
+  const token = useAuthStore((s) => s.accessToken) ?? "";
+
+  const { data: notif_data } = useQuery({
+    queryKey: ["notifications", token],
+    queryFn: () => getNotifications(token),
+    enabled: !!token,
+    staleTime: 60_000,
+  });
+  const unread_count = notif_data?.unread_count ?? 0;
 
   return (
     <View style={styles.container}>
@@ -47,6 +59,13 @@ export default function BottomNavBar() {
                 size={24}
                 color={is_active ? colors.white : colors.primary}
               />
+              {tab.name === "WN01Notifications" && unread_count > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badge_text}>
+                    {unread_count > 9 ? "9+" : String(unread_count)}
+                  </Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
         );
@@ -82,5 +101,23 @@ const styles = StyleSheet.create({
   },
   icon_box_active: {
     backgroundColor: colors.primary,
+  },
+  badge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badge_text: {
+    fontFamily: "regular",
+    fontSize: 9,
+    color: "#FFFFFF",
+    lineHeight: 12,
   },
 });
