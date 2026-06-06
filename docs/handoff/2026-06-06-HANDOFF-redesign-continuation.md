@@ -2,7 +2,7 @@
 
 > 작성 2026-06-06 · **다른 세션이 이 문서 하나로 이어받아 실행** 가능하도록 작성.
 > 단일 정본(SOT) = [`docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md).
-> 상태: **Phase 2~4 코드 구현 완료 (app.main import OK, ruff OK) / Phase 1 시드·Phase 6 테스트·DB 적용 남음.** branch `feat/jingyu/equipment-workoutx-redesign`, head `4bf6802`. 진행 상세 §10.
+> 상태: **Phase 1~4 + clean_slate/재시드 마이그 + 테스트 전부 완료 (195 passed · app.main OK · alembic single head · ruff clean · papers 불가침). 코드 구현 100% — DB 적용(prod)·Phase 7(Gemini junction/activation 백필)만 남음.** branch `feat/jingyu/equipment-workoutx-redesign`. PR 준비 완료. 진행 상세 §10.
 
 ---
 
@@ -154,24 +154,20 @@
 
 ## 10. 🟢 구현 진행 (2026-06-06 세션, branch feat/jingyu/equipment-workoutx-redesign)
 
-### ✅ 완료 (커밋됨)
+### ✅ 완료 (커밋됨, branch feat/jingyu/equipment-workoutx-redesign)
 | Phase | 내용 | 커밋 |
 |---|---|---|
-| 2 | ORM 모델: Exercise +load_mode/-default_equipment_id, ExerciseEquipment N:M(source/confidence), Equipment -movement_label_*/-is_freeweight, EquipmentMuscle/ExerciseEquipmentMap 삭제, RoutineExercise.equipment_id NULL | `a6a1619` |
-| 4-base | load_calc load_mode 11종 + **G3** machine has_weight_assist(부호반대 수정) + FREEWEIGHT_BAR_KG/FREEWEIGHT_MODES/MACHINE_MODES + routine_targets load_mode 전환 + test_load_calc 재작성 | `a7b5b66` |
-| 4 | equipment.py(근육 정션파생) `e475716` / po+sessions(INCREASE load_mode 10종) `7ccb97d` / rag(운동중심 계약 available_exercises/exercise_name) `782aaf7` / admin(시드 inline load_mode+junction) `6120440` / gyms(정션경유) `993aea5` / routines(단일가용성+D14+6tuple) `5ce4f38` | |
-| 3 | clean_slate_reseed 마이그 → alembic/versions/ 배치(미적용) | `4bf6802` |
+| 2 모델 | Exercise +load_mode/-default_equipment_id, ExerciseEquipment N:M(source/confidence), Equipment -movement_label_*/-is_freeweight, EquipmentMuscle/ExerciseEquipmentMap 삭제, RoutineExercise.equipment_id NULL | `a6a1619` |
+| 4-base | load_calc load_mode 11종 + **G3** machine has_weight_assist(부호반대 수정) + FREEWEIGHT_BAR_KG/FREEWEIGHT_MODES/MACHINE_MODES + routine_targets load_mode 전환 + test_load_calc | `a7b5b66` |
+| 4 API | equipment(근육 정션파생) `e475716` / po+sessions(INCREASE load_mode) `7ccb97d` / rag(운동중심 available_exercises/exercise_name) `782aaf7` / admin(시드 inline) `6120440` / gyms(정션경유) `993aea5` / routines(단일가용성+D14+6tuple) `5ce4f38` | |
+| 3 wipe 마이그 | clean_slate_reseed(전체 wipe+스키마변경) 배치 | `4bf6802` |
+| **1 재시드 마이그** | **Alembic 마이그로 재구성**(CLAUDE.md §16 정합 — mlops 수동스크립트 아님): `20260606_reseed_workoutx`(down=clean_slate). muscle_groups 20 인라인 + equipments/brands/gym_equipments CSV + exercises 1318(dedup) + exercise_muscles 3756. junction 비움. 데이터 `mlops/data/reseed_*`(이메일 0건). mlops/scripts/seed_*는 개발보조 | `90fdccc` |
+| **6 테스트** | po(load_mode 케이스) `3b79fe9` / routines·rag(운동중심) `9a542f9` / routine_targets 정합 | |
 
-**게이트 통과**: `app.main` import OK · `ruff check app/` OK · load_calc 로직 전수 직접검증 OK · 폐기심볼 grep 0(주석 1건 제외).
-**정합 수정**: 병렬 agent 간 rag↔routines 계약 불일치(available_equipments→available_exercises, equipment_label→exercise_name) 메인에서 보정 완료.
+**게이트 전부 통과 (2026-06-06)**: `app.main` import OK · `ruff check app/` clean · **alembic single head**(reseed_workoutx) · **핵심 테스트 195 passed**(load_calc/po/routine_targets/routines/rag) · papers write 0건.
+**정합 수정**: 병렬 agent 간 rag↔routines 계약 불일치(available_equipments→available_exercises, equipment_label→exercise_name) 메인 보정.
 
-### ⏳ 남은 작업
-- **Phase 1 시드** `mlops/scripts/seed_exercises_workoutx.py` 재작성 (검증 CRITICAL):
-  - exercises.json name_en **중복 6건 dedup**(CardinalityViolation 방지): Barbell Seated Calf Raise / Ez Barbell Spider Curl / Lever Chest Press / Push-up (on Stability Ball) / Self Assisted Inverse Leg Curl / Smith Reverse Calf Raises
-  - **muscle_groups canon 20 Title-Case 선행**(현 DB는 slug 소문자) — 시드 전 assert
-  - **broad junction fan-out 금지**: clean-slate에선 SOT §7-3e Gemini 검증 정션만(over-linking 재발=553 근본원인). seed의 equipment_type 전체 fan-out 금지
-  - `_SECONDARY_TO_CANON` 35행 전체 전사(muscle_normalization.md L20-54), exercise_muscles 시드(target→primary, secondary→정규화, activation%)
-  - category=bodyPart 원문, load_mode 11종 fail-fast, frozen exercises.json(1324) 소스
-  - (admin.py는 운영 endpoint로 이미 inline 재작성. mlops seed와 정본 일원화 결정 필요)
-- **Phase 6 테스트**: test_routines/test_routine_equipment_rag(available_exercises/exercise_name/_resolve 6-tuple/_persist_day load_mode/_exec_scalars_all→_exec_all), test_po(ez_barbell/trap_bar/kettlebell/band/weighted 케이스), test_routine_targets(load_mode 파라미터). test_load_calc는 완료.
-- **DB 적용**: clean_slate(전체 wipe, 백업필수) + 재시드. server/.env DATABASE_URL 빈 dev라 로컬 미실행 → 로컬 docker PG 또는 prod(hnwegx) 승인 필요. **G1 Smith gym 등록·머신 정션(G2)은 재시드 데이터에 반영**.
+### ⏳ 남은 작업 (코드 100% — 실행/후속만)
+- **DB 적용 (prod hnwegx)**: 런북 [`2026-06-06-prod-reseed-runbook.md`](2026-06-06-prod-reseed-runbook.md)대로 — ① 백업(papers/paper_chunks 행수 기록 + db-export 스냅샷) ② server/.env를 prod service role URL로 교체 ③ `alembic upgrade head`(clean_slate→reseed_workoutx 순차) ④ 검증 SQL(papers 행수 불변·load_mode NULL 0·exercise_muscles primary 결손 0·orphan 0). gyms에 더찬스짐(ecdd073b) 존재 전제.
+- **Phase 7 (Gemini 후속, 재시드 후)**: exercise_equipment junction(머신↔운동 N:M — 현재 비움이라 머신 루틴 가용성 0) + activation_pct 백필(현재 전부 NULL). G2 머신 160운동 정션 매핑 포함.
+- **Phase 5 프론트** (WR01RoutineCreate/WH02Analysis 부위 10분류) + **CI** app tsc/lint job — 미착수.
