@@ -82,6 +82,9 @@ _SLUG_TO_CANON: dict[str, str] = {
 def upgrade() -> None:
     conn = op.get_bind()
 
+    # 0) activation_source 컬럼 추가(멱등) — 검증값(anatomy_seed)/추정값(gemini) 구분 메타.
+    op.execute("ALTER TABLE exercise_muscles ADD COLUMN IF NOT EXISTS activation_source varchar(20)")
+
     # 1) CSV → (exercise_name, canon) 별 MAX(activation_pct) 집계.
     agg: dict[tuple[str, str], int] = {}
     skipped_slugs: set[str] = set()
@@ -120,7 +123,8 @@ def upgrade() -> None:
             sa.text(
                 """
                 UPDATE exercise_muscles em
-                SET activation_pct = :pct
+                SET activation_pct = :pct,
+                    activation_source = 'anatomy_seed'
                 FROM exercises e, muscle_groups m
                 WHERE em.exercise_id = e.id
                   AND em.muscle_group_id = m.id
@@ -145,4 +149,4 @@ def downgrade() -> None:
     본 마이그 적용 전 activation_pct 는 reseed_workoutx 가 전부 NULL 로 둔 상태이므로,
     전량 NULL 로 되돌리는 것이 정확한 역연산이다(involvement 는 미접촉).
     """
-    op.execute("UPDATE exercise_muscles SET activation_pct = NULL")
+    op.execute("UPDATE exercise_muscles SET activation_pct = NULL, activation_source = NULL")
