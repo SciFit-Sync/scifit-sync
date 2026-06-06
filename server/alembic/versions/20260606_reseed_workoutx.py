@@ -12,7 +12,7 @@ Create Date: 2026-06-06
   (mlops/scripts/seed_reference_data.py + seed_exercises_workoutx.py 의 시드 로직을 이식했다 —
    두 스크립트는 개발 보조로 유지될 수 있으나 prod 정본은 이 마이그.)
 
-소스 데이터 (커밋 위치 = mlops/data/, Dockerfile 이 /app/mlops/data 로 복사):
+소스 데이터 (커밋 위치 = server/alembic/data/, Dockerfile `COPY server/ /app/` 에 자동 포함):
   - reseed_equipment_brands.csv  (14)
   - reseed_equipments.csv        (132, is_freeweight 컬럼은 clean_slate Phase2e 에서 DROP → 제외)
   - reseed_gym_equipments.csv    (33, gym_id=더찬스짐 ecdd073b 만)
@@ -50,20 +50,17 @@ depends_on = None
 logger = logging.getLogger("alembic")
 
 # ---------------------------------------------------------------------------
-# 데이터 파일 경로 — 실행 환경별 다중 fallback (20260521_seed_equipments.py 패턴):
-#   - Local alembic (cwd=repo_root): repo_root/mlops/data/...    (4 parent up)
-#   - docker-compose / ECS Fargate (Dockerfile COPY mlops/data → /app/mlops/data): (3 parent up)
-# 첫 번째로 존재하는 경로 채택.
+# 데이터 파일 경로 — server/alembic/data/ 패키지 내부(20260605_seed_muscle_activation.py 동일 패턴).
+#   versions/ 의 부모(alembic/) 하위 data/. server/ 트리 안이라 Dockerfile `COPY server/ /app/`
+#   에 자동 포함된다 → ECS one-off `alembic upgrade head` 가 항상 파일을 찾는다(별도 COPY 불요).
+#   (이전엔 mlops/data/ 였으나 Dockerfile 이 그 4파일을 COPY하지 않아 prod 배포 시
+#    FileNotFoundError 로 크래시 — server/ 내부로 이전해 재발 차단.)
 # ---------------------------------------------------------------------------
-_FILE = Path(__file__).resolve()
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def _resolve_data(name: str) -> Path:
-    candidates = [
-        _FILE.parent.parent.parent.parent / "mlops" / "data" / name,
-        _FILE.parent.parent.parent / "mlops" / "data" / name,
-    ]
-    return next((p for p in candidates if p.exists()), candidates[0])
+    return _DATA_DIR / name
 
 
 _BRANDS_CSV = _resolve_data("reseed_equipment_brands.csv")
