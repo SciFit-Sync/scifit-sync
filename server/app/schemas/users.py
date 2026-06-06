@@ -71,6 +71,8 @@ class OnboardRequest(BaseModel):
     birth_date: date
     height_cm: float = Field(..., gt=0)
     weight_kg: float = Field(..., gt=0)
+    skeletal_muscle_kg: float | None = Field(default=None, gt=0)
+    body_fat_pct: float | None = Field(default=None, gt=0)
     career_level: str
     career_years: int | None = Field(default=None, ge=0)
     default_goals: list[str] = Field(default_factory=list)
