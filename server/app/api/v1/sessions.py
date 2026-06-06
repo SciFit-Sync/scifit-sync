@@ -517,7 +517,11 @@ async def finish_session(
         raise ConflictError(message="이미 종료된 세션입니다.")
 
     dt = body.finished_at or datetime.now(timezone.utc)
-    s.finished_at = dt.replace(tzinfo=None)
+    candidate = dt.replace(tzinfo=None)
+    # finished_at이 started_at보다 작으면 앱의 타임존 파싱 오류 — 서버 시간으로 대체
+    if s.started_at and candidate <= _strip_tz(s.started_at):
+        candidate = datetime.now(timezone.utc).replace(tzinfo=None)
+    s.finished_at = candidate
     s.status = WorkoutStatus.COMPLETED
     await db.commit()
     await db.refresh(s)

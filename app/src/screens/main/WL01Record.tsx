@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import {
@@ -17,6 +17,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { colors } from "../../assets/colors/colors";
 import BottomNavBar from "../../components/NavBar";
 import { useAuthStore } from "../../stores/authStore";
+import { useWorkoutSessionStore } from "../../stores/workoutSessionStore";
 import { getSessions, getSessionStats } from "../../services/sessions";
 
 const GOAL_LABELS: Record<string, string> = {
@@ -66,6 +67,23 @@ export default function WL01Record() {
   const [month, set_month] = useState(today.getMonth() + 1);
   const [selected_day, set_selected_day] = useState<number | null>(today.getDate());
   const query_client = useQueryClient();
+
+  // 진행 중인 세션 실시간 시간 계산
+  const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
+  const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
+  const ws_detail_enter = useWorkoutSessionStore((s) => s.detail_page_enter_ms);
+  const [live_minutes, set_live_minutes] = useState(0);
+
+  useEffect(() => {
+    if (!ws_session_id) { set_live_minutes(0); return; }
+    const calc = () => {
+      const current_ms = ws_detail_enter != null ? Date.now() - ws_detail_enter : 0;
+      set_live_minutes(Math.floor((ws_page_elapsed_ms + current_ms) / 60000));
+    };
+    calc();
+    const id = setInterval(calc, 1000);
+    return () => clearInterval(id);
+  }, [ws_session_id, ws_page_elapsed_ms, ws_detail_enter]);
 
   // 탭 포커스 시 세션 데이터 갱신 — 탭 이동은 컴포넌트를 재마운트하지 않으므로
   // useFocusEffect 없이는 루틴 상세에서 체크한 세트가 분석 탭에 반영되지 않음
@@ -125,7 +143,13 @@ export default function WL01Record() {
     ? `${month}월 ${selected_day}일 운동`
     : "최근 한 운동";
 
-  const total_duration = day_records.reduce((sum, r) => sum + (r.duration_minutes ?? 0), 0);
+  // 진행 중 세션이 있으면 해당 세션의 duration을 live_minutes로 대체
+  const total_duration = day_records.reduce((sum, r) => {
+    const d = ws_session_id && r.session_id === ws_session_id
+      ? live_minutes
+      : (r.duration_minutes ?? 0);
+    return sum + d;
+  }, 0);
 
   // 하루 선택 시: 해당 날짜의 세션들을 합산
   const day_total_volume = day_records.reduce((s, r) => s + (r.total_volume_kg ?? 0), 0);
