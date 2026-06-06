@@ -2,7 +2,7 @@ from app.models.base import Base
 from app.models.chat import ChatMessage, ChatRole, ChatSession
 from app.models.exercise import (
     Exercise,
-    ExerciseEquipmentMap,
+    ExerciseEquipment,
     ExerciseMuscle,
     MuscleGroup,
     MuscleInvolvement,
@@ -11,7 +11,6 @@ from app.models.gym import (
     Equipment,
     EquipmentBodyCategory,
     EquipmentBrand,
-    EquipmentMuscle,
     EquipmentReport,
     EquipmentReportStatus,
     EquipmentSuggestion,
@@ -70,14 +69,13 @@ __all__ = [
     "GymEquipment",
     "EquipmentReport",
     "EquipmentSuggestion",
-    "EquipmentMuscle",
     "EquipmentBodyCategory",
     "EquipmentType",
     "EquipmentReportStatus",
     "WeightUnit",
     # exercise
     "Exercise",
-    "ExerciseEquipmentMap",
+    "ExerciseEquipment",
     "MuscleGroup",
     "ExerciseMuscle",
     "MuscleInvolvement",

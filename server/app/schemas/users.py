@@ -30,10 +30,21 @@ class BodyMeasurementData(BaseModel):
 
 
 class InbodyOcrRequest(BaseModel):
-    """인바디 결과지 사진(base64) → OCR 추출 요청 (MVP: 3지표)."""
+    """인바디 결과지 사진(base64) → OCR 추출 요청."""
 
     image_base64: str = Field(..., description="인바디 결과지 이미지 base64 (data URI 접두어 제외)")
     mime_type: str = "image/jpeg"
+
+
+class InbodyOcrData(BodyMeasurementData):
+    """인바디 OCR 추출 결과 — 측정 3지표(상속) + 프로필 정보 키·성별.
+
+    키·성별은 측정 기록이 아니라 프로필 속성이므로, 측정 기록 DTO로도
+    재사용되는 BodyMeasurementData 를 오염시키지 않도록 OCR 응답 전용으로 분리.
+    """
+
+    height_cm: float | None = None
+    gender: str | None = None  # "male" | "female"
 
 
 class GymData(BaseModel):
