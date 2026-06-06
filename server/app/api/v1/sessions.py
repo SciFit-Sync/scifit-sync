@@ -27,6 +27,7 @@ from app.models import (
     RoutineExercise,
     User,
     UserBodyMeasurement,
+    UserExercise1RM,
     WorkoutLog,
     WorkoutLogSet,
     WorkoutRoutine,
@@ -53,7 +54,7 @@ from app.schemas.sessions import (
     VolumeAnalysisItem,
     WorkoutSetItem,
 )
-from app.services import po
+from app.services import po, po_rag
 
 logger = logging.getLogger(__name__)
 
@@ -407,12 +408,27 @@ async def _check_and_create_po_notifications(
                 equipment_type = str(equip.equipment_type)
                 max_stack = equip.max_stack
 
+        user_1rm_row = (
+            await db.execute(
+                select(UserExercise1RM.weight_kg)
+                .where(
+                    UserExercise1RM.user_id == user.id,
+                    UserExercise1RM.exercise_id == rex.exercise_id,
+                )
+                .order_by(UserExercise1RM.estimated_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        user_1rm_kg = float(user_1rm_row) if user_1rm_row is not None else None
+        increment_override = await po_rag.rag_po_increment(goal, equipment_type, user_1rm_kg)
+
         result = po.calculate_increase(
             category=equipment_type,
             goal=goal,
             current_weight=float(cur_max_weight or 0),
             current_sets=rex.sets or int(set_count),
             max_stack=max_stack,
+            increment_override=increment_override,
         )
 
         # 루틴 중량/세트 즉시 반영 — 다음 루틴 접속 시 업데이트된 값이 보임
