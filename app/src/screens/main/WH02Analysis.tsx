@@ -26,14 +26,16 @@ const BAR_MAX_HEIGHT = 130;
 const WEEK_DAYS_KO = ["월", "화", "수", "목", "금", "토", "일"];
 
 // keys는 muscle_groups.name_ko 값과 정확히 일치해야 함
-// (seed: 20260525_seed_muscle_groups_exercises.py 기준)
+// (WorkoutX 재시드 20260606_reseed_workoutx.py 기준 — routines.py _REGION_TO_MUSCLE_NAMES 와 정합).
+// 구 seed(20260525)의 "전면/측면/후면 삼각근"·"능형근"·"대둔근"·"복직근/복사근" 은 재시드로
+// "삼각근"·"상배근"·"둔근"·"복근" 으로 통합돼 매칭 0(집계 깨짐) 이었음 — canon name_ko 로 정정.
 const MUSCLE_GROUPS: { label: string; keys: string[]; color: string }[] = [
   { label: "가슴", keys: ["대흉근"], color: "#FDB5CE" },
-  { label: "어깨", keys: ["전면 삼각근", "측면 삼각근", "후면 삼각근"], color: "#FF9F43" },
-  { label: "등", keys: ["광배근", "능형근", "승모근"], color: "#54A0FF" },
-  { label: "다리", keys: ["대퇴사두근", "햄스트링", "대둔근", "종아리"], color: "#5F27CD" },
+  { label: "어깨", keys: ["삼각근", "견갑거근"], color: "#FF9F43" },
+  { label: "등", keys: ["광배근", "상배근", "승모근", "척추기립근", "전거근"], color: "#54A0FF" },
+  { label: "다리", keys: ["대퇴사두근", "햄스트링", "둔근", "종아리", "내전근", "외전근", "고관절굴곡근"], color: "#5F27CD" },
   { label: "팔", keys: ["이두근", "삼두근", "전완근"], color: "#FFEB00" },
-  { label: "복근", keys: ["복직근", "복사근"], color: "#2D9596" },
+  { label: "복근", keys: ["복근"], color: "#2D9596" },
 ];
 
 // 이번 주 월~일 7일 반환 (월요일 시작 고정)
