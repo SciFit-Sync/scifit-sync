@@ -38,3 +38,10 @@ Dockerfile text eol=lf
 *.woff2  binary
 *.ttf    binary
 *.otf    binary
+
+# WorkoutX 재시드 데이터 (외부 운동 카탈로그/기구 시드 — 코드 리뷰 대상 아님).
+# linguist-generated=true → GitHub PR diff에서 자동으로 접혀 실제 코드 리뷰에 집중.
+server/alembic/data/reseed_exercises_workoutx.json linguist-generated=true
+server/alembic/data/reseed_equipments.csv          linguist-generated=true
+server/alembic/data/reseed_equipment_brands.csv    linguist-generated=true
+server/alembic/data/reseed_gym_equipments.csv      linguist-generated=true

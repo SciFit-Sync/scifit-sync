@@ -3,7 +3,12 @@ name: Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:   # 코드 변경 없이 수동 재배포 필요 시 (Actions UI에서 "Run workflow")
+  workflow_dispatch:   # 코드 변경 없이 수동 재배포 / 일회성 reseed (Actions UI에서 "Run workflow")
+    inputs:
+      allow_clean_slate_wipe:
+        description: "일회성 clean_slate reseed 허용 (prod 사용자데이터 wipe). 평상시 false 유지 — true는 백업+승인 하에만."
+        type: boolean
+        default: false
 
 # Required GitHub Secrets (Settings → Secrets → Actions):
 #   AWS_ACCESS_KEY_ID      — IAM 사용자 액세스 키
@@ -87,14 +92,40 @@ jobs:
           echo "arn=$NEW_ARN" >> $GITHUB_OUTPUT
           echo "Registered task definition: $NEW_ARN"
 
+      - name: Backup prod DB before migrations (pg_dump → S3)
+        # 파괴적 마이그(clean_slate 전체 wipe 등) 자동 적용 전 사용자 데이터 백업.
+        # PROD_DATABASE_URL(=pg_dump 가능한 direct 연결, transaction pooler 아님) + BACKUP_S3_URI
+        # 두 secret 설정 시 활성화. 미설정(pre-launch)이면 백업할 데이터가 없으므로 경고 후 skip.
+        # 🔴 실사용자 발생(출시) 후엔 두 secret 을 반드시 등록할 것 — 백업 없는 파괴적 마이그 금지.
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          BACKUP_S3_URI: ${{ secrets.BACKUP_S3_URI }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROD_DATABASE_URL:-}" ] || [ -z "${BACKUP_S3_URI:-}" ]; then
+            echo "::warning::PROD_DATABASE_URL/BACKUP_S3_URI 미설정 — DB 백업 skip. pre-launch면 무방하나 출시 후엔 필수(파괴적 마이그 전 백업)."
+            exit 0
+          fi
+          TS=$(date -u +%Y%m%dT%H%M%SZ)
+          DUMP="prod-backup-${{ github.sha }}-$TS.sql.gz"
+          echo "Dumping prod DB → $DUMP (pg_dump via postgres:15 컨테이너로 버전 정합)"
+          docker run --rm -e PGURL="$PROD_DATABASE_URL" postgres:15 \
+            sh -c 'pg_dump --no-owner --no-privileges "$PGURL"' | gzip > "$DUMP"
+          SIZE=$(stat -c%s "$DUMP")
+          [ "$SIZE" -gt 100 ] || { echo "백업 파일이 비정상(${SIZE}B) — 마이그 중단"; exit 1; }
+          aws s3 cp "$DUMP" "$BACKUP_S3_URI/$DUMP"
+          echo "Backup uploaded: $BACKUP_S3_URI/$DUMP ($SIZE bytes)"
+
       - name: Run DB migrations (ECS Fargate one-off task)
         run: |
+          # ALLOW_CLEAN_SLATE_WIPE: push(상시 배포)에선 항상 빈값(가드 활성). workflow_dispatch + allow_clean_slate_wipe=true 일 때만 '1'.
+          WIPE="${{ (github.event_name == 'workflow_dispatch' && inputs.allow_clean_slate_wipe) && '1' || '' }}"
           TASK_ARN=$(aws ecs run-task \
             --cluster ${{ secrets.ECS_CLUSTER }} \
             --task-definition ${{ steps.register-task-def.outputs.arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.ECS_SUBNET_IDS }}],securityGroups=[${{ secrets.ECS_SG_IDS }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"${{ secrets.CONTAINER_NAME }}\",\"command\":[\"sh\",\"-c\",\"alembic upgrade head\"]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"${{ secrets.CONTAINER_NAME }}\",\"command\":[\"sh\",\"-c\",\"alembic upgrade head\"],\"environment\":[{\"name\":\"ALLOW_CLEAN_SLATE_WIPE\",\"value\":\"$WIPE\"}]}]}" \
             --query 'tasks[0].taskArn' --output text)
 
           echo "Migration task: $TASK_ARN"

@@ -138,7 +138,7 @@ class MachineItem(BaseModel):
     """헬스장 보유 머신/케이블 기구 항목."""
 
     equipment_id: str
-    label: str  # COALESCE(movement_label_ko, name)
+    label: str  # Exercise.name(운동 한글명) or Equipment.name fallback
     equipment_type: str
     image_url: str | None = None
     brand: str | None = None
@@ -150,8 +150,10 @@ class FreeWeightItem(BaseModel):
     exercise_id: str
     name: str
     name_en: str | None = None
-    equipment_id: str | None = None  # 바벨/덤벨 기구 ID (exercises.default_equipment_id 출처)
-    equipment_type: str | None = None  # 'barbell' | 'dumbbell' | 'bodyweight'
+    equipment_id: str | None = None  # 프리웨이트는 정션 없음 — 항상 NULL
+    equipment_type: str | None = (
+        None  # Exercise.load_mode 값 (baseline 8종: barbell/ez_barbell/trap_bar/dumbbell/bodyweight/weighted/kettlebell/band)
+    )
 
 
 class MuscleEquipmentData(BaseModel):

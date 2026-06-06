@@ -23,7 +23,8 @@ import {
 } from "../../services/notifications";
 
 function fmt_relative_time(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const utc = iso.endsWith("Z") ? iso : iso + "Z";
+  const diff = Date.now() - new Date(utc).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "방금 전";
   if (mins < 60) return `${mins}분 전`;
