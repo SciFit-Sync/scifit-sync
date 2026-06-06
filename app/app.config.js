@@ -39,6 +39,15 @@ module.exports = {
       "expo-build-properties",
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          photosPermission:
+            "인바디 결과지 사진을 불러오기 위해 사진 접근 권한이 필요합니다.",
+          cameraPermission:
+            "인바디 결과지를 촬영하기 위해 카메라 권한이 필요합니다.",
+        },
+      ],
     ],
     extra: {
       eas: {
