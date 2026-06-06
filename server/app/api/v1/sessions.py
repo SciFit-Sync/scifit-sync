@@ -70,6 +70,16 @@ _REST_GOAL_DEFAULTS: dict[str, tuple[int, int, int]] = {
     "rehabilitation": (60, 30, 90),
 }
 
+_BODY_PART_KO: dict[str, str] = {
+    "chest": "가슴",
+    "back": "등",
+    "shoulder": "어깨",
+    "shoulders": "어깨",
+    "legs": "하체",
+    "arms": "팔",
+    "abs": "복근",
+}
+
 
 def _fmt_seconds(s: int) -> str:
     if s < 60:
@@ -567,14 +577,6 @@ async def list_sessions(
 
     day_ids = [r.routine_day_id for r in rows if r.routine_day_id]
     # day_id → (routine_id, routine_name, fitness_goals, target_muscle_group_ids)
-    _BODY_PART_KO: dict[str, str] = {
-        "chest": "가슴",
-        "back": "등",
-        "shoulder": "어깨",
-        "legs": "하체",
-        "arms": "팔",
-        "abs": "복근",
-    }
     routine_info_by_day: dict[str, tuple[str, str, list[str], list[str]]] = {}
 
     if day_ids:

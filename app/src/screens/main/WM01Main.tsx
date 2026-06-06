@@ -34,7 +34,6 @@ import {
   deleteProgram,
   type ProgramItem,
 } from "../../services/programs";
-import { getNotifications } from "../../services/notifications";
 import { getMe } from "../../services/users";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 import WC01Chatbot from "../../components/WC01Chatbot";
@@ -120,14 +119,6 @@ export default function WM01Main() {
       })
       .finally(() => set_is_renaming(false));
   };
-
-  const { data: notif_data } = useQuery({
-    queryKey: ["notifications_unread", token],
-    queryFn: () => getNotifications(token),
-    enabled: !!token,
-    staleTime: 30_000,
-  });
-  const unread_count = notif_data?.unread_count ?? 0;
 
   const { data: routines_data, isLoading: routines_loading } = useQuery({
     queryKey: ["routines"],
