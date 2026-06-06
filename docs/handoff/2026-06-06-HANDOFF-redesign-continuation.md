@@ -61,7 +61,12 @@
 | `gym_equipments.csv` | 32건. orphan 0 |
 | `freeweight_load_modes.csv` | barbell20·ez10·**trap25(확정)**·dumbbell증분·weighted=bw+added 등 |
 
-**⏳ 미완 (유저 차례)**: `equipments.csv`의 **한글 `name`** 채우기 (현재 비어있음, name_en만 채워짐). 받으면 그대로 반영.
+**✅ 완료 (2026-06-06)**: `equipments.csv` 132행 **한글 `name` 머지 완료** (유저 `equipments 1.xlsx` 140행 → id 기준 132 공통행 채움, 빈 행 0. 백업 `equipments.csv.bak`).
+
+**🔴 머신 2종 흡수 주의 (감사: [`2026-06-06-baseline-equipment-gap-audit.md`](2026-06-06-baseline-equipment-gap-audit.md))**: xlsx에만 있던 8개 generic 중 프리웨이트 6종은 `freeweight_load_modes.csv`에 baseline 기록 완비(✅). 그러나 머신 2종(Smith machine·Assisted Pull-up Machine)은 generic 부활 불요지만 다음 3건이 공백 — 재시드 전 반드시 처리:
+- **G1(P0)**: Smith 실물 `f6fe186b`(Panatta, bar 15kg)이 gym_equipments **미등록** → Smith 48운동 증발. 더찬스짐 실재 시 등록.
+- **G2(P0)**: 머신-클래스 **160운동**(Smith48+Leverage81+Sled15+Assisted/Hammer16)→실물 행 정션 산출물 미작성(Phase 7).
+- **G3(P1)**: `load_calc.py` machine 분기가 has_weight_assist 미반영 → 어시스티드 머신 부호반대 오계산(Phase 4 수정). G4: Assisted 15운동 다수가 스트레치 → machine 오분류 위험.
 
 ## 6. 실행 플랜 (Phase별, 순서 준수)
 
@@ -98,7 +103,7 @@
 ### Phase 4 — API/서비스 (86건)
 - [ ] `routines.py`: `_build_rag_profile` 단일경로(machine/free_stmt 통합), `_resolve_label_to_ids` 운동해석, 머신선택(b)
 - [ ] `rag.py`: `_build_routine_prompt` 운동 계약, [MACHINE]/[FREE] 제거
-- [ ] `load_calc.py`: `exercise.load_mode` 분기 + 프리웨이트 상수(freeweight_load_modes.csv)
+- [ ] `load_calc.py`: `exercise.load_mode` 분기 + 프리웨이트 상수(freeweight_load_modes.csv). **🔴 G3: machine 분기에 `has_weight_assist` 처리 추가**(현재 미반영 — Assisted Dip/Chin을 machine으로 계산하면 부호반대 폭탄)
 - [ ] `sessions.py`/`routine_targets.py`/`po.py`: equipment_id NULL 대응(프리웨이트 PO/중량)
 - [ ] `gyms.py`: equipment_muscles JOIN 제거 → 정션 경유 파생
 - 게이트: 루틴 생성 E2E(가슴/팔/맨몸), load_calc 100% 테스트 pass
@@ -116,6 +121,8 @@
 ### Phase 7 — Gemini 산출물 (검증 루프)
 - [ ] 한글명(운동1401+근육20), 머신↔운동 N:M(`exercise_equipment`), secondary 정규화 → **파일 산출 → 유저 검증 → 적재**
 - [ ] 머신 N:M은 **실물 기구 적재(Phase1) 후** 실행 (선결)
+- [ ] **🔴 G2: 머신-클래스 160운동(Smith48+Leverage81+Sled15+Assisted/Hammer16) → 실물 행(f6fe186b/2ca108c5/91dd2f21 등) 정션 명시 산출**. §9 게이트 "machine/cable 운동 중 정션 없음 = 0" 검증.
+- [ ] **G4: Assisted 15운동 다수가 파트너 스트레치(부하 없음)** → `Assisted→machine` 룩업 재검토, bodyweight 등으로 재분류
 
 ## 7. PR 처분
 - ✅ 유지: **#281**(루틴 품질)
