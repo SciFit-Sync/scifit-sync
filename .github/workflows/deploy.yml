@@ -3,7 +3,12 @@ name: Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:   # 코드 변경 없이 수동 재배포 필요 시 (Actions UI에서 "Run workflow")
+  workflow_dispatch:   # 코드 변경 없이 수동 재배포 / 일회성 reseed (Actions UI에서 "Run workflow")
+    inputs:
+      allow_clean_slate_wipe:
+        description: "일회성 clean_slate reseed 허용 (prod 사용자데이터 wipe). 평상시 false 유지 — true는 백업+승인 하에만."
+        type: boolean
+        default: false
 
 # Required GitHub Secrets (Settings → Secrets → Actions):
 #   AWS_ACCESS_KEY_ID      — IAM 사용자 액세스 키
@@ -113,12 +118,14 @@ jobs:
 
       - name: Run DB migrations (ECS Fargate one-off task)
         run: |
+          # ALLOW_CLEAN_SLATE_WIPE: push(상시 배포)에선 항상 빈값(가드 활성). workflow_dispatch + allow_clean_slate_wipe=true 일 때만 '1'.
+          WIPE="${{ (github.event_name == 'workflow_dispatch' && inputs.allow_clean_slate_wipe) && '1' || '' }}"
           TASK_ARN=$(aws ecs run-task \
             --cluster ${{ secrets.ECS_CLUSTER }} \
             --task-definition ${{ steps.register-task-def.outputs.arn }} \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.ECS_SUBNET_IDS }}],securityGroups=[${{ secrets.ECS_SG_IDS }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"${{ secrets.CONTAINER_NAME }}\",\"command\":[\"sh\",\"-c\",\"alembic upgrade head\"]}]}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"${{ secrets.CONTAINER_NAME }}\",\"command\":[\"sh\",\"-c\",\"alembic upgrade head\"],\"environment\":[{\"name\":\"ALLOW_CLEAN_SLATE_WIPE\",\"value\":\"$WIPE\"}]}]}" \
             --query 'tasks[0].taskArn' --output text)
 
           echo "Migration task: $TASK_ARN"
