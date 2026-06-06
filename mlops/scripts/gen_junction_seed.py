@@ -46,15 +46,41 @@ _B2C = {
 
 # 동작 키워드(구체적 → 일반 순). 운동명·머신명 양쪽에서 동일 추출.
 _ACTIONS = [
-    "pulldown", "pushdown", "crossover", "preacher", "flye", "fly",
-    "shrug", "kickback", "pullover", "adduction", "abduction",
-    "calf", "crunch", "hack", "deadlift", "squat", "lunge",
-    "row", "press", "curl", "extension", "raise", "dip", "chin", "pull",
+    "pulldown",
+    "pushdown",
+    "crossover",
+    "preacher",
+    "flye",
+    "fly",
+    "shrug",
+    "kickback",
+    "pullover",
+    "adduction",
+    "abduction",
+    "calf",
+    "crunch",
+    "hack",
+    "deadlift",
+    "squat",
+    "lunge",
+    "row",
+    "press",
+    "curl",
+    "extension",
+    "raise",
+    "dip",
+    "chin",
+    "pull",
 ]
 
 _MACHINE_EQ = {
-    "leverage machine", "smith machine", "assisted", "assisted (towel)",
-    "sled machine", "hammer", "tire",
+    "leverage machine",
+    "smith machine",
+    "assisted",
+    "assisted (towel)",
+    "sled machine",
+    "hammer",
+    "tire",
 }
 _CABLE_EQ = {"cable"}
 
@@ -93,9 +119,7 @@ def main() -> None:
 
     smith_id = next(r["id"] for r in equipments if "smith" in nm(r).lower())
     cable_ids = [r["id"] for r in equipments if r["equipment_type"] == "cable"]
-    machines = [
-        (r["id"], nm(r), r["category"]) for r in equipments if r["equipment_type"] == "machine"
-    ]
+    machines = [(r["id"], nm(r), r["category"]) for r in equipments if r["equipment_type"] == "machine"]
 
     exercises = _load_exercises()
     seed_rows: list[dict] = []
@@ -107,9 +131,7 @@ def main() -> None:
         if key in seen:
             return
         seen.add(key)
-        seed_rows.append(
-            {"exercise_name": ex_name, "equipment_id": eq_id, "source": source, "confidence": conf}
-        )
+        seed_rows.append({"exercise_name": ex_name, "equipment_id": eq_id, "source": source, "confidence": conf})
 
     stats = {"smith": 0, "cable": 0, "action": 0, "unmatched": 0, "cardio": 0}
     for ex in exercises:
@@ -130,9 +152,7 @@ def main() -> None:
             continue
         cat = _B2C.get(ex.get("bodyPart"))
         if cat is None:  # cardio
-            unmatched.append(
-                {"exercise_name": name, "bodyPart": ex.get("bodyPart"), "category": "", "action": ""}
-            )
+            unmatched.append({"exercise_name": name, "bodyPart": ex.get("bodyPart"), "category": "", "action": ""})
             stats["cardio"] += 1
             continue
         cands = [m for m in machines if m[2] == cat]
@@ -156,8 +176,15 @@ def main() -> None:
         machines_by_cat[m[2]].append(m)
     smith_m = [m for m in machines if "smith" in m[1].lower()]
     _SKIP_KW = (
-        "stretch", "sledge hammer", "tire flip", "gripper hands", "cycle cross",
-        "treadmill", "stationary bike", "hanging", "throw down",
+        "stretch",
+        "sledge hammer",
+        "tire flip",
+        "gripper hands",
+        "cycle cross",
+        "treadmill",
+        "stationary bike",
+        "hanging",
+        "throw down",
     )
     still: list[dict] = []
     g_stats = {"calf": 0, "shrug/dl": 0, "pull/chin": 0, "dip": 0, "hip": 0, "core": 0, "skip": 0}
@@ -177,14 +204,20 @@ def main() -> None:
             targets = smith_m
             g_stats["shrug/dl"] += 1
         elif "pull-up" in n or "pull up" in n or "chin" in n or (cat == "back" and "pull" in n):
-            targets = [m for m in machines if "assist" in m[1].lower() and ("dip" in m[1].lower() or "chin" in m[1].lower())]
+            targets = [
+                m for m in machines if "assist" in m[1].lower() and ("dip" in m[1].lower() or "chin" in m[1].lower())
+            ]
             targets += [m for m in machines_by_cat["back"] if "lat pulldown" in m[1].lower()]
             g_stats["pull/chin"] += 1
         elif "dip" in n:
             targets = [m for m in machines if "dip" in m[1].lower()]
             g_stats["dip"] += 1
         elif "abduction" in n or "adduction" in n:
-            targets = [m for m in machines_by_cat["legs"] if any(k in m[1].lower() for k in ("adduction", "abduction", "inner"))]
+            targets = [
+                m
+                for m in machines_by_cat["legs"]
+                if any(k in m[1].lower() for k in ("adduction", "abduction", "inner"))
+            ]
             g_stats["hip"] += 1
         elif "sit-up" in n or "sit up" in n or "twist" in n or "crunch" in n:
             targets = machines_by_cat["core"]
