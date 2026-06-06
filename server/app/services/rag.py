@@ -556,8 +556,9 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"  * rehabilitation: 60-120\n"
         f"  * weight_loss: 30-45\n"
         + (
-            f"IMPORTANT: You MUST use ONLY exercise names from this exact list. "
-            f"Do NOT invent new names — pick the closest match:\n"
+            f"IMPORTANT: You MUST use ONLY exercise names from this exact list — no exceptions. "
+            f"Do NOT invent, paraphrase, or add any exercise not listed here. "
+            f"If the list seems short, still do NOT add unlisted exercises:\n"
             f"{chr(10).join('- ' + ex['name'] for ex in profile.available_exercises)}\n\n"
             if profile.available_exercises
             else ""
