@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,20 +22,21 @@ class Exercise(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, default=None)
     category: Mapped[str] = mapped_column(String(50))
     gif_url: Mapped[str | None] = mapped_column(String(500), default=None)
-    # PR-4.5: 프리웨이트 운동의 구현 기구(제네릭 바벨/덤벨) 단일 매핑. exercise_equipment_map 읽기 경로 대체.
-    default_equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="SET NULL"), default=None
-    )
+    # WorkoutX 재설계: 부하 계산 분기 기준 load_mode (barbell/ez_barbell/trap_bar/dumbbell/
+    # bodyweight/weighted/kettlebell/band/cable/machine/cardio). nullable — 재시드가 채움.
+    load_mode: Mapped[str | None] = mapped_column(String(20), default=None)
 
-    # DEPRECATED (PR-5에서 제거 예정): 런타임 읽기/쓰기 경로는 default_equipment_id로 이전됨.
-    equipment_maps: Mapped[list["ExerciseEquipmentMap"]] = relationship(
+    # 기구↔운동 N:M (머신 운동만 행 보유. 프리웨이트=행 없음 → routine_exercises.equipment_id NULL).
+    equipment_links: Mapped[list["ExerciseEquipment"]] = relationship(
         back_populates="exercise", cascade="all, delete-orphan"
     )
     muscle_maps: Mapped[list["ExerciseMuscle"]] = relationship(back_populates="exercise", cascade="all, delete-orphan")
 
 
-class ExerciseEquipmentMap(Base):
-    __tablename__ = "exercise_equipment_map"
+class ExerciseEquipment(Base):
+    """기구↔운동 N:M 정션 (eem 폐기 후 신설). 머신 운동만 행 보유, 프리웨이트는 행 없음."""
+
+    __tablename__ = "exercise_equipment"
 
     exercise_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), primary_key=True
@@ -43,8 +44,10 @@ class ExerciseEquipmentMap(Base):
     equipment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="CASCADE"), primary_key=True
     )
+    source: Mapped[str] = mapped_column(String(20), default="seed", server_default=text("'seed'"))
+    confidence: Mapped[float | None] = mapped_column(Numeric(3, 2), default=None)
 
-    exercise: Mapped["Exercise"] = relationship(back_populates="equipment_maps")
+    exercise: Mapped["Exercise"] = relationship(back_populates="equipment_links")
     equipment: Mapped["Equipment"] = relationship()  # noqa: F821
 
 
