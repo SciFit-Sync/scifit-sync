@@ -19,7 +19,7 @@ import { colors } from "../../assets/colors/colors";
 import { Octicons } from "@expo/vector-icons";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
 import { useAuthStore } from "../../stores/authStore";
-import { onboardUser, ocrInbody } from "../../services/users";
+import { onboardUser, ocrInbody, updateBody } from "../../services/users";
 
 type Gender = "female" | "male";
 type Experience = "헬린이" | "초급" | "중급" | "고급";
@@ -143,6 +143,14 @@ export default function WA03SignupInfo() {
         },
         access_token,
       );
+      const sm = skeletal_muscle.trim() !== "" ? parseFloat(skeletal_muscle) : undefined;
+      const bf = body_fat.trim() !== "" ? parseFloat(body_fat) : undefined;
+      if ((sm !== undefined && !isNaN(sm)) || (bf !== undefined && !isNaN(bf))) {
+        await updateBody(access_token, {
+          ...(sm !== undefined && !isNaN(sm) ? { skeletal_muscle_kg: sm } : {}),
+          ...(bf !== undefined && !isNaN(bf) ? { body_fat_pct: bf } : {}),
+        });
+      }
       await setAuth({
         access_token,
         refresh_token,
@@ -265,11 +273,19 @@ export default function WA03SignupInfo() {
             {/* 골격근량 / 체지방률 */}
             <View style={styles.row}>
               <View style={[styles.field, styles.flex]}>
+<<<<<<< HEAD
                 <Text style={styles.label}>골격근량</Text>
                 <View style={styles.inputRow}>
                   <TextInput
                     style={[styles.inputInner, styles.flex]}
                     placeholder="골격근량 입력"
+=======
+                <Text style={styles.label}>골격근량 (선택)</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.inputInner, styles.flex]}
+                    placeholder="골격근량"
+>>>>>>> origin/develop
                     placeholderTextColor={colors.border}
                     value={skeletal_muscle}
                     onChangeText={set_skeletal_muscle}
@@ -279,11 +295,19 @@ export default function WA03SignupInfo() {
                 </View>
               </View>
               <View style={[styles.field, styles.flex]}>
+<<<<<<< HEAD
                 <Text style={styles.label}>체지방률</Text>
                 <View style={styles.inputRow}>
                   <TextInput
                     style={[styles.inputInner, styles.flex]}
                     placeholder="체지방률 입력"
+=======
+                <Text style={styles.label}>체지방률 (선택)</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.inputInner, styles.flex]}
+                    placeholder="체지방률"
+>>>>>>> origin/develop
                     placeholderTextColor={colors.border}
                     value={body_fat}
                     onChangeText={set_body_fat}
