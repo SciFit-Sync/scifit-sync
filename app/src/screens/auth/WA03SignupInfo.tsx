@@ -147,6 +147,7 @@ export default function WA03SignupInfo() {
       const bf = body_fat.trim() !== "" ? parseFloat(body_fat) : undefined;
       if ((sm !== undefined && !isNaN(sm)) || (bf !== undefined && !isNaN(bf))) {
         await updateBody(access_token, {
+          weight_kg: weight_num,
           ...(sm !== undefined && !isNaN(sm) ? { skeletal_muscle_kg: sm } : {}),
           ...(bf !== undefined && !isNaN(bf) ? { body_fat_pct: bf } : {}),
         });
