@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 SAMPLE_CHUNKS = [
-    {"document": "Studies show 5% load increment per session improves strength.", "similarity": 0.85, "score": 0.85}
+    {"content": "Studies show 5% load increment per session improves strength.", "similarity": 0.85, "score": 0.85}
 ]
 
 

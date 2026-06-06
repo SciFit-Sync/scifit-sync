@@ -55,7 +55,7 @@ def _convert_to_kg(increment_percent: float, user_1rm_kg: float) -> float:
 
 
 def _build_prompt(goal: str, equipment_type: str, chunks: list[dict]) -> str:
-    excerpts = "\n---\n".join(c.get("document", "") for c in chunks[:3])
+    excerpts = "\n---\n".join(c.get("content", "") for c in chunks[:3])
     return (
         "<system>\n"
         "You are a sports science expert. Based ONLY on the provided paper excerpts, "
