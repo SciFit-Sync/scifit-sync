@@ -163,12 +163,12 @@ load_mode NULL (cardio 제외): 0건
   | Kettlebell | kettlebell |
   | Band, Resistance Band, Rope | band |
   | Cable | cable |
-  | Leverage Machine, Smith Machine, Assisted | machine |
-  | Elliptical Machine, Skierg Machine, Sled Machine, Stationary Bike, Stepmill Machine, Upper Body Ergometer | cardio |
-  | Stability Ball, Medicine Ball, Roller, Bosu Ball, Wheel Roller, Hammer, Tire, 기타 | **skip (fail-fast)** |
+  | Leverage Machine, Smith Machine, Assisted, Assisted (towel), Sled Machine, Hammer, Tire | machine |
+  | Elliptical Machine, Skierg Machine, Stationary Bike, Stepmill Machine, Upper Body Ergometer | cardio |
+  | Stability Ball, Bosu Ball, Roller, Wheel Roller, Medicine Ball, Rope | bodyweight |
 
-  > 미지원 equipment는 skip이 아닌 fail-fast (`ValueError` raise). 새 equipment값이 추가됐을 경우 즉시 발견 가능.
-  > 실제로 skip되는 운동은 0건이어야 한다. Stability Ball 등 57종은 load_mode 맵에 없으므로 스크립트 수정 전 삽입 불가.
+  > exercises.json 34종 equipment 값 전수 매핑 완료 (missing 0건). 맵에 없는 신규 값은 `ValueError` fail-fast — 데이터 진화 시 즉시 발견.
+  > skip되는 운동은 0건. bodyPart 없는 행만 경고 후 skip.
 
 - `muscle_groups` assert: 적재 전 20 canon이 DB에 존재하는지 검증. 없으면 즉시 abort.
 - `exercise_muscles`:
