@@ -16,6 +16,12 @@ export interface BodyMeasurementData {
   measured_at?: string;
 }
 
+// 인바디 OCR 추출 결과 — 측정 3지표 + 프로필 정보(키·성별)
+export interface InbodyOcrData extends BodyMeasurementData {
+  height_cm?: number;
+  gender?: string; // "male" | "female"
+}
+
 export interface GymData {
   gym_id: string;
   name: string;
@@ -108,8 +114,8 @@ export async function ocrInbody(
   token: string,
   image_base64: string,
   mime_type = "image/jpeg",
-): Promise<BodyMeasurementData> {
-  return apiFetch<BodyMeasurementData>("/api/v1/users/me/body/ocr", {
+): Promise<InbodyOcrData> {
+  return apiFetch<InbodyOcrData>("/api/v1/users/me/body/ocr", {
     method: "POST",
     token,
     body: JSON.stringify({ image_base64, mime_type }),

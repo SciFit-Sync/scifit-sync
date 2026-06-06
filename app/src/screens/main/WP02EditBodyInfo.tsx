@@ -110,6 +110,8 @@ export default function WP02EditBodyInfo() {
       if (m.skeletal_muscle_kg != null)
         set_skeletal_muscle(String(m.skeletal_muscle_kg));
       if (m.body_fat_pct != null) set_body_fat(String(m.body_fat_pct));
+      if (m.height_cm != null) set_height(String(m.height_cm));
+      if (m.gender === "male" || m.gender === "female") set_gender(m.gender);
       if (m.measured_at) set_measured_at(m.measured_at);
       Alert.alert("인식 완료", "추출된 값을 확인하고 수정 후 저장해주세요.");
     } catch (e: any) {

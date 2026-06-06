@@ -47,6 +47,7 @@ from app.schemas.users import (
     BulkOneRMData,
     CoreLift1RMItem,
     GymData,
+    InbodyOcrData,
     InbodyOcrRequest,
     MeData,
     OnboardData,
@@ -308,29 +309,49 @@ def _as_float(v) -> float | None:
     return float(m.group()) if m else None
 
 
+def _normalize_gender(v) -> str | None:
+    """LLM이 '남성'·'남'·'M'·'Male' 등 다양하게 줄 수 있어 male/female로 정규화.
+
+    알 수 없는 표기는 None (잘못된 자동입력 방지 — 사용자가 직접 선택).
+    """
+    if not isinstance(v, str):
+        return None
+    s = v.strip().lower()
+    if s in ("male", "m", "남", "남성", "남자"):
+        return "male"
+    if s in ("female", "f", "여", "여성", "여자"):
+        return "female"
+    return None
+
+
 _INBODY_OCR_PROMPT = """당신은 인바디(InBody) 체성분 분석 결과지를 읽는 OCR 도우미입니다.
 첨부된 인바디 결과지 사진에서 아래 수치를 추출해 JSON 으로만 응답하세요.
 
 - weight_kg: 체중 (kg, 숫자만)
 - skeletal_muscle_kg: 골격근량 SMM (kg, 숫자만)
 - body_fat_pct: 체지방률 PBF (%, 숫자만)
+- height_cm: 신장/키 (cm, 숫자만)
+- gender: 성별 ("male" 또는 "female" 로만)
 - measured_at: 측정일 (YYYY-MM-DD 형식, 결과지에 있으면)
 
 규칙:
 - 값을 찾을 수 없으면 해당 키는 null 로 두세요.
-- 단위 표기(kg, %)는 빼고 숫자만 출력하세요.
+- 단위 표기(kg, cm, %)는 빼고 숫자만 출력하세요.
 - 골격근량은 '골격근량' 또는 'SMM'(Skeletal Muscle Mass) 항목입니다 (제지방량 LBM 과 혼동 금지).
 - 체지방률은 '체지방률' 또는 'PBF'(Percent Body Fat) 항목입니다.
+- 신장은 '신장' 또는 '키'(Height) 항목입니다.
+- 성별은 남성/남 → "male", 여성/여 → "female" 로 변환해 출력하세요.
+- 생년월일은 추출하지 마세요 (결과지의 나이는 무시).
 - 설명 없이 JSON 객체만 출력하세요.
 
 출력 예시:
-{"weight_kg": 72.5, "skeletal_muscle_kg": 33.2, "body_fat_pct": 18.4, "measured_at": "2026-06-04"}
+{"weight_kg": 72.5, "skeletal_muscle_kg": 33.2, "body_fat_pct": 18.4, "height_cm": 175.0, "gender": "male", "measured_at": "2026-06-04"}
 """
 
 
 @router.post(
     "/me/body/ocr",
-    response_model=SuccessResponse[BodyMeasurementData],
+    response_model=SuccessResponse[InbodyOcrData],
     summary="인바디 결과지 OCR 추출",
 )
 @rate_limit("5/minute")
@@ -339,7 +360,7 @@ async def ocr_inbody(
     body: InbodyOcrRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """인바디 결과지 사진(base64)에서 체중·골격근량·체지방률을 추출한다 (저장 X).
+    """인바디 결과지 사진(base64)에서 체중·골격근량·체지방률·키·성별을 추출한다 (저장 X).
 
     추출만 수행하며, 클라이언트가 사용자 확인 후 PATCH /me/body 로 저장한다.
     LLM endpoint 이므로 rate limit 5/minute (CLAUDE.md §12).
@@ -388,10 +409,12 @@ async def ocr_inbody(
             measured = None
 
     return SuccessResponse(
-        data=BodyMeasurementData(
+        data=InbodyOcrData(
             weight_kg=_as_float(parsed.get("weight_kg")),
             skeletal_muscle_kg=_as_float(parsed.get("skeletal_muscle_kg")),
             body_fat_pct=_as_float(parsed.get("body_fat_pct")),
+            height_cm=_as_float(parsed.get("height_cm")),
+            gender=_normalize_gender(parsed.get("gender")),
             measured_at=measured,
         )
     )

@@ -269,6 +269,46 @@ class TestOcrInbody:
         resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
         assert resp.status_code == 503
 
+    @pytest.mark.asyncio
+    async def test_extracts_height_and_gender(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: (
+                '{"weight_kg": 72.5, "height_cm": 175.0, "gender": "male", "measured_at": null}'
+            ),
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["height_cm"] == 175.0
+        assert data["gender"] == "male"
+
+    @pytest.mark.asyncio
+    async def test_gender_and_height_coerced_from_korean(self, client, monkeypatch):
+        # LLM이 '여성'·'170cm' 등으로 줘도 정규화/숫자추출
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: '{"height_cm": "170cm", "gender": "여성"}',
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["height_cm"] == 170.0
+        assert data["gender"] == "female"
+
+    @pytest.mark.asyncio
+    async def test_unknown_gender_becomes_null(self, client, monkeypatch):
+        # 알 수 없는 성별 표기는 null (잘못된 자동입력 방지)
+        monkeypatch.setattr(
+            "app.api.v1.users.generate_vision",
+            lambda *a, **k: '{"gender": "unknown", "weight_kg": 70.0}',
+        )
+        resp = await client.post("/api/v1/users/me/body/ocr", json={"image_base64": self._img()})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["gender"] is None
+        assert data["weight_kg"] == 70.0
+
 
 # ── PATCH /users/me/goal ──────────────────────────────────────────────────────
 
