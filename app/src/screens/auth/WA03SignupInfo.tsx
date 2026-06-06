@@ -18,7 +18,7 @@ import { colors } from "../../assets/colors/colors";
 import { Octicons } from "@expo/vector-icons";
 import BirthDateBottomSheet from "../../components/WA03SignupBs";
 import { useAuthStore } from "../../stores/authStore";
-import { onboardUser } from "../../services/users";
+import { onboardUser, updateBody } from "../../services/users";
 
 type Gender = "female" | "male";
 type Experience = "헬린이" | "초급" | "중급" | "고급";
@@ -50,6 +50,8 @@ export default function WA03SignupInfo() {
   const [birth_date, set_birth_date] = useState("");
   const [height, set_height] = useState("");
   const [weight, set_weight] = useState("");
+  const [skeletal_muscle, set_skeletal_muscle] = useState("");
+  const [body_fat, set_body_fat] = useState("");
   const [gender, set_gender] = useState<Gender>("male");
   const [experience, set_experience] = useState<Experience | null>(null);
   const [inbody_file, set_inbody_file] = useState<string | null>(null);
@@ -93,6 +95,14 @@ export default function WA03SignupInfo() {
         },
         access_token,
       );
+      const sm = skeletal_muscle.trim() !== "" ? parseFloat(skeletal_muscle) : undefined;
+      const bf = body_fat.trim() !== "" ? parseFloat(body_fat) : undefined;
+      if ((sm !== undefined && !isNaN(sm)) || (bf !== undefined && !isNaN(bf))) {
+        await updateBody(access_token, {
+          ...(sm !== undefined && !isNaN(sm) ? { skeletal_muscle_kg: sm } : {}),
+          ...(bf !== undefined && !isNaN(bf) ? { body_fat_pct: bf } : {}),
+        });
+      }
       await setAuth({
         access_token,
         refresh_token,
@@ -186,6 +196,38 @@ export default function WA03SignupInfo() {
                     keyboardType="numeric"
                   />
                   <Text style={styles.unit}>kg</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 골격근량 / 체지방률 */}
+            <View style={styles.row}>
+              <View style={[styles.field, styles.flex]}>
+                <Text style={styles.label}>골격근량 (선택)</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.inputInner, styles.flex]}
+                    placeholder="골격근량"
+                    placeholderTextColor={colors.border}
+                    value={skeletal_muscle}
+                    onChangeText={set_skeletal_muscle}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.unit}>kg</Text>
+                </View>
+              </View>
+              <View style={[styles.field, styles.flex]}>
+                <Text style={styles.label}>체지방률 (선택)</Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.inputInner, styles.flex]}
+                    placeholder="체지방률"
+                    placeholderTextColor={colors.border}
+                    value={body_fat}
+                    onChangeText={set_body_fat}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.unit}>%</Text>
                 </View>
               </View>
             </View>
