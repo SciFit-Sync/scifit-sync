@@ -905,14 +905,20 @@ async def _build_rag_profile(
     target_priority: list[str] = []
     if target_muscle_ids:
         mg_rows = (
-            await db.execute(select(MuscleGroup.id, MuscleGroup.name).where(MuscleGroup.id.in_(target_muscle_ids)))
+            await db.execute(
+                select(MuscleGroup.id, MuscleGroup.name, MuscleGroup.name_ko).where(
+                    MuscleGroup.id.in_(target_muscle_ids)
+                )
+            )
         ).all()
-        target_muscle_names = [name for _, name in mg_rows]
-        # 선택 순서대로 우선순위 라벨 구성 (region은 라벨 그대로, uuid는 근육명) + 중복 제거
-        id_to_name = {str(mid): name for mid, name in mg_rows}
+        target_muscle_names = [name for _, name, _ in mg_rows]
+        # 선택 순서대로 우선순위 라벨 구성 + 중복 제거
+        # region 경로: body_region 문자열 그대로 (rag.py _REGION_KO가 한글 변환)
+        # uuid 경로: name_ko 사용 — 영어 슬러그가 focus 필드에 노출되는 문제 방지
+        id_to_name_ko = {str(mid): name_ko for mid, name, name_ko in mg_rows}
         seen_pri: set[str] = set()
         for kind, val in priority_specs:
-            label = val if kind == "region" else id_to_name.get(str(val))
+            label = val if kind == "region" else id_to_name_ko.get(str(val))
             if label and label not in seen_pri:
                 seen_pri.add(label)
                 target_priority.append(label)
