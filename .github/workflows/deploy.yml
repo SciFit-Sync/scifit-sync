@@ -109,7 +109,7 @@ jobs:
           TS=$(date -u +%Y%m%dT%H%M%SZ)
           DUMP="prod-backup-${{ github.sha }}-$TS.sql.gz"
           echo "Dumping prod DB → $DUMP (pg_dump via postgres:15 컨테이너로 버전 정합)"
-          docker run --rm -e PGURL="$PROD_DATABASE_URL" postgres:15 \
+          docker run --rm -e PGURL="$PROD_DATABASE_URL" postgres:17 \
             sh -c 'pg_dump --no-owner --no-privileges "$PGURL"' | gzip > "$DUMP"
           SIZE=$(stat -c%s "$DUMP")
           [ "$SIZE" -gt 100 ] || { echo "백업 파일이 비정상(${SIZE}B) — 마이그 중단"; exit 1; }
