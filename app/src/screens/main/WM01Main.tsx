@@ -34,7 +34,6 @@ import {
   deleteProgram,
   type ProgramItem,
 } from "../../services/programs";
-import { getNotifications } from "../../services/notifications";
 import { getMe } from "../../services/users";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 import WC01Chatbot from "../../components/WC01Chatbot";
@@ -61,9 +60,7 @@ function routine_subtitle(item: RoutineSummary): string {
   if (item.target_muscle_names && item.target_muscle_names.length > 0) {
     parts.push(item.target_muscle_names.join(", "));
   }
-  if (parts.length > 0) return parts.join(" · ");
-  if (item.gym_name) return item.gym_name;
-  return "";
+  return parts.join(" · ");
 }
 
 export default function WM01Main() {
@@ -122,14 +119,6 @@ export default function WM01Main() {
       })
       .finally(() => set_is_renaming(false));
   };
-
-  const { data: notif_data } = useQuery({
-    queryKey: ["notifications_unread", token],
-    queryFn: () => getNotifications(token),
-    enabled: !!token,
-    staleTime: 30_000,
-  });
-  const unread_count = notif_data?.unread_count ?? 0;
 
   const { data: routines_data, isLoading: routines_loading } = useQuery({
     queryKey: ["routines"],
@@ -244,22 +233,9 @@ export default function WM01Main() {
 
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={styles.bell_btn} />
+        <View style={styles.placeholder} />
         <Text style={styles.logo}>SciFit-Sync</Text>
-        <TouchableOpacity
-          style={styles.bell_btn}
-          onPress={() => navigation.navigate("WN01Notifications" as never)}
-          activeOpacity={0.7}
-        >
-          <Octicons name="bell" size={22} color={colors.primary} />
-          {unread_count > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badge_text}>
-                {unread_count > 99 ? "99+" : unread_count}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView
@@ -365,6 +341,7 @@ export default function WM01Main() {
                       )}
                       <Text style={styles.routine_sub}>
                         {format_date(item.created_at)}
+                        {item.gym_name ? `  ·  ${item.gym_name}` : ""}
                       </Text>
                     </View>
                     <TouchableOpacity
