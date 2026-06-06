@@ -1,3 +1,9 @@
+> ⚠️ **부분 SUPERSEDED (2026-06-06)** — 운동/기구/근육 도메인은 **운동-기구 재설계(WorkoutX)** 로 변경 예정.
+> 구(舊)정본 항목: `equipment_muscles`, `exercise_equipment_map`, `equipments.movement_label_*`/`is_freeweight`,
+> `exercises.default_equipment_id`, `muscle_groups.body_region=6부위`, 해부학 근육 어휘.
+> 신(新)정본 = [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md).
+> 해당 도메인 구현/리뷰 시 재설계 스펙을 따를 것 (그 외 도메인은 본 문서 유효).
+
 # 데이터 모델 (31개 테이블)
 
 > ⚠️ 아래 ERD는 핵심 테이블 중심. `email_otps`(OTP 인증)·`equipment_suggestions`(기구 제보)도 실제 테이블이며, `exercises.gif_url`·`users.is_email_verified` 컬럼이 추가됨 (ERD 갱신 예정).
