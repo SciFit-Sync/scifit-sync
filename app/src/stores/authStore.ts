@@ -27,6 +27,7 @@ interface AuthState {
   isLoading: boolean;
   init: () => Promise<void>;
   setAuth: (params: { access_token: string; refresh_token: string; is_new_user: boolean }) => Promise<void>;
+  updateTokens: (params: { access_token: string; refresh_token: string }) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   clearAuth: () => Promise<void>;
 }
@@ -83,6 +84,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       ws.set_owner(sub);
     }
     set({ accessToken: access_token, refreshToken: refresh_token, isLoggedIn: true, isNewUser: is_new_user });
+  },
+
+  // refresh token rotation으로 발급받은 새 토큰 쌍을 저장·반영.
+  // 로그인 상태/온보딩/세션 소유자는 그대로 두고 토큰만 갱신한다.
+  updateTokens: async ({ access_token, refresh_token }) => {
+    await Promise.all([
+      SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, access_token),
+      SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refresh_token),
+    ]);
+    set({ accessToken: access_token, refreshToken: refresh_token });
   },
 
   completeOnboarding: async () => {
