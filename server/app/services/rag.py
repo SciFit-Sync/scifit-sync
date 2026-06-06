@@ -487,6 +487,22 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
             f'Do NOT write "전신", "전신운동", or "full body" — even for longer sessions.\n'
         )
 
+    _FREEWEIGHT_LOAD_MODES = {"barbell", "ez_barbell", "trap_bar", "dumbbell", "weighted", "kettlebell", "band"}
+    _BODYWEIGHT_LOAD_MODES = {"bodyweight"}
+    has_freeweight = any(ex.get("load_mode") in _FREEWEIGHT_LOAD_MODES for ex in profile.available_exercises)
+    has_bodyweight = any(ex.get("load_mode") in _BODYWEIGHT_LOAD_MODES for ex in profile.available_exercises)
+
+    freeweight_mandatory_rule = (
+        "- You MUST include at least 1 freeweight exercise (barbell, dumbbell, kettlebell, or band) from the available list.\n"
+        if has_freeweight
+        else ""
+    )
+    bodyweight_mandatory_rule = (
+        "- You MUST include at least 1 bodyweight exercise from the available list.\n"
+        if has_bodyweight and (profile.session_minutes or 0) >= 90
+        else ""
+    )
+
     # 세션 시간 기반 최소 운동 개수 (단일 근육 부위도 다양한 각도/변형으로 채울 것)
     _mins = profile.session_minutes or 60
     if _mins <= 30:
@@ -540,6 +556,8 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
         f"{focus_rule}"
+        f"{freeweight_mandatory_rule}"
+        f"{bodyweight_mandatory_rule}"
         f"{exercise_count_rule}"
         f"{name_rule}"
         f"{target_muscle_rule}"
