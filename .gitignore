@@ -10,10 +10,6 @@ venv/
 .pytest_cache/
 .mypy_cache/
 
-# prod 데이터 덤프 (유저 이메일 등 실데이터 — 커밋 금지) + WorkoutX 원본 캐시(대용량/재생성 가능)
-docs/handoff/db-export/
-docs/handoff/workoutx-raw/exercises.json
-
 # Expo prebuild 결과물 (plugins로 관리)
 /app/android/
 /app/ios/
@@ -75,4 +71,3 @@ mlops/data/emb_*/
 mlops/eval/reports/*.md
 !mlops/eval/reports/README.md
 app/package-lock.json
-docs/handoff/.phase4-specs/

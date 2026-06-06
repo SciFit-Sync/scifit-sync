@@ -22,8 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import ForbiddenError
-from app.models.exercise import Exercise, ExerciseEquipment
-from app.models.gym import Equipment
+from app.models.exercise import Exercise
+from app.models.gym import Equipment, EquipmentType
 from app.models.paper import Paper
 from app.schemas.rag import RagIngestRequest
 from app.services import rag as rag_svc
@@ -352,24 +352,20 @@ async def refresh_categories(
     }
 
 
-# WorkoutX equipment 문자열 → load_mode 매핑 (SOT: docs/handoff workoutx-raw/freeweight_load_modes.csv)
-# cardio(Elliptical/Bike)는 FREEWEIGHT_MODES/MACHINE_MODES 어디에도 없어 루틴 후보 제외.
-_WX_LOAD_MODE: dict[str, str] = {
-    "barbell": "barbell",
-    "olympic barbell": "barbell",
-    "ez barbell": "ez_barbell",
-    "trap bar": "trap_bar",
-    "dumbbell": "dumbbell",
-    "body weight": "bodyweight",
-    "bodyweight": "bodyweight",
-    "weighted": "weighted",
-    "kettlebell": "kettlebell",
-    "band": "band",
-    "cable": "cable",
-    "machine": "machine",
-    "leverage machine": "machine",
-    "smith machine": "machine",
-    "assisted": "machine",
+# WorkoutX equipment 문자열 → EquipmentType 매핑
+_WX_EQUIPMENT_TYPE: dict[str, str] = {
+    "barbell": EquipmentType.BARBELL,
+    "dumbbell": EquipmentType.DUMBBELL,
+    "cable": EquipmentType.CABLE,
+    "machine": EquipmentType.MACHINE,
+    "leverage machine": EquipmentType.MACHINE,
+    "smith machine": EquipmentType.MACHINE,
+    "assisted": EquipmentType.MACHINE,
+    "body weight": EquipmentType.BODYWEIGHT,
+    "bodyweight": EquipmentType.BODYWEIGHT,
+    "band": EquipmentType.BODYWEIGHT,
+    "ez barbell": EquipmentType.BARBELL,
+    "olympic barbell": EquipmentType.BARBELL,
 }
 
 
@@ -378,85 +374,67 @@ async def seed_exercises_from_workoutx(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(_verify_admin_token),
 ) -> dict:
-    """WorkoutX API에서 전체 운동 목록을 가져와 exercises 테이블을 채운다.
+    """WorkoutX API에서 전체 운동 목록을 가져와 exercises 테이블을 채우고 프리웨이트 default_equipment_id를 설정한다.
 
     멱등 처리 (name_en ON CONFLICT DO UPDATE). 여러 번 실행해도 안전.
-
-    Phase 4 재설계:
-    - load_mode 컬럼 채움 (_WX_LOAD_MODE 매핑).
-    - 머신/케이블 운동(MACHINE_MODES)만 exercise_equipment junction 행 upsert.
-      프리웨이트는 routine_exercises.equipment_id=NULL 경로이므로 junction 불필요.
-    - exercise UPSERT 배치 커밋 후 name_en→id 룩업으로 junction 구성
-      (미커밋 참조 방지).
-
-    전제조건: Phase-1 스키마 마이그레이션(load_mode 컬럼 + exercise_equipment 테이블)
-    적용 후 실행해야 한다.
+    PR-4.5: exercise_equipment_map 쓰기 제거 — 프리웨이트 타입만 default_equipment_id 단일 설정.
     """
-    from app.services.load_calc import MACHINE_MODES
-
     wx_exercises = await list_all_exercises()
     if not wx_exercises:
         return {
             "success": True,
-            "data": {"upserted": 0, "junction": 0, "message": "WorkoutX에서 운동 목록을 가져오지 못했습니다."},
+            "data": {"upserted": 0, "mapped": 0, "message": "WorkoutX에서 운동 목록을 가져오지 못했습니다."},
         }
 
-    # 머신/케이블 junction용: equipment_type IN ('cable','machine') 기구 목록
-    # equipment_type 컬럼은 Equipment 모델에 여전히 존재 (Equipment.is_freeweight 제거됨)
-    machine_eq_rows = (
+    # PR-4.5: 프리웨이트 타입별 대표 기구 1개 (exercises.default_equipment_id 백필용).
+    # 머신/케이블 운동은 default_equipment_id를 두지 않는다(movement_label_en==name_en 경로로 해석).
+    fw_eq_rows = (
         await db.execute(
-            select(Equipment.id, Equipment.equipment_type, Equipment.name_en)
-            .where(Equipment.equipment_type.in_(["cable", "machine"]))
+            select(Equipment.id, Equipment.equipment_type)
+            .where(Equipment.is_freeweight == True)  # noqa: E712
             .order_by(Equipment.equipment_type, Equipment.id)
         )
     ).all()
-    # load_mode(cable/machine) → 후보 equipment id 리스트 (첫 번째 = 대표)
-    eq_by_load_mode: dict[str, list[uuid.UUID]] = {}
-    for eq_id, eq_type, _eq_name in machine_eq_rows:
-        eq_by_load_mode.setdefault(str(eq_type), []).append(eq_id)
+    default_equipment_by_type: dict[str, uuid.UUID] = {}
+    for eq_id, eq_type in fw_eq_rows:
+        default_equipment_by_type.setdefault(str(eq_type), eq_id)
 
     upserted = 0
+    mapped = 0
     errors = 0
     _BATCH = 50
-    # 머신 junction용: name_en → load_mode 수집 (exercise commit 후 id 룩업)
-    machine_name_to_load_mode: dict[str, str] = {}
 
     for i, item in enumerate(wx_exercises):
         name_en: str = (item.get("name") or "").strip()
         if not name_en:
             continue
 
-        body_part: str = (item.get("bodyPart") or "").strip()
+        body_part: str = (item.get("bodyPart") or "").strip().lower()
         gif_url: str | None = item.get("gifUrl")
         wx_equipment: str = (item.get("equipment") or "").strip().lower()
-        load_mode: str | None = _WX_LOAD_MODE.get(wx_equipment)
-
-        # Exercise.category NOT NULL 가드: bodyPart 빈 문자열/None 방어
-        if not body_part:
-            logger.warning("운동 '%s' bodyPart 없음, 스킵", name_en)
-            errors += 1
-            continue
 
         try:
+            # PR-4.5: 프리웨이트 타입이면 default_equipment_id를 함께 설정 (머신/케이블은 None 유지)
+            eq_type = _WX_EQUIPMENT_TYPE.get(wx_equipment)
+            default_eq_id = default_equipment_by_type.get(str(eq_type)) if eq_type else None
+
             values: dict = {
                 "name": name_en,
                 "name_en": name_en,
-                "category": body_part,  # SOT: raw bodyPart 그대로 (소문자 변환 없음)
+                "category": body_part or "unknown",
                 "gif_url": gif_url,
-                "load_mode": load_mode,
             }
-            set_: dict = {
-                "gif_url": gif_url,
-                "category": body_part,
-                "load_mode": load_mode,
-            }
+            set_: dict = {"gif_url": gif_url, "category": body_part or "unknown"}
+            if default_eq_id is not None:
+                values["default_equipment_id"] = default_eq_id
+                set_["default_equipment_id"] = default_eq_id
 
+            # exercises upsert (name_en unique)
             stmt = pg_insert(Exercise).values(**values).on_conflict_do_update(index_elements=["name_en"], set_=set_)
             await db.execute(stmt)
             upserted += 1
-
-            if load_mode in MACHINE_MODES:
-                machine_name_to_load_mode[name_en] = load_mode
+            if default_eq_id is not None:
+                mapped += 1
 
             # 배치 단위로 커밋 (긴 트랜잭션 방지)
             if (i + 1) % _BATCH == 0:
@@ -468,33 +446,6 @@ async def seed_exercises_from_workoutx(
             errors += 1
 
     await db.commit()
-
-    # ── junction upsert (머신/케이블만) ──────────────────────────────────────
-    # exercise UPSERT 커밋 완료 후 name_en→id 룩업 (미커밋 참조 방지)
-    junction_count = 0
-    if machine_name_to_load_mode and eq_by_load_mode:
-        name_list = list(machine_name_to_load_mode.keys())
-        id_rows = (await db.execute(select(Exercise.id, Exercise.name_en).where(Exercise.name_en.in_(name_list)))).all()
-        name_to_id: dict[str, uuid.UUID] = {row.name_en: row.id for row in id_rows}
-
-        junction_values: list[dict] = []
-        for ex_name, lm in machine_name_to_load_mode.items():
-            ex_id = name_to_id.get(ex_name)
-            candidates = eq_by_load_mode.get(lm, [])
-            if ex_id is None or not candidates:
-                continue
-            # M>=1 후보 중 첫 번째 equipment를 대표로 junction 삽입 (D14: M>=2 LLM택1은 루틴생성 시)
-            junction_values.append({"exercise_id": ex_id, "equipment_id": candidates[0], "source": "seed"})
-
-        if junction_values:
-            junc_stmt = (
-                pg_insert(ExerciseEquipment)
-                .values(junction_values)
-                .on_conflict_do_nothing(index_elements=["exercise_id", "equipment_id"])
-            )
-            await db.execute(junc_stmt)
-            await db.commit()
-            junction_count = len(junction_values)
 
     # 2nd pass: gif_url이 NULL인 기존 운동에 WorkoutX gif 퍼지 매칭
     wx_by_name_lc = {(item.get("name") or "").strip().lower(): item for item in wx_exercises if item.get("name")}
@@ -521,15 +472,15 @@ async def seed_exercises_from_workoutx(
         await db.commit()
 
     logger.info(
-        "seed-workoutx 완료: exercises=%d, exercise_equipment=%d, gif_updated=%d, errors=%d",
+        "seed-workoutx 완료: exercises=%d, equipment_map=%d, gif_updated=%d, errors=%d",
         upserted,
-        junction_count,
+        mapped,
         gif_updated,
         errors,
     )
     return {
         "success": True,
-        "data": {"upserted": upserted, "junction": junction_count, "gif_updated": gif_updated, "errors": errors},
+        "data": {"upserted": upserted, "mapped": mapped, "gif_updated": gif_updated, "errors": errors},
     }
 
 

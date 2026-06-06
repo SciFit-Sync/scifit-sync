@@ -113,7 +113,7 @@ def recommended_weight_kg(
     user_body_weight=None,
     user_gender=None,
     user_career_level=None,
-    load_mode=None,
+    equipment_type=None,
     pulley_ratio=1.0,
     bar_weight=None,
 ):
@@ -134,7 +134,7 @@ def recommended_weight_kg(
     low, high = get_recommended_weight_range(user_1rm_kg, range_key)
     mid = (low + high) / 2.0
     # cable/machine은 스택 설정값으로 역변환, 나머지는 실효 부하 그대로 사용
-    stack = effective_to_stack_weight(mid, load_mode or "", pulley_ratio, bar_weight)
+    stack = effective_to_stack_weight(mid, equipment_type or "", pulley_ratio, bar_weight)
     display = stack if stack is not None else mid
     # 표시값은 2.5kg 단위로 반올림 (헬스장 표준 원판 최소단위)
     return round(display / 2.5) * 2.5
@@ -147,7 +147,7 @@ def derive_exercise_targets(
     user_body_weight=None,
     user_gender=None,
     user_career_level=None,
-    load_mode=None,
+    equipment_type=None,
     pulley_ratio=1.0,
     bar_weight=None,
     llm_sets=None,  # 수신은 하되 사용하지 않음 (LLM 값 신뢰 불가, _SETS_BY_GOAL 사용)
@@ -198,6 +198,6 @@ def derive_exercise_targets(
         "reps_max": reps_max,
         "rest_seconds": rest_seconds,
         "weight_kg": recommended_weight_kg(
-            g, user_1rm_kg, user_body_weight, user_gender, user_career_level, load_mode, pulley_ratio, bar_weight
+            g, user_1rm_kg, user_body_weight, user_gender, user_career_level, equipment_type, pulley_ratio, bar_weight
         ),
     }

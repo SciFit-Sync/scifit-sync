@@ -14,11 +14,9 @@ from app.core.limiter import rate_limit
 from app.models import (
     Equipment,
     EquipmentBrand,
-    ExerciseEquipment,
-    ExerciseMuscle,
+    EquipmentMuscle,
     GymEquipment,
     MuscleGroup,
-    MuscleInvolvement,
     User,
     UserGym,
 )
@@ -71,18 +69,11 @@ def _to_item(
 async def _fetch_muscles(db: AsyncSession, eq_ids: list) -> dict[str, list[str]]:
     if not eq_ids:
         return {}
-    # 기구 근육은 폐기된 equipment_muscles 대신 exercise_equipment 정션을 경유해
-    # 해당 기구를 쓰는 운동의 primary 근육에서 파생한다.
     rows = (
         await db.execute(
-            select(ExerciseEquipment.equipment_id, MuscleGroup.name)
-            .join(ExerciseMuscle, ExerciseMuscle.exercise_id == ExerciseEquipment.exercise_id)
-            .join(MuscleGroup, MuscleGroup.id == ExerciseMuscle.muscle_group_id)
-            .where(
-                ExerciseEquipment.equipment_id.in_(eq_ids),
-                ExerciseMuscle.involvement == MuscleInvolvement.PRIMARY,
-            )
-            .distinct()
+            select(EquipmentMuscle.equipment_id, MuscleGroup.name)
+            .join(MuscleGroup, MuscleGroup.id == EquipmentMuscle.muscle_group_id)
+            .where(EquipmentMuscle.equipment_id.in_(eq_ids))
         )
     ).all()
     result: dict[str, list[str]] = {}

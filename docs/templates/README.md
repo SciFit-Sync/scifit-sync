@@ -1,7 +1,3 @@
-> ⚠️ **갱신 예정 (2026-06-06)** — 운동-기구 재설계(WorkoutX)에서 `equipments`는 **실물 머신 only**가 된다.
-> generic freeweight 행(Olympic Barbell 등)과 `category` 6종/`equipment_type` 5종 강제는 **구(舊)계약**.
-> 이 템플릿으로 새 데이터 만들면 freeweight placeholder가 재유입되니 주의. 신정본 = [`../spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md).
-
 # 기구 데이터 추가용 CSV 템플릿
 
 > 새 브랜드 카탈로그를 추가할 때 사용하는 표준 CSV 형식 안내.

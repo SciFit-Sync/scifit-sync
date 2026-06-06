@@ -10,7 +10,7 @@ from app.services.load_calc import (
 
 
 class TestCalculateEffectiveWeight:
-    """calculate_effective_weight: load_mode 11종 + G3 어시스티드 머신 + 경계값."""
+    """calculate_effective_weight: 5개 카테고리 + 경계값 테스트."""
 
     def test_cable_with_pulley_ratio(self):
         result = calculate_effective_weight("cable", stack=50.0, pulley_ratio=2.0, bar_weight=5.0)
@@ -18,7 +18,7 @@ class TestCalculateEffectiveWeight:
 
     def test_cable_default_ratio(self):
         result = calculate_effective_weight("cable", stack=40.0)
-        assert result == 40.0  # 40 / 1.0 + 0
+        assert result == 40.0  # 40 * 1.0 + 0
 
     def test_machine_with_bar_weight(self):
         result = calculate_effective_weight("machine", stack=30.0, pulley_ratio=1.5, bar_weight=10.0)
@@ -28,28 +28,17 @@ class TestCalculateEffectiveWeight:
         result = calculate_effective_weight("machine", stack=20.0)
         assert result == 20.0
 
-    def test_machine_assisted(self):
-        # G3: 어시스티드 머신은 스택이 체중을 상쇄한다 (body_weight - stack/pulley).
-        result = calculate_effective_weight(
-            "machine", stack=40.0, pulley_ratio=2.0, body_weight=70.0, has_weight_assist=True
-        )
-        assert result == 50.0  # 70 - (40 / 2.0)
-
     def test_barbell(self):
-        result = calculate_effective_weight("barbell", added=60.0)
-        assert result == 80.0  # 20(상수) + 60
+        result = calculate_effective_weight("barbell", bar_weight=20.0, added=60.0)
+        assert result == 80.0
 
     def test_barbell_no_added(self):
-        result = calculate_effective_weight("barbell")
-        assert result == 20.0  # 상수 바 무게만
+        result = calculate_effective_weight("barbell", bar_weight=20.0)
+        assert result == 20.0
 
-    def test_ez_barbell(self):
-        result = calculate_effective_weight("ez_barbell", added=30.0)
-        assert result == 40.0  # 10 + 30
-
-    def test_trap_bar(self):
-        result = calculate_effective_weight("trap_bar", added=55.0)
-        assert result == 80.0  # 25 + 55
+    def test_barbell_no_bar_weight(self):
+        result = calculate_effective_weight("barbell", added=40.0)
+        assert result == 40.0
 
     def test_dumbbell(self):
         result = calculate_effective_weight("dumbbell", added=20.0)
@@ -59,46 +48,29 @@ class TestCalculateEffectiveWeight:
         result = calculate_effective_weight("dumbbell")
         assert result == 0.0
 
-    def test_kettlebell(self):
-        result = calculate_effective_weight("kettlebell", added=24.0)
-        assert result == 24.0
-
-    def test_band(self):
-        result = calculate_effective_weight("band", added=15.0)
-        assert result == 15.0
-
     def test_bodyweight_no_assist(self):
         result = calculate_effective_weight("bodyweight", body_weight=70.0, added=10.0)
         assert result == 80.0
 
+    def test_bodyweight_with_assist(self):
+        result = calculate_effective_weight("bodyweight", body_weight=70.0, stack=20.0, has_weight_assist=True)
+        assert result == 50.0  # 70 - 20
+
     def test_bodyweight_no_added_no_body(self):
         result = calculate_effective_weight("bodyweight")
-        assert result == 0.0
-
-    def test_weighted(self):
-        result = calculate_effective_weight("weighted", body_weight=70.0, added=20.0)
-        assert result == 90.0  # 체중 + 외부부하(D13)
-
-    def test_cardio(self):
-        result = calculate_effective_weight("cardio")
         assert result == 0.0
 
     def test_cable_none_stack(self):
         result = calculate_effective_weight("cable")
         assert result == 0.0
 
-    def test_cable_pulley_zero_guard(self):
-        # pulley_ratio=0이면 ZeroDivisionError 대신 1.0으로 폴백.
-        result = calculate_effective_weight("cable", stack=40.0, pulley_ratio=0.0)
-        assert result == 40.0
-
-    def test_unknown_load_mode_raises(self):
-        with pytest.raises(ValidationError, match="알 수 없는 load_mode"):
-            calculate_effective_weight("unknown_mode")
+    def test_unknown_category_raises(self):
+        with pytest.raises(ValidationError, match="알 수 없는 equipment_type"):
+            calculate_effective_weight("unknown_type")
 
 
 class TestEffectiveToStackWeight:
-    """effective_to_stack_weight: 역변환 + round-trip + 프리웨이트 None."""
+    """effective_to_stack_weight: 역변환 + round-trip 테스트."""
 
     def test_cable_round_trip(self):
         # f(g(stack)) == stack: calculate_effective → effective_to_stack
@@ -114,16 +86,18 @@ class TestEffectiveToStackWeight:
         assert abs(result - stack) < 0.001
 
     def test_pulley_ratio_1_no_change(self):
+        # pulley_ratio=1.0 이면 역변환 값 = effective (bar 제외)
         result = effective_to_stack_weight(40.0, "cable", pulley_ratio=1.0)
         assert result == 40.0
 
-    @pytest.mark.parametrize(
-        "load_mode",
-        ["barbell", "ez_barbell", "trap_bar", "dumbbell", "bodyweight", "weighted", "kettlebell", "band", "cardio"],
-    )
-    def test_freeweight_modes_return_none(self, load_mode):
-        # cable/machine 외 모든 load_mode는 역변환 대상이 아니다(None → effective 그대로 표시).
-        assert effective_to_stack_weight(100.0, load_mode) is None
+    def test_barbell_returns_none(self):
+        assert effective_to_stack_weight(100.0, "barbell") is None
+
+    def test_dumbbell_returns_none(self):
+        assert effective_to_stack_weight(30.0, "dumbbell") is None
+
+    def test_bodyweight_returns_none(self):
+        assert effective_to_stack_weight(80.0, "bodyweight") is None
 
     def test_negative_effective_clamped_to_zero(self):
         result = effective_to_stack_weight(0.0, "cable", pulley_ratio=2.0, bar_weight=10.0)

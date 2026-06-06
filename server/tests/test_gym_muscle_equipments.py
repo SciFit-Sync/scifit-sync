@@ -70,17 +70,15 @@ def _db_override(mock_db):
 # ── 머신 row mock ──────────────────────────────────────────────────────────────
 def _machine_row(
     eq_id=None,
-    ex_name="체스트 프레스",
-    eq_name="Chest Press Newtech",
+    movement_label_ko="체스트 프레스",
+    name="Chest Press Newtech",
     equipment_type="machine",
     image_url=None,
 ):
-    # 새 gyms.py 쿼리 컬럼: exercise_equipment 정션 ⋈ Exercise/Equipment.
-    # MachineItem.label = ex_name or eq_name (운동 한글명 우선, 기구명 fallback).
     row = MagicMock()
-    row.equipment_id = eq_id or _EQUIPMENT_ID
-    row.ex_name = ex_name
-    row.eq_name = eq_name
+    row.id = eq_id or _EQUIPMENT_ID
+    row.movement_label_ko = movement_label_ko
+    row.name = name
     row.equipment_type = equipment_type
     row.image_url = image_url
     return row
@@ -91,14 +89,15 @@ def _fw_row(
     ex_id=None,
     name="Bench Press",
     name_en="Bench Press",
-    load_mode="barbell",
+    eq_id=None,
+    equipment_type="barbell",
 ):
-    # 프리웨이트: load_mode 기반(equipment_id는 항상 NULL). equipment_type=load_mode.
     row = MagicMock()
     row.id = ex_id or _EXERCISE_ID
     row.name = name
     row.name_en = name_en
-    row.load_mode = load_mode
+    row.equipment_id = eq_id or _EQUIPMENT_ID
+    row.equipment_type = equipment_type
     return row
 
 
@@ -258,7 +257,7 @@ async def test_list_equipments_gym_not_found(client):
 # ── movement_label_ko 없을 때 name으로 fallback ───────────────────────────────
 @pytest.mark.asyncio
 async def test_machine_label_falls_back_to_name(client):
-    row = _machine_row(ex_name=None, eq_name="Chest Press Newtech")
+    row = _machine_row(movement_label_ko=None, name="Chest Press Newtech")
     mock_db = _make_db(
         _exec_scalar(_mock_gym()),
         _exec_all([row]),

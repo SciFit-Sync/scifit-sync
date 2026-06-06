@@ -88,9 +88,9 @@ class RoutineExercise(Base):
         UUID(as_uuid=True), ForeignKey("routine_days.id", ondelete="CASCADE"), index=True
     )
     exercise_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="RESTRICT"))
-    # WorkoutX 재설계: 프리웨이트 운동은 equipment 행 없음 → NULL 허용 (RESTRICT FK 유지).
-    equipment_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="RESTRICT"), default=None
+    # PR-4: equipment_id를 1차 단위로 격상 — NOT NULL/RESTRICT (마이그레이션 20260604_rex_equip_notnull)
+    equipment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("equipments.id", ondelete="RESTRICT")
     )
     order_index: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     sets: Mapped[int] = mapped_column(Integer, default=3, server_default=text("3"))
