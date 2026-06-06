@@ -2,7 +2,7 @@
 
 > 작성 2026-06-06 · **다른 세션이 이 문서 하나로 이어받아 실행** 가능하도록 작성.
 > 단일 정본(SOT) = [`docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md).
-> 상태: **PR #297 develop 머지 완료(91ae6f8).** 🔴 **배포 안전 fix PR #300(→develop) CI GREEN·리뷰 대기 — 이 PR이 develop에 먼저 들어가기 전엔 develop→main 릴리스 금지(자동 배포 크래시). 상세 §12.** 코드 구현 100% — DB 적용(prod 자동)·Phase 7(Gemini junction/activation salvage)만 남음. 진행 §10, PR/CI §11, **배포 크래시 결함+처방 §12**.
+> 상태(2026-06-07 갱신): **✅ 재설계 prod 배포 완료** — PR #306(sync develop→main)으로 **#297(재설계)+#300(배포안전)+#305(Phase7)** main 반영, **reseed prod 실제 적용**(d373d1b). 후속 PR: #307(배포안정화→main)·**#314(WH02집계)**·**#315(G4 load_mode)** CI GREEN·리뷰대기, #309(부위필터 근본수정) 머지완료. **▶ 현 상태 종합·남은 작업 = §13** (§0~9 설계·플랜 유효 / §10~12 구현·배포 히스토리).
 
 ---
 
@@ -227,3 +227,37 @@
 
 ### 교훈
 배포 안전은 alembic head 체인·트랜잭션뿐 아니라 **Dockerfile COPY(마이그가 읽는 데이터 파일이 이미지에 들어가는지)**까지 검증해야 한다. head 체인만 보고 "안전" 단정 금지(이전 분석이 이 결함을 놓침).
+
+---
+
+## 13. 🟢 현재 상태 종합 (2026-06-07) — prod 배포 완료 + 후속 PR
+
+> 다음 세션은 이 절만 읽으면 현 상태를 파악할 수 있다. §0~9는 설계·플랜, §10~12는 구현·배포 히스토리.
+
+### ✅ 배포 완료 (prod = WorkoutX 재설계)
+- **PR #306**(sync develop→main) 머지 → **#297(재설계)+#300(배포안전)+#305(Phase7)** main 반영(`d373d1b`). **reseed prod 실제 적용 완료** — `workflow_dispatch` 로 `allow_clean_slate_wipe=true` 1회 실행. prod DB = 132기구·1318운동·activation 92.8%·junction 94%.
+- **#300 clean_slate 가드 = `workflow_dispatch` 게이팅 기반**: 상시 push 배포는 `WIPE=''` → 가드 abort(무손상), 의도적 dispatch+true 일 때만 wipe. secret `PROD_DATABASE_URL`/`BACKUP_S3_URI` 등록됨(백업 활성).
+
+### PR 현황
+| PR | 내용 | 상태 |
+|---|---|---|
+| #297·#300·#305·#306 | 재설계 + 배포안전 + Phase7 + 재배포 sync | ✅ 머지·prod 적용 |
+| #307 | `deploy.yml` pg15→17 · 마이그 자체폴링 · timeout45 (배포 안정화) | OPEN →main |
+| #309 | 루틴 부위필터 전신버그 **근본수정** | ✅ 머지 |
+| #314 | WH02 분석 집계키 재시드 name_ko 정합 | OPEN →develop · **CI GREEN** |
+| #315 | G4 assisted 스트레치 load_mode→bodyweight | OPEN →develop · **CI GREEN** |
+
+### Phase 5/G4 — 부위 타겟팅 정합
+- **(a) 부위필터 전신버그** = §1 재설계를 촉발한 그 버그의 **진짜 근본원인**. `routines.py` 가 부위를 `MuscleGroup.body_region`(4버킷 upper/lower/core/cardio)으로 조회 → 6부위 중 5개 0행 → `if target_muscle_ids:` 필터 우회 → available_exercises=전신. **PR #309가 근본수정**(`_REGION_TO_MUSCLE_NAMES` region→canon 근육명 매핑 + `MuscleGroup.name.in_()`). **reseed 무죄**(body_region 은 컬럼 정의대로 올바름)·**routines 유죄**(부위를 잘못된 축으로 조회).
+- **(c) WH02 분석 집계** = 구 seed name_ko(전면/측면/후면삼각근·능형근·대둔근·복직근/복사근)가 재시드 canon(삼각근·상배근·둔근·복근)과 불일치 → 집계 0(prod 실버그). **PR #314** — keys 를 reseed name_ko + routines 매핑과 정합.
+- **(d) G4** = `equipment='assisted'` 15운동(전부 스트레치/맨몸, 머신보조 Assisted Dip/Chin 은 equipment≠assisted 라 미포함) load_mode machine→bodyweight + 잉여 junction 제거. **PR #315**(마이그 `20260607_g4_stretch_bw`, 파괴적 아님).
+- **(b) 프론트 부위 6분류**(어깨/등/가슴/하체/팔/복근) = (a) 덕에 **작동 중**. WorkoutX 10분류로의 세분화는 UX 개선(보류).
+
+### 마이그 체인 (alembic head)
+`remap_default_equip → clean_slate_reseed → reseed_workoutx → salvage_activation → seed_junction`(prod 적용됨) **→ `g4_stretch_bw`**(PR #315 대기).
+
+### 🔴 남은 작업
+1. **#307 머지**(배포 안정화) + **#314·#315 머지** → 다음 develop→main 릴리스 시 prod 반영(셋 다 파괴적 아님 = push 자동배포 안전).
+2. **한글명(D10)** Gemini — 운동 1318 + 근육 20 `name_ko` 검증·적재. **미착수**(운동 name_en 은 영문, 근육 name_ko 는 재시드 canon 20종만 존재).
+3. (b) 프론트 부위 10분류 — UX 개선(선택).
+4. 출시 후 운영: deploy 백업은 secret 등록 + #307(pg17)로 강화. db-export 는 레퍼런스만(RLS, 사용자 데이터 미포함).
