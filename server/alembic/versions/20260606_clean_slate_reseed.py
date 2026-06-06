@@ -24,6 +24,7 @@ Create Date: 2026-06-06
 """
 
 import logging
+import os
 
 import sqlalchemy as sa
 from alembic import op
@@ -42,19 +43,40 @@ def upgrade() -> None:
     # 본 마이그는 papers/paper_chunks에 대한 어떠한 DELETE/DROP/ALTER도 수행하지 않는다.
     # =========================================================================
 
-    # 사용자 결정: '전체 wipe' — 운동 기록 헤더(workout_logs)까지 포함해 전량 삭제.
-    #   codex #2의 '부분 파괴' 우려는 log_sets만 지우고 헤더를 남길 때의 문제였는데,
-    #   헤더까지 전부 wipe하므로 해소된다. 의도된 전체 초기화라 abort하지 않고 건수만 로깅한다.
-    #   (적용 전 백업은 별도 확보 — db-export 스냅샷.)
+    # =========================================================================
+    # 🔴 출시 후 사고 방지 가드 (pre-launch 자동 적용은 통과, 실데이터 wipe는 차단).
+    #   이 마이그는 자동 배포 경로(deploy.yml → ECS `alembic upgrade head`)에서 실행된다.
+    #   pre-launch(사용자 데이터 0행)에선 그대로 통과해 1회 재시드가 자동 완료되지만,
+    #   출시 후(루틴/로그/1rm/프로그램 존재) 이 파괴적 전체 wipe가 다시 돌면 사용자 데이터를
+    #   영구 삭제한다. 따라서 실데이터가 있으면 ALLOW_CLEAN_SLATE_WIPE 없이는 abort 한다.
+    #   의도적 전체 초기화 시에만 백업 확보 후 ALLOW_CLEAN_SLATE_WIPE=1 로 재실행할 것.
+    #   (alembic 단일 트랜잭션이라 abort=전체 ROLLBACK → 데이터 무손상.)
+    # =========================================================================
+    routine_cnt = conn.execute(sa.text("SELECT count(*) FROM workout_routines")).scalar_one()
     log_cnt = conn.execute(sa.text("SELECT count(*) FROM workout_logs")).scalar_one()
     set_cnt = conn.execute(sa.text("SELECT count(*) FROM workout_log_sets")).scalar_one()
     orm_cnt = conn.execute(sa.text("SELECT count(*) FROM user_exercise_1rm")).scalar_one()
-    if log_cnt or set_cnt or orm_cnt:
+    prog_cnt = conn.execute(sa.text("SELECT count(*) FROM programs")).scalar_one()
+    user_data_total = routine_cnt + log_cnt + set_cnt + orm_cnt + prog_cnt
+
+    allow_wipe = os.getenv("ALLOW_CLEAN_SLATE_WIPE", "").strip().lower() in ("1", "true", "yes")
+    if user_data_total > 0 and not allow_wipe:
+        raise RuntimeError(
+            "clean_slate_reseed 안전중단: 사용자 데이터 존재("
+            f"workout_routines={routine_cnt}, workout_logs={log_cnt}, "
+            f"workout_log_sets={set_cnt}, user_exercise_1rm={orm_cnt}, programs={prog_cnt}). "
+            "pre-launch가 아니므로 파괴적 전체 wipe를 자동 실행하지 않습니다. "
+            "의도적 초기화라면 백업 확보 후 ALLOW_CLEAN_SLATE_WIPE=1 환경변수로 재실행하세요."
+        )
+    if user_data_total:
         logging.getLogger("alembic").warning(
-            "clean-slate '전체 wipe': workout_logs=%s, workout_log_sets=%s, user_exercise_1rm=%s 행 전량 삭제. 백업 확보 필수.",
+            "clean-slate '전체 wipe'(ALLOW_CLEAN_SLATE_WIPE 승인): workout_routines=%s, workout_logs=%s, "
+            "workout_log_sets=%s, user_exercise_1rm=%s, programs=%s 행 전량 삭제. 백업 확보 필수.",
+            routine_cnt,
             log_cnt,
             set_cnt,
             orm_cnt,
+            prog_cnt,
         )
 
     # =========================================================================
