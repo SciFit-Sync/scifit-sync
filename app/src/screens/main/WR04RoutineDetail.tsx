@@ -342,6 +342,7 @@ export default function WR04RoutineDetail() {
             query_client.invalidateQueries({ queryKey: ["session-stats"] });
             query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
             query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+            query_client.invalidateQueries({ queryKey: ["notifications", token] });
           })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
@@ -723,6 +724,7 @@ export default function WR04RoutineDetail() {
       query_client.invalidateQueries({ queryKey: ["session-stats"] });
       query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
       query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+      query_client.invalidateQueries({ queryKey: ["notifications", token] });
       navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);
