@@ -293,7 +293,8 @@ def chat_rag(question: str) -> dict:
         "If the papers don't contain relevant information, say so clearly.\n\n"
         f"Research papers:\n{context}\n"
         f"<user_query>{safe_question}</user_query>\n\n"
-        "Answer in Korean. Be specific and cite paper titles."
+        "Answer in Korean. Be specific and cite paper titles. "
+        "Do not use any markdown formatting—no **bold**, no headers, no bullet points. Plain text only."
     )
 
     # 4. LLM 답변 생성
@@ -614,7 +615,11 @@ def chat_rag_stream(
     )
     if history_text:
         prompt += f"\nPrevious conversation:\n{history_text}\n"
-    prompt += f"<user_query>{safe_question}</user_query>\n\nAnswer in Korean. Be specific and cite paper titles."
+    prompt += (
+        f"<user_query>{safe_question}</user_query>\n\n"
+        "Answer in Korean. Be specific and cite paper titles. "
+        "Do not use any markdown formatting—no **bold**, no headers, no bullet points. Plain text only."
+    )
 
     # 4. LLM 토큰 스트리밍
     try:
