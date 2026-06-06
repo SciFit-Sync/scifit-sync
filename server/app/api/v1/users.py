@@ -158,6 +158,8 @@ async def onboard(
         UserBodyMeasurement(
             user_id=current_user.id,
             weight_kg=body.weight_kg,
+            skeletal_muscle_kg=body.skeletal_muscle_kg,
+            body_fat_pct=body.body_fat_pct,
             measured_at=datetime.now(timezone.utc).date(),
         )
     )
