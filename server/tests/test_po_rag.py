@@ -128,3 +128,39 @@ class TestRagPoIncrement:
         ):
             result = self._run(rag_po_increment("hypertrophy", "cable", 100.0))
         assert result is None
+
+
+class TestPoIncrementCached:
+    def test_miss_returns_none_false(self):
+        from app.services.po_rag import po_increment_cached
+
+        assert po_increment_cached("hypertrophy", "cable", 100.0) == (None, False)
+
+    def test_hit_returns_kg_true(self):
+        from app.services.po_rag import _cache_set, po_increment_cached
+
+        _cache_set("hypertrophy", "cable", 5.0)
+        assert po_increment_cached("hypertrophy", "cable", 100.0) == (5.0, True)
+
+    def test_hit_none_pct_returns_none_true(self):
+        from app.services.po_rag import _cache_set, po_increment_cached
+
+        _cache_set("hypertrophy", "cable", None)
+        assert po_increment_cached("hypertrophy", "cable", 100.0) == (None, True)
+
+    def test_hit_but_no_1rm_returns_none_true(self):
+        from app.services.po_rag import _cache_set, po_increment_cached
+
+        _cache_set("hypertrophy", "cable", 5.0)
+        assert po_increment_cached("hypertrophy", "cable", None) == (None, True)
+
+    def test_never_calls_network(self):
+        from app.services.po_rag import po_increment_cached
+
+        with (
+            patch("app.services.po_rag._call_search_async", new=AsyncMock()) as ms,
+            patch("app.services.po_rag._call_llm_async", new=AsyncMock()) as ml,
+        ):
+            po_increment_cached("hypertrophy", "cable", 100.0)  # miss
+            ms.assert_not_called()
+            ml.assert_not_called()

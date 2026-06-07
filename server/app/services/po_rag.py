@@ -92,6 +92,24 @@ async def _call_llm_async(prompt: str) -> str:
 # ── 공개 API ──────────────────────────────────────────────────────────────────
 
 
+def po_increment_cached(
+    goal: str,
+    equipment_type: str,
+    user_1rm_kg: float | None,
+) -> tuple[float | None, bool]:
+    """동기·논블로킹 PO 증가량 조회. (kg|None, cache_warm) 반환.
+
+    캐시 히트만 사용하며 ChromaDB/LLM을 절대 호출하지 않는다.
+    미스 시 (None, False) → 호출자는 하드코딩 fallback + 백그라운드 워밍.
+    """
+    hit, pct = _cache_get(goal, equipment_type)
+    if not hit:
+        return None, False
+    if pct is None or user_1rm_kg is None:
+        return None, True
+    return _convert_to_kg(pct, user_1rm_kg), True
+
+
 async def rag_po_increment(
     goal: str,
     equipment_type: str,
