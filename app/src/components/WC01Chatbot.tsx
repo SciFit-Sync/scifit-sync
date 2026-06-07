@@ -334,9 +334,9 @@ export default function WC01Chatbot({ onClose }: Props) {
       onRequestClose={handle_close}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : "position"}
         style={styles.keyboard_view}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 20}
       >
         <Animated.View style={[styles.overlay, { opacity: fade_anim }]}>
           {/* 딤 배경 */}
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 16,
     width: "100%",
-    maxHeight: 588,
+    height: 588,
     overflow: "hidden",
   },
   header: {
