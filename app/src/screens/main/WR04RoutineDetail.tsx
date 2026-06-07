@@ -209,6 +209,7 @@ export default function WR04RoutineDetail() {
     null,
   );
   const [replace_keyword, set_replace_keyword] = useState("");
+  const [replace_category, set_replace_category] = useState<string | null>(null);
   const [replace_results, set_replace_results] = useState<ExerciseSearchItem[]>(
     [],
   );
@@ -484,9 +485,9 @@ export default function WR04RoutineDetail() {
     if (!show_replace_modal) return;
 
     if (!replace_keyword.trim()) {
-      // 키워드 없음 → 전체 운동 목록 로드 (최대 100개)
+      // 키워드 없음 → 카테고리(부위) 필터만 적용
       set_is_replace_searching(true);
-      searchExercises(token, "", 100)
+      searchExercises(token, "", 100, replace_category ?? undefined)
         .then((data) => set_replace_results(data.items))
         .catch(() => {})
         .finally(() => set_is_replace_searching(false));
@@ -496,7 +497,7 @@ export default function WR04RoutineDetail() {
     const timer = setTimeout(async () => {
       set_is_replace_searching(true);
       try {
-        const data = await searchExercises(token, replace_keyword.trim());
+        const data = await searchExercises(token, replace_keyword.trim(), 20, replace_category ?? undefined);
         set_replace_results(data.items);
       } catch {
         // 검색 오류는 조용히 무시
@@ -505,7 +506,7 @@ export default function WR04RoutineDetail() {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [replace_keyword, show_replace_modal, token]);
+  }, [replace_keyword, replace_category, show_replace_modal, token]);
 
   // ── 바텀시트 애니메이션 헬퍼 ────────────────────────────────────────────────
   const open_tips_modal = () => {
@@ -592,6 +593,7 @@ export default function WR04RoutineDetail() {
   const handle_replace_press = (rex_id: string) => {
     set_replacing_rex_id(rex_id);
     set_replace_keyword("");
+    set_replace_category(null);
     set_replace_results([]);
     open_replace_modal_anim();
   };
@@ -922,7 +924,7 @@ export default function WR04RoutineDetail() {
             {is_starting ? (
               <ActivityIndicator size="small" color={colors.white} />
             ) : !session_started ? (
-              <Text style={styles.workout_btn_text}>운동 시작</Text>
+              <Octicons name="play" size={20} color={colors.white} />
             ) : workout_running ? (
               <Octicons name="pause" size={20} color={colors.white} />
             ) : (
@@ -1467,6 +1469,43 @@ export default function WR04RoutineDetail() {
                 <ActivityIndicator size="small" color={colors.bluegray} />
               )}
             </View>
+
+            {/* 부위 필터 칩 */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.replace_chip_row}
+            >
+              {[
+                { value: null, label: "전체" },
+                { value: "chest", label: "가슴" },
+                { value: "back", label: "등" },
+                { value: "shoulders", label: "어깨" },
+                { value: "arms", label: "팔" },
+                { value: "legs", label: "하체" },
+                { value: "core", label: "복근" },
+              ].map((cat) => (
+                <TouchableOpacity
+                  key={cat.label}
+                  style={[
+                    styles.replace_chip,
+                    replace_category === cat.value && styles.replace_chip_active,
+                  ]}
+                  onPress={() => set_replace_category(cat.value)}
+                  activeOpacity={0.8}
+                  disabled={is_replacing}
+                >
+                  <Text
+                    style={[
+                      styles.replace_chip_text,
+                      replace_category === cat.value && styles.replace_chip_text_active,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
             {/* 결과 목록 */}
             {is_replace_searching && replace_results.length === 0 ? (
@@ -2221,6 +2260,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginHorizontal: 4,
   },
+  replace_chip_row: {
+    flexDirection: "row",
+    gap: 6,
+    paddingBottom: 8,
+  },
+  replace_chip: {
+    paddingHorizontal: 12,
+    height: 30,
+    borderRadius: 100,
+    backgroundColor: colors.select,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  replace_chip_active: { backgroundColor: colors.primary },
+  replace_chip_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+  },
+  replace_chip_text_active: { color: colors.white },
 
   // 운동 시작 버튼
   start_btn: {
