@@ -1478,12 +1478,12 @@ export default function WR04RoutineDetail() {
             >
               {[
                 { value: null, label: "전체" },
-                { value: "chest", label: "가슴" },
-                { value: "back", label: "등" },
-                { value: "shoulders", label: "어깨" },
-                { value: "arms", label: "팔" },
-                { value: "legs", label: "하체" },
-                { value: "core", label: "복근" },
+                { value: "Chest", label: "가슴" },
+                { value: "Back", label: "등" },
+                { value: "Shoulders", label: "어깨" },
+                { value: "Upper Arms", label: "팔" },
+                { value: "Upper Legs", label: "하체" },
+                { value: "Waist", label: "복근" },
               ].map((cat) => (
                 <TouchableOpacity
                   key={cat.label}
