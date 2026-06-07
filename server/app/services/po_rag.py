@@ -25,9 +25,6 @@ from llm import generate as _llm_generate  # noqa: E402
 _cache: dict[tuple[str, str], tuple[float | None, float]] = {}
 _CACHE_TTL = 604800.0  # 7d (논문 DB 업데이트 주기: 월 1회)
 
-# 백그라운드 워밍 in-flight dedup (동일 키 중복 ChromaDB/LLM 호출 방지)
-_warming: set[tuple[str, str]] = set()
-
 
 # ── 캐시 헬퍼 ─────────────────────────────────────────────────────────────────
 
@@ -93,39 +90,6 @@ async def _call_llm_async(prompt: str) -> str:
 
 
 # ── 공개 API ──────────────────────────────────────────────────────────────────
-
-
-def po_increment_cached(
-    goal: str,
-    equipment_type: str,
-    user_1rm_kg: float | None,
-) -> tuple[float | None, bool]:
-    """동기·논블로킹 PO 증가량 조회. (kg|None, cache_warm) 반환.
-
-    캐시 히트만 사용하며 ChromaDB/LLM을 절대 호출하지 않는다.
-    미스 시 (None, False) → 호출자는 하드코딩 fallback + 백그라운드 워밍.
-    """
-    hit, pct = _cache_get(goal, equipment_type)
-    if not hit:
-        return None, False
-    if pct is None or user_1rm_kg is None:
-        return None, True
-    return _convert_to_kg(pct, user_1rm_kg), True
-
-
-async def warm_po_cache(goal: str, equipment_type: str) -> None:
-    """백그라운드 전용. 캐시 미스 시 ChromaDB+LLM으로 캐시만 채운다.
-
-    DB 미사용. 예외는 rag_po_increment 내부에서 흡수. 동일 키 in-flight dedup.
-    """
-    key = (goal, equipment_type)
-    if _cache_get(*key)[0] or key in _warming:
-        return
-    _warming.add(key)
-    try:
-        await rag_po_increment(goal, equipment_type, None)  # _cache_set만 채움, 반환값 무시
-    finally:
-        _warming.discard(key)
 
 
 async def rag_po_increment(
