@@ -38,6 +38,7 @@ import {
 } from "../../services/exercises";
 import { startSession, logSet, finishSession } from "../../services/sessions";
 import { ApiError } from "../../services/api";
+import { finish_with_recovery } from "./finishRecovery";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
@@ -735,11 +736,32 @@ export default function WR04RoutineDetail() {
     }
   };
 
-  /** 운동 완료 처리 (실제 로직) */
+  /** 완료 성공/멱등 확정 시 단일 정리 경로 */
+  const _finish_cleanup = () => {
+    ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
+    query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
+    query_client.invalidateQueries({ queryKey: ["sessions"] });
+    query_client.invalidateQueries({ queryKey: ["session-stats"] });
+    query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+    query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+    query_client.invalidateQueries({ queryKey: ["notifications", token] });
+    navigation.goBack();
+  };
+
+  /** 운동 완료 처리 (실제 로직) — 멱등 복구(409=success, abort=재시도 1회) */
   const do_finish = async () => {
-    if (!session_id_ref.current || is_finishing) return;
+    if (is_finishing) return;
+    finishing_ref.current = true;
+    set_is_finishing(true);
     try {
-      set_is_finishing(true);
+      // in-flight 세션 대기 — 마지막 세트 직후 세션 생성 중이어도 안전
+      const sid = await ensure_session();
+
+      // 진행 중 세트 기록(logSet)을 bounded로 대기 (최대 4s)
+      await Promise.race([
+        Promise.allSettled([...pending_logsets.current]),
+        new Promise((r) => setTimeout(r, 4000)),
+      ]);
 
       // 완료 시각 = 세션 시작 시각 + (이전 방문 누적 시간 + 이번 방문 체류 시간)
       // ws_page_elapsed_ms: 이전 탭 이탈들의 합산, mount_time_ref: 이번 진입 시각
@@ -751,20 +773,27 @@ export default function WR04RoutineDetail() {
         finished_at = new Date(started + total_ms).toISOString();
       }
 
-      await finishSession(
-        token,
-        session_id_ref.current,
-        finished_at ? { finished_at } : undefined,
-      );
-      ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
-      query_client.invalidateQueries({ queryKey: ["sessions"] });
-      query_client.invalidateQueries({ queryKey: ["session-stats"] });
-      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
-      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-      query_client.invalidateQueries({ queryKey: ["notifications", token] });
-      navigation.goBack();
+      const outcome = await finish_with_recovery({
+        finish: (fa) =>
+          finishSession(token, sid, fa ? { finished_at: fa } : undefined),
+        // abort/네트워크 시 body 없이 멱등 재시도 (선점된 세션 id 사용)
+        retry: () => finishSession(token, session_id_ref.current ?? sid),
+        retry_session_id: session_id_ref.current ?? sid,
+        finished_at,
+      });
+
+      if (outcome.kind === "done") {
+        _finish_cleanup();
+        return;
+      }
+      // 복구 불가 — 버튼 복원 후 안내
+      finishing_ref.current = false;
+      if (isMountedRef.current) set_is_finishing(false);
+      Alert.alert("오류", outcome.message);
     } catch (e: unknown) {
-      set_is_finishing(false);
+      // ensure_session 실패 등 예기치 못한 경로 — 버튼 복원 후 안내
+      finishing_ref.current = false;
+      if (isMountedRef.current) set_is_finishing(false);
       const msg =
         e instanceof Error ? e.message : "운동 완료 처리에 실패했습니다.";
       Alert.alert("오류", msg);
