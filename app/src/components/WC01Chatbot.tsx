@@ -1,4 +1,5 @@
 import {
+  Dimensions,
   Keyboard,
   Linking,
   Modal,
@@ -109,8 +110,16 @@ export default function WC01Chatbot({ onClose }: Props) {
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const on_show = Keyboard.addListener("keyboardDidShow", (e) => {
+      const screen_h = Dimensions.get("window").height;
+      const kb_h = e.endCoordinates.height;
+      const container_h = 588;
+      const margin = 12;
+      // 컨테이너 현재 위치(center 기준)와 키보드 위 필요 위치 차이를 계산
+      const current_top = (screen_h - container_h) / 2;
+      const needed_top = screen_h - kb_h - container_h - margin;
+      const shift = Math.min(0, needed_top - current_top);
       Animated.timing(keyboard_shift, {
-        toValue: -(e.endCoordinates.height / 2),
+        toValue: shift,
         duration: 200,
         useNativeDriver: true,
       }).start();
