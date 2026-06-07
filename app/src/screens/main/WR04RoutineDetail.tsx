@@ -134,7 +134,10 @@ function SwipeableCard({
             useNativeDriver: true,
           }).start();
         } else {
-          Animated.spring(translate_x, { toValue: 0, useNativeDriver: true }).start();
+          Animated.spring(translate_x, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
         }
       },
     }),
@@ -159,16 +162,31 @@ function SwipeableCard({
           justifyContent: "center",
           borderRadius: 8,
         }}
-        onPress={() => { close(); onDelete(); }}
+        onPress={() => {
+          close();
+          onDelete();
+        }}
         activeOpacity={0.8}
       >
         <Octicons name="trash" size={20} color="#fff" />
-        <Text style={{ color: "#fff", fontSize: 11, fontFamily: "regular", marginTop: 2 }}>삭제</Text>
+        <Text
+          style={{
+            color: "#fff",
+            fontSize: 11,
+            fontFamily: "regular",
+            marginTop: 2,
+          }}
+        >
+          삭제
+        </Text>
       </TouchableOpacity>
 
       {/* 카드 본체 — 배경색으로 삭제 버튼 가림 */}
       <Animated.View
-        style={{ transform: [{ translateX: translate_x }], backgroundColor: colors.white }}
+        style={{
+          transform: [{ translateX: translate_x }],
+          backgroundColor: colors.white,
+        }}
         {...pan_responder.panHandlers}
       >
         {children}
@@ -195,7 +213,9 @@ export default function WR04RoutineDetail() {
   const [rename_value, set_rename_value] = useState("");
   const [is_renaming, set_is_renaming] = useState(false);
   const [show_timer_picker, set_show_timer_picker] = useState(false);
-  const [timer_picker_rex_id, set_timer_picker_rex_id] = useState<string | null>(null);
+  const [timer_picker_rex_id, set_timer_picker_rex_id] = useState<
+    string | null
+  >(null);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 세션 관리
@@ -211,7 +231,9 @@ export default function WR04RoutineDetail() {
   const ws_toggle_set = useWorkoutSessionStore((s) => s.toggle_set);
   const ws_clear = useWorkoutSessionStore((s) => s.clear);
   const ws_add_page_elapsed = useWorkoutSessionStore((s) => s.add_page_elapsed);
-  const ws_set_detail_page_enter = useWorkoutSessionStore((s) => s.set_detail_page_enter);
+  const ws_set_detail_page_enter = useWorkoutSessionStore(
+    (s) => s.set_detail_page_enter,
+  );
   const ws_routine_id = useWorkoutSessionStore((s) => s.routine_id);
   const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
   const ws_session_started_at = useWorkoutSessionStore(
@@ -219,6 +241,22 @@ export default function WR04RoutineDetail() {
   );
   const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
+  const ws_is_timer_paused = useWorkoutSessionStore((s) => s.is_timer_paused);
+  const ws_frozen_timer_ms = useWorkoutSessionStore((s) => s.frozen_timer_ms);
+  const ws_set_timer_paused = useWorkoutSessionStore((s) => s.set_timer_paused);
+  const ws_pause_offset_ms = useWorkoutSessionStore((s) => s.pause_offset_ms);
+  const ws_set_pause_offset_ms = useWorkoutSessionStore(
+    (s) => s.set_pause_offset_ms,
+  );
+
+  // 운동 스톱워치
+  const [workout_running, set_workout_running] = useState(false);
+  const [live_ms, set_live_ms] = useState(0);
+  const [frozen_ms, set_frozen_ms] = useState(0);
+  const pause_started_at_ref = useRef<number | null>(null);
+  const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
 
   // 이번 마운트의 진입 시각 — 언마운트 시 누적 체류 시간에 합산
   const mount_time_ref = useRef<number>(Date.now());
@@ -262,12 +300,16 @@ export default function WR04RoutineDetail() {
   // 운동 변경 모달
   const [show_replace_modal, set_show_replace_modal] = useState(false);
   // 'replace' = 운동 교체, 'add' = 운동 추가
-  const [exercise_modal_mode, set_exercise_modal_mode] = useState<"replace" | "add">("replace");
+  const [exercise_modal_mode, set_exercise_modal_mode] = useState<
+    "replace" | "add"
+  >("replace");
   const [replacing_rex_id, set_replacing_rex_id] = useState<string | null>(
     null,
   );
   const [replace_keyword, set_replace_keyword] = useState("");
-  const [replace_category, set_replace_category] = useState<string | null>(null);
+  const [replace_category, set_replace_category] = useState<string | null>(
+    null,
+  );
   const [replace_results, set_replace_results] = useState<ExerciseSearchItem[]>(
     [],
   );
@@ -359,6 +401,14 @@ export default function WR04RoutineDetail() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
+  const format_hms = (ms: number) => {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
   const toggle_exercise = (exercise_id: string) => {
     set_exercises((prev) => {
       const next = prev.map((ex) =>
@@ -416,21 +466,24 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
+            }).then(() => {
+              query_client.invalidateQueries({ queryKey: ["sessions"] });
+              query_client.invalidateQueries({ queryKey: ["session-stats"] });
+              query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+              query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+              query_client.invalidateQueries({
+                queryKey: ["notifications", token],
+              });
+            }).catch(() => {
+              // logSet 실패만 여기서 처리 — ensure_session 실패는 handle_start에서 처리
+              Alert.alert(
+                "세트 기록 실패",
+                "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
+              );
             });
           })
-          .then(() => {
-            query_client.invalidateQueries({ queryKey: ["sessions"] });
-            query_client.invalidateQueries({ queryKey: ["session-stats"] });
-            query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
-            query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-            query_client.invalidateQueries({ queryKey: ["notifications", token] });
-          })
           .catch(() => {
-            // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
-            Alert.alert(
-              "세트 기록 실패",
-              "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
-            );
+            // ensure_session 실패 — handle_start의 catch에서 이미 Alert 표시
           });
       }
     } else {
@@ -510,7 +563,12 @@ export default function WR04RoutineDetail() {
     const timer = setTimeout(async () => {
       set_is_replace_searching(true);
       try {
-        const data = await searchExercises(token, replace_keyword.trim(), 20, replace_category ?? undefined);
+        const data = await searchExercises(
+          token,
+          replace_keyword.trim(),
+          20,
+          replace_category ?? undefined,
+        );
         set_replace_results(data.items);
       } catch {
         // 검색 오류는 조용히 무시
@@ -626,7 +684,12 @@ export default function WR04RoutineDetail() {
     try {
       set_is_replacing(true);
       if (exercise_modal_mode === "replace" && replacing_rex_id) {
-        await updateRoutineExercise(token, routine_id, replacing_rex_id, new_exercise_id);
+        await updateRoutineExercise(
+          token,
+          routine_id,
+          replacing_rex_id,
+          new_exercise_id,
+        );
       } else {
         await addRoutineExercise(token, routine_id, new_exercise_id);
       }
@@ -635,7 +698,10 @@ export default function WR04RoutineDetail() {
       set_replacing_rex_id(null);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "운동 변경에 실패했습니다.";
-      Alert.alert(exercise_modal_mode === "add" ? "추가 실패" : "변경 실패", msg);
+      Alert.alert(
+        exercise_modal_mode === "add" ? "추가 실패" : "변경 실패",
+        msg,
+      );
     } finally {
       set_is_replacing(false);
     }
@@ -651,7 +717,9 @@ export default function WR04RoutineDetail() {
           if (!routine_id) return;
           try {
             await deleteRoutineExercise(token, routine_id, rex_id);
-            query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
+            query_client.invalidateQueries({
+              queryKey: ["routine", routine_id],
+            });
           } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "삭제에 실패했습니다.";
             Alert.alert("삭제 실패", msg);
@@ -739,6 +807,43 @@ export default function WR04RoutineDetail() {
     }
   };
 
+  // 운동 스톱워치 interval
+  useEffect(() => {
+    if (!workout_running || !ws_session_started_at) {
+      if (workout_interval_ref.current)
+        clearInterval(workout_interval_ref.current);
+      return;
+    }
+    const started = new Date(ws_session_started_at).getTime();
+    const calc = () => set_live_ms(Date.now() - started - ws_pause_offset_ms);
+    calc();
+    workout_interval_ref.current = setInterval(calc, 1000);
+    return () => {
+      if (workout_interval_ref.current)
+        clearInterval(workout_interval_ref.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout_running, ws_session_started_at, ws_pause_offset_ms]);
+
+  // 세션 복원 시 스톱워치 자동 재개 (일시정지 상태면 재개 안 함)
+  useEffect(() => {
+    if (session_started && ws_session_started_at && !workout_running) {
+      if (ws_is_timer_paused) {
+        set_frozen_ms(ws_frozen_timer_ms);
+      } else {
+        set_live_ms(
+          Date.now() -
+            new Date(ws_session_started_at).getTime() -
+            ws_pause_offset_ms,
+        );
+        set_workout_running(true);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session_started, ws_session_started_at, ws_is_timer_paused]);
+
+  const display_ms = workout_running ? live_ms : frozen_ms;
+
   // ── 세션 헬퍼 ───────────────────────────────────────────────────────────────
 
   /** 세션이 없으면 새로 시작하고 session_id를 반환.
@@ -757,7 +862,9 @@ export default function WR04RoutineDetail() {
         if (routine_id) {
           // 서버가 naive UTC("2026-06-06T09:30:00")를 내려주므로 Z를 붙여 UTC로 파싱
           // Z 없이 파싱하면 브라우저가 KST로 해석해 9h 빠른 값이 되어 duration이 0이 됨
-          const started_at_utc = data.started_at.endsWith("Z") ? data.started_at : data.started_at + "Z";
+          const started_at_utc = data.started_at.endsWith("Z")
+            ? data.started_at
+            : data.started_at + "Z";
           ws_set_session(routine_id, data.session_id, started_at_utc);
         }
         return data.session_id;
@@ -783,7 +890,9 @@ export default function WR04RoutineDetail() {
         ex.id === timer_picker_rex_id ? { ...ex, rest_seconds: seconds } : ex,
       ),
     );
-    useWorkoutSessionStore.getState().set_rest_seconds(timer_picker_rex_id, seconds);
+    useWorkoutSessionStore
+      .getState()
+      .set_rest_seconds(timer_picker_rex_id, seconds);
     set_timer(seconds);
     set_is_timer_running(false);
     set_show_timer_picker(false);
@@ -796,11 +905,32 @@ export default function WR04RoutineDetail() {
     try {
       set_is_starting(true);
       await ensure_session();
+      set_workout_running(true);
     } catch {
       Alert.alert("오류", "운동을 시작하지 못했습니다. 다시 시도해주세요.");
     } finally {
       set_is_starting(false);
     }
+  };
+
+  /** 스톱워치 일시정지 */
+  const handle_workout_pause = () => {
+    if (!workout_running) return;
+    pause_started_at_ref.current = Date.now();
+    set_frozen_ms(live_ms);
+    set_workout_running(false);
+    ws_set_timer_paused(true, live_ms);
+  };
+
+  /** 스톱워치 재개 */
+  const handle_workout_resume = () => {
+    if (pause_started_at_ref.current !== null) {
+      const paused_duration = Date.now() - pause_started_at_ref.current;
+      ws_set_pause_offset_ms(ws_pause_offset_ms + paused_duration);
+      pause_started_at_ref.current = null;
+    }
+    ws_set_timer_paused(false, frozen_ms);
+    set_workout_running(true);
   };
 
   /** 운동 완료 처리 (실제 로직) */
@@ -829,6 +959,10 @@ export default function WR04RoutineDetail() {
       session_promise_ref.current = null;
       set_session_started(false);
       set_is_finishing(false);
+      set_workout_running(false);
+      set_live_ms(0);
+      set_frozen_ms(0);
+      pause_started_at_ref.current = null;
       set_exercises((prev) =>
         prev.map((ex) => ({
           ...ex,
@@ -885,7 +1019,6 @@ export default function WR04RoutineDetail() {
     );
   }
 
-
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.safe_top} />
@@ -913,7 +1046,11 @@ export default function WR04RoutineDetail() {
             style={styles.title_side}
             activeOpacity={0.7}
           >
-            <Octicons name="kebab-horizontal" size={16} color={colors.primary} />
+            <Octicons
+              name="kebab-horizontal"
+              size={16}
+              color={colors.primary}
+            />
           </TouchableOpacity>
         </View>
         {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
@@ -921,7 +1058,7 @@ export default function WR04RoutineDetail() {
         {/* 운동 스톱워치 카드 */}
         <View style={styles.workout_timer_card}>
           <TouchableOpacity
-            style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+            style={[styles.workout_btn_pill]}
             onPress={
               !session_started
                 ? handle_start
@@ -935,7 +1072,7 @@ export default function WR04RoutineDetail() {
             {is_starting ? (
               <ActivityIndicator size="small" color={colors.white} />
             ) : !session_started ? (
-              <Text style={styles.workout_btn_text}>운동 시작</Text>
+              <Octicons name="play" size={20} color={colors.white} />
             ) : workout_running ? (
               <Octicons name="pause" size={20} color={colors.white} />
             ) : (
@@ -976,14 +1113,16 @@ export default function WR04RoutineDetail() {
           return (
             <SwipeableCard
               key={exercise.id}
-              onDelete={() => handle_delete_exercise(exercise.id, exercise.name)}
+              onDelete={() =>
+                handle_delete_exercise(exercise.id, exercise.name)
+              }
             >
-            <View
-              style={[
-                styles.exercise_card,
-                exercise.is_expanded && styles.exercise_card_expanded,
-              ]}
-            >
+              <View
+                style={[
+                  styles.exercise_card,
+                  exercise.is_expanded && styles.exercise_card_expanded,
+                ]}
+              >
                 {/* 운동 헤더 */}
                 <TouchableOpacity
                   style={styles.exercise_header}
@@ -1256,9 +1395,8 @@ export default function WR04RoutineDetail() {
                       </TouchableOpacity>
                     </View>
                   </View>
-                </View>
-              )}
-            </View>
+                )}
+              </View>
             </SwipeableCard>
           );
         })}
@@ -1519,7 +1657,8 @@ export default function WR04RoutineDetail() {
                   key={cat.label}
                   style={[
                     styles.replace_chip,
-                    replace_category === cat.value && styles.replace_chip_active,
+                    replace_category === cat.value &&
+                      styles.replace_chip_active,
                   ]}
                   onPress={() => set_replace_category(cat.value)}
                   activeOpacity={0.8}
@@ -1528,7 +1667,8 @@ export default function WR04RoutineDetail() {
                   <Text
                     style={[
                       styles.replace_chip_text,
-                      replace_category === cat.value && styles.replace_chip_text_active,
+                      replace_category === cat.value &&
+                        styles.replace_chip_text_active,
                     ]}
                   >
                     {cat.label}
@@ -1597,7 +1737,8 @@ export default function WR04RoutineDetail() {
       {show_timer_picker && timer_picker_rex_id && (
         <TimerPickerBottomSheet
           initial_seconds={
-            exercises.find((e) => e.id === timer_picker_rex_id)?.rest_seconds ?? 90
+            exercises.find((e) => e.id === timer_picker_rex_id)?.rest_seconds ??
+            90
           }
           onConfirm={handle_timer_confirm}
           onClose={() => {
@@ -1703,7 +1844,6 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
 
-
   // 운동 카드
   exercise_card: {
     borderWidth: 1,
@@ -1788,7 +1928,7 @@ const styles = StyleSheet.create({
   },
   muscle_row: {
     flexDirection: "row",
-    gap: 8,
+    gap: 4,
   },
   muscle_card: {
     flex: 1,
@@ -1806,7 +1946,7 @@ const styles = StyleSheet.create({
   },
   muscle_name: {
     fontFamily: "regular",
-    fontSize: 12,
+    fontSize: 10,
     color: colors.bluegray,
   },
   muscle_empty: {
@@ -2312,5 +2452,57 @@ const styles = StyleSheet.create({
     fontFamily: "medium",
     fontSize: 16,
     color: colors.white,
+  },
+
+  // 고정 상단 (타이틀 + 스톱워치)
+  fixed_top: {
+    backgroundColor: colors.white,
+    marginHorizontal: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  exercises_scroll_outer: {
+    marginHorizontal: 24,
+    backgroundColor: colors.white,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  exercises_scroll: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  workout_timer_card: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 16,
+  },
+  workout_btn_pill: {
+    backgroundColor: colors.primary,
+    borderRadius: 100,
+    height: 40,
+    minWidth: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workout_btn_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.white,
+  },
+  workout_timer_text: {
+    fontFamily: "semibold",
+    fontSize: 20,
+    color: colors.primary,
   },
 });
