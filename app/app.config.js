@@ -15,6 +15,8 @@ module.exports = {
     userInterfaceStyle: "light",
     newArchEnabled: false,
     splash: {
+      image: "./src/assets/images/app-logo.png",
+      resizeMode: "contain",
       backgroundColor: "#000000",
     },
     ios: {
@@ -26,13 +28,14 @@ module.exports = {
       adaptiveIcon: {
         backgroundColor: "#000000",
       },
+      softwareKeyboardLayoutMode: "pan",
     },
     plugins: [
       "expo-secure-store",
       [
         "@react-native-seoul/kakao-login",
         {
-          kotlinVersion: "1.9.25",
+          kotlinVersion: "2.1.21",
           kakaoAppKey: KAKAO_NATIVE_APP_KEY,
         },
       ],
