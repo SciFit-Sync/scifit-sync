@@ -39,6 +39,7 @@ import {
 import { startSession, logSet, finishSession } from "../../services/sessions";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
+import TimerPickerBottomSheet from "../../components/WR04TimerPickerBs";
 
 interface Set {
   id: string;
@@ -122,6 +123,8 @@ export default function WR04RoutineDetail() {
   const [show_rename_modal, set_show_rename_modal] = useState(false);
   const [rename_value, set_rename_value] = useState("");
   const [is_renaming, set_is_renaming] = useState(false);
+  const [show_timer_picker, set_show_timer_picker] = useState(false);
+  const [timer_picker_rex_id, set_timer_picker_rex_id] = useState<string | null>(null);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 세션 관리
@@ -214,7 +217,11 @@ export default function WR04RoutineDetail() {
     const sorted = detail.days
       .flatMap((d) => d.exercises)
       .sort((a, b) => a.order_index - b.order_index);
-    const base = sorted.map(api_to_exercise);
+    const overrides = useWorkoutSessionStore.getState().rest_seconds_overrides;
+    const base = sorted.map(api_to_exercise).map((ex) => ({
+      ...ex,
+      rest_seconds: overrides[ex.id] ?? ex.rest_seconds,
+    }));
 
     // 이 루틴의 진행 중 세션이 스토어에 있으면 체크 상태 복원
     // ws_session_id 가 아직 null 이어도 (세트 체크 직후 화면 이탈 → API 응답 대기 중)
@@ -659,30 +666,24 @@ export default function WR04RoutineDetail() {
     return p;
   };
 
-  /** 타이머 수정 — 프리셋 Alert */
+  /** 타이머 수정 — 바텀시트 피커 */
   const handle_timer_edit = (rex_id: string) => {
-    const presets: { label: string; seconds: number }[] = [
-      { label: "30초", seconds: 30 },
-      { label: "1분", seconds: 60 },
-      { label: "1분 30초", seconds: 90 },
-      { label: "2분", seconds: 120 },
-      { label: "3분", seconds: 180 },
-    ];
-    Alert.alert("휴식 시간 설정", undefined, [
-      ...presets.map((p) => ({
-        text: p.label,
-        onPress: () => {
-          set_exercises((prev) =>
-            prev.map((ex) =>
-              ex.id === rex_id ? { ...ex, rest_seconds: p.seconds } : ex,
-            ),
-          );
-          set_timer(p.seconds);
-          set_is_timer_running(false);
-        },
-      })),
-      { text: "취소", style: "cancel" as const },
-    ]);
+    set_timer_picker_rex_id(rex_id);
+    set_show_timer_picker(true);
+  };
+
+  const handle_timer_confirm = (seconds: number) => {
+    if (!timer_picker_rex_id) return;
+    set_exercises((prev) =>
+      prev.map((ex) =>
+        ex.id === timer_picker_rex_id ? { ...ex, rest_seconds: seconds } : ex,
+      ),
+    );
+    useWorkoutSessionStore.getState().set_rest_seconds(timer_picker_rex_id, seconds);
+    set_timer(seconds);
+    set_is_timer_running(false);
+    set_show_timer_picker(false);
+    set_timer_picker_rex_id(null);
   };
 
   /** 운동 시작 버튼 핸들러 */
@@ -1426,6 +1427,20 @@ export default function WR04RoutineDetail() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* 휴식 타이머 설정 바텀시트 */}
+      {show_timer_picker && timer_picker_rex_id && (
+        <TimerPickerBottomSheet
+          initial_seconds={
+            exercises.find((e) => e.id === timer_picker_rex_id)?.rest_seconds ?? 90
+          }
+          onConfirm={handle_timer_confirm}
+          onClose={() => {
+            set_show_timer_picker(false);
+            set_timer_picker_rex_id(null);
+          }}
+        />
+      )}
 
       {/* 챗봇 FAB — WM01Main과 동일한 컴포넌트 */}
       <WC01DChatbotFloating onPress={() => set_show_chatbot(true)} />
