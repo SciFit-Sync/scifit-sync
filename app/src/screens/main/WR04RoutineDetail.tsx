@@ -1671,12 +1671,13 @@ const styles = StyleSheet.create({
   },
   exercise_header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    gap: 8,
   },
-  exercise_info: { gap: 4 },
+  exercise_info: { gap: 4, flex: 1 },
   exercise_name: {
     fontFamily: "medium",
     fontSize: 16,
