@@ -526,7 +526,7 @@ export default function WM01Main() {
       )}
 
       {/* AI 생성 로딩 오버레이 */}
-      {is_generating && (
+      <Modal visible={is_generating} transparent animationType="fade">
         <View style={styles.generating_overlay}>
           <View style={styles.generating_card}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -545,7 +545,7 @@ export default function WM01Main() {
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      </Modal>
 
       {/* 프로그램 이름 수정 모달 */}
       <Modal
