@@ -320,10 +320,16 @@ async def _routine_to_detail(r: WorkoutRoutine, db: AsyncSession) -> RoutineDeta
         if gym_row:
             gym_summary = GymSummary(gym_id=str(gym_row.id), name=gym_row.name)
 
+    target_muscle_names: list[str] | None = None
+    if r.target_muscle_group_ids:
+        names = [_BODY_PART_KO.get(mid, mid) for mid in r.target_muscle_group_ids]
+        target_muscle_names = names or None
+
     return RoutineDetail(
         routine_id=str(r.id),
         name=r.name,
         fitness_goals=r.fitness_goals,
+        target_muscle_names=target_muscle_names,
         split_type=str(r.split_type) if r.split_type else None,
         generated_by=str(r.generated_by) if r.generated_by else "user",
         status=str(r.status) if r.status else "active",
