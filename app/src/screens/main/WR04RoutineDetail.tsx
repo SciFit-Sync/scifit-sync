@@ -219,6 +219,17 @@ export default function WR04RoutineDetail() {
   );
   const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
+  const ws_is_timer_paused = useWorkoutSessionStore((s) => s.is_timer_paused);
+  const ws_frozen_timer_ms = useWorkoutSessionStore((s) => s.frozen_timer_ms);
+  const ws_set_timer_paused = useWorkoutSessionStore((s) => s.set_timer_paused);
+
+  // 운동 스톱워치
+  const [workout_running, set_workout_running] = useState(false);
+  const [live_ms, set_live_ms] = useState(0);
+  const [frozen_ms, set_frozen_ms] = useState(0);
+  const [pause_offset_ms, set_pause_offset_ms] = useState(0);
+  const pause_started_at_ref = useRef<number | null>(null);
+  const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 이번 마운트의 진입 시각 — 언마운트 시 누적 체류 시간에 합산
   const mount_time_ref = useRef<number>(Date.now());
@@ -357,6 +368,14 @@ export default function WR04RoutineDetail() {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
+  const format_hms = (ms: number) => {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
   const toggle_exercise = (exercise_id: string) => {
@@ -739,6 +758,35 @@ export default function WR04RoutineDetail() {
     }
   };
 
+  // 운동 스톱워치 interval
+  useEffect(() => {
+    if (!workout_running || !ws_session_started_at) {
+      if (workout_interval_ref.current) clearInterval(workout_interval_ref.current);
+      return;
+    }
+    const started = new Date(ws_session_started_at).getTime();
+    const calc = () => set_live_ms(Date.now() - started - pause_offset_ms);
+    calc();
+    workout_interval_ref.current = setInterval(calc, 1000);
+    return () => { if (workout_interval_ref.current) clearInterval(workout_interval_ref.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout_running, ws_session_started_at, pause_offset_ms]);
+
+  // 세션 복원 시 스톱워치 자동 재개 (일시정지 상태면 재개 안 함)
+  useEffect(() => {
+    if (session_started && ws_session_started_at && !workout_running) {
+      if (ws_is_timer_paused) {
+        set_frozen_ms(ws_frozen_timer_ms);
+      } else {
+        set_live_ms(Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms);
+        set_workout_running(true);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session_started, ws_session_started_at, ws_is_timer_paused]);
+
+  const display_ms = workout_running ? live_ms : frozen_ms;
+
   // ── 세션 헬퍼 ───────────────────────────────────────────────────────────────
 
   /** 세션이 없으면 새로 시작하고 session_id를 반환.
@@ -796,11 +844,31 @@ export default function WR04RoutineDetail() {
     try {
       set_is_starting(true);
       await ensure_session();
+      set_workout_running(true);
     } catch {
       Alert.alert("오류", "운동을 시작하지 못했습니다. 다시 시도해주세요.");
     } finally {
       set_is_starting(false);
     }
+  };
+
+  /** 스톱워치 일시정지 */
+  const handle_workout_pause = () => {
+    pause_started_at_ref.current = Date.now();
+    set_frozen_ms(live_ms);
+    set_workout_running(false);
+    ws_set_timer_paused(true, live_ms);
+  };
+
+  /** 스톱워치 재개 */
+  const handle_workout_resume = () => {
+    if (pause_started_at_ref.current !== null) {
+      const paused_duration = Date.now() - pause_started_at_ref.current;
+      set_pause_offset_ms((prev) => prev + paused_duration);
+      pause_started_at_ref.current = null;
+    }
+    ws_set_timer_paused(false);
+    set_workout_running(true);
   };
 
   /** 운동 완료 처리 (실제 로직) */
@@ -829,6 +897,11 @@ export default function WR04RoutineDetail() {
       session_promise_ref.current = null;
       set_session_started(false);
       set_is_finishing(false);
+      set_workout_running(false);
+      set_live_ms(0);
+      set_frozen_ms(0);
+      set_pause_offset_ms(0);
+      pause_started_at_ref.current = null;
       set_exercises((prev) =>
         prev.map((ex) => ({
           ...ex,
