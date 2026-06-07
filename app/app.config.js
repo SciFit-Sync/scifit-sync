@@ -28,6 +28,7 @@ module.exports = {
       adaptiveIcon: {
         backgroundColor: "#000000",
       },
+      softwareKeyboardLayoutMode: "pan",
     },
     plugins: [
       "expo-secure-store",
