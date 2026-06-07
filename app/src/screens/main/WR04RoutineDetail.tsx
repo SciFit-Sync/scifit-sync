@@ -784,6 +784,9 @@ export default function WR04RoutineDetail() {
         finished_at ? { finished_at } : undefined,
       );
       ws_clear();
+      session_id_ref.current = null;
+      session_promise_ref.current = null;
+      set_session_started(false);
       set_workout_running(false);
       set_live_ms(0);
       set_frozen_ms(0);
@@ -792,7 +795,6 @@ export default function WR04RoutineDetail() {
       query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
       query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
       query_client.invalidateQueries({ queryKey: ["notifications", token] });
-      navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);
       const msg =
@@ -1604,7 +1606,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 100,
     height: 36,
-    width: 92,
+    minWidth: 72,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1615,7 +1617,7 @@ const styles = StyleSheet.create({
   },
   workout_timer_text: {
     fontFamily: "semibold",
-    fontSize: 24,
+    fontSize: 20,
     color: colors.primary,
   },
   title_row: {
