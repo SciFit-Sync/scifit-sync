@@ -130,6 +130,9 @@ export default function WR04RoutineDetail() {
   const [workout_running, set_workout_running] = useState(false);
   const [live_ms, set_live_ms] = useState(0);
   const [frozen_ms, set_frozen_ms] = useState(0);
+  // 일시정지 누적 오프셋 — 일시정지 중 흐른 시간을 elapsed에서 제외
+  const [pause_offset_ms, set_pause_offset_ms] = useState(0);
+  const pause_started_at_ref = useRef<number | null>(null);
   const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -284,15 +287,16 @@ export default function WR04RoutineDetail() {
     };
   }, [is_timer_running]);
 
-  // 운동 스톱워치 — ws_session_started_at 기준 wall-clock (페이지 이탈해도 유지)
+  // 운동 스톱워치 — pause_offset_ms 제외한 실 경과 시간
   useEffect(() => {
     if (!workout_running || !ws_session_started_at) {
       if (workout_interval_ref.current)
         clearInterval(workout_interval_ref.current);
       return;
     }
+    const started = new Date(ws_session_started_at).getTime();
     const calc = () => {
-      set_live_ms(Date.now() - new Date(ws_session_started_at).getTime());
+      set_live_ms(Date.now() - started - pause_offset_ms);
     };
     calc();
     workout_interval_ref.current = setInterval(calc, 1000);
@@ -300,14 +304,17 @@ export default function WR04RoutineDetail() {
       if (workout_interval_ref.current)
         clearInterval(workout_interval_ref.current);
     };
-  }, [workout_running, ws_session_started_at]);
+  // pause_offset_ms 변경 시 interval 재시작해야 정확한 값 계산
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout_running, ws_session_started_at, pause_offset_ms]);
 
   // 세션 복원 시 스톱워치 자동 재개
   useEffect(() => {
     if (session_started && ws_session_started_at && !workout_running) {
-      set_live_ms(Date.now() - new Date(ws_session_started_at).getTime());
+      set_live_ms(Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms);
       set_workout_running(true);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session_started, ws_session_started_at]);
 
   const format_time = (seconds: number) => {
@@ -751,15 +758,19 @@ export default function WR04RoutineDetail() {
 
   /** 스톱워치 일시정지 */
   const handle_workout_pause = () => {
+    pause_started_at_ref.current = Date.now();
     set_frozen_ms(live_ms);
     set_workout_running(false);
   };
 
-  /** 스톱워치 버튼 탭 핸들러 */
-  const handle_workout_btn = () => {
-    if (!session_started) return handle_start();
-    if (workout_running) return handle_workout_pause();
-    return handle_finish();
+  /** 스톱워치 재개 */
+  const handle_workout_resume = () => {
+    if (pause_started_at_ref.current !== null) {
+      const paused_duration = Date.now() - pause_started_at_ref.current;
+      set_pause_offset_ms((prev) => prev + paused_duration);
+      pause_started_at_ref.current = null;
+    }
+    set_workout_running(true);
   };
 
   const display_ms = workout_running ? live_ms : frozen_ms;
@@ -792,6 +803,8 @@ export default function WR04RoutineDetail() {
       set_workout_running(false);
       set_live_ms(0);
       set_frozen_ms(0);
+      set_pause_offset_ms(0);
+      pause_started_at_ref.current = null;
       query_client.invalidateQueries({ queryKey: ["sessions"] });
       query_client.invalidateQueries({ queryKey: ["session-stats"] });
       query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
@@ -887,7 +900,7 @@ export default function WR04RoutineDetail() {
                 ? handle_start
                 : workout_running
                   ? handle_workout_pause
-                  : () => set_workout_running(true)
+                  : handle_workout_resume
             }
             disabled={is_starting}
             activeOpacity={0.85}

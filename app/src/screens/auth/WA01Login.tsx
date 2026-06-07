@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   loginButtonText: { fontFamily: "medium", fontSize: 16, color: colors.white },
   linkContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     marginTop: 8,
     marginBottom: 24,
   },
