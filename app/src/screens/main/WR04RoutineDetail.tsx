@@ -37,6 +37,8 @@ import {
   type ExerciseItem as ExerciseSearchItem,
 } from "../../services/exercises";
 import { startSession, logSet, finishSession } from "../../services/sessions";
+import { ApiError } from "../../services/api";
+import { finish_with_recovery } from "./finishRecovery";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
@@ -144,6 +146,18 @@ export default function WR04RoutineDetail() {
   const [is_finishing, set_is_finishing] = useState(false);
   const [is_starting, set_is_starting] = useState(false);
   const [show_chatbot, set_show_chatbot] = useState(false);
+
+  // 운동 완료 핫픽스 — 마운트 가드 / finish 중 신규 체크 차단 / 진행 중 logSet 추적
+  const isMountedRef = useRef(true);
+  const finishing_ref = useRef(false);
+  const pending_logsets = useRef(new Set<Promise<unknown>>());
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      finishing_ref.current = false;
+    };
+  }, []);
 
   // 워크아웃 세션 스토어 — 화면 이탈 후 복귀 시 체크 상태 복원
   const ws_set_session = useWorkoutSessionStore((s) => s.set_session);
@@ -362,6 +376,7 @@ export default function WR04RoutineDetail() {
   };
 
   const toggle_set_done = (exercise_id: string, set_id: string) => {
+    if (finishing_ref.current) return; // finish 진행 중 신규 체크 차단(스토어+logSet 모두)
     // 상태 변경 전 현재 값 캡처
     const ex = exercises.find((e) => e.id === exercise_id);
     const current_set = ex?.sets.find((s) => s.id === set_id);
@@ -390,7 +405,7 @@ export default function WR04RoutineDetail() {
       set_timer(rest);
       set_is_timer_running(true);
       if (ex && current_set) {
-        ensure_session()
+        const p = ensure_session()
           .then((sid) => {
             // 세션 생성 완료 → 기록 탭이 세션을 즉시 인식하도록 캐시 무효화
             query_client.invalidateQueries({ queryKey: ["sessions"] });
@@ -414,13 +429,32 @@ export default function WR04RoutineDetail() {
               queryKey: ["notifications", token],
             });
           })
-          .catch(() => {
-            // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
+          .catch((e: unknown) => {
+            // 409(완료된 세션)/abort 는 상태충돌이지 네트워크 오류가 아님 → 알림 억제
+            if (e instanceof ApiError && (e.status === 409 || e.aborted)) return;
+            // 진짜 네트워크 오류만 알림 + 낙관적 체크 롤백(store + 로컬 state)
             Alert.alert(
               "세트 기록 실패",
               "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
             );
+            ws_toggle_set(set_id, false);
+            if (isMountedRef.current) {
+              set_exercises((prev) =>
+                prev.map((e2) =>
+                  e2.id === exercise_id
+                    ? {
+                        ...e2,
+                        sets: e2.sets.map((s) =>
+                          s.id === set_id ? { ...s, is_done: false } : s,
+                        ),
+                      }
+                    : e2,
+                ),
+              );
+            }
           });
+        pending_logsets.current.add(p);
+        p.finally(() => pending_logsets.current.delete(p));
       }
     } else {
       // 체크 해제 시: 타이머 정지 후 권장 시간으로 복원
@@ -792,14 +826,44 @@ export default function WR04RoutineDetail() {
 
   const display_ms = workout_running ? live_ms : frozen_ms;
 
-  /** 운동 완료 처리 (실제 로직) */
-  const do_finish = async () => {
-    if (!session_id_ref.current || is_finishing) return;
-    try {
-      set_is_finishing(true);
+  /** 완료 성공/멱등 확정 시 단일 정리 — 현재 페이지 유지(세션/스톱워치 리셋, goBack 안 함) */
+  const _finish_cleanup = () => {
+    ws_clear();
+    session_id_ref.current = null;
+    session_promise_ref.current = null;
+    finishing_ref.current = false;
+    pause_started_at_ref.current = null;
+    if (isMountedRef.current) {
+      set_is_finishing(false);
+      set_session_started(false);
+      set_workout_running(false);
+      set_live_ms(0);
+      set_frozen_ms(0);
+      set_pause_offset_ms(0);
+    }
+    query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
+    query_client.invalidateQueries({ queryKey: ["sessions"] });
+    query_client.invalidateQueries({ queryKey: ["session-stats"] });
+    query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+    query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+    query_client.invalidateQueries({ queryKey: ["notifications", token] });
+  };
 
-      // 완료 시각 = 세션 시작 시각 + (이전 방문 누적 시간 + 이번 방문 체류 시간)
-      // ws_page_elapsed_ms: 이전 탭 이탈들의 합산, mount_time_ref: 이번 진입 시각
+  /** 운동 완료 처리 (실제 로직) — 멱등 복구 포함 */
+  const do_finish = async () => {
+    if (is_finishing) return;
+    finishing_ref.current = true;
+    set_is_finishing(true);
+    try {
+      const sid = await ensure_session(); // in-flight 세션 생성까지 대기
+
+      // 진행 중 세트 기록을 bounded 로 대기(최대 4s) — 완료 후 늦은 logSet 409 방지
+      await Promise.race([
+        Promise.allSettled([...pending_logsets.current]),
+        new Promise((r) => setTimeout(r, 4000)),
+      ]);
+
+      // 완료 시각 = 세션 시작 시각 + (이전 방문 누적 + 이번 방문 체류)
       let finished_at: string | undefined;
       if (ws_session_started_at) {
         const total_ms =
@@ -808,27 +872,26 @@ export default function WR04RoutineDetail() {
         finished_at = new Date(started + total_ms).toISOString();
       }
 
-      await finishSession(
-        token,
-        session_id_ref.current,
-        finished_at ? { finished_at } : undefined,
-      );
-      ws_clear();
-      session_id_ref.current = null;
-      session_promise_ref.current = null;
-      set_session_started(false);
-      set_workout_running(false);
-      set_live_ms(0);
-      set_frozen_ms(0);
-      set_pause_offset_ms(0);
-      pause_started_at_ref.current = null;
-      query_client.invalidateQueries({ queryKey: ["sessions"] });
-      query_client.invalidateQueries({ queryKey: ["session-stats"] });
-      query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
-      query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-      query_client.invalidateQueries({ queryKey: ["notifications", token] });
+      // 409(이미 완료)=success, abort/네트워크=멱등 재시도 1회 (스펙 §4.3)
+      const outcome = await finish_with_recovery({
+        finish: (fa) =>
+          finishSession(token, sid, fa ? { finished_at: fa } : undefined),
+        retry: () => finishSession(token, sid, undefined),
+        retry_session_id: session_id_ref.current,
+        finished_at,
+      });
+
+      if (outcome.kind === "done") {
+        _finish_cleanup();
+      } else {
+        finishing_ref.current = false;
+        if (isMountedRef.current) set_is_finishing(false);
+        Alert.alert("오류", outcome.message);
+      }
     } catch (e: unknown) {
-      set_is_finishing(false);
+      // ensure_session 실패 등 finishSession 외 오류
+      finishing_ref.current = false;
+      if (isMountedRef.current) set_is_finishing(false);
       const msg =
         e instanceof Error ? e.message : "운동 완료 처리에 실패했습니다.";
       Alert.alert("오류", msg);
@@ -838,7 +901,8 @@ export default function WR04RoutineDetail() {
   /** 운동 완료 버튼 — 확인 다이얼로그 표시 */
   const handle_finish = () => {
     if (is_finishing) return;
-    if (!session_id_ref.current) {
+    // 둘 다 없을 때만 진짜 미준비. in-flight(session_promise_ref) 포함 그 외엔 do_finish 진입 허용.
+    if (!session_id_ref.current && !session_promise_ref.current) {
       Alert.alert(
         "잠깐만요",
         "세션을 준비 중이에요. 잠시 후 다시 시도해 주세요.",

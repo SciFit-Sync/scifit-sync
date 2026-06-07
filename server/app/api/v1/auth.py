@@ -20,6 +20,7 @@ from app.core.auth import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.email import send_otp_email
 from app.core.exceptions import (
     ConflictError,
     EmailDuplicateError,
@@ -61,7 +62,6 @@ from app.schemas.auth import (
     WithdrawRequest,
 )
 from app.schemas.common import SuccessResponse
-from app.services.ses import send_otp_email
 
 logger = logging.getLogger(__name__)
 

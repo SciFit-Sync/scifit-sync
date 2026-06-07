@@ -3,6 +3,24 @@ import { useAuthStore } from '../stores/authStore';
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const REFRESH_PATH = '/api/v1/auth/refresh';
 
+/**
+ * apiFetch가 던지는 타입드 에러.
+ * 호출자는 status(409 등)/code/aborted로 상태충돌·abort·네트워크를 구분해
+ * 멱등 재시도 등 복구 분기를 할 수 있다.
+ */
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  aborted?: boolean;
+  constructor(message: string, opts: { status: number; code?: string; aborted?: boolean }) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = opts.status;
+    this.code = opts.code;
+    this.aborted = opts.aborted;
+  }
+}
+
 // 동시 다발 401에서 refresh가 중복 호출되지 않도록 single-flight로 직렬화
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -43,9 +61,9 @@ async function refreshTokens(): Promise<boolean> {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit & { token?: string } = {},
+  options: RequestInit & { token?: string; timeoutMs?: number } = {},
 ): Promise<T> {
-  const { token, headers: extraHeaders, ...rest } = options;
+  const { token, headers: extraHeaders, timeoutMs = 30000, ...rest } = options;
 
   const build_headers = (authToken?: string): Record<string, string> => ({
     'Content-Type': 'application/json',
@@ -53,17 +71,38 @@ export async function apiFetch<T>(
     ...(extraHeaders as Record<string, string>),
   });
 
-  const send = (authToken?: string) =>
-    fetch(`${API_BASE}${path}`, { ...rest, headers: build_headers(authToken) });
+  // 매 시도마다 새 AbortController/타이머를 만든다(401 재시도 시 직전 컨트롤러 재사용 금지).
+  // timeoutMs 경과 시 controller.abort()로 AbortError를 유발 → ApiError(aborted)로 변환.
+  const send = (authToken?: string) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(`${API_BASE}${path}`, {
+      ...rest,
+      headers: build_headers(authToken),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+  };
 
-  let res = await send(token);
+  // abort(타임아웃)·네트워크 오류를 사용자 친화 ApiError(status 0)로 변환한다.
+  const send_safe = async (authToken?: string): Promise<Response> => {
+    try {
+      return await send(authToken);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        throw new ApiError('요청 시간이 초과되었습니다.', { status: 0, aborted: true });
+      }
+      throw new ApiError('네트워크 연결을 확인해주세요.', { status: 0 });
+    }
+  };
+
+  let res = await send_safe(token);
 
   // access token 만료(401) → 인증 요청에 한해 1회 토큰 갱신 후 원요청 재시도.
   // refresh 엔드포인트 자체는 제외(무한 루프 방지).
   if (res.status === 401 && token && path !== REFRESH_PATH) {
     const refreshed = await refreshTokens();
     if (refreshed) {
-      res = await send(useAuthStore.getState().accessToken ?? undefined);
+      res = await send_safe(useAuthStore.getState().accessToken ?? undefined);
     }
     // refresh 토큰도 만료/무효이거나, 재발급 후 재시도도 여전히 401이면
     // (시계 skew·refresh 직후 family revoke 등) → 로그아웃하여 로그인 화면으로 복귀.
@@ -81,10 +120,11 @@ export async function apiFetch<T>(
     json = await res.json();
   } catch {
     if (res.ok) return undefined as T; // 본문 없는 성공 응답(예: 204)
-    throw new Error(
+    throw new ApiError(
       res.status >= 500
         ? '서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.'
         : `요청을 처리할 수 없습니다. (${res.status})`,
+      { status: res.status },
     );
   }
 
@@ -92,7 +132,10 @@ export async function apiFetch<T>(
     // Pydantic validation 에러는 details.errors 안에 구체적인 내용이 있음
     const detail = json?.error?.details?.errors?.[0];
     const detail_msg = detail?.ctx?.error ?? detail?.msg;
-    throw new Error(detail_msg ?? json?.error?.message ?? '오류가 발생했습니다.');
+    throw new ApiError(detail_msg ?? json?.error?.message ?? '오류가 발생했습니다.', {
+      status: res.status,
+      code: json?.error?.code,
+    });
   }
   return json.data as T;
 }
