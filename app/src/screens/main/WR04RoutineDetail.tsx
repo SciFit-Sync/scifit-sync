@@ -37,6 +37,7 @@ import {
   type ExerciseItem as ExerciseSearchItem,
 } from "../../services/exercises";
 import { startSession, logSet, finishSession } from "../../services/sessions";
+import { ApiError } from "../../services/api";
 import WC01Chatbot from "../../components/WC01Chatbot";
 import WC01DChatbotFloating from "../../components/WC01-DChatbotFloating";
 
@@ -131,6 +132,20 @@ export default function WR04RoutineDetail() {
   const [is_finishing, set_is_finishing] = useState(false);
   const [is_starting, set_is_starting] = useState(false);
   const [show_chatbot, set_show_chatbot] = useState(false);
+
+  // 마운트 여부 — 비동기 콜백의 setState를 언마운트 후 차단
+  const isMountedRef = useRef(true);
+  // finish 진행 중 신규 세트 체크 차단 플래그
+  const finishing_ref = useRef(false);
+  // 진행 중 세트 기록(logSet) 체인 추적 — do_finish가 bounded await
+  const pending_logsets = useRef(new Set<Promise<unknown>>());
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      finishing_ref.current = false;
+    };
+  }, []);
 
   // 워크아웃 세션 스토어 — 화면 이탈 후 복귀 시 체크 상태 복원
   const ws_set_session = useWorkoutSessionStore((s) => s.set_session);
@@ -294,6 +309,9 @@ export default function WR04RoutineDetail() {
   };
 
   const toggle_set_done = (exercise_id: string, set_id: string) => {
+    // finish 진행 중에는 신규 체크 차단 — 스토어 기록과 logSet 발사 모두 막아
+    // 완료된 세션과 영구 비동기화되는 잔여 거짓 체크를 방지한다.
+    if (finishing_ref.current) return;
     // 상태 변경 전 현재 값 캡처
     const ex = exercises.find((e) => e.id === exercise_id);
     const current_set = ex?.sets.find((s) => s.id === set_id);
@@ -322,7 +340,7 @@ export default function WR04RoutineDetail() {
       set_timer(rest);
       set_is_timer_running(true);
       if (ex && current_set) {
-        ensure_session()
+        const p = ensure_session()
           .then((sid) => {
             // 세션 생성 완료 → 기록 탭이 세션을 즉시 인식하도록 캐시 무효화
             query_client.invalidateQueries({ queryKey: ["sessions"] });
@@ -344,13 +362,32 @@ export default function WR04RoutineDetail() {
             query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
             query_client.invalidateQueries({ queryKey: ["notifications", token] });
           })
-          .catch(() => {
-            // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
+          .catch((e: unknown) => {
+            // 409(완료 세션 세트 추가 차단)/abort는 정상 흐름 — alert 억제
+            if (e instanceof ApiError && (e.status === 409 || e.aborted)) return;
+            // 진짜 네트워크 실패 — 사용자 안내 + 낙관적 롤백
             Alert.alert(
               "세트 기록 실패",
               "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
             );
+            ws_toggle_set(set_id, false);
+            if (isMountedRef.current) {
+              set_exercises((prev) =>
+                prev.map((e2) =>
+                  e2.id === exercise_id
+                    ? {
+                        ...e2,
+                        sets: e2.sets.map((s) =>
+                          s.id === set_id ? { ...s, is_done: false } : s,
+                        ),
+                      }
+                    : e2,
+                ),
+              );
+            }
           });
+        pending_logsets.current.add(p);
+        p.finally(() => pending_logsets.current.delete(p));
       }
     } else {
       // 체크 해제 시: 타이머 정지 후 권장 시간으로 복원
@@ -737,7 +774,9 @@ export default function WR04RoutineDetail() {
   /** 운동 완료 버튼 — 확인 다이얼로그 표시 */
   const handle_finish = () => {
     if (is_finishing) return;
-    if (!session_id_ref.current) {
+    // 세션 id도 in-flight Promise도 없을 때만 진짜 미준비 — in-flight면 do_finish가
+    // ensure_session()으로 대기하므로 진입 허용("마지막 세트 직후 세션 생성 중" 케이스 보호)
+    if (!session_id_ref.current && !session_promise_ref.current) {
       Alert.alert(
         "잠깐만요",
         "세션을 준비 중이에요. 잠시 후 다시 시도해 주세요.",
