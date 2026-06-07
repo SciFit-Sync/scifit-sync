@@ -951,9 +951,9 @@ export default function WR04RoutineDetail() {
               >
                 <View style={styles.exercise_info}>
                   <Text style={styles.exercise_name}>{exercise.name}</Text>
-                  {(exercise.equipment_name || exercise.brand) && (
+                  {exercise.brand && (
                     <Text style={styles.equipment_label}>
-                      {[exercise.brand, exercise.equipment_name].filter(Boolean).join(" · ")}
+                      {exercise.brand}
                     </Text>
                   )}
                   <Text style={styles.exercise_sub}>
