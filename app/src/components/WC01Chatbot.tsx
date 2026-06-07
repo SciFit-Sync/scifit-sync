@@ -334,7 +334,7 @@ export default function WC01Chatbot({ onClose }: Props) {
       onRequestClose={handle_close}
     >
       <KeyboardAvoidingView
-        behavior="padding"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboard_view}
         keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
       >
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 16,
     width: "100%",
-    height: 588,
+    maxHeight: 588,
     overflow: "hidden",
   },
   header: {
