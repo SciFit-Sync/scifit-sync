@@ -121,7 +121,6 @@ export async function ocrInbody(
     method: "POST",
     token,
     body: JSON.stringify({ image_base64, mime_type }),
-    timeoutMs: 60000,
   });
 }
 

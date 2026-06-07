@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.auth import get_required_profile
 from app.core.database import get_db
 from app.main import app
-from app.models import NotificationType, User, WorkoutLog, WorkoutStatus
+from app.models import User, WorkoutLog, WorkoutStatus
 
 _USER_ID = uuid.uuid4()
 _SESSION_ID = uuid.uuid4()
@@ -77,12 +77,9 @@ def _make_db(*side_effects):
     db = AsyncMock()
     db.execute.side_effect = list(side_effects)
     db.commit = AsyncMock()
-    db.rollback = AsyncMock()
     db.flush = AsyncMock()
     db.add = MagicMock()
-    db.add_all = MagicMock()  # SQLAlchemy add_all은 동기 — AsyncMock 코루틴 경고 방지
     db.refresh = AsyncMock()
-    db.expire_all = MagicMock()  # 동기 — finish_session 신선 재로드용
     return db
 
 
@@ -222,13 +219,11 @@ class TestFinishSession:
         session = _mock_session()
 
         db = _make_db(
-            _exec_scalar(session),  # s0 = _get_my_session
-            _exec_scalar(_SESSION_ID),  # UPDATE...RETURNING → claimed (전이 선점자)
-            _exec_scalar(session),  # 신선 재로드 s
+            _exec_scalar(session),  # _get_my_session
+            _exec_scalars_all([]),  # ex_rows in _create_po_notifications
             _exec_scalar_one(0),  # total_sets
             _exec_scalar_one(0),  # completed_exercises
             _exec_scalar(None),  # UserBodyMeasurement (없으면 70kg 기본값)
-            # session.routine_day_id is None → _apply_po 조기 반환(추가 execute 없음)
         )
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)
@@ -238,79 +233,15 @@ class TestFinishSession:
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
-
-# ── PATCH /sessions/{id}/finish — 원자 전이 + 멱등 (Task 5) ─────────────────────
-
-
-class TestFinishIdempotent:
     @pytest.mark.asyncio
-    async def test_already_completed_returns_200_no_po(self, client, monkeypatch):
-        """이미 COMPLETED인 세션을 다시 finish하면 409가 아니라 멱등 200을 반환하고,
-        전이 선점자가 아니므로(claimed is None) PO 부수효과를 실행하지 않는다."""
-        from app.api.v1 import sessions as sess
-
-        called = {"po": False}
-
-        async def _spy_po(*a, **k):
-            called["po"] = True
-            return set()
-
-        monkeypatch.setattr(sess, "_apply_po", _spy_po)
-
-        s_completed = _mock_session(status=WorkoutStatus.COMPLETED)
-        s_completed.finished_at = _NOW
-
-        db = _make_db(
-            _exec_scalar(s_completed),  # s0 = _get_my_session
-            _exec_scalar(None),  # UPDATE...RETURNING → claimed None (이미 COMPLETED, 전이 실패)
-            _exec_scalar(s_completed),  # 신선 재로드 s
-            _exec_scalar_one(2),  # total_sets
-            _exec_scalar_one(1),  # completed_exercises
-            _exec_scalar(None),  # latest_measurement
-        )
+    async def test_already_finished_raises(self, client):
+        session = _mock_session(status=WorkoutStatus.COMPLETED)
+        db = _make_db(_exec_scalar(session))
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(f"/api/v1/sessions/{_SESSION_ID}/finish", json={})
 
-        assert resp.status_code == 200
-        assert resp.json()["success"] is True
-        assert called["po"] is False  # 멱등 재호출은 PO 미실행
-
-    @pytest.mark.asyncio
-    async def test_claim_winner_runs_po_and_warms_cache(self, client, monkeypatch):
-        """전이 선점자(claimed is not None)는 _apply_po를 실행하고,
-        반환된 warm_keys를 background task로 워밍 큐에 등록한다."""
-        from app.api.v1 import sessions as sess
-
-        warmed: list[tuple[str, str]] = []
-
-        async def _spy_po(*a, **k):
-            return {("hypertrophy", "cable")}
-
-        async def _spy_warm(goal, lm):
-            warmed.append((goal, lm))
-
-        monkeypatch.setattr(sess, "_apply_po", _spy_po)
-        monkeypatch.setattr(sess.po_rag, "warm_po_cache", _spy_warm)
-
-        session = _mock_session()
-
-        db = _make_db(
-            _exec_scalar(session),  # s0 = _get_my_session
-            _exec_scalar(_SESSION_ID),  # UPDATE...RETURNING → claimed (선점)
-            _exec_scalar(session),  # 신선 재로드 s
-            _exec_scalar_one(3),  # total_sets
-            _exec_scalar_one(2),  # completed_exercises
-            _exec_scalar(None),  # latest_measurement
-        )
-        app.dependency_overrides[get_db] = _db_override(db)
-
-        resp = await client.patch(f"/api/v1/sessions/{_SESSION_ID}/finish", json={})
-
-        assert resp.status_code == 200
-        assert resp.json()["success"] is True
-        # 선점자만 PO 실행 → warm_keys가 background warm으로 전달됨
-        assert ("hypertrophy", "cable") in warmed
+        assert resp.status_code == 409
 
 
 # ── GET /sessions?year=&month= ────────────────────────────────────────────────
@@ -646,137 +577,3 @@ class TestGetActiveSession:
 
         assert resp.status_code == 200
         assert resp.json()["data"] is None
-
-
-# ── _apply_po (PO 부수효과 — 캐시-읽기·commit 분리·dedup) ──────────────────────
-
-
-def _po_trigger_db():
-    """PO 트리거 1건이 발생하는 _apply_po용 mock-db 시퀀스를 구성한다.
-
-    실행 순서(_apply_po 내부 db.execute):
-      1. goal_row          → fitness_goals 리스트
-      2. set_rows          → (rex_id, max_reps=12, max_weight, set_count)
-      3. prev_reps_rows    → (rex_id, prev_max_reps=12)  연속 2세션 트리거
-      4. rex_records       → RoutineExercise 목록
-      5. ex_meta_map       → (exercise_id, name, load_mode="cable")
-      6. equip_map         → Equipment 목록 (lm in cable/machine + equipment_id)
-      7. existing_unread   → 미확인 PO 알림 rex 집합(dedup용, 기본 빈 집합)
-      8. user_1rm_row      → 사용자 1RM (None → 기본값 표기)
-    """
-    rex_id = uuid.uuid4()
-    exercise_id = uuid.uuid4()
-    equipment_id = uuid.uuid4()
-
-    rex = MagicMock()
-    rex.id = rex_id
-    rex.exercise_id = exercise_id
-    rex.equipment_id = equipment_id
-    rex.sets = 3
-    rex.weight_kg = 80.0
-
-    equip = MagicMock()
-    equip.id = equipment_id
-    equip.max_stack = 200.0
-
-    # ex_meta_map은 Row 속성 접근(r.id / r.name / r.load_mode)을 사용하므로 named mock 필요
-    ex_meta_row = MagicMock()
-    ex_meta_row.id = exercise_id
-    ex_meta_row.name = "벤치프레스"
-    ex_meta_row.load_mode = "cable"
-
-    db = _make_db(
-        _exec_scalar(["hypertrophy"]),  # goal_row
-        _exec_all([(rex_id, 12, 80.0, 3)]),  # set_rows (max_reps=12 == upper bound)
-        _exec_all([(rex_id, 12)]),  # prev_reps_rows (직전 세션도 12 → 트리거)
-        _exec_scalars_all([rex]),  # rex_records
-        _exec_all([ex_meta_row]),  # ex_meta_map (Row 속성 접근)
-        _exec_scalars_all([equip]),  # equip_map
-        _exec_all([]),  # existing_unread (dedup, 기본 빈 집합)
-        _exec_scalar(None),  # user_1rm_row (None → 기본값)
-    )
-    return db, rex_id
-
-
-class TestApplyPo:
-    @pytest.mark.asyncio
-    async def test_returns_warm_keys_on_cache_miss_and_no_internal_commit(self, monkeypatch):
-        """캐시 미스 시 (goal, load_mode)를 warm_keys(set)로 반환하고,
-        _apply_po 내부에서는 db.commit()을 호출하지 않는다(커밋은 호출부 단일 지점)."""
-        from app.api.v1 import sessions as sess
-
-        # po_increment_cached 캐시 미스: (None, cache_warm=False)
-        spy_cached = MagicMock(return_value=(None, False))
-        monkeypatch.setattr(sess.po_rag, "po_increment_cached", spy_cached)
-        # 동기 네트워크 경로(rag_po_increment)는 절대 호출되면 안 됨
-        spy_rag = AsyncMock(return_value=None)
-        monkeypatch.setattr(sess.po_rag, "rag_po_increment", spy_rag)
-
-        session = _mock_session()
-        session.routine_day_id = uuid.uuid4()
-        db, _rex_id = _po_trigger_db()
-
-        warm_keys = await sess._apply_po(session, _MOCK_USER, db)
-
-        # (a) 반환 타입이 set[tuple]
-        assert isinstance(warm_keys, set)
-        assert ("hypertrophy", "cable") in warm_keys
-        # (b) _apply_po 내부에서 commit 미호출 (커밋 책임은 호출부)
-        db.commit.assert_not_called()
-        # (c) 캐시-읽기 경로 사용 + 동기 네트워크 경로 미사용
-        spy_cached.assert_called_once()
-        spy_rag.assert_not_called()
-        # 알림은 스테이징만(add_all) — 트리거 1건
-        db.add_all.assert_called_once()
-        staged = db.add_all.call_args[0][0]
-        assert len(staged) == 1
-        assert staged[0].type == NotificationType.PO_SUGGESTION
-
-    @pytest.mark.asyncio
-    async def test_cache_hit_no_warm_key(self, monkeypatch):
-        """캐시 히트(cache_warm=True) 시 warm_keys에 키를 적재하지 않는다."""
-        from app.api.v1 import sessions as sess
-
-        spy_cached = MagicMock(return_value=(5.0, True))
-        monkeypatch.setattr(sess.po_rag, "po_increment_cached", spy_cached)
-        spy_rag = AsyncMock(return_value=None)
-        monkeypatch.setattr(sess.po_rag, "rag_po_increment", spy_rag)
-
-        session = _mock_session()
-        session.routine_day_id = uuid.uuid4()
-        db, _rex_id = _po_trigger_db()
-
-        warm_keys = await sess._apply_po(session, _MOCK_USER, db)
-
-        assert warm_keys == set()
-        db.commit.assert_not_called()
-        spy_rag.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_dedup_skips_existing_unread_notification(self, monkeypatch):
-        """이미 미확인 PO 알림이 있는 rex는 새 알림을 생성하지 않는다(dedup).
-
-        단 warm_keys 적재와 rex bump는 dedup과 무관하게 수행된다."""
-        from app.api.v1 import sessions as sess
-
-        spy_cached = MagicMock(return_value=(None, False))
-        monkeypatch.setattr(sess.po_rag, "po_increment_cached", spy_cached)
-        monkeypatch.setattr(sess.po_rag, "rag_po_increment", AsyncMock(return_value=None))
-
-        session = _mock_session()
-        session.routine_day_id = uuid.uuid4()
-        db, rex_id = _po_trigger_db()
-
-        # existing_unread 쿼리(7번째 execute, index 6)가 이 세션의 rex_id를 반환하도록 교체
-        side = list(db.execute.side_effect)
-        side[6] = _exec_all([(str(rex_id),)])
-        db.execute.side_effect = side
-
-        warm_keys = await sess._apply_po(session, _MOCK_USER, db)
-
-        assert ("hypertrophy", "cable") in warm_keys
-        db.commit.assert_not_called()
-        # 중복 알림은 생성되지 않음 — add_all 미호출 또는 빈 리스트
-        if db.add_all.called:
-            staged = db.add_all.call_args[0][0]
-            assert staged == []
