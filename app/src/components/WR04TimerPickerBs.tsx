@@ -17,6 +17,8 @@ interface TimerPickerBottomSheetProps {
   onClose: () => void;
 }
 
+const MIN_SECONDS = 10;
+
 export default function TimerPickerBottomSheet({
   initial_seconds,
   onConfirm,
@@ -39,13 +41,16 @@ export default function TimerPickerBottomSheet({
     }).start();
   }, []);
 
+  const total = selected_minutes * 60 + selected_seconds;
+  const is_valid = total >= MIN_SECONDS;
+
   const handle_confirm = () => {
-    const total = selected_minutes * 60 + selected_seconds;
-    onConfirm(total < 10 ? 10 : total); // 최소 10초
+    if (!is_valid) return;
+    onConfirm(total);
   };
 
-  const minutes = Array.from({ length: 10 }, (_, i) => i); // 0~9분
-  const seconds_list = Array.from({ length: 60 }, (_, i) => i); // 0~59초
+  const minutes = Array.from({ length: 10 }, (_, i) => i);
+  const seconds_list = Array.from({ length: 60 }, (_, i) => i);
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
@@ -58,20 +63,20 @@ export default function TimerPickerBottomSheet({
         <Animated.View
           style={[styles.sheet, { transform: [{ translateY: slide_anim }] }]}
         >
-          <View style={styles.sheet_header}>
+          <View style={styles.sheetHeader}>
             <View style={styles.placeholder} />
-            <Text style={styles.sheet_title}>휴식 시간 설정</Text>
-            <TouchableOpacity style={styles.close_button} onPress={onClose}>
+            <Text style={styles.sheetTitle}>휴식 시간 설정</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Octicons name="x" size={32} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.picker_container}>
+          <View style={styles.pickerContainer}>
             <Picker
               style={styles.picker}
               selectedValue={selected_minutes}
               onValueChange={(v) => set_selected_minutes(Number(v))}
-              itemStyle={styles.picker_item}
+              itemStyle={styles.pickerItem}
             >
               {minutes.map((m) => (
                 <Picker.Item
@@ -87,7 +92,7 @@ export default function TimerPickerBottomSheet({
               style={styles.picker}
               selectedValue={selected_seconds}
               onValueChange={(v) => set_selected_seconds(Number(v))}
-              itemStyle={styles.picker_item}
+              itemStyle={styles.pickerItem}
             >
               {seconds_list.map((s) => (
                 <Picker.Item
@@ -100,12 +105,17 @@ export default function TimerPickerBottomSheet({
             </Picker>
           </View>
 
+          {!is_valid && (
+            <Text style={styles.hint}>최소 {MIN_SECONDS}초 이상 설정해주세요</Text>
+          )}
+
           <TouchableOpacity
-            style={styles.confirm_button}
+            style={[styles.confirmButton, !is_valid && styles.confirmButtonDisabled]}
             onPress={handle_confirm}
+            disabled={!is_valid}
             activeOpacity={0.8}
           >
-            <Text style={styles.confirm_button_text}>확인</Text>
+            <Text style={styles.confirmButtonText}>확인</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -119,7 +129,9 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.2)",
   },
-  dim: { flex: 1 },
+  dim: {
+    flex: 1,
+  },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 30,
@@ -127,41 +139,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
     paddingTop: 20,
-    height: 380,
+    height: 410,
   },
-  sheet_header: {
+  sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  placeholder: { width: 32 },
-  close_button: { width: 32, alignItems: "center" },
-  sheet_title: {
+  placeholder: {
+    width: 32,
+  },
+  closeButton: {
+    width: 32,
+    alignItems: "center",
+  },
+  sheetTitle: {
     fontFamily: "semibold",
     fontSize: 18,
     color: colors.primary,
     textAlign: "center",
     flex: 1,
   },
-  picker_container: {
+  pickerContainer: {
     flexDirection: "row",
     flex: 1,
   },
-  picker: { flex: 1 },
-  picker_item: {
+  picker: {
+    flex: 1,
+  },
+  pickerItem: {
     fontFamily: "regular",
     fontSize: 16,
     color: colors.primary,
   },
-  confirm_button: {
+  hint: {
+    fontFamily: "regular",
+    fontSize: 12,
+    color: "#FF3B30",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  confirmButton: {
     backgroundColor: colors.primary,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
     marginTop: 8,
   },
-  confirm_button_text: {
+  confirmButtonDisabled: {
+    opacity: 0.4,
+  },
+  confirmButtonText: {
     fontFamily: "medium",
     fontSize: 16,
     color: colors.white,
