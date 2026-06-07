@@ -164,3 +164,34 @@ class TestPoIncrementCached:
             po_increment_cached("hypertrophy", "cable", 100.0)  # miss
             ms.assert_not_called()
             ml.assert_not_called()
+
+
+class TestWarmPoCache:
+    def _run(self, coro):
+        return asyncio.run(coro)
+
+    def test_warm_populates_cache(self):
+        from app.services import po_rag
+
+        with (
+            patch("app.services.po_rag._call_search_async", new=AsyncMock(return_value=SAMPLE_CHUNKS)),
+            patch("app.services.po_rag._call_llm_async", new=AsyncMock(return_value='{"increment_percent": 5}')),
+        ):
+            self._run(po_rag.warm_po_cache("hypertrophy", "cable"))
+        hit, pct = po_rag._cache_get("hypertrophy", "cable")
+        assert hit is True and pct == 5.0
+
+    def test_warm_skips_when_already_cached(self):
+        from app.services import po_rag
+
+        po_rag._cache_set("hypertrophy", "cable", 5.0)
+        with patch("app.services.po_rag._call_search_async", new=AsyncMock()) as ms:
+            self._run(po_rag.warm_po_cache("hypertrophy", "cable"))
+            ms.assert_not_called()
+
+    def test_warm_swallows_exception(self):
+        from app.services import po_rag
+
+        with patch("app.services.po_rag._call_search_async", new=AsyncMock(side_effect=RuntimeError("down"))):
+            self._run(po_rag.warm_po_cache("hypertrophy", "cable"))  # 예외 안 던짐
+        assert po_rag._cache_get("hypertrophy", "cable")[0] is False
