@@ -1671,7 +1671,7 @@ const styles = StyleSheet.create({
   },
   exercise_header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
