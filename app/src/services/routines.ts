@@ -214,6 +214,7 @@ export interface RoutineExerciseItem {
   exercise_id: string;
   exercise_name: string;
   equipment_name: string | null;
+  brand: string | null;
   order_index: number;
   sets: number;
   reps_min: number | null;

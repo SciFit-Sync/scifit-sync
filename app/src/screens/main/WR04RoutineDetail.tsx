@@ -57,6 +57,7 @@ interface Exercise {
   exercise_id: string; // 실제 exercises.id (세트 기록 API 용)
   name: string;
   equipment_name: string | null;
+  brand: string | null;
   sets: Set[];
   is_expanded: boolean;
   muscles: MuscleActivation[];
@@ -87,6 +88,7 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
     exercise_id: item.exercise_id,
     name: item.exercise_name,
     equipment_name: item.equipment_name ?? null,
+    brand: item.brand ?? null,
     sets,
     is_expanded: false,
     muscles: (item.muscle_activation ?? []).map((m) => ({
@@ -949,9 +951,9 @@ export default function WR04RoutineDetail() {
               >
                 <View style={styles.exercise_info}>
                   <Text style={styles.exercise_name}>{exercise.name}</Text>
-                  {exercise.equipment_name && (
+                  {(exercise.equipment_name || exercise.brand) && (
                     <Text style={styles.equipment_label}>
-                      {exercise.equipment_name}
+                      {[exercise.brand, exercise.equipment_name].filter(Boolean).join(" · ")}
                     </Text>
                   )}
                   <Text style={styles.exercise_sub}>
@@ -1728,7 +1730,7 @@ const styles = StyleSheet.create({
   },
   muscle_row: {
     flexDirection: "row",
-    gap: 8,
+    gap: 4,
   },
   muscle_card: {
     flex: 1,
@@ -1746,7 +1748,7 @@ const styles = StyleSheet.create({
   },
   muscle_name: {
     fontFamily: "regular",
-    fontSize: 12,
+    fontSize: 10,
     color: colors.bluegray,
   },
   muscle_empty: {
