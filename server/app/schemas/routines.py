@@ -153,6 +153,16 @@ class UpdateRoutineExerciseRequest(BaseModel):
     note: str | None = Field(default=None, max_length=500)
 
 
+class AddRoutineExerciseRequest(BaseModel):
+    """POST /routines/{id}/exercises — 루틴에 운동 추가."""
+
+    exercise_id: str
+
+
+class DeleteRoutineExerciseData(BaseModel):
+    routine_exercise_id: str
+
+
 # ── 논문 ──────────────────────────────────────────────────────────────────────
 class PaperItem(BaseModel):
     paper_id: str

@@ -48,7 +48,9 @@ from app.models.gym import GymEquipment, UserGym
 from app.models.routine import GeneratedBy, SplitType
 from app.schemas.common import SuccessResponse
 from app.schemas.routines import (
+    AddRoutineExerciseRequest,
     AIRoutineDetail,
+    DeleteRoutineExerciseData,
     ExerciseDetailItem,
     GenerateRoutineRequest,
     GymSummary,
@@ -528,6 +530,118 @@ async def update_routine_exercise(
             note=rex.note,
         )
     )
+
+
+# ── POST /routines/{id}/exercises ────────────────────────────────────────────
+@router.post(
+    "/{routine_id}/exercises",
+    response_model=SuccessResponse[RoutineExerciseItem],
+    status_code=201,
+    summary="루틴 운동 추가",
+)
+async def add_routine_exercise(
+    routine_id: str,
+    body: AddRoutineExerciseRequest,
+    current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    routine = await _get_my_routine(routine_id, current_user, db)
+    ex_id = _parse_uuid(body.exercise_id, "exercise_id")
+    exercise = (await db.execute(select(Exercise).where(Exercise.id == ex_id))).scalar_one_or_none()
+    if exercise is None:
+        raise NotFoundError(message="운동을 찾을 수 없습니다.")
+
+    # 첫 번째 day에 추가 (없으면 생성)
+    first_day = (
+        await db.execute(
+            select(RoutineDay).where(RoutineDay.routine_id == routine.id).order_by(RoutineDay.day_number).limit(1)
+        )
+    ).scalar_one_or_none()
+    if first_day is None:
+        first_day = RoutineDay(routine_id=routine.id, day_number=1, label="Day 1")
+        db.add(first_day)
+        await db.flush()
+
+    # 현재 마지막 order_index 이후로 추가
+    max_order = (
+        await db.execute(
+            select(RoutineExercise.order_index)
+            .where(RoutineExercise.routine_day_id == first_day.id)
+            .order_by(RoutineExercise.order_index.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    next_order = (max_order or 0) + 1
+
+    # 기구 선택 (프리웨이트면 None)
+    picked_eq_id, _ = await _pick_equipment_for_exercise(ex_id, routine.gym_id, db)
+
+    # 목표 기반 기본값
+    goals = routine.fitness_goals or []
+    primary_goal = goals[0] if goals else "hypertrophy"
+    default_sets = {"strength": 5, "hypertrophy": 4, "endurance": 3, "rehabilitation": 2}.get(primary_goal, 3)
+    reps_map = {"strength": (3, 5), "hypertrophy": (8, 12), "endurance": (15, 20), "rehabilitation": (20, 30)}
+    reps_min, reps_max = reps_map.get(primary_goal, (8, 12))
+    rest_map = {"strength": 180, "hypertrophy": 90, "endurance": 60, "rehabilitation": 60}
+    rest_secs = rest_map.get(primary_goal, 90)
+
+    rex = RoutineExercise(
+        routine_day_id=first_day.id,
+        exercise_id=ex_id,
+        equipment_id=picked_eq_id,
+        order_index=next_order,
+        sets=default_sets,
+        reps_min=reps_min,
+        reps_max=reps_max,
+        rest_seconds=rest_secs,
+    )
+    db.add(rex)
+    await db.commit()
+    await db.refresh(rex)
+
+    equipment: Equipment | None = None
+    if rex.equipment_id:
+        equipment = (await db.execute(select(Equipment).where(Equipment.id == rex.equipment_id))).scalar_one_or_none()
+
+    return SuccessResponse(
+        data=RoutineExerciseItem(
+            routine_exercise_id=str(rex.id),
+            exercise_id=str(rex.exercise_id),
+            exercise_name=exercise.name,
+            equipment_id=str(rex.equipment_id) if rex.equipment_id else None,
+            equipment_name=equipment.name if equipment else None,
+            order_index=rex.order_index,
+            sets=rex.sets,
+            reps_min=rex.reps_min,
+            reps_max=rex.reps_max,
+            weight_kg=rex.weight_kg,
+            rest_seconds=rex.rest_seconds,
+            note=rex.note,
+        ),
+        status_code=201,
+    )
+
+
+# ── DELETE /routines/{id}/exercises/{exId} ────────────────────────────────────
+@router.delete(
+    "/{routine_id}/exercises/{routine_exercise_id}",
+    response_model=SuccessResponse[DeleteRoutineExerciseData],
+    summary="루틴 운동 삭제",
+)
+async def delete_routine_exercise(
+    routine_id: str,
+    routine_exercise_id: str,
+    current_user: User = Depends(get_required_profile),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_my_routine(routine_id, current_user, db)
+    rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
+    rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
+    if rex is None:
+        raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
+    await db.delete(rex)
+    await db.commit()
+    return SuccessResponse(data=DeleteRoutineExerciseData(routine_exercise_id=str(rex_id)))
 
 
 # ── DELETE /routines/{id} ─────────────────────────────────────────────────────
