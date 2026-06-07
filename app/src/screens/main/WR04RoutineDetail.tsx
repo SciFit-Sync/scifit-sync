@@ -306,8 +306,8 @@ export default function WR04RoutineDetail() {
       if (workout_interval_ref.current)
         clearInterval(workout_interval_ref.current);
     };
-  // pause_offset_ms 변경 시 interval 재시작해야 정확한 값 계산
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // pause_offset_ms 변경 시 interval 재시작해야 정확한 값 계산
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout_running, ws_session_started_at, pause_offset_ms]);
 
   // 세션 복원 시 스톱워치 자동 재개 (일시정지 상태면 재개 안 함)
@@ -315,14 +315,21 @@ export default function WR04RoutineDetail() {
     if (session_started && ws_session_started_at && !workout_running) {
       if (ws_is_timer_paused) {
         // 일시정지 상태로 복귀 — frozen_ms만 복원, 타이머 시작 안 함
-        const elapsed = Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms;
+        const elapsed =
+          Date.now() -
+          new Date(ws_session_started_at).getTime() -
+          pause_offset_ms;
         set_frozen_ms(elapsed);
       } else {
-        set_live_ms(Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms);
+        set_live_ms(
+          Date.now() -
+            new Date(ws_session_started_at).getTime() -
+            pause_offset_ms,
+        );
         set_workout_running(true);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session_started, ws_session_started_at, ws_is_timer_paused]);
 
   const format_time = (seconds: number) => {
@@ -904,7 +911,7 @@ export default function WR04RoutineDetail() {
         <View style={styles.workout_timer_card}>
           {/* 왼쪽: 운동 시작 / 일시정지 / 재생 */}
           <TouchableOpacity
-            style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+            style={[styles.workout_btn_pill]}
             onPress={
               !session_started
                 ? handle_start
@@ -975,9 +982,7 @@ export default function WR04RoutineDetail() {
                 <View style={styles.exercise_info}>
                   <Text style={styles.exercise_name}>{exercise.name}</Text>
                   {exercise.brand && (
-                    <Text style={styles.equipment_label}>
-                      {exercise.brand}
-                    </Text>
+                    <Text style={styles.equipment_label}>{exercise.brand}</Text>
                   )}
                   <Text style={styles.exercise_sub}>
                     세트 {exercise.sets.filter((s) => s.is_done).length}/
@@ -1625,24 +1630,24 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    gap: 16,
+    gap: 8,
   },
   workout_btn_pill: {
     backgroundColor: colors.primary,
     borderRadius: 100,
     height: 36,
-    minWidth: 72,
+    minWidth: 36,
     alignItems: "center",
     justifyContent: "center",
   },
   workout_btn_text: {
     fontFamily: "medium",
-    fontSize: 14,
+    fontSize: 12,
     color: colors.white,
   },
   workout_timer_text: {
     fontFamily: "semibold",
-    fontSize: 20,
+    fontSize: 18,
     color: colors.primary,
   },
   title_row: {
