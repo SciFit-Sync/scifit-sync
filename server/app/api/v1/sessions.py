@@ -450,8 +450,13 @@ async def _check_and_create_po_notifications(
             )
         ).scalar_one_or_none()
         user_1rm_kg = float(user_1rm_row) if user_1rm_row is not None else None
-        increment_override = await po_rag.rag_po_increment(goal, category, user_1rm_kg)
-        po_source = "논문 기반" if increment_override is not None else "기본값"
+        try:
+            increment_override = await po_rag.rag_po_increment(goal, category, user_1rm_kg)
+            po_source = "논문 기반" if increment_override is not None else "기본값"
+        except Exception as rag_err:
+            logger.warning("po_rag.rag_po_increment failed for %s, using default: %s", ex_name, rag_err)
+            increment_override = None
+            po_source = "기본값"
 
         result = po.calculate_increase(
             category=category,
@@ -558,7 +563,10 @@ async def finish_session(
     dto.completed_exercises = completed_exercises
     dto.total_calories = round(5.0 * body_weight * dto.duration_minutes / 60) if dto.duration_minutes else None
 
-    await _check_and_create_po_notifications(s, current_user, db)
+    try:
+        await _check_and_create_po_notifications(s, current_user, db)
+    except Exception as po_err:
+        logger.error("PO notification creation failed for session %s: %s", session_id, po_err)
 
     return SuccessResponse(data=dto)
 

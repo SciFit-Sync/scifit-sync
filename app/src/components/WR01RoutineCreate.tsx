@@ -1,7 +1,6 @@
 import {
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   Modal,
@@ -16,7 +15,6 @@ interface RoutineCreateProps {
     goal: string;
     body_parts: string[];
     session_time: string;
-    injury: string;
   }) => void;
   onClose: () => void;
 }
@@ -32,7 +30,6 @@ export default function RoutineCreate({
   const [selected_goal, set_selected_goal] = useState<string>("근력");
   const [selected_parts, set_selected_parts] = useState<string[]>([]);
   const [selected_time, set_selected_time] = useState<string>("30분");
-  const [injury, set_injury] = useState("");
 
   const slide_anim = useRef(new Animated.Value(600)).current;
 
@@ -63,7 +60,6 @@ export default function RoutineCreate({
       goal: selected_goal,
       body_parts: selected_parts,
       session_time: selected_time,
-      injury,
     });
   };
 
@@ -185,17 +181,6 @@ export default function RoutineCreate({
               </View>
             </View>
 
-            {/* 부상 부위 (선택) */}
-            <View style={styles.section}>
-              <Text style={styles.section_title}>부상 부위 (선택)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="부상 부위 입력"
-                placeholderTextColor={colors.border}
-                value={injury}
-                onChangeText={set_injury}
-              />
-            </View>
           </View>
 
           {/* 확인 버튼 */}
@@ -302,16 +287,6 @@ const styles = StyleSheet.create({
   },
   chip_text_active: {
     color: colors.white,
-  },
-  input: {
-    fontFamily: "regular",
-    fontSize: 16,
-    color: colors.primary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    height: 45,
-    paddingHorizontal: 10,
   },
   confirm_button: {
     backgroundColor: colors.primary,
