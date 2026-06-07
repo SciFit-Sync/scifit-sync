@@ -70,13 +70,6 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
-    # Email (SMTP)
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    EMAIL_FROM_NAME: str = "SciFit-Sync"
-
     # Environment — fail-safe: 기본값 production (로컬 개발 시 ENV=development 명시 필요)
     ENV: str = "production"
 
