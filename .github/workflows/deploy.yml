@@ -36,7 +36,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45   # 무거운 reseed 마이그(>10분) 대응 헤드룸
     environment: production
 
     steps:
@@ -109,7 +109,7 @@ jobs:
           TS=$(date -u +%Y%m%dT%H%M%SZ)
           DUMP="prod-backup-${{ github.sha }}-$TS.sql.gz"
           echo "Dumping prod DB → $DUMP (pg_dump via postgres:15 컨테이너로 버전 정합)"
-          docker run --rm -e PGURL="$PROD_DATABASE_URL" postgres:15 \
+          docker run --rm -e PGURL="$PROD_DATABASE_URL" postgres:17 \
             sh -c 'pg_dump --no-owner --no-privileges "$PGURL"' | gzip > "$DUMP"
           SIZE=$(stat -c%s "$DUMP")
           [ "$SIZE" -gt 100 ] || { echo "백업 파일이 비정상(${SIZE}B) — 마이그 중단"; exit 1; }
@@ -130,9 +130,14 @@ jobs:
 
           echo "Migration task: $TASK_ARN"
 
-          aws ecs wait tasks-stopped \
-            --cluster ${{ secrets.ECS_CLUSTER }} \
-            --tasks "$TASK_ARN"
+          # 마이그 태스크 종료 대기 — 무거운 reseed(>10분) 대응: aws ecs wait(고정 ~10분 한계) 대신 자체 폴링(최대 ~25분).
+          STATUS=""
+          for _ in $(seq 1 75); do
+            STATUS=$(aws ecs describe-tasks --cluster ${{ secrets.ECS_CLUSTER }} --tasks "$TASK_ARN" --query 'tasks[0].lastStatus' --output text)
+            [ "$STATUS" = "STOPPED" ] && break
+            sleep 20
+          done
+          [ "$STATUS" = "STOPPED" ] || { echo "Migration task가 시간 내 종료되지 않음 (last status=$STATUS)"; exit 1; }
 
           EXIT_CODE=$(aws ecs describe-tasks \
             --cluster ${{ secrets.ECS_CLUSTER }} \
