@@ -99,6 +99,15 @@ def _strip_tz(dt: datetime) -> datetime:
     return dt.replace(tzinfo=None) if dt.tzinfo else dt
 
 
+def _resolve_finished_at(finished_at: datetime | None, started_at: datetime | None) -> datetime:
+    """클라가 보낸 finished_at을 naive UTC로 정규화. started_at 이하이면 서버 시간으로 대체."""
+    dt = finished_at or datetime.now(timezone.utc)
+    candidate = dt.replace(tzinfo=None)
+    if started_at and candidate <= _strip_tz(started_at):
+        candidate = datetime.now(timezone.utc).replace(tzinfo=None)
+    return candidate
+
+
 def _session_to_dto(
     s: WorkoutLog,
     routine_name: str | None = None,
@@ -502,6 +511,40 @@ async def _check_and_create_po_notifications(
         logger.info("PO notifications created: %d for user %s", len(new_notifications), user.id)
 
 
+async def _build_finish_dto(s: WorkoutLog, user: User, db: AsyncSession) -> SessionData:
+    """완료된 세션의 응답 DTO를 집계 쿼리로 재계산한다. PO를 호출하지 않는다(멱등 200 경로 공용)."""
+    total_sets = int(
+        (
+            await db.execute(select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id))
+        ).scalar_one()
+    )
+    completed_exercises = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(WorkoutLogSet.exercise_id))).where(
+                    WorkoutLogSet.workout_log_id == s.id,
+                    WorkoutLogSet.is_completed.is_(True),
+                )
+            )
+        ).scalar_one()
+    )
+    latest_measurement = (
+        await db.execute(
+            select(UserBodyMeasurement)
+            .where(UserBodyMeasurement.user_id == user.id)
+            .order_by(UserBodyMeasurement.measured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    body_weight = latest_measurement.weight_kg if latest_measurement else 70.0
+
+    dto = _session_to_dto(s)
+    dto.total_sets = total_sets
+    dto.completed_exercises = completed_exercises
+    dto.total_calories = round(5.0 * body_weight * dto.duration_minutes / 60) if dto.duration_minutes else None
+    return dto
+
+
 # ── PATCH /sessions/{id}/finish ───────────────────────────────────────────────
 @router.patch("/{session_id}/finish", response_model=SuccessResponse[SessionData], summary="세션 종료")
 @rate_limit("60/minute")
@@ -516,47 +559,13 @@ async def finish_session(
     if s.status == WorkoutStatus.COMPLETED:
         raise ConflictError(message="이미 종료된 세션입니다.")
 
-    dt = body.finished_at or datetime.now(timezone.utc)
-    candidate = dt.replace(tzinfo=None)
-    # finished_at이 started_at보다 작으면 앱의 타임존 파싱 오류 — 서버 시간으로 대체
-    if s.started_at and candidate <= _strip_tz(s.started_at):
-        candidate = datetime.now(timezone.utc).replace(tzinfo=None)
+    candidate = _resolve_finished_at(body.finished_at, s.started_at)
     s.finished_at = candidate
     s.status = WorkoutStatus.COMPLETED
     await db.commit()
     await db.refresh(s)
 
-    total_sets = int(
-        (
-            await db.execute(select(func.count(WorkoutLogSet.id)).where(WorkoutLogSet.workout_log_id == s.id))
-        ).scalar_one()
-    )
-
-    completed_exercises = int(
-        (
-            await db.execute(
-                select(func.count(func.distinct(WorkoutLogSet.exercise_id))).where(
-                    WorkoutLogSet.workout_log_id == s.id,
-                    WorkoutLogSet.is_completed.is_(True),
-                )
-            )
-        ).scalar_one()
-    )
-
-    latest_measurement = (
-        await db.execute(
-            select(UserBodyMeasurement)
-            .where(UserBodyMeasurement.user_id == current_user.id)
-            .order_by(UserBodyMeasurement.measured_at.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    body_weight = latest_measurement.weight_kg if latest_measurement else 70.0
-
-    dto = _session_to_dto(s)
-    dto.total_sets = total_sets
-    dto.completed_exercises = completed_exercises
-    dto.total_calories = round(5.0 * body_weight * dto.duration_minutes / 60) if dto.duration_minutes else None
+    dto = await _build_finish_dto(s, current_user, db)
 
     await _check_and_create_po_notifications(s, current_user, db)
 
