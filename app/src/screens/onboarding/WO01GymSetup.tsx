@@ -262,32 +262,32 @@ export default function WO01GymSetup() {
                   {gyms.map((gym) => {
                     const is_selected = gym === selected_gym;
                     return (
-                    <TouchableOpacity
-                      key={gym.kakao_place_id || gym.gym_id || gym.name}
-                      style={[
-                        styles.gym_item,
-                        is_selected && styles.gym_item_active,
-                      ]}
-                      onPress={() => set_selected_gym(gym)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.gym_info}>
-                        <Text
-                          style={[
-                            styles.gym_name,
-                            is_selected && styles.gym_name_active,
-                          ]}
-                        >
-                          {gym.name}
-                        </Text>
-                        <Text style={styles.gym_address}>{gym.address}</Text>
-                      </View>
-                      {gym.equipment_count > 0 && (
-                        <Text style={styles.gym_equipment_count}>
-                          기구 {gym.equipment_count}개
-                        </Text>
-                      )}
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        key={gym.kakao_place_id || gym.gym_id || gym.name}
+                        style={[
+                          styles.gym_item,
+                          is_selected && styles.gym_item_active,
+                        ]}
+                        onPress={() => set_selected_gym(gym)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.gym_info}>
+                          <Text
+                            style={[
+                              styles.gym_name,
+                              is_selected && styles.gym_name_active,
+                            ]}
+                          >
+                            {gym.name}
+                          </Text>
+                          <Text style={styles.gym_address}>{gym.address}</Text>
+                        </View>
+                        {gym.equipment_count > 0 && (
+                          <Text style={styles.gym_equipment_count}>
+                            기구 {gym.equipment_count}개
+                          </Text>
+                        )}
+                      </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
@@ -429,8 +429,8 @@ const styles = StyleSheet.create({
   next_button_disabled: { opacity: 0.5 },
   next_button_text: { fontFamily: "medium", fontSize: 16, color: colors.white },
   skip_text: {
-    fontFamily: "regular",
-    fontSize: 14,
+    fontFamily: "medium",
+    fontSize: 16,
     color: colors.primary,
     textAlign: "center",
   },
