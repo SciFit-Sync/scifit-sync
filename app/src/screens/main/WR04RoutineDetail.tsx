@@ -124,6 +124,12 @@ export default function WR04RoutineDetail() {
   const [is_renaming, set_is_renaming] = useState(false);
   const timer_ref = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 운동 스톱워치
+  const [workout_running, set_workout_running] = useState(false);
+  const [live_ms, set_live_ms] = useState(0);
+  const [frozen_ms, set_frozen_ms] = useState(0);
+  const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // 세션 관리
   const session_id_ref = useRef<string | null>(null);
   const session_promise_ref = useRef<Promise<string> | null>(null); // race condition 방지용 in-flight 캐시
@@ -272,10 +278,42 @@ export default function WR04RoutineDetail() {
     };
   }, [is_timer_running]);
 
+  // 운동 스톱워치 — ws_session_started_at 기준 wall-clock (페이지 이탈해도 유지)
+  useEffect(() => {
+    if (!workout_running || !ws_session_started_at) {
+      if (workout_interval_ref.current) clearInterval(workout_interval_ref.current);
+      return;
+    }
+    const calc = () => {
+      set_live_ms(Date.now() - new Date(ws_session_started_at).getTime());
+    };
+    calc();
+    workout_interval_ref.current = setInterval(calc, 1000);
+    return () => {
+      if (workout_interval_ref.current) clearInterval(workout_interval_ref.current);
+    };
+  }, [workout_running, ws_session_started_at]);
+
+  // 세션 복원 시 스톱워치 자동 재개
+  useEffect(() => {
+    if (session_started && ws_session_started_at && !workout_running) {
+      set_live_ms(Date.now() - new Date(ws_session_started_at).getTime());
+      set_workout_running(true);
+    }
+  }, [session_started, ws_session_started_at]);
+
   const format_time = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
+  const format_hms = (ms: number) => {
+    const total = Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
   const toggle_exercise = (exercise_id: string) => {
@@ -691,12 +729,28 @@ export default function WR04RoutineDetail() {
     try {
       set_is_starting(true);
       await ensure_session();
+      set_workout_running(true);
     } catch {
       Alert.alert("오류", "운동을 시작하지 못했습니다. 다시 시도해주세요.");
     } finally {
       set_is_starting(false);
     }
   };
+
+  /** 스톱워치 일시정지 */
+  const handle_workout_pause = () => {
+    set_frozen_ms(live_ms);
+    set_workout_running(false);
+  };
+
+  /** 스톱워치 버튼 탭 핸들러 */
+  const handle_workout_btn = () => {
+    if (!session_started) return handle_start();
+    if (workout_running) return handle_workout_pause();
+    return handle_finish();
+  };
+
+  const display_ms = workout_running ? live_ms : frozen_ms;
 
   /** 운동 완료 처리 (실제 로직) */
   const do_finish = async () => {
@@ -719,7 +773,10 @@ export default function WR04RoutineDetail() {
         session_id_ref.current,
         finished_at ? { finished_at } : undefined,
       );
-      ws_clear(); // 스토어 초기화 — 완료 후 재진입 시 깨끗하게 시작
+      ws_clear();
+      set_workout_running(false);
+      set_live_ms(0);
+      set_frozen_ms(0);
       query_client.invalidateQueries({ queryKey: ["sessions"] });
       query_client.invalidateQueries({ queryKey: ["session-stats"] });
       query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
@@ -784,53 +841,57 @@ export default function WR04RoutineDetail() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        style={styles.flex}
-      >
-        <View style={styles.card}>
-          {/* 루틴 제목 + 더보기(삭제) */}
-          <View style={styles.title_row}>
-            <View style={styles.title_side} />
-            <Text style={styles.routine_title}>
-              {detail?.name ?? "루틴 상세"}
-            </Text>
-            <TouchableOpacity
-              onPress={handle_more_press}
-              disabled={is_deleting || is_renaming}
-              style={styles.title_side}
-              activeOpacity={0.7}
-            >
-              <Octicons
-                name="kebab-horizontal"
-                size={16}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
+      {/* 고정 상단 (타이틀 + 스톱워치) */}
+      <View style={styles.fixed_top}>
+        {/* 루틴 제목 + 더보기 */}
+        <View style={styles.title_row}>
+          <View style={styles.title_side} />
+          <Text style={styles.routine_title}>
+            {detail?.name ?? "루틴 상세"}
+          </Text>
+          <TouchableOpacity
+            onPress={handle_more_press}
+            disabled={is_deleting || is_renaming}
+            style={styles.title_side}
+            activeOpacity={0.7}
+          >
+            <Octicons name="kebab-horizontal" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+        {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
+
+        {/* 운동 스톱워치 카드 */}
+        <TouchableOpacity
+          style={styles.workout_timer_card}
+          onPress={handle_workout_btn}
+          disabled={is_starting || is_finishing}
+          activeOpacity={0.85}
+        >
+          <View style={[
+            styles.workout_btn_pill,
+            (!session_started || !workout_running) && { paddingHorizontal: 16 },
+          ]}>
+            {is_starting || is_finishing ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : !session_started ? (
+              <Text style={styles.workout_btn_text}>운동 시작</Text>
+            ) : workout_running ? (
+              <Octicons name="pause" size={20} color={colors.white} />
+            ) : (
+              <Text style={styles.workout_btn_text}>운동 종료</Text>
+            )}
           </View>
-          {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
+          <Text style={styles.workout_timer_text}>{format_hms(display_ms)}</Text>
+        </TouchableOpacity>
+      </View>
 
-          {/* 운동 시작 버튼 */}
-          {!session_started && (
-            <TouchableOpacity
-              style={[styles.start_btn, is_starting && { opacity: 0.6 }]}
-              onPress={handle_start}
-              disabled={is_starting}
-              activeOpacity={0.8}
-            >
-              {is_starting ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <>
-                  <Octicons name="play" size={14} color={colors.white} />
-                  <Text style={styles.start_btn_text}>운동 시작</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* 운동 목록 */}
+      {/* 운동 목록만 스크롤 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={[styles.flex, styles.exercises_scroll_outer]}
+        contentContainerStyle={styles.exercises_scroll}
+        keyboardShouldPersistTaps="handled"
+      >
           {exercises.map((exercise) => {
             const is_editing = editing_exercise_id === exercise.id;
             return (
@@ -1117,23 +1178,6 @@ export default function WR04RoutineDetail() {
               </View>
             );
           })}
-        </View>
-
-        {/* 운동 완료 버튼 — 첫 세트 체크 후 표시 */}
-        {session_started && (
-          <TouchableOpacity
-            style={[styles.finish_btn, is_finishing && { opacity: 0.6 }]}
-            onPress={handle_finish}
-            disabled={is_finishing}
-            activeOpacity={0.8}
-          >
-            {is_finishing ? (
-              <ActivityIndicator size="small" color={colors.white} />
-            ) : (
-              <Text style={styles.finish_btn_text}>운동 완료</Text>
-            )}
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       {/* 이름 수정 모달 */}
@@ -1488,6 +1532,57 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     gap: 16,
+  },
+  // 고정 상단 (타이틀 + 스톱워치)
+  fixed_top: {
+    backgroundColor: colors.white,
+    marginHorizontal: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  exercises_scroll_outer: {
+    marginHorizontal: 24,
+    backgroundColor: colors.white,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  exercises_scroll: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  workout_timer_card: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 16,
+  },
+  workout_btn_pill: {
+    backgroundColor: colors.primary,
+    borderRadius: 100,
+    height: 40,
+    minWidth: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workout_btn_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.white,
+  },
+  workout_timer_text: {
+    fontFamily: "semibold",
+    fontSize: 24,
+    color: colors.primary,
   },
   title_row: {
     flexDirection: "row",
