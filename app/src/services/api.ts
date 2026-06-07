@@ -3,6 +3,24 @@ import { useAuthStore } from '../stores/authStore';
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const REFRESH_PATH = '/api/v1/auth/refresh';
 
+/**
+ * apiFetch가 던지는 타입드 에러.
+ * 호출자는 status(409 등)/code/aborted로 상태충돌·abort·네트워크를 구분해
+ * 멱등 재시도 등 복구 분기를 할 수 있다.
+ */
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  aborted?: boolean;
+  constructor(message: string, opts: { status: number; code?: string; aborted?: boolean }) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = opts.status;
+    this.code = opts.code;
+    this.aborted = opts.aborted;
+  }
+}
+
 // 동시 다발 401에서 refresh가 중복 호출되지 않도록 single-flight로 직렬화
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -81,10 +99,11 @@ export async function apiFetch<T>(
     json = await res.json();
   } catch {
     if (res.ok) return undefined as T; // 본문 없는 성공 응답(예: 204)
-    throw new Error(
+    throw new ApiError(
       res.status >= 500
         ? '서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.'
         : `요청을 처리할 수 없습니다. (${res.status})`,
+      { status: res.status },
     );
   }
 
@@ -92,7 +111,10 @@ export async function apiFetch<T>(
     // Pydantic validation 에러는 details.errors 안에 구체적인 내용이 있음
     const detail = json?.error?.details?.errors?.[0];
     const detail_msg = detail?.ctx?.error ?? detail?.msg;
-    throw new Error(detail_msg ?? json?.error?.message ?? '오류가 발생했습니다.');
+    throw new ApiError(detail_msg ?? json?.error?.message ?? '오류가 발생했습니다.', {
+      status: res.status,
+      code: json?.error?.code,
+    });
   }
   return json.data as T;
 }
