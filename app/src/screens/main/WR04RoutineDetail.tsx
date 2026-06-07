@@ -175,6 +175,7 @@ export default function WR04RoutineDetail() {
   const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
   const ws_is_timer_paused = useWorkoutSessionStore((s) => s.is_timer_paused);
+  const ws_frozen_timer_ms = useWorkoutSessionStore((s) => s.frozen_timer_ms);
   const ws_set_timer_paused = useWorkoutSessionStore((s) => s.set_timer_paused);
 
   // 이번 마운트의 진입 시각 — 언마운트 시 누적 체류 시간에 합산
@@ -328,12 +329,8 @@ export default function WR04RoutineDetail() {
   useEffect(() => {
     if (session_started && ws_session_started_at && !workout_running) {
       if (ws_is_timer_paused) {
-        // 일시정지 상태로 복귀 — frozen_ms만 복원, 타이머 시작 안 함
-        const elapsed =
-          Date.now() -
-          new Date(ws_session_started_at).getTime() -
-          pause_offset_ms;
-        set_frozen_ms(elapsed);
+        // 일시정지 상태로 복귀 — 스토어에 저장된 정확한 frozen값 복원
+        set_frozen_ms(ws_frozen_timer_ms);
       } else {
         set_live_ms(
           Date.now() -
@@ -810,7 +807,7 @@ export default function WR04RoutineDetail() {
     pause_started_at_ref.current = Date.now();
     set_frozen_ms(live_ms);
     set_workout_running(false);
-    ws_set_timer_paused(true);
+    ws_set_timer_paused(true, live_ms); // frozen_ms를 스토어에 영속화
   };
 
   /** 스톱워치 재개 */
