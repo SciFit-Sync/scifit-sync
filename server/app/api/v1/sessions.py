@@ -303,13 +303,21 @@ async def log_set(
     )
 
 
-async def _check_and_create_po_notifications(
+async def _apply_po(
     session: WorkoutLog,
     user: User,
     db: AsyncSession,
-) -> None:
+) -> set[tuple[str, str]]:
+    """PO 부수효과를 적용한다 — rex 중량/세트 bump + PO 알림 스테이징.
+
+    캐시-읽기 전용 증가량(`po_increment_cached`)만 사용하며 동기 네트워크(ChromaDB/LLM)를
+    절대 타지 않는다. `db.commit()`을 호출하지 않는다(커밋은 호출부 finish_session 단일 지점).
+    캐시 미스였던 `(goal, load_mode)` 집합(`warm_keys`)을 반환해 호출부가 백그라운드 워밍하게 한다.
+    """
+    warm_keys: set[tuple[str, str]] = set()
+
     if not session.routine_day_id:
-        return
+        return warm_keys
 
     goal_row = (
         await db.execute(
@@ -320,7 +328,7 @@ async def _check_and_create_po_notifications(
     ).scalar_one_or_none()
 
     if not goal_row or not isinstance(goal_row, list):
-        return
+        return warm_keys
     # TODO(D-MX): 복수 목표 시 PO 계산 기준 미결정 → 현재는 첫 번째 목표만 사용
     goal = goal_row[0]
 
@@ -343,7 +351,7 @@ async def _check_and_create_po_notifications(
     ).all()
 
     if not set_rows:
-        return
+        return warm_keys
 
     rex_ids = [row[0] for row in set_rows]
 
@@ -409,6 +417,22 @@ async def _check_and_create_po_notifications(
             e.id: e for e in (await db.execute(select(Equipment).where(Equipment.id.in_(equip_ids)))).scalars().all()
         }
 
+    # ── 미확인 PO 알림 dedup 집합 — 루프 진입 전 1회 일괄 조회 ───────────────
+    # 서로 다른 세션을 순차 종료할 때 동일 rex에 대한 중복 PO 알림 생성을 차단한다.
+    existing_unread = {
+        str(r[0])
+        for r in (
+            await db.execute(
+                select(Notification.data_json["routine_exercise_id"].astext).where(
+                    Notification.user_id == user.id,
+                    Notification.type == NotificationType.PO_SUGGESTION,
+                    Notification.is_read.is_(False),
+                )
+            )
+        ).all()
+        if r[0] is not None
+    }
+
     # ── PO 체크 및 알림 생성 ─────────────────────────────────────────────────
     new_notifications: list[Notification] = []
 
@@ -459,7 +483,9 @@ async def _check_and_create_po_notifications(
             )
         ).scalar_one_or_none()
         user_1rm_kg = float(user_1rm_row) if user_1rm_row is not None else None
-        increment_override = await po_rag.rag_po_increment(goal, category, user_1rm_kg)
+        increment_override, cache_warm = po_rag.po_increment_cached(goal, category, user_1rm_kg)
+        if not cache_warm:
+            warm_keys.add((goal, category))
         po_source = "논문 기반" if increment_override is not None else "기본값"
 
         result = po.calculate_increase(
@@ -471,9 +497,14 @@ async def _check_and_create_po_notifications(
             increment_override=increment_override,
         )
 
-        # 루틴 중량/세트 즉시 반영 — 다음 루틴 접속 시 업데이트된 값이 보임
+        # 루틴 중량/세트 즉시 반영 — 다음 루틴 접속 시 업데이트된 값이 보임.
+        # bump는 dedup과 무관하게 항상 적용(다음 세션 정확성 보장).
         rex.weight_kg = result["new_weight"]
         rex.sets = result["new_sets"]
+
+        # 미확인 PO 알림이 이미 있는 rex는 중복 알림 생성 생략(dedup).
+        if str(rex_id) in existing_unread:
+            continue
 
         if result["overflow"] and result["message"]:
             new_notifications.append(
@@ -505,10 +536,12 @@ async def _check_and_create_po_notifications(
             )
 
     if new_notifications:
+        # 커밋은 호출부(finish_session)의 단일 트랜잭션에서 수행 — 여기서는 스테이징만.
+        # rex bump(ORM dirty)와 알림을 호출부 커밋에 함께 묶어 원자성을 보장한다.
         db.add_all(new_notifications)
-        # 알림 생성은 세션 완료와 별도 트랜잭션으로 분리 — 알림 실패 시에도 세션은 이미 완료 상태
-        await db.commit()
-        logger.info("PO notifications created: %d for user %s", len(new_notifications), user.id)
+        logger.info("PO notifications staged: %d for user %s", len(new_notifications), user.id)
+
+    return warm_keys
 
 
 async def _build_finish_dto(s: WorkoutLog, user: User, db: AsyncSession) -> SessionData:
@@ -567,7 +600,10 @@ async def finish_session(
 
     dto = await _build_finish_dto(s, current_user, db)
 
-    await _check_and_create_po_notifications(s, current_user, db)
+    # _apply_po는 commit하지 않으므로 호출부에서 단일 커밋(rex bump + 알림 스테이징).
+    # warm_keys 백그라운드 워밍은 Task 5에서 BackgroundTasks로 연결.
+    await _apply_po(s, current_user, db)
+    await db.commit()
 
     return SuccessResponse(data=dto)
 
