@@ -128,7 +128,9 @@ export default function WR04RoutineDetail() {
   const [workout_running, set_workout_running] = useState(false);
   const [live_ms, set_live_ms] = useState(0);
   const [frozen_ms, set_frozen_ms] = useState(0);
-  const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
 
   // 세션 관리
   const session_id_ref = useRef<string | null>(null);
@@ -143,7 +145,9 @@ export default function WR04RoutineDetail() {
   const ws_toggle_set = useWorkoutSessionStore((s) => s.toggle_set);
   const ws_clear = useWorkoutSessionStore((s) => s.clear);
   const ws_add_page_elapsed = useWorkoutSessionStore((s) => s.add_page_elapsed);
-  const ws_set_detail_page_enter = useWorkoutSessionStore((s) => s.set_detail_page_enter);
+  const ws_set_detail_page_enter = useWorkoutSessionStore(
+    (s) => s.set_detail_page_enter,
+  );
   const ws_routine_id = useWorkoutSessionStore((s) => s.routine_id);
   const ws_session_id = useWorkoutSessionStore((s) => s.session_id);
   const ws_session_started_at = useWorkoutSessionStore(
@@ -281,7 +285,8 @@ export default function WR04RoutineDetail() {
   // 운동 스톱워치 — ws_session_started_at 기준 wall-clock (페이지 이탈해도 유지)
   useEffect(() => {
     if (!workout_running || !ws_session_started_at) {
-      if (workout_interval_ref.current) clearInterval(workout_interval_ref.current);
+      if (workout_interval_ref.current)
+        clearInterval(workout_interval_ref.current);
       return;
     }
     const calc = () => {
@@ -290,7 +295,8 @@ export default function WR04RoutineDetail() {
     calc();
     workout_interval_ref.current = setInterval(calc, 1000);
     return () => {
-      if (workout_interval_ref.current) clearInterval(workout_interval_ref.current);
+      if (workout_interval_ref.current)
+        clearInterval(workout_interval_ref.current);
     };
   }, [workout_running, ws_session_started_at]);
 
@@ -380,7 +386,9 @@ export default function WR04RoutineDetail() {
             query_client.invalidateQueries({ queryKey: ["session-stats"] });
             query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
             query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-            query_client.invalidateQueries({ queryKey: ["notifications", token] });
+            query_client.invalidateQueries({
+              queryKey: ["notifications", token],
+            });
           })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
@@ -684,7 +692,9 @@ export default function WR04RoutineDetail() {
         if (routine_id) {
           // 서버가 naive UTC("2026-06-06T09:30:00")를 내려주므로 Z를 붙여 UTC로 파싱
           // Z 없이 파싱하면 브라우저가 KST로 해석해 9h 빠른 값이 되어 duration이 0이 됨
-          const started_at_utc = data.started_at.endsWith("Z") ? data.started_at : data.started_at + "Z";
+          const started_at_utc = data.started_at.endsWith("Z")
+            ? data.started_at
+            : data.started_at + "Z";
           ws_set_session(routine_id, data.session_id, started_at_utc);
         }
         return data.session_id;
@@ -827,7 +837,6 @@ export default function WR04RoutineDetail() {
     );
   }
 
-
   return (
     <View style={styles.container}>
       <SafeAreaView edges={["top"]} style={styles.safe_top} />
@@ -855,34 +864,62 @@ export default function WR04RoutineDetail() {
             style={styles.title_side}
             activeOpacity={0.7}
           >
-            <Octicons name="kebab-horizontal" size={16} color={colors.primary} />
+            <Octicons
+              name="kebab-horizontal"
+              size={16}
+              color={colors.primary}
+            />
           </TouchableOpacity>
         </View>
         {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
 
         {/* 운동 스톱워치 카드 */}
-        <TouchableOpacity
-          style={styles.workout_timer_card}
-          onPress={handle_workout_btn}
-          disabled={is_starting || is_finishing}
-          activeOpacity={0.85}
-        >
-          <View style={[
-            styles.workout_btn_pill,
-            (!session_started || !workout_running) && { paddingHorizontal: 16 },
-          ]}>
-            {is_starting || is_finishing ? (
+        <View style={styles.workout_timer_card}>
+          {/* 왼쪽: 운동 시작 / 일시정지 / 재생 */}
+          <TouchableOpacity
+            style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+            onPress={
+              !session_started
+                ? handle_start
+                : workout_running
+                  ? handle_workout_pause
+                  : () => set_workout_running(true)
+            }
+            disabled={is_starting}
+            activeOpacity={0.85}
+          >
+            {is_starting ? (
               <ActivityIndicator size="small" color={colors.white} />
             ) : !session_started ? (
               <Text style={styles.workout_btn_text}>운동 시작</Text>
             ) : workout_running ? (
               <Octicons name="pause" size={20} color={colors.white} />
             ) : (
-              <Text style={styles.workout_btn_text}>운동 종료</Text>
+              <Octicons name="play" size={20} color={colors.white} />
             )}
-          </View>
-          <Text style={styles.workout_timer_text}>{format_hms(display_ms)}</Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
+
+          {/* 타이머 */}
+          <Text style={[styles.workout_timer_text, { flex: 1 }]}>
+            {format_hms(display_ms)}
+          </Text>
+
+          {/* 운동 종료 버튼 (세션 시작 후에만) */}
+          {session_started && (
+            <TouchableOpacity
+              style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+              onPress={handle_finish}
+              disabled={is_finishing}
+              activeOpacity={0.85}
+            >
+              {is_finishing ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.workout_btn_text}>운동 종료</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* 운동 목록만 스크롤 */}
@@ -892,292 +929,289 @@ export default function WR04RoutineDetail() {
         contentContainerStyle={styles.exercises_scroll}
         keyboardShouldPersistTaps="handled"
       >
-          {exercises.map((exercise) => {
-            const is_editing = editing_exercise_id === exercise.id;
-            return (
-              <View
-                key={exercise.id}
-                style={[
-                  styles.exercise_card,
-                  exercise.is_expanded && styles.exercise_card_expanded,
-                ]}
+        {exercises.map((exercise) => {
+          const is_editing = editing_exercise_id === exercise.id;
+          return (
+            <View
+              key={exercise.id}
+              style={[
+                styles.exercise_card,
+                exercise.is_expanded && styles.exercise_card_expanded,
+              ]}
+            >
+              {/* 운동 헤더 */}
+              <TouchableOpacity
+                style={styles.exercise_header}
+                onPress={() => toggle_exercise(exercise.id)}
+                activeOpacity={0.8}
               >
-                {/* 운동 헤더 */}
-                <TouchableOpacity
-                  style={styles.exercise_header}
-                  onPress={() => toggle_exercise(exercise.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.exercise_info}>
-                    <Text style={styles.exercise_name}>{exercise.name}</Text>
-                    {exercise.equipment_name && (
-                      <Text style={styles.equipment_label}>
-                        {exercise.equipment_name}
+                <View style={styles.exercise_info}>
+                  <Text style={styles.exercise_name}>{exercise.name}</Text>
+                  {exercise.equipment_name && (
+                    <Text style={styles.equipment_label}>
+                      {exercise.equipment_name}
+                    </Text>
+                  )}
+                  <Text style={styles.exercise_sub}>
+                    세트 {exercise.sets.filter((s) => s.is_done).length}/
+                    {exercise.sets.length}회
+                  </Text>
+                </View>
+                <Octicons
+                  name={exercise.is_expanded ? "chevron-down" : "chevron-right"}
+                  size={20}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+
+              {/* 펼친 내용 */}
+              {exercise.is_expanded && (
+                <View style={styles.expanded_content}>
+                  {/* 운동 변경 / TIPS 버튼 */}
+                  <View style={styles.action_row}>
+                    <TouchableOpacity
+                      style={styles.action_button}
+                      activeOpacity={0.8}
+                      onPress={() => handle_replace_press(exercise.id)}
+                    >
+                      <Text style={styles.action_text}>운동 변경</Text>
+                      <Octicons
+                        name="arrow-switch"
+                        size={14}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.action_button}
+                      activeOpacity={0.8}
+                      onPress={() => handle_tips_press(exercise.id)}
+                    >
+                      <Text style={styles.action_text}>TIPS</Text>
+                      <Octicons
+                        name="light-bulb"
+                        size={14}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 그래픽 영상 */}
+                  {(() => {
+                    // gif_url은 백엔드 프록시 URL(키 불필요). expo-image로 release GIF 디코딩.
+                    return exercise.gif_url ? (
+                      <ExpoImage
+                        source={{ uri: exercise.gif_url }}
+                        style={styles.exercise_gif}
+                        contentFit="contain"
+                      />
+                    ) : (
+                      <View style={styles.image_placeholder}>
+                        <Octicons
+                          name="play"
+                          size={32}
+                          color={colors.bluegray}
+                        />
+                      </View>
+                    );
+                  })()}
+
+                  {/* 근육 활성화 */}
+                  <View style={styles.muscle_section}>
+                    <Text style={styles.section_label}>근육 활성화</Text>
+                    {exercise.muscles.length > 0 ? (
+                      <View style={styles.muscle_row}>
+                        {exercise.muscles.map((muscle) => (
+                          <View key={muscle.name} style={styles.muscle_card}>
+                            <Text style={styles.muscle_percent}>
+                              {muscle.percentage}%
+                            </Text>
+                            <Text style={styles.muscle_name}>
+                              {muscle.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.muscle_empty}>
+                        <Text style={styles.muscle_empty_text}>
+                          근육 활성화 데이터 준비 중
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* 세트 섹션 */}
+                  <View style={styles.sets_section}>
+                    {/* 권장 범위 힌트 */}
+                    {(exercise.reps_min != null ||
+                      exercise.reps_max != null) && (
+                      <Text style={styles.recommended_hint}>
+                        권장{" "}
+                        {exercise.reps_min != null && exercise.reps_max != null
+                          ? `${exercise.reps_min}~${exercise.reps_max}회`
+                          : exercise.reps_max != null
+                            ? `${exercise.reps_max}회`
+                            : `${exercise.reps_min}회`}
                       </Text>
                     )}
-                    <Text style={styles.exercise_sub}>
-                      세트 {exercise.sets.filter((s) => s.is_done).length}/
-                      {exercise.sets.length}회
-                    </Text>
-                  </View>
-                  <Octicons
-                    name={
-                      exercise.is_expanded ? "chevron-down" : "chevron-right"
-                    }
-                    size={20}
-                    color={colors.primary}
-                  />
-                </TouchableOpacity>
 
-                {/* 펼친 내용 */}
-                {exercise.is_expanded && (
-                  <View style={styles.expanded_content}>
-                    {/* 운동 변경 / TIPS 버튼 */}
-                    <View style={styles.action_row}>
-                      <TouchableOpacity
-                        style={styles.action_button}
-                        activeOpacity={0.8}
-                        onPress={() => handle_replace_press(exercise.id)}
-                      >
-                        <Text style={styles.action_text}>운동 변경</Text>
-                        <Octicons
-                          name="arrow-switch"
-                          size={14}
-                          color={colors.primary}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.action_button}
-                        activeOpacity={0.8}
-                        onPress={() => handle_tips_press(exercise.id)}
-                      >
-                        <Text style={styles.action_text}>TIPS</Text>
-                        <Octicons
-                          name="light-bulb"
-                          size={14}
-                          color={colors.primary}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* 그래픽 영상 */}
-                    {(() => {
-                      // gif_url은 백엔드 프록시 URL(키 불필요). expo-image로 release GIF 디코딩.
-                      return exercise.gif_url ? (
-                        <ExpoImage
-                          source={{ uri: exercise.gif_url }}
-                          style={styles.exercise_gif}
-                          contentFit="contain"
-                        />
-                      ) : (
-                        <View style={styles.image_placeholder}>
+                    {/* 세트 헤더 */}
+                    <View style={styles.sets_header}>
+                      <View style={styles.sets_title_row}>
+                        <Text style={styles.section_label}>세트</Text>
+                        <TouchableOpacity
+                          style={styles.set_count_button}
+                          onPress={() => remove_set(exercise.id)}
+                          activeOpacity={0.8}
+                        >
                           <Octicons
-                            name="play"
-                            size={32}
-                            color={colors.bluegray}
+                            name="dash"
+                            size={14}
+                            color={colors.primary}
                           />
-                        </View>
-                      );
-                    })()}
-
-                    {/* 근육 활성화 */}
-                    <View style={styles.muscle_section}>
-                      <Text style={styles.section_label}>근육 활성화</Text>
-                      {exercise.muscles.length > 0 ? (
-                        <View style={styles.muscle_row}>
-                          {exercise.muscles.map((muscle) => (
-                            <View key={muscle.name} style={styles.muscle_card}>
-                              <Text style={styles.muscle_percent}>
-                                {muscle.percentage}%
-                              </Text>
-                              <Text style={styles.muscle_name}>
-                                {muscle.name}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      ) : (
-                        <View style={styles.muscle_empty}>
-                          <Text style={styles.muscle_empty_text}>
-                            근육 활성화 데이터 준비 중
-                          </Text>
-                        </View>
-                      )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.set_count_button}
+                          onPress={() => add_set(exercise.id)}
+                          activeOpacity={0.8}
+                        >
+                          <Octicons
+                            name="plus"
+                            size={14}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.small_button,
+                          is_editing && styles.small_button_active,
+                        ]}
+                        onPress={() => toggle_edit(exercise.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.small_button_text,
+                            is_editing && styles.small_button_text_active,
+                          ]}
+                        >
+                          {is_editing ? "완료" : "수정"}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
-                    {/* 세트 섹션 */}
-                    <View style={styles.sets_section}>
-                      {/* 권장 범위 힌트 */}
-                      {(exercise.reps_min != null ||
-                        exercise.reps_max != null) && (
-                        <Text style={styles.recommended_hint}>
-                          권장{" "}
-                          {exercise.reps_min != null &&
-                          exercise.reps_max != null
-                            ? `${exercise.reps_min}~${exercise.reps_max}회`
-                            : exercise.reps_max != null
-                              ? `${exercise.reps_max}회`
-                              : `${exercise.reps_min}회`}
-                        </Text>
-                      )}
+                    {/* 세트 행들 */}
+                    {exercise.sets.map((set, idx) => (
+                      <View key={set.id} style={styles.set_row}>
+                        {/* 세트 번호 */}
+                        <Text style={styles.set_number}>{idx + 1}</Text>
 
-                      {/* 세트 헤더 */}
-                      <View style={styles.sets_header}>
-                        <View style={styles.sets_title_row}>
-                          <Text style={styles.section_label}>세트</Text>
-                          <TouchableOpacity
-                            style={styles.set_count_button}
-                            onPress={() => remove_set(exercise.id)}
-                            activeOpacity={0.8}
-                          >
-                            <Octicons
-                              name="dash"
-                              size={14}
-                              color={colors.primary}
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.set_count_button}
-                            onPress={() => add_set(exercise.id)}
-                            activeOpacity={0.8}
-                          >
-                            <Octicons
-                              name="plus"
-                              size={14}
-                              color={colors.primary}
-                            />
-                          </TouchableOpacity>
+                        {/* 중량/횟수 박스 */}
+                        <View style={styles.set_inputs}>
+                          <View style={styles.set_input_group}>
+                            <Text style={styles.set_input_label}>중량</Text>
+                            {is_editing ? (
+                              <TextInput
+                                style={styles.set_input_edit}
+                                value={set.weight}
+                                onChangeText={(v) =>
+                                  update_set(exercise.id, set.id, "weight", v)
+                                }
+                                keyboardType="numeric"
+                                selectTextOnFocus
+                              />
+                            ) : (
+                              <Text
+                                style={[
+                                  styles.set_input_value,
+                                  !set.weight && styles.set_input_placeholder,
+                                ]}
+                              >
+                                {set.weight || "-"}
+                              </Text>
+                            )}
+                            <Text style={styles.set_input_unit}>kg</Text>
+                          </View>
+                          <View style={styles.set_input_group}>
+                            <Text style={styles.set_input_label}>횟수</Text>
+                            {is_editing ? (
+                              <TextInput
+                                style={styles.set_input_edit}
+                                value={set.reps}
+                                onChangeText={(v) =>
+                                  update_set(exercise.id, set.id, "reps", v)
+                                }
+                                keyboardType="numeric"
+                                selectTextOnFocus
+                              />
+                            ) : (
+                              <Text style={styles.set_input_value}>
+                                {set.reps}
+                              </Text>
+                            )}
+                            <Text style={styles.set_input_unit}>회</Text>
+                          </View>
                         </View>
+
+                        {/* 체크 버튼 */}
                         <TouchableOpacity
                           style={[
-                            styles.small_button,
-                            is_editing && styles.small_button_active,
+                            styles.check_button,
+                            set.is_done && styles.check_button_done,
                           ]}
-                          onPress={() => toggle_edit(exercise.id)}
-                          activeOpacity={0.8}
+                          onPress={() => toggle_set_done(exercise.id, set.id)}
+                          activeOpacity={0.7}
                         >
-                          <Text
-                            style={[
-                              styles.small_button_text,
-                              is_editing && styles.small_button_text_active,
-                            ]}
-                          >
-                            {is_editing ? "완료" : "수정"}
-                          </Text>
+                          <Octicons
+                            name="check"
+                            size={16}
+                            color={set.is_done ? colors.white : colors.border}
+                          />
                         </TouchableOpacity>
                       </View>
+                    ))}
+                  </View>
 
-                      {/* 세트 행들 */}
-                      {exercise.sets.map((set, idx) => (
-                        <View key={set.id} style={styles.set_row}>
-                          {/* 세트 번호 */}
-                          <Text style={styles.set_number}>{idx + 1}</Text>
-
-                          {/* 중량/횟수 박스 */}
-                          <View style={styles.set_inputs}>
-                            <View style={styles.set_input_group}>
-                              <Text style={styles.set_input_label}>중량</Text>
-                              {is_editing ? (
-                                <TextInput
-                                  style={styles.set_input_edit}
-                                  value={set.weight}
-                                  onChangeText={(v) =>
-                                    update_set(exercise.id, set.id, "weight", v)
-                                  }
-                                  keyboardType="numeric"
-                                  selectTextOnFocus
-                                />
-                              ) : (
-                                <Text
-                                  style={[
-                                    styles.set_input_value,
-                                    !set.weight && styles.set_input_placeholder,
-                                  ]}
-                                >
-                                  {set.weight || "-"}
-                                </Text>
-                              )}
-                              <Text style={styles.set_input_unit}>kg</Text>
-                            </View>
-                            <View style={styles.set_input_group}>
-                              <Text style={styles.set_input_label}>횟수</Text>
-                              {is_editing ? (
-                                <TextInput
-                                  style={styles.set_input_edit}
-                                  value={set.reps}
-                                  onChangeText={(v) =>
-                                    update_set(exercise.id, set.id, "reps", v)
-                                  }
-                                  keyboardType="numeric"
-                                  selectTextOnFocus
-                                />
-                              ) : (
-                                <Text style={styles.set_input_value}>
-                                  {set.reps}
-                                </Text>
-                              )}
-                              <Text style={styles.set_input_unit}>회</Text>
-                            </View>
-                          </View>
-
-                          {/* 체크 버튼 */}
-                          <TouchableOpacity
-                            style={[
-                              styles.check_button,
-                              set.is_done && styles.check_button_done,
-                            ]}
-                            onPress={() => toggle_set_done(exercise.id, set.id)}
-                            activeOpacity={0.7}
-                          >
-                            <Octicons
-                              name="check"
-                              size={16}
-                              color={set.is_done ? colors.white : colors.border}
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* 휴식 타이머 */}
-                    <View style={styles.timer_section}>
-                      <View style={styles.timer_section_header}>
-                        <View>
-                          <Text style={styles.section_label}>휴식 타이머</Text>
-                          <Text style={styles.recommended_hint}>
-                            권장 {exercise.rest_seconds}초
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          style={styles.small_button}
-                          onPress={() => handle_timer_edit(exercise.id)}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.small_button_text}>수정</Text>
-                        </TouchableOpacity>
+                  {/* 휴식 타이머 */}
+                  <View style={styles.timer_section}>
+                    <View style={styles.timer_section_header}>
+                      <View>
+                        <Text style={styles.section_label}>휴식 타이머</Text>
+                        <Text style={styles.recommended_hint}>
+                          권장 {exercise.rest_seconds}초
+                        </Text>
                       </View>
                       <TouchableOpacity
-                        style={styles.timer_card}
-                        onPress={() => set_is_timer_running((prev) => !prev)}
+                        style={styles.small_button}
+                        onPress={() => handle_timer_edit(exercise.id)}
                         activeOpacity={0.8}
                       >
-                        <View style={styles.timer_play_button}>
-                          <Octicons
-                            name={is_timer_running ? "pause" : "play"}
-                            size={20}
-                            color={colors.white}
-                          />
-                        </View>
-                        <Text style={styles.timer_time}>
-                          {format_time(timer)}
-                        </Text>
+                        <Text style={styles.small_button_text}>수정</Text>
                       </TouchableOpacity>
                     </View>
+                    <TouchableOpacity
+                      style={styles.timer_card}
+                      onPress={() => set_is_timer_running((prev) => !prev)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.timer_play_button}>
+                        <Octicons
+                          name={is_timer_running ? "pause" : "play"}
+                          size={20}
+                          color={colors.white}
+                        />
+                      </View>
+                      <Text style={styles.timer_time}>
+                        {format_time(timer)}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                )}
-              </View>
-            );
-          })}
+                </View>
+              )}
+            </View>
+          );
+        })}
       </ScrollView>
 
       {/* 이름 수정 모달 */}
@@ -1542,7 +1576,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 12,
-    gap: 10,
+    gap: 16,
   },
   exercises_scroll_outer: {
     marginHorizontal: 24,
@@ -1559,18 +1593,18 @@ const styles = StyleSheet.create({
   workout_timer_card: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 100,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     gap: 16,
   },
   workout_btn_pill: {
     backgroundColor: colors.primary,
     borderRadius: 100,
-    height: 40,
-    minWidth: 40,
+    height: 36,
+    width: 92,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1607,7 +1641,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: -8,
   },
-
 
   // 운동 카드
   exercise_card: {
@@ -1870,7 +1903,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1.5,
     borderColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 16,
@@ -1878,7 +1911,7 @@ const styles = StyleSheet.create({
   timer_play_button: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 100,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
