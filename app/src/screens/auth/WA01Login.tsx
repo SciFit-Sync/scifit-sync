@@ -64,10 +64,6 @@ export default function WA01Login() {
     }
   };
 
-  const handleFindPassword = () => {
-    if (__DEV__) console.log("비밀번호 찾기");
-  };
-
   const handleSignup = () => {
     navigation.navigate("WA02Signup" as never);
   };
@@ -122,11 +118,8 @@ export default function WA01Login() {
               </Text>
             </TouchableOpacity>
 
-            {/* 비밀번호 찾기 / 회원가입 */}
+            {/* 회원가입 */}
             <View style={styles.linkContainer}>
-              <TouchableOpacity onPress={handleFindPassword}>
-                <Text style={styles.linkText}>비밀번호 찾기</Text>
-              </TouchableOpacity>
               <TouchableOpacity onPress={handleSignup}>
                 <Text style={styles.linkText}>회원가입</Text>
               </TouchableOpacity>
