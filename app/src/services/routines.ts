@@ -63,7 +63,6 @@ export interface GenerateRoutineParams {
   goal: string;         // 한국어 (근비대 / 근력 / 체력 / 다이어트)
   body_parts: string[]; // 한국어 배열 (어깨 / 등 / 가슴 / 하체 / 팔 / 복근)
   session_time: string; // 한국어 (30분 / 60분 / 90분 / 120분 +)
-  injury: string;       // 자유 텍스트
   gym_id?: string | null; // user 기본 헬스장 (머신 후보 포함용; 미전달 시 서버가 기본 gym으로 fallback)
 }
 
@@ -90,7 +89,7 @@ export function generateRoutineSSE(
     goals: [GOAL_MAP[params.goal] ?? params.goal],
     target_muscle_group_ids: params.body_parts.map((p) => BODY_PART_MAP[p] ?? p),
     session_minutes: parse_session_minutes(params.session_time),
-    injury: params.injury || null,
+    injury: null,
     gym_id: params.gym_id ?? null,
   });
 
