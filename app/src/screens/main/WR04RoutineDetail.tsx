@@ -167,9 +167,9 @@ function SwipeableCard({
         <Text style={{ color: "#fff", fontSize: 11, fontFamily: "regular", marginTop: 2 }}>삭제</Text>
       </TouchableOpacity>
 
-      {/* 카드 본체 */}
+      {/* 카드 본체 — 배경색으로 삭제 버튼 가림 */}
       <Animated.View
-        style={{ transform: [{ translateX: translate_x }] }}
+        style={{ transform: [{ translateX: translate_x }], backgroundColor: colors.background }}
         {...pan_responder.panHandlers}
       >
         {children}
