@@ -830,6 +830,12 @@ export default function WR04RoutineDetail() {
     if (session_started && ws_session_started_at && !workout_running) {
       if (ws_is_timer_paused) {
         set_frozen_ms(ws_frozen_timer_ms);
+        // 언마운트로 소실된 pause_started_at_ref 복원
+        // pause 시각 = session_start + 정지 당시 경과 + 누적 pause offset
+        pause_started_at_ref.current =
+          new Date(ws_session_started_at).getTime() +
+          ws_frozen_timer_ms +
+          ws_pause_offset_ms;
       } else {
         set_live_ms(
           Date.now() -
