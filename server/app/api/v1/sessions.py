@@ -452,11 +452,9 @@ async def _check_and_create_po_notifications(
         user_1rm_kg = float(user_1rm_row) if user_1rm_row is not None else None
         try:
             increment_override = await po_rag.rag_po_increment(goal, category, user_1rm_kg)
-            po_source = "논문 기반" if increment_override is not None else "기본값"
         except Exception as rag_err:
             logger.warning("po_rag.rag_po_increment failed for %s, using default: %s", ex_name, rag_err)
             increment_override = None
-            po_source = "기본값"
 
         result = po.calculate_increase(
             category=category,
