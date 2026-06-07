@@ -244,12 +244,15 @@ export default function WR04RoutineDetail() {
   const ws_is_timer_paused = useWorkoutSessionStore((s) => s.is_timer_paused);
   const ws_frozen_timer_ms = useWorkoutSessionStore((s) => s.frozen_timer_ms);
   const ws_set_timer_paused = useWorkoutSessionStore((s) => s.set_timer_paused);
+  const ws_pause_offset_ms = useWorkoutSessionStore((s) => s.pause_offset_ms);
+  const ws_set_pause_offset_ms = useWorkoutSessionStore(
+    (s) => s.set_pause_offset_ms,
+  );
 
   // 운동 스톱워치
   const [workout_running, set_workout_running] = useState(false);
   const [live_ms, set_live_ms] = useState(0);
   const [frozen_ms, set_frozen_ms] = useState(0);
-  const [pause_offset_ms, set_pause_offset_ms] = useState(0);
   const pause_started_at_ref = useRef<number | null>(null);
   const workout_interval_ref = useRef<ReturnType<typeof setInterval> | null>(
     null,
@@ -463,23 +466,24 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
-            });
-          })
-          .then(() => {
-            query_client.invalidateQueries({ queryKey: ["sessions"] });
-            query_client.invalidateQueries({ queryKey: ["session-stats"] });
-            query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
-            query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-            query_client.invalidateQueries({
-              queryKey: ["notifications", token],
+            }).then(() => {
+              query_client.invalidateQueries({ queryKey: ["sessions"] });
+              query_client.invalidateQueries({ queryKey: ["session-stats"] });
+              query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
+              query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+              query_client.invalidateQueries({
+                queryKey: ["notifications", token],
+              });
+            }).catch(() => {
+              // logSet 실패만 여기서 처리 — ensure_session 실패는 handle_start에서 처리
+              Alert.alert(
+                "세트 기록 실패",
+                "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
+              );
             });
           })
           .catch(() => {
-            // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
-            Alert.alert(
-              "세트 기록 실패",
-              "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
-            );
+            // ensure_session 실패 — handle_start의 catch에서 이미 Alert 표시
           });
       }
     } else {
@@ -811,7 +815,7 @@ export default function WR04RoutineDetail() {
       return;
     }
     const started = new Date(ws_session_started_at).getTime();
-    const calc = () => set_live_ms(Date.now() - started - pause_offset_ms);
+    const calc = () => set_live_ms(Date.now() - started - ws_pause_offset_ms);
     calc();
     workout_interval_ref.current = setInterval(calc, 1000);
     return () => {
@@ -819,7 +823,7 @@ export default function WR04RoutineDetail() {
         clearInterval(workout_interval_ref.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workout_running, ws_session_started_at, pause_offset_ms]);
+  }, [workout_running, ws_session_started_at, ws_pause_offset_ms]);
 
   // 세션 복원 시 스톱워치 자동 재개 (일시정지 상태면 재개 안 함)
   useEffect(() => {
@@ -830,7 +834,7 @@ export default function WR04RoutineDetail() {
         set_live_ms(
           Date.now() -
             new Date(ws_session_started_at).getTime() -
-            pause_offset_ms,
+            ws_pause_offset_ms,
         );
         set_workout_running(true);
       }
@@ -911,6 +915,7 @@ export default function WR04RoutineDetail() {
 
   /** 스톱워치 일시정지 */
   const handle_workout_pause = () => {
+    if (!workout_running) return;
     pause_started_at_ref.current = Date.now();
     set_frozen_ms(live_ms);
     set_workout_running(false);
@@ -921,10 +926,10 @@ export default function WR04RoutineDetail() {
   const handle_workout_resume = () => {
     if (pause_started_at_ref.current !== null) {
       const paused_duration = Date.now() - pause_started_at_ref.current;
-      set_pause_offset_ms((prev) => prev + paused_duration);
+      ws_set_pause_offset_ms(ws_pause_offset_ms + paused_duration);
       pause_started_at_ref.current = null;
     }
-    ws_set_timer_paused(false);
+    ws_set_timer_paused(false, frozen_ms);
     set_workout_running(true);
   };
 
@@ -957,7 +962,6 @@ export default function WR04RoutineDetail() {
       set_workout_running(false);
       set_live_ms(0);
       set_frozen_ms(0);
-      set_pause_offset_ms(0);
       pause_started_at_ref.current = null;
       set_exercises((prev) =>
         prev.map((ex) => ({

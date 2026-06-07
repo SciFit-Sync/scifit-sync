@@ -30,6 +30,8 @@ interface WorkoutSessionState {
   frozen_timer_ms: number;
   /** routine_exercise_id → 사용자가 설정한 휴식 시간(초) — 화면 이탈 후 복귀 시에도 유지 */
   rest_seconds_overrides: Record<string, number>;
+  /** 일시정지 누적 시간(ms) — 화면 이탈 후 복귀 시에도 유지 */
+  pause_offset_ms: number;
 
   set_owner: (user_id: string) => void;
   set_session: (routine_id: string, session_id: string, started_at: string) => void;
@@ -37,6 +39,7 @@ interface WorkoutSessionState {
   set_detail_page_enter: (ms: number | null) => void;
   toggle_set: (set_id: string, is_done: boolean) => void;
   set_timer_paused: (paused: boolean, frozen_ms?: number) => void;
+  set_pause_offset_ms: (ms: number) => void;
   set_rest_seconds: (rex_id: string, seconds: number) => void;
   clear: () => void;
 }
@@ -54,6 +57,7 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
       is_timer_paused: false,
       frozen_timer_ms: 0,
       rest_seconds_overrides: {},
+      pause_offset_ms: 0,
 
       set_owner: (user_id) => set({ owner_user_id: user_id }),
 
@@ -73,6 +77,8 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
       set_timer_paused: (paused, frozen_ms = 0) =>
         set({ is_timer_paused: paused, frozen_timer_ms: frozen_ms }),
 
+      set_pause_offset_ms: (ms) => set({ pause_offset_ms: ms }),
+
       set_rest_seconds: (rex_id, seconds) =>
         set((state) => ({
           rest_seconds_overrides: { ...state.rest_seconds_overrides, [rex_id]: seconds },
@@ -90,6 +96,7 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
           is_timer_paused: false,
           frozen_timer_ms: 0,
           rest_seconds_overrides: {},
+          pause_offset_ms: 0,
         }),
     }),
     {
