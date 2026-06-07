@@ -87,6 +87,8 @@ export default function WA03SignupInfo() {
       if (m.weight_kg != null) set_weight(String(m.weight_kg));
       if (m.skeletal_muscle_kg != null) set_skeletal_muscle(String(m.skeletal_muscle_kg));
       if (m.body_fat_pct != null) set_body_fat(String(m.body_fat_pct));
+      if (m.height_cm != null) set_height(String(m.height_cm));
+      if (m.gender === "male" || m.gender === "female") set_gender(m.gender);
       Alert.alert(
         "인식 완료",
         "추출된 값을 확인하고 수정 후 회원가입해주세요.",

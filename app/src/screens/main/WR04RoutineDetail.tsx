@@ -129,6 +129,7 @@ export default function WR04RoutineDetail() {
   const session_promise_ref = useRef<Promise<string> | null>(null); // race condition 방지용 in-flight 캐시
   const [session_started, set_session_started] = useState(false);
   const [is_finishing, set_is_finishing] = useState(false);
+  const [is_starting, set_is_starting] = useState(false);
   const [show_chatbot, set_show_chatbot] = useState(false);
 
   // 워크아웃 세션 스토어 — 화면 이탈 후 복귀 시 체크 상태 복원
@@ -341,6 +342,7 @@ export default function WR04RoutineDetail() {
             query_client.invalidateQueries({ queryKey: ["session-stats"] });
             query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
             query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+            query_client.invalidateQueries({ queryKey: ["notifications", token] });
           })
           .catch(() => {
             // 세트 기록 실패 — 체크 UI는 유지하되 사용자에게 알림
@@ -683,6 +685,19 @@ export default function WR04RoutineDetail() {
     ]);
   };
 
+  /** 운동 시작 버튼 핸들러 */
+  const handle_start = async () => {
+    if (is_starting || session_started) return;
+    try {
+      set_is_starting(true);
+      await ensure_session();
+    } catch {
+      Alert.alert("오류", "운동을 시작하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      set_is_starting(false);
+    }
+  };
+
   /** 운동 완료 처리 (실제 로직) */
   const do_finish = async () => {
     if (!session_id_ref.current || is_finishing) return;
@@ -709,6 +724,7 @@ export default function WR04RoutineDetail() {
       query_client.invalidateQueries({ queryKey: ["session-stats"] });
       query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
       query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+      query_client.invalidateQueries({ queryKey: ["notifications", token] });
       navigation.goBack();
     } catch (e: unknown) {
       set_is_finishing(false);
@@ -795,6 +811,24 @@ export default function WR04RoutineDetail() {
           </View>
           {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
 
+          {/* 운동 시작 버튼 */}
+          {!session_started && (
+            <TouchableOpacity
+              style={[styles.start_btn, is_starting && { opacity: 0.6 }]}
+              onPress={handle_start}
+              disabled={is_starting}
+              activeOpacity={0.8}
+            >
+              {is_starting ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <>
+                  <Octicons name="play" size={14} color={colors.white} />
+                  <Text style={styles.start_btn_text}>운동 시작</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
 
           {/* 운동 목록 */}
           {exercises.map((exercise) => {
@@ -2028,6 +2062,22 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: 4,
+  },
+
+  // 운동 시작 버튼
+  start_btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  start_btn_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.white,
   },
 
   // 운동 완료 버튼

@@ -467,6 +467,42 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         else ""
     )
 
+    _REGION_KO = {
+        "chest": "가슴",
+        "back": "등",
+        "shoulders": "어깨",
+        "shoulder": "어깨",
+        "legs": "하체",
+        "leg": "하체",
+        "arms": "팔",
+        "arm": "팔",
+        "core": "복근",
+        "abs": "복근",
+    }
+    focus_rule = ""
+    if profile.target_priority:
+        focus_ko = " + ".join(_REGION_KO.get(r, r) for r in profile.target_priority)
+        focus_rule = (
+            f'- Set "focus" to exactly "{focus_ko}". '
+            f'Do NOT write "전신", "전신운동", or "full body" — even for longer sessions.\n'
+        )
+
+    _FREEWEIGHT_LOAD_MODES = {"barbell", "ez_barbell", "trap_bar", "dumbbell", "weighted", "kettlebell", "band"}
+    _BODYWEIGHT_LOAD_MODES = {"bodyweight"}
+    has_freeweight = any(ex.get("load_mode") in _FREEWEIGHT_LOAD_MODES for ex in profile.available_exercises)
+    has_bodyweight = any(ex.get("load_mode") in _BODYWEIGHT_LOAD_MODES for ex in profile.available_exercises)
+
+    freeweight_mandatory_rule = (
+        "- You MUST include at least 1 freeweight exercise (barbell, dumbbell, kettlebell, or band) from the available list.\n"
+        if has_freeweight
+        else ""
+    )
+    bodyweight_mandatory_rule = (
+        "- You MUST include at least 1 bodyweight exercise from the available list.\n"
+        if has_bodyweight and (profile.session_minutes or 0) >= 90
+        else ""
+    )
+
     # 세션 시간 기반 최소 운동 개수 (단일 근육 부위도 다양한 각도/변형으로 채울 것)
     _mins = profile.session_minutes or 60
     if _mins <= 30:
@@ -519,6 +555,9 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f'Example: 30도 인클라인이 대흉근 상부 활성도를 15도보다 높게 활성화한다는 연구 결과를 근거로 선택하였습니다.", '
         f'"paper_index": <integer 1-5, the Paper number that most directly supports this exercise choice>}}]}}\n\n'
         f"Rules:\n"
+        f"{focus_rule}"
+        f"{freeweight_mandatory_rule}"
+        f"{bodyweight_mandatory_rule}"
         f"{exercise_count_rule}"
         f"{name_rule}"
         f"{target_muscle_rule}"
@@ -535,8 +574,9 @@ def _build_routine_prompt(profile: UserProfile, chunks: list[dict]) -> str:
         f"  * rehabilitation: 60-120\n"
         f"  * weight_loss: 30-45\n"
         + (
-            f"IMPORTANT: You MUST use ONLY exercise names from this exact list. "
-            f"Do NOT invent new names — pick the closest match:\n"
+            f"IMPORTANT: You MUST use ONLY exercise names from this exact list — no exceptions. "
+            f"Do NOT invent, paraphrase, or add any exercise not listed here. "
+            f"If the list seems short, still do NOT add unlisted exercises:\n"
             f"{chr(10).join('- ' + ex['name'] for ex in profile.available_exercises)}\n\n"
             if profile.available_exercises
             else ""

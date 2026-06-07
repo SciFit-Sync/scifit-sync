@@ -334,9 +334,9 @@ export default function WC01Chatbot({ onClose }: Props) {
       onRequestClose={handle_close}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
         style={styles.keyboard_view}
-        keyboardVerticalOffset={60}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
       >
         <Animated.View style={[styles.overlay, { opacity: fade_anim }]}>
           {/* 딤 배경 */}
@@ -378,6 +378,7 @@ export default function WC01Chatbot({ onClose }: Props) {
               style={styles.messages}
               contentContainerStyle={styles.messages_content}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               onContentSizeChange={() =>
                 scroll_ref.current?.scrollToEnd({ animated: true })
               }

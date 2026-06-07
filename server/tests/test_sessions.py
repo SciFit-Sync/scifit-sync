@@ -435,7 +435,7 @@ class TestMuscleVolumeAnalysis:
 
     @pytest.mark.asyncio
     async def test_empty_no_workout_records(self, client):
-        """운동 기록 없으면 전체 15개 근육 모두 0볼륨, 첫 운동 안내 메시지."""
+        """운동 기록 없으면 전체 19개 근육 모두 0볼륨, 첫 운동 안내 메시지."""
         db = _make_db(_exec_all([]))
         app.dependency_overrides[get_db] = _db_override(db)
 
@@ -444,7 +444,8 @@ class TestMuscleVolumeAnalysis:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["period"] == "WEEK"
-        assert len(data["volume_by_muscle"]) == 15
+        # reseed(20260606) muscle_groups 20개 중 심혈관계 제외 = 19개 (sessions.py _OPTIMAL_RANGES)
+        assert len(data["volume_by_muscle"]) == 19
         assert all(item["weekly_volume"] == 0.0 for item in data["volume_by_muscle"])
         assert all(item["status"] == "LOW" for item in data["volume_by_muscle"])
         assert "첫 운동을 시작해보세요" in data["ai_coach_message"]
@@ -511,6 +512,26 @@ class TestMuscleVolumeAnalysis:
         resp = await client.get("/api/v1/sessions/analysis/muscle-volume?period=DAILY")
 
         assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_muscle_keys_match_reseed_canonical(self, client):
+        """반환 근육 집합이 reseed(20260606) canonical name_ko와 정합 — #314 회귀 방지.
+
+        구 seed(20260525) 키("전면/측면/후면 삼각근"·"능형근"·"복직근"·"대둔근")가 남으면
+        DB name_ko와 불일치해 해당 부위 볼륨이 항상 0으로 집계되던 버그가 재발한다.
+        """
+        db = _make_db(_exec_all([]))
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.get("/api/v1/sessions/analysis/muscle-volume")
+
+        muscles = {i["muscle"] for i in resp.json()["data"]["volume_by_muscle"]}
+        # 통합/리네임된 canonical 키는 존재해야 함
+        assert {"삼각근", "상배근", "복근", "둔근"} <= muscles
+        # 구 키는 모두 제거돼야 함
+        assert muscles.isdisjoint({"전면 삼각근", "측면 삼각근", "후면 삼각근", "능형근", "복직근", "대둔근"})
+        # 심혈관계는 저항 볼륨 대상이 아니므로 제외
+        assert "심혈관계" not in muscles
 
 
 # ── GET /sessions/active ──────────────────────────────────────────────────────
