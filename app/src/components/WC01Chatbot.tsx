@@ -1,4 +1,5 @@
 import {
+  Keyboard,
   Linking,
   Modal,
   StyleSheet,
@@ -85,6 +86,7 @@ export default function WC01Chatbot({ onClose }: Props) {
   const scroll_ref = useRef<ScrollView>(null);
   const fade_anim = useRef(new Animated.Value(0)).current;
   const scale_anim = useRef(new Animated.Value(0.95)).current;
+  const keyboard_shift = useRef(new Animated.Value(0)).current;
   const access_token = useAuthStore((s) => s.accessToken) ?? "";
 
   // M-1: user_id 기반 격리 키 — A 로그아웃 후 B 로그인 시 대화 노출 방지
@@ -103,6 +105,28 @@ export default function WC01Chatbot({ onClose }: Props) {
       xhr_abort_ref.current?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const on_show = Keyboard.addListener("keyboardDidShow", (e) => {
+      Animated.timing(keyboard_shift, {
+        toValue: -(e.endCoordinates.height / 2),
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    const on_hide = Keyboard.addListener("keyboardDidHide", () => {
+      Animated.timing(keyboard_shift, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      on_show.remove();
+      on_hide.remove();
+    };
+  }, [keyboard_shift]);
 
   // 진입 애니메이션 + 저장된 대화 or 신규 인사 로드
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -353,7 +377,7 @@ export default function WC01Chatbot({ onClose }: Props) {
               styles.chatbot_container,
               {
                 opacity: fade_anim,
-                transform: [{ scale: scale_anim }],
+                transform: [{ scale: scale_anim }, { translateY: keyboard_shift }],
               },
             ]}
           >
