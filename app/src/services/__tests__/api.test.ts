@@ -25,3 +25,15 @@ describe("ApiError", () => {
     expect(err.message).toBe("이미 종료된 세션입니다.");
   });
 });
+
+describe("timeout", () => {
+  it("aborts after timeoutMs and throws ApiError(aborted)", async () => {
+    (global as any).fetch = jest.fn((_url, opts: any) =>
+      new Promise((_resolve, reject) => {
+        opts.signal?.addEventListener("abort", () => reject(Object.assign(new Error("Aborted"), { name: "AbortError" })));
+      }),
+    );
+    const p = apiFetch("/slow", { token: "t", timeoutMs: 20 });
+    await expect(p).rejects.toMatchObject({ name: "ApiError", aborted: true, status: 0 });
+  });
+});
