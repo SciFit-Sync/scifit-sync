@@ -948,6 +948,21 @@ export default function WR04RoutineDetail() {
           </Text>
 
           {session_started && (
+            <TouchableOpacity
+              style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+              onPress={handle_finish}
+              disabled={is_finishing}
+              activeOpacity={0.85}
+            >
+              {is_finishing ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.workout_btn_text}>운동 종료</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* 운동 목록만 스크롤 */}
       <ScrollView

@@ -634,9 +634,16 @@ async def delete_routine_exercise(
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_my_routine(routine_id, current_user, db)
+    routine = await _get_my_routine(routine_id, current_user, db)
     rex_id = _parse_uuid(routine_exercise_id, "routine_exercise_id")
-    rex = (await db.execute(select(RoutineExercise).where(RoutineExercise.id == rex_id))).scalar_one_or_none()
+    # RoutineDay JOIN으로 해당 루틴 소속인지 검증 (IDOR 방지)
+    rex = (
+        await db.execute(
+            select(RoutineExercise)
+            .join(RoutineDay, RoutineExercise.routine_day_id == RoutineDay.id)
+            .where(RoutineExercise.id == rex_id, RoutineDay.routine_id == routine.id)
+        )
+    ).scalar_one_or_none()
     if rex is None:
         raise NotFoundError(message="루틴 내 운동을 찾을 수 없습니다.")
     await db.delete(rex)
