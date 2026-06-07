@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -6,6 +6,7 @@ import {
   FlatList,
   Linking,
   Modal,
+  PanResponder,
   StyleSheet,
   Text,
   TextInput,
@@ -27,6 +28,8 @@ import {
   deleteRoutine,
   renameRoutine,
   updateRoutineExercise,
+  addRoutineExercise,
+  deleteRoutineExercise,
   getExercisePapers,
   GOAL_LABELS,
   type RoutineExerciseItem,
@@ -104,6 +107,74 @@ function api_to_exercise(item: RoutineExerciseItem): Exercise {
         : item.gif_url
       : null,
   };
+}
+
+const DELETE_BTN_WIDTH = 80;
+
+/** 왼쪽 스와이프로 삭제 버튼 노출 */
+function SwipeableCard({
+  children,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onDelete: () => void;
+}) {
+  const translate_x = useRef(new Animated.Value(0)).current;
+  const pan_responder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 8 && Math.abs(gs.dx) > Math.abs(gs.dy),
+      onPanResponderMove: (_, gs) => {
+        if (gs.dx < 0) translate_x.setValue(Math.max(gs.dx, -DELETE_BTN_WIDTH));
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx < -(DELETE_BTN_WIDTH / 2)) {
+          Animated.spring(translate_x, {
+            toValue: -DELETE_BTN_WIDTH,
+            useNativeDriver: true,
+          }).start();
+        } else {
+          Animated.spring(translate_x, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    }),
+  ).current;
+
+  const close = useCallback(() => {
+    Animated.spring(translate_x, { toValue: 0, useNativeDriver: true }).start();
+  }, [translate_x]);
+
+  return (
+    <View style={{ overflow: "hidden" }}>
+      {/* 뒤에 깔리는 삭제 버튼 */}
+      <TouchableOpacity
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: DELETE_BTN_WIDTH,
+          backgroundColor: "#FF3B30",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 8,
+        }}
+        onPress={() => { close(); onDelete(); }}
+        activeOpacity={0.8}
+      >
+        <Octicons name="trash" size={20} color="#fff" />
+        <Text style={{ color: "#fff", fontSize: 11, fontFamily: "regular", marginTop: 2 }}>삭제</Text>
+      </TouchableOpacity>
+
+      {/* 카드 본체 — 배경색으로 삭제 버튼 가림 */}
+      <Animated.View
+        style={{ transform: [{ translateX: translate_x }], backgroundColor: colors.white }}
+        {...pan_responder.panHandlers}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
 }
 
 export default function WR04RoutineDetail() {
@@ -190,10 +261,13 @@ export default function WR04RoutineDetail() {
 
   // 운동 변경 모달
   const [show_replace_modal, set_show_replace_modal] = useState(false);
+  // 'replace' = 운동 교체, 'add' = 운동 추가
+  const [exercise_modal_mode, set_exercise_modal_mode] = useState<"replace" | "add">("replace");
   const [replacing_rex_id, set_replacing_rex_id] = useState<string | null>(
     null,
   );
   const [replace_keyword, set_replace_keyword] = useState("");
+  const [replace_category, set_replace_category] = useState<string | null>(null);
   const [replace_results, set_replace_results] = useState<ExerciseSearchItem[]>(
     [],
   );
@@ -424,9 +498,9 @@ export default function WR04RoutineDetail() {
     if (!show_replace_modal) return;
 
     if (!replace_keyword.trim()) {
-      // 키워드 없음 → 전체 운동 목록 로드 (최대 100개)
+      // 키워드 없음 → 카테고리(부위) 필터만 적용
       set_is_replace_searching(true);
-      searchExercises(token, "", 100)
+      searchExercises(token, "", 100, replace_category ?? undefined)
         .then((data) => set_replace_results(data.items))
         .catch(() => {})
         .finally(() => set_is_replace_searching(false));
@@ -436,7 +510,7 @@ export default function WR04RoutineDetail() {
     const timer = setTimeout(async () => {
       set_is_replace_searching(true);
       try {
-        const data = await searchExercises(token, replace_keyword.trim());
+        const data = await searchExercises(token, replace_keyword.trim(), 20, replace_category ?? undefined);
         set_replace_results(data.items);
       } catch {
         // 검색 오류는 조용히 무시
@@ -445,7 +519,7 @@ export default function WR04RoutineDetail() {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [replace_keyword, show_replace_modal, token]);
+  }, [replace_keyword, replace_category, show_replace_modal, token]);
 
   // ── 바텀시트 애니메이션 헬퍼 ────────────────────────────────────────────────
   const open_tips_modal = () => {
@@ -530,31 +604,61 @@ export default function WR04RoutineDetail() {
   };
 
   const handle_replace_press = (rex_id: string) => {
+    set_exercise_modal_mode("replace");
     set_replacing_rex_id(rex_id);
     set_replace_keyword("");
+    set_replace_category(null);
+    set_replace_results([]);
+    open_replace_modal_anim();
+  };
+
+  const handle_add_press = () => {
+    set_exercise_modal_mode("add");
+    set_replacing_rex_id(null);
+    set_replace_keyword("");
+    set_replace_category(null);
     set_replace_results([]);
     open_replace_modal_anim();
   };
 
   const handle_replace_confirm = async (new_exercise_id: string) => {
-    if (!replacing_rex_id || !routine_id) return;
+    if (!routine_id) return;
     try {
       set_is_replacing(true);
-      await updateRoutineExercise(
-        token,
-        routine_id,
-        replacing_rex_id,
-        new_exercise_id,
-      );
+      if (exercise_modal_mode === "replace" && replacing_rex_id) {
+        await updateRoutineExercise(token, routine_id, replacing_rex_id, new_exercise_id);
+      } else {
+        await addRoutineExercise(token, routine_id, new_exercise_id);
+      }
       query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
       close_replace_modal();
       set_replacing_rex_id(null);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "운동 변경에 실패했습니다.";
-      Alert.alert("변경 실패", msg);
+      Alert.alert(exercise_modal_mode === "add" ? "추가 실패" : "변경 실패", msg);
     } finally {
       set_is_replacing(false);
     }
+  };
+
+  const handle_delete_exercise = (rex_id: string, exercise_name: string) => {
+    Alert.alert("운동 삭제", `"${exercise_name}"을(를) 루틴에서 삭제할까요?`, [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: async () => {
+          if (!routine_id) return;
+          try {
+            await deleteRoutineExercise(token, routine_id, rex_id);
+            query_client.invalidateQueries({ queryKey: ["routine", routine_id] });
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : "삭제에 실패했습니다.";
+            Alert.alert("삭제 실패", msg);
+          }
+        },
+      },
+    ]);
   };
 
   const goals_label = (() => {
@@ -795,63 +899,91 @@ export default function WR04RoutineDetail() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        style={styles.flex}
-      >
-        <View style={styles.card}>
-          {/* 루틴 제목 + 더보기(삭제) */}
-          <View style={styles.title_row}>
-            <View style={styles.title_side} />
-            <Text style={styles.routine_title}>
-              {detail?.name ?? "루틴 상세"}
-            </Text>
-            <TouchableOpacity
-              onPress={handle_more_press}
-              disabled={is_deleting || is_renaming}
-              style={styles.title_side}
-              activeOpacity={0.7}
-            >
-              <Octicons
-                name="kebab-horizontal"
-                size={16}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-          {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
+      {/* 고정 상단 (타이틀 + 스톱워치) */}
+      <View style={styles.fixed_top}>
+        {/* 루틴 제목 + 더보기 */}
+        <View style={styles.title_row}>
+          <View style={styles.title_side} />
+          <Text style={styles.routine_title}>
+            {detail?.name ?? "루틴 상세"}
+          </Text>
+          <TouchableOpacity
+            onPress={handle_more_press}
+            disabled={is_deleting || is_renaming}
+            style={styles.title_side}
+            activeOpacity={0.7}
+          >
+            <Octicons name="kebab-horizontal" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+        {goals_label && <Text style={styles.goals_label}>{goals_label}</Text>}
 
-          {/* 운동 시작 버튼 */}
-          {!session_started && (
+        {/* 운동 스톱워치 카드 */}
+        <View style={styles.workout_timer_card}>
+          <TouchableOpacity
+            style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+            onPress={
+              !session_started
+                ? handle_start
+                : workout_running
+                  ? handle_workout_pause
+                  : handle_workout_resume
+            }
+            disabled={is_starting}
+            activeOpacity={0.85}
+          >
+            {is_starting ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : !session_started ? (
+              <Text style={styles.workout_btn_text}>운동 시작</Text>
+            ) : workout_running ? (
+              <Octicons name="pause" size={20} color={colors.white} />
+            ) : (
+              <Octicons name="play" size={20} color={colors.white} />
+            )}
+          </TouchableOpacity>
+
+          <Text style={[styles.workout_timer_text, { flex: 1 }]}>
+            {format_hms(display_ms)}
+          </Text>
+
+          {session_started && (
             <TouchableOpacity
-              style={[styles.start_btn, is_starting && { opacity: 0.6 }]}
-              onPress={handle_start}
-              disabled={is_starting}
-              activeOpacity={0.8}
+              style={[styles.workout_btn_pill, { paddingHorizontal: 16 }]}
+              onPress={handle_finish}
+              disabled={is_finishing}
+              activeOpacity={0.85}
             >
-              {is_starting ? (
+              {is_finishing ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
-                <>
-                  <Octicons name="play" size={14} color={colors.white} />
-                  <Text style={styles.start_btn_text}>운동 시작</Text>
-                </>
+                <Text style={styles.workout_btn_text}>운동 종료</Text>
               )}
             </TouchableOpacity>
           )}
+        </View>
+      </View>
 
-          {/* 운동 목록 */}
-          {exercises.map((exercise) => {
-            const is_editing = editing_exercise_id === exercise.id;
-            return (
-              <View
-                key={exercise.id}
-                style={[
-                  styles.exercise_card,
-                  exercise.is_expanded && styles.exercise_card_expanded,
-                ]}
-              >
+      {/* 운동 목록만 스크롤 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={[styles.flex, styles.exercises_scroll_outer]}
+        contentContainerStyle={styles.exercises_scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        {exercises.map((exercise) => {
+          const is_editing = editing_exercise_id === exercise.id;
+          return (
+            <SwipeableCard
+              key={exercise.id}
+              onDelete={() => handle_delete_exercise(exercise.id, exercise.name)}
+            >
+            <View
+              style={[
+                styles.exercise_card,
+                exercise.is_expanded && styles.exercise_card_expanded,
+              ]}
+            >
                 {/* 운동 헤더 */}
                 <TouchableOpacity
                   style={styles.exercise_header}
@@ -1124,27 +1256,21 @@ export default function WR04RoutineDetail() {
                       </TouchableOpacity>
                     </View>
                   </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
+                </View>
+              )}
+            </View>
+            </SwipeableCard>
+          );
+        })}
 
-        {/* 운동 완료 버튼 — 첫 세트 체크 후 표시 */}
-        {session_started && (
-          <TouchableOpacity
-            style={[styles.finish_btn, is_finishing && { opacity: 0.6 }]}
-            onPress={handle_finish}
-            disabled={is_finishing}
-            activeOpacity={0.8}
-          >
-            {is_finishing ? (
-              <ActivityIndicator size="small" color={colors.white} />
-            ) : (
-              <Text style={styles.finish_btn_text}>운동 완료</Text>
-            )}
-          </TouchableOpacity>
-        )}
+        {/* 운동 추가 버튼 */}
+        <TouchableOpacity
+          style={styles.add_exercise_btn}
+          onPress={handle_add_press}
+          activeOpacity={0.8}
+        >
+          <Octicons name="plus" size={20} color={colors.primary} />
+        </TouchableOpacity>
       </ScrollView>
 
       {/* 이름 수정 모달 */}
@@ -1343,7 +1469,9 @@ export default function WR04RoutineDetail() {
 
             {/* 헤더 */}
             <View style={styles.replace_header}>
-              <Text style={styles.replace_title}>운동 변경</Text>
+              <Text style={styles.replace_title}>
+                {exercise_modal_mode === "add" ? "운동 추가" : "운동 변경"}
+              </Text>
               <TouchableOpacity
                 onPress={() => {
                   if (!is_replacing) close_replace_modal();
@@ -1371,6 +1499,43 @@ export default function WR04RoutineDetail() {
                 <ActivityIndicator size="small" color={colors.bluegray} />
               )}
             </View>
+
+            {/* 부위 필터 칩 */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.replace_chip_row}
+            >
+              {[
+                { value: null, label: "전체" },
+                { value: "Chest", label: "가슴" },
+                { value: "Back", label: "등" },
+                { value: "Shoulders", label: "어깨" },
+                { value: "Upper Arms", label: "팔" },
+                { value: "Upper Legs", label: "하체" },
+                { value: "Waist", label: "복근" },
+              ].map((cat) => (
+                <TouchableOpacity
+                  key={cat.label}
+                  style={[
+                    styles.replace_chip,
+                    replace_category === cat.value && styles.replace_chip_active,
+                  ]}
+                  onPress={() => set_replace_category(cat.value)}
+                  activeOpacity={0.8}
+                  disabled={is_replacing}
+                >
+                  <Text
+                    style={[
+                      styles.replace_chip_text,
+                      replace_category === cat.value && styles.replace_chip_text_active,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
             {/* 결과 목록 */}
             {is_replace_searching && replace_results.length === 0 ? (
@@ -2087,6 +2252,35 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: 4,
+  },
+  replace_chip_row: {
+    flexDirection: "row",
+    gap: 6,
+    paddingBottom: 8,
+  },
+  replace_chip: {
+    paddingHorizontal: 12,
+    height: 30,
+    borderRadius: 100,
+    backgroundColor: colors.select,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  replace_chip_active: { backgroundColor: colors.primary },
+  replace_chip_text: {
+    fontFamily: "regular",
+    fontSize: 13,
+    color: colors.bluegray,
+  },
+  replace_chip_text_active: { color: colors.white },
+  add_exercise_btn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
   },
 
   // 운동 시작 버튼

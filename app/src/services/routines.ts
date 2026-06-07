@@ -320,3 +320,29 @@ export function updateRoutineExercise(
     },
   );
 }
+
+export function addRoutineExercise(
+  token: string,
+  routine_id: string,
+  exercise_id: string,
+): Promise<RoutineExerciseItem> {
+  return apiFetch<RoutineExerciseItem>(
+    `/api/v1/routines/${routine_id}/exercises`,
+    {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ exercise_id }),
+    },
+  );
+}
+
+export function deleteRoutineExercise(
+  token: string,
+  routine_id: string,
+  routine_exercise_id: string,
+): Promise<{ routine_exercise_id: string }> {
+  return apiFetch<{ routine_exercise_id: string }>(
+    `/api/v1/routines/${routine_id}/exercises/${routine_exercise_id}`,
+    { method: 'DELETE', token },
+  );
+}
