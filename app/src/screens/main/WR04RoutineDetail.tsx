@@ -2313,4 +2313,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.white,
   },
+
+  // 고정 상단 (타이틀 + 스톱워치)
+  fixed_top: {
+    backgroundColor: colors.white,
+    marginHorizontal: 24,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  exercises_scroll_outer: {
+    marginHorizontal: 24,
+    backgroundColor: colors.white,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  exercises_scroll: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  workout_timer_card: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 16,
+  },
+  workout_btn_pill: {
+    backgroundColor: colors.primary,
+    borderRadius: 100,
+    height: 40,
+    minWidth: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workout_btn_text: {
+    fontFamily: "medium",
+    fontSize: 14,
+    color: colors.white,
+  },
+  workout_timer_text: {
+    fontFamily: "semibold",
+    fontSize: 24,
+    color: colors.primary,
+  },
 });
