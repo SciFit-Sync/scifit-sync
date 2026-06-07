@@ -77,10 +77,12 @@ def _make_db(*side_effects):
     db = AsyncMock()
     db.execute.side_effect = list(side_effects)
     db.commit = AsyncMock()
+    db.rollback = AsyncMock()
     db.flush = AsyncMock()
     db.add = MagicMock()
     db.add_all = MagicMock()  # SQLAlchemy add_all은 동기 — AsyncMock 코루틴 경고 방지
     db.refresh = AsyncMock()
+    db.expire_all = MagicMock()  # 동기 — finish_session 신선 재로드용
     return db
 
 
@@ -220,11 +222,13 @@ class TestFinishSession:
         session = _mock_session()
 
         db = _make_db(
-            _exec_scalar(session),  # _get_my_session
-            _exec_scalars_all([]),  # ex_rows in _create_po_notifications
+            _exec_scalar(session),  # s0 = _get_my_session
+            _exec_scalar(_SESSION_ID),  # UPDATE...RETURNING → claimed (전이 선점자)
+            _exec_scalar(session),  # 신선 재로드 s
             _exec_scalar_one(0),  # total_sets
             _exec_scalar_one(0),  # completed_exercises
             _exec_scalar(None),  # UserBodyMeasurement (없으면 70kg 기본값)
+            # session.routine_day_id is None → _apply_po 조기 반환(추가 execute 없음)
         )
         db.refresh = AsyncMock()
         app.dependency_overrides[get_db] = _db_override(db)
@@ -234,15 +238,79 @@ class TestFinishSession:
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
+
+# ── PATCH /sessions/{id}/finish — 원자 전이 + 멱등 (Task 5) ─────────────────────
+
+
+class TestFinishIdempotent:
     @pytest.mark.asyncio
-    async def test_already_finished_raises(self, client):
-        session = _mock_session(status=WorkoutStatus.COMPLETED)
-        db = _make_db(_exec_scalar(session))
+    async def test_already_completed_returns_200_no_po(self, client, monkeypatch):
+        """이미 COMPLETED인 세션을 다시 finish하면 409가 아니라 멱등 200을 반환하고,
+        전이 선점자가 아니므로(claimed is None) PO 부수효과를 실행하지 않는다."""
+        from app.api.v1 import sessions as sess
+
+        called = {"po": False}
+
+        async def _spy_po(*a, **k):
+            called["po"] = True
+            return set()
+
+        monkeypatch.setattr(sess, "_apply_po", _spy_po)
+
+        s_completed = _mock_session(status=WorkoutStatus.COMPLETED)
+        s_completed.finished_at = _NOW
+
+        db = _make_db(
+            _exec_scalar(s_completed),  # s0 = _get_my_session
+            _exec_scalar(None),  # UPDATE...RETURNING → claimed None (이미 COMPLETED, 전이 실패)
+            _exec_scalar(s_completed),  # 신선 재로드 s
+            _exec_scalar_one(2),  # total_sets
+            _exec_scalar_one(1),  # completed_exercises
+            _exec_scalar(None),  # latest_measurement
+        )
         app.dependency_overrides[get_db] = _db_override(db)
 
         resp = await client.patch(f"/api/v1/sessions/{_SESSION_ID}/finish", json={})
 
-        assert resp.status_code == 409
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert called["po"] is False  # 멱등 재호출은 PO 미실행
+
+    @pytest.mark.asyncio
+    async def test_claim_winner_runs_po_and_warms_cache(self, client, monkeypatch):
+        """전이 선점자(claimed is not None)는 _apply_po를 실행하고,
+        반환된 warm_keys를 background task로 워밍 큐에 등록한다."""
+        from app.api.v1 import sessions as sess
+
+        warmed: list[tuple[str, str]] = []
+
+        async def _spy_po(*a, **k):
+            return {("hypertrophy", "cable")}
+
+        async def _spy_warm(goal, lm):
+            warmed.append((goal, lm))
+
+        monkeypatch.setattr(sess, "_apply_po", _spy_po)
+        monkeypatch.setattr(sess.po_rag, "warm_po_cache", _spy_warm)
+
+        session = _mock_session()
+
+        db = _make_db(
+            _exec_scalar(session),  # s0 = _get_my_session
+            _exec_scalar(_SESSION_ID),  # UPDATE...RETURNING → claimed (선점)
+            _exec_scalar(session),  # 신선 재로드 s
+            _exec_scalar_one(3),  # total_sets
+            _exec_scalar_one(2),  # completed_exercises
+            _exec_scalar(None),  # latest_measurement
+        )
+        app.dependency_overrides[get_db] = _db_override(db)
+
+        resp = await client.patch(f"/api/v1/sessions/{_SESSION_ID}/finish", json={})
+
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        # 선점자만 PO 실행 → warm_keys가 background warm으로 전달됨
+        assert ("hypertrophy", "cable") in warmed
 
 
 # ── GET /sessions?year=&month= ────────────────────────────────────────────────

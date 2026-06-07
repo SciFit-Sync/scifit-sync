@@ -7,8 +7,8 @@ import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func, select, text
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_required_profile
@@ -585,25 +585,48 @@ async def finish_session(
     request: Request,
     session_id: str,
     body: FinishSessionRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_required_profile),
     db: AsyncSession = Depends(get_db),
 ):
-    s = await _get_my_session(session_id, current_user, db)
-    if s.status == WorkoutStatus.COMPLETED:
-        raise ConflictError(message="이미 종료된 세션입니다.")
+    s0 = await _get_my_session(session_id, current_user, db)  # 404 게이트 + started_at 확보
+    candidate = _resolve_finished_at(body.finished_at, s0.started_at)
 
-    candidate = _resolve_finished_at(body.finished_at, s.started_at)
-    s.finished_at = candidate
-    s.status = WorkoutStatus.COMPLETED
-    await db.commit()
-    await db.refresh(s)
+    # 원자 전이: IN_PROGRESS → COMPLETED 를 단일 UPDATE...RETURNING 으로 선점.
+    # 동시/멱등 재호출 시 선점자만 1행을 돌려받고(claimed is not None),
+    # 이미 COMPLETED면 claimed is None → PO 건너뛰고 재계산 DTO를 200 멱등 반환한다.
+    claimed = (
+        await db.execute(
+            update(WorkoutLog)
+            .where(
+                WorkoutLog.id == s0.id,
+                WorkoutLog.user_id == current_user.id,
+                WorkoutLog.status == WorkoutStatus.IN_PROGRESS,
+            )
+            .values(status=WorkoutStatus.COMPLETED, finished_at=candidate)
+            .returning(WorkoutLog.id)
+        )
+    ).scalar_one_or_none()
+    await db.commit()  # COMPLETED 를 먼저 durable 하게 확정
 
-    dto = await _build_finish_dto(s, current_user, db)
+    db.expire_all()
+    s = await _get_my_session(session_id, current_user, db)  # 신선 재로드(stale ORM 방지)
+    dto = await _build_finish_dto(s, current_user, db)  # 멱등 200 경로 포함 항상 재계산
 
-    # _apply_po는 commit하지 않으므로 호출부에서 단일 커밋(rex bump + 알림 스테이징).
-    # warm_keys 백그라운드 워밍은 Task 5에서 BackgroundTasks로 연결.
-    await _apply_po(s, current_user, db)
-    await db.commit()
+    if claimed is not None:  # 전이 선점자만 PO 부수효과 실행
+        warm_keys: set[tuple[str, str]] = set()
+        try:
+            warm_keys = await _apply_po(s, current_user, db)  # bump + 알림 ORM 스테이징(commit 안 함)
+            await db.commit()  # PO 변경을 단일 트랜잭션으로 커밋
+        except Exception:
+            await db.rollback()  # PO 스테이징 전체 폐기(COMPLETED는 이미 durable, 무영향)
+            warm_keys = set()
+            logger.warning(
+                "PO 후처리 실패 (세션은 이미 COMPLETED) request_id=%s",
+                getattr(request.state, "request_id", "-"),
+            )
+        for goal, lm in warm_keys:
+            background_tasks.add_task(po_rag.warm_po_cache, goal, lm)
 
     return SuccessResponse(data=dto)
 
