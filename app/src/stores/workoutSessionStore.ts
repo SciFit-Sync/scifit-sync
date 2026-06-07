@@ -24,12 +24,15 @@ interface WorkoutSessionState {
   detail_page_enter_ms: number | null;
   /** set_id → 체크 여부 */
   checked_sets: Record<string, boolean>;
+  /** 스톱워치 일시정지 여부 — 페이지 이탈해도 유지 */
+  is_timer_paused: boolean;
 
   set_owner: (user_id: string) => void;
   set_session: (routine_id: string, session_id: string, started_at: string) => void;
   add_page_elapsed: (ms: number) => void;
   set_detail_page_enter: (ms: number | null) => void;
   toggle_set: (set_id: string, is_done: boolean) => void;
+  set_timer_paused: (paused: boolean) => void;
   clear: () => void;
 }
 
@@ -43,6 +46,7 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
       page_elapsed_ms: 0,
       detail_page_enter_ms: null,
       checked_sets: {},
+      is_timer_paused: false,
 
       set_owner: (user_id) => set({ owner_user_id: user_id }),
 
@@ -59,6 +63,8 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
           checked_sets: { ...state.checked_sets, [set_id]: is_done },
         })),
 
+      set_timer_paused: (paused) => set({ is_timer_paused: paused }),
+
       clear: () =>
         set({
           owner_user_id: null,
@@ -68,6 +74,7 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
           page_elapsed_ms: 0,
           detail_page_enter_ms: null,
           checked_sets: {},
+          is_timer_paused: false,
         }),
     }),
     {

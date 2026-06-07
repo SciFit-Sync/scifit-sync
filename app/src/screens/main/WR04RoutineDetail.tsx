@@ -160,6 +160,8 @@ export default function WR04RoutineDetail() {
   );
   const ws_page_elapsed_ms = useWorkoutSessionStore((s) => s.page_elapsed_ms);
   const ws_checked_sets = useWorkoutSessionStore((s) => s.checked_sets);
+  const ws_is_timer_paused = useWorkoutSessionStore((s) => s.is_timer_paused);
+  const ws_set_timer_paused = useWorkoutSessionStore((s) => s.set_timer_paused);
 
   // 이번 마운트의 진입 시각 — 언마운트 시 누적 체류 시간에 합산
   const mount_time_ref = useRef<number>(Date.now());
@@ -308,14 +310,20 @@ export default function WR04RoutineDetail() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout_running, ws_session_started_at, pause_offset_ms]);
 
-  // 세션 복원 시 스톱워치 자동 재개
+  // 세션 복원 시 스톱워치 자동 재개 (일시정지 상태면 재개 안 함)
   useEffect(() => {
     if (session_started && ws_session_started_at && !workout_running) {
-      set_live_ms(Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms);
-      set_workout_running(true);
+      if (ws_is_timer_paused) {
+        // 일시정지 상태로 복귀 — frozen_ms만 복원, 타이머 시작 안 함
+        const elapsed = Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms;
+        set_frozen_ms(elapsed);
+      } else {
+        set_live_ms(Date.now() - new Date(ws_session_started_at).getTime() - pause_offset_ms);
+        set_workout_running(true);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session_started, ws_session_started_at]);
+  }, [session_started, ws_session_started_at, ws_is_timer_paused]);
 
   const format_time = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -761,6 +769,7 @@ export default function WR04RoutineDetail() {
     pause_started_at_ref.current = Date.now();
     set_frozen_ms(live_ms);
     set_workout_running(false);
+    ws_set_timer_paused(true);
   };
 
   /** 스톱워치 재개 */
@@ -770,6 +779,7 @@ export default function WR04RoutineDetail() {
       set_pause_offset_ms((prev) => prev + paused_duration);
       pause_started_at_ref.current = null;
     }
+    ws_set_timer_paused(false);
     set_workout_running(true);
   };
 
