@@ -452,11 +452,9 @@ async def _check_and_create_po_notifications(
         user_1rm_kg = float(user_1rm_row) if user_1rm_row is not None else None
         try:
             increment_override = await po_rag.rag_po_increment(goal, category, user_1rm_kg)
-            po_source = "논문 기반" if increment_override is not None else "기본값"
         except Exception as rag_err:
             logger.warning("po_rag.rag_po_increment failed for %s, using default: %s", ex_name, rag_err)
             increment_override = None
-            po_source = "기본값"
 
         result = po.calculate_increase(
             category=category,
@@ -477,7 +475,7 @@ async def _check_and_create_po_notifications(
                     user_id=user.id,
                     type=NotificationType.PO_SUGGESTION,
                     title="더 무거운 기구를 사용해보세요",
-                    body=f"{ex_name}: {result['message']} [{po_source}]",
+                    body=f"{ex_name}: {result['message']}",
                     data_json={
                         "routine_exercise_id": str(rex_id),
                         "exercise_id": str(rex.exercise_id),
@@ -490,7 +488,7 @@ async def _check_and_create_po_notifications(
                     user_id=user.id,
                     type=NotificationType.PO_SUGGESTION,
                     title="중량 증가를 권장해요",
-                    body=f"{ex_name} {cur_max_weight}kg → {result['new_weight']}kg으로 올려보세요 [{po_source}]",
+                    body=f"{ex_name} {cur_max_weight}kg → {result['new_weight']}kg으로 올려보세요",
                     data_json={
                         "routine_exercise_id": str(rex_id),
                         "exercise_id": str(rex.exercise_id),
