@@ -19,7 +19,9 @@ export function searchExercises(
   token: string,
   keyword: string,
   size = 20,
+  category?: string,
 ): Promise<ExerciseListData> {
   const params = new URLSearchParams({ keyword, size: String(size) });
+  if (category) params.set("category", category);
   return apiFetch<ExerciseListData>(`/api/v1/exercises?${params}`, { token });
 }

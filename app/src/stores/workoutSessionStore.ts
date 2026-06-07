@@ -24,12 +24,20 @@ interface WorkoutSessionState {
   detail_page_enter_ms: number | null;
   /** set_id → 체크 여부 */
   checked_sets: Record<string, boolean>;
+  /** 스톱워치 일시정지 여부 — 페이지 이탈해도 유지 */
+  is_timer_paused: boolean;
+  /** 일시정지 시점의 표시값(ms) — 복귀 시 부풀림 방지 */
+  frozen_timer_ms: number;
+  /** routine_exercise_id → 사용자가 설정한 휴식 시간(초) — 화면 이탈 후 복귀 시에도 유지 */
+  rest_seconds_overrides: Record<string, number>;
 
   set_owner: (user_id: string) => void;
   set_session: (routine_id: string, session_id: string, started_at: string) => void;
   add_page_elapsed: (ms: number) => void;
   set_detail_page_enter: (ms: number | null) => void;
   toggle_set: (set_id: string, is_done: boolean) => void;
+  set_timer_paused: (paused: boolean, frozen_ms?: number) => void;
+  set_rest_seconds: (rex_id: string, seconds: number) => void;
   clear: () => void;
 }
 
@@ -43,6 +51,9 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
       page_elapsed_ms: 0,
       detail_page_enter_ms: null,
       checked_sets: {},
+      is_timer_paused: false,
+      frozen_timer_ms: 0,
+      rest_seconds_overrides: {},
 
       set_owner: (user_id) => set({ owner_user_id: user_id }),
 
@@ -59,6 +70,14 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
           checked_sets: { ...state.checked_sets, [set_id]: is_done },
         })),
 
+      set_timer_paused: (paused, frozen_ms = 0) =>
+        set({ is_timer_paused: paused, frozen_timer_ms: frozen_ms }),
+
+      set_rest_seconds: (rex_id, seconds) =>
+        set((state) => ({
+          rest_seconds_overrides: { ...state.rest_seconds_overrides, [rex_id]: seconds },
+        })),
+
       clear: () =>
         set({
           owner_user_id: null,
@@ -68,6 +87,9 @@ export const useWorkoutSessionStore = create<WorkoutSessionState>()(
           page_elapsed_ms: 0,
           detail_page_enter_ms: null,
           checked_sets: {},
+          is_timer_paused: false,
+          frozen_timer_ms: 0,
+          rest_seconds_overrides: {},
         }),
     }),
     {
