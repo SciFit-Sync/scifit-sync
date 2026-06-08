@@ -50,9 +50,9 @@ interface Message {
 /** 봇 답변에서 논문 인용 표기 제거 */
 function strip_citations(text: string): string {
   return text
-    .replace(/\[논문\s*\d+[^\]]*\]/g, "")          // [논문 N] 또는 [논문 N: 제목...]
-    .replace(/\(논문\s*\d+[:\s][^)]*\)/g, "")      // (논문 N: 제목)
-    .replace(/\s*\(\s*[A-Z][^)]{35,}\)/g, "")      // ( Paper Title...) — 영어 논문 제목 괄호
+    .replace(/\[논문\s*\d+[^\]]*\]/g, "") // [논문 N] 또는 [논문 N: 제목...]
+    .replace(/\(논문\s*\d+[:\s][^)]*\)/g, "") // (논문 N: 제목)
+    .replace(/\s*\(\s*[A-Z][^)]{35,}\)/g, "") // ( Paper Title...) — 영어 논문 제목 괄호
     .replace(/  +/g, " ")
     .trim();
 }
@@ -93,7 +93,7 @@ export default function WC01Chatbot({ onClose }: Props) {
   // M-1: user_id 기반 격리 키 — A 로그아웃 후 B 로그인 시 대화 노출 방지
   const chat_storage_key = useMemo(
     () => `chatbot_messages_v1_${decode_jwt_sub(access_token)}`,
-    [access_token]
+    [access_token],
   );
 
   // M-3: 언마운트 시 XHR abort + setState 방지
@@ -113,7 +113,7 @@ export default function WC01Chatbot({ onClose }: Props) {
       const screen_h = Dimensions.get("window").height;
       const kb_h = e.endCoordinates.height;
       const container_h = 588;
-      const margin = 12;
+      const margin = 70;
       // 컨테이너 현재 위치(center 기준)와 키보드 위 필요 위치 차이를 계산
       const current_top = (screen_h - container_h) / 2;
       const needed_top = screen_h - kb_h - container_h - margin;
@@ -181,9 +181,10 @@ export default function WC01Chatbot({ onClose }: Props) {
             {
               id: "greeting",
               type: "bot",
-              text: chips.length > 0
-                ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
-                : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+              text:
+                chips.length > 0
+                  ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
+                  : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
               chips: chips.length > 0 ? chips : undefined,
               timestamp: Date.now(),
             },
@@ -215,15 +216,31 @@ export default function WC01Chatbot({ onClose }: Props) {
     papers_overlay_anim.setValue(0);
     papers_sheet_anim.setValue(400);
     Animated.parallel([
-      Animated.timing(papers_overlay_anim, { toValue: 1, duration: SHEET_DUR, useNativeDriver: true }),
-      Animated.timing(papers_sheet_anim, { toValue: 0, duration: SHEET_DUR, useNativeDriver: true }),
+      Animated.timing(papers_overlay_anim, {
+        toValue: 1,
+        duration: SHEET_DUR,
+        useNativeDriver: true,
+      }),
+      Animated.timing(papers_sheet_anim, {
+        toValue: 0,
+        duration: SHEET_DUR,
+        useNativeDriver: true,
+      }),
     ]).start();
   };
 
   const close_papers = () => {
     Animated.parallel([
-      Animated.timing(papers_overlay_anim, { toValue: 0, duration: SHEET_DUR, useNativeDriver: true }),
-      Animated.timing(papers_sheet_anim, { toValue: 400, duration: SHEET_DUR, useNativeDriver: true }),
+      Animated.timing(papers_overlay_anim, {
+        toValue: 0,
+        duration: SHEET_DUR,
+        useNativeDriver: true,
+      }),
+      Animated.timing(papers_sheet_anim, {
+        toValue: 400,
+        duration: SHEET_DUR,
+        useNativeDriver: true,
+      }),
     ]).start(() => set_papers_modal(null));
   };
 
@@ -249,9 +266,10 @@ export default function WC01Chatbot({ onClose }: Props) {
         {
           id: "greeting",
           type: "bot",
-          text: chips.length > 0
-            ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
-            : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
+          text:
+            chips.length > 0
+              ? "안녕하세요, 어떤 루틴이 궁금하신가요?"
+              : "안녕하세요, 운동에 대해 무엇이든 물어보세요!",
           chips: chips.length > 0 ? chips : undefined,
           timestamp: now,
         },
@@ -262,7 +280,10 @@ export default function WC01Chatbot({ onClose }: Props) {
 
   const handle_close = () => {
     // 닫기 전 대화 저장 (M-2: 최대 100개 유지 — AsyncStorage 6MB 한계 방어)
-    AsyncStorage.setItem(chat_storage_key, JSON.stringify(messages.slice(-100))).catch(() => {});
+    AsyncStorage.setItem(
+      chat_storage_key,
+      JSON.stringify(messages.slice(-100)),
+    ).catch(() => {});
 
     Animated.parallel([
       Animated.timing(fade_anim, {
@@ -283,7 +304,12 @@ export default function WC01Chatbot({ onClose }: Props) {
     if (!content || is_sending) return;
 
     const now = Date.now();
-    const user_msg: Message = { id: String(now), type: "user", text: content, timestamp: now };
+    const user_msg: Message = {
+      id: String(now),
+      type: "user",
+      text: content,
+      timestamp: now,
+    };
     set_messages((prev) => [...prev, user_msg]);
     set_input("");
     set_is_sending(true);
@@ -306,14 +332,19 @@ export default function WC01Chatbot({ onClose }: Props) {
           on_chunk: (chunk) => {
             if (!is_mounted_ref.current) return;
             set_messages((prev) =>
-              prev.map((m) => (m.id === bot_id ? { ...m, text: m.text + chunk } : m))
+              prev.map((m) =>
+                m.id === bot_id ? { ...m, text: m.text + chunk } : m,
+              ),
             );
-            setTimeout(() => scroll_ref.current?.scrollToEnd({ animated: true }), 50);
+            setTimeout(
+              () => scroll_ref.current?.scrollToEnd({ animated: true }),
+              50,
+            );
           },
           on_sources: (sources) => {
             if (!is_mounted_ref.current) return;
             set_messages((prev) =>
-              prev.map((m) => (m.id === bot_id ? { ...m, sources } : m))
+              prev.map((m) => (m.id === bot_id ? { ...m, sources } : m)),
             );
           },
           on_done: () => {
@@ -322,20 +353,22 @@ export default function WC01Chatbot({ onClose }: Props) {
           on_error: (msg) => {
             if (!is_mounted_ref.current) return;
             set_messages((prev) =>
-              prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
+              prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m)),
             );
             set_is_sending(false);
           },
           // M-3: XHR abort 함수 저장 — 언마운트 시 useEffect cleanup에서 호출
-          on_abort_fn: (fn) => { xhr_abort_ref.current = fn; },
+          on_abort_fn: (fn) => {
+            xhr_abort_ref.current = fn;
+          },
         },
-        session_id
+        session_id,
       );
     } catch (e: unknown) {
       if (!is_mounted_ref.current) return;
       const msg = e instanceof Error ? e.message : "오류가 발생했습니다.";
       set_messages((prev) =>
-        prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m))
+        prev.map((m) => (m.id === bot_id ? { ...m, text: msg } : m)),
       );
       set_is_sending(false);
     }
@@ -386,7 +419,10 @@ export default function WC01Chatbot({ onClose }: Props) {
               styles.chatbot_container,
               {
                 opacity: fade_anim,
-                transform: [{ scale: scale_anim }, { translateY: keyboard_shift }],
+                transform: [
+                  { scale: scale_anim },
+                  { translateY: keyboard_shift },
+                ],
               },
             ]}
           >
@@ -421,7 +457,8 @@ export default function WC01Chatbot({ onClose }: Props) {
                 const prev_msg = messages[index - 1];
                 const show_date =
                   prev_msg !== undefined &&
-                  format_date(message.timestamp) !== format_date(prev_msg.timestamp);
+                  format_date(message.timestamp) !==
+                    format_date(prev_msg.timestamp);
 
                 return (
                   <View key={message.id}>
@@ -527,13 +564,23 @@ export default function WC01Chatbot({ onClose }: Props) {
           {papers_modal && (
             <>
               <Animated.View
-                style={[styles.papers_backdrop, { opacity: papers_overlay_anim }]}
+                style={[
+                  styles.papers_backdrop,
+                  { opacity: papers_overlay_anim },
+                ]}
                 pointerEvents="none"
               />
               <View style={styles.papers_overlay_container}>
-                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={close_papers} />
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  activeOpacity={1}
+                  onPress={close_papers}
+                />
                 <Animated.View
-                  style={[styles.papers_sheet, { transform: [{ translateY: papers_sheet_anim }] }]}
+                  style={[
+                    styles.papers_sheet,
+                    { transform: [{ translateY: papers_sheet_anim }] },
+                  ]}
                 >
                   {/* 핸들 */}
                   <View style={styles.papers_handle} />
@@ -542,7 +589,10 @@ export default function WC01Chatbot({ onClose }: Props) {
                   <View style={styles.papers_header}>
                     <View style={styles.papers_header_side} />
                     <Text style={styles.papers_title}>논문 근거</Text>
-                    <TouchableOpacity style={styles.papers_header_side} onPress={close_papers}>
+                    <TouchableOpacity
+                      style={styles.papers_header_side}
+                      onPress={close_papers}
+                    >
                       <Octicons name="x" size={20} color={colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -561,11 +611,19 @@ export default function WC01Chatbot({ onClose }: Props) {
                         {s.doi ? (
                           <TouchableOpacity
                             style={styles.paper_link_btn}
-                            onPress={() => Linking.openURL(`https://doi.org/${s.doi}`)}
+                            onPress={() =>
+                              Linking.openURL(`https://doi.org/${s.doi}`)
+                            }
                             activeOpacity={0.8}
                           >
-                            <Text style={styles.paper_link_text}>논문 링크</Text>
-                            <Octicons name="arrow-right" size={13} color={colors.primary} />
+                            <Text style={styles.paper_link_text}>
+                              논문 링크
+                            </Text>
+                            <Octicons
+                              name="arrow-right"
+                              size={13}
+                              color={colors.primary}
+                            />
                           </TouchableOpacity>
                         ) : null}
                       </View>

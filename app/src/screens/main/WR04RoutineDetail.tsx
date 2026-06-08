@@ -402,7 +402,7 @@ export default function WR04RoutineDetail() {
   };
 
   const format_hms = (ms: number) => {
-    const total = Math.floor(ms / 1000);
+    const total = Math.floor(Math.max(0, ms) / 1000);
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
     const s = total % 60;
@@ -466,21 +466,25 @@ export default function WR04RoutineDetail() {
                 : null,
               reps: parseInt(current_set.reps, 10) || 0,
               is_completed: true,
-            }).then(() => {
-              query_client.invalidateQueries({ queryKey: ["sessions"] });
-              query_client.invalidateQueries({ queryKey: ["session-stats"] });
-              query_client.invalidateQueries({ queryKey: ["volume-analysis"] });
-              query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
-              query_client.invalidateQueries({
-                queryKey: ["notifications", token],
+            })
+              .then(() => {
+                query_client.invalidateQueries({ queryKey: ["sessions"] });
+                query_client.invalidateQueries({ queryKey: ["session-stats"] });
+                query_client.invalidateQueries({
+                  queryKey: ["volume-analysis"],
+                });
+                query_client.invalidateQueries({ queryKey: ["muscle-volume"] });
+                query_client.invalidateQueries({
+                  queryKey: ["notifications", token],
+                });
+              })
+              .catch(() => {
+                // logSet 실패만 여기서 처리 — ensure_session 실패는 handle_start에서 처리
+                Alert.alert(
+                  "세트 기록 실패",
+                  "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
+                );
               });
-            }).catch(() => {
-              // logSet 실패만 여기서 처리 — ensure_session 실패는 handle_start에서 처리
-              Alert.alert(
-                "세트 기록 실패",
-                "세트가 서버에 저장되지 않았습니다.\n네트워크 연결을 확인해주세요.",
-              );
-            });
           })
           .catch(() => {
             // ensure_session 실패 — handle_start의 catch에서 이미 Alert 표시
@@ -872,6 +876,8 @@ export default function WR04RoutineDetail() {
             ? data.started_at
             : data.started_at + "Z";
           ws_set_session(routine_id, data.session_id, started_at_utc);
+          // 새 세션 시작 시 이전 세션의 stale pause_offset 초기화 (음수 타이머 방지)
+          ws_set_pause_offset_ms(0);
         }
         return data.session_id;
       })
@@ -2508,7 +2514,7 @@ const styles = StyleSheet.create({
   },
   workout_timer_text: {
     fontFamily: "semibold",
-    fontSize: 20,
+    fontSize: 16,
     color: colors.primary,
   },
 });
