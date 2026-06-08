@@ -13,7 +13,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Octicons } from "@expo/vector-icons";
 import { colors } from "../../assets/colors/colors";
 import { useAuthStore } from "../../stores/authStore";
-import { getMe, updateMyGym, GymData } from "../../services/users";
+import { getMe, updateMyGym, deleteMyGym, GymData } from "../../services/users";
 
 export default function WP04EditGym() {
   const navigation = useNavigation();
@@ -38,6 +38,28 @@ export default function WP04EditGym() {
     } finally {
       set_loading(false);
     }
+  };
+
+  const handle_delete = (gym: GymData) => {
+    Alert.alert(
+      "헬스장 삭제",
+      `${gym.name}을(를) 삭제하시겠어요?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMyGym(token, gym.gym_id);
+              await load_gyms();
+            } catch (e: any) {
+              Alert.alert("오류", e.message ?? "삭제에 실패했어요.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handle_menu = (gym: GymData) => {
@@ -120,17 +142,28 @@ export default function WP04EditGym() {
                         <Text style={styles.primary_badge}>주 헬스장</Text>
                       )}
                     </View>
-                    <TouchableOpacity
-                      onPress={() => handle_menu(gym)}
-                      activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Octicons
-                        name="kebab-horizontal"
-                        size={16}
-                        color={colors.bluegray}
-                      />
-                    </TouchableOpacity>
+                    <View style={styles.gym_actions}>
+                      <TouchableOpacity
+                        onPress={() => handle_delete(gym)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Octicons name="trash" size={16} color={colors.bluegray} />
+                      </TouchableOpacity>
+                      {!gym.is_primary && (
+                        <TouchableOpacity
+                          onPress={() => handle_menu(gym)}
+                          activeOpacity={0.7}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Octicons
+                            name="kebab-horizontal"
+                            size={16}
+                            color={colors.bluegray}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -205,6 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   gym_info: { gap: 4, flex: 1 },
+  gym_actions: { flexDirection: "row", alignItems: "center", gap: 16 },
   gym_name: {
     fontFamily: "medium",
     fontSize: 15,
