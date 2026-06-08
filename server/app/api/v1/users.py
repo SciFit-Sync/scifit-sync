@@ -552,10 +552,7 @@ async def delete_my_gym(
     if was_primary:
         remaining = (
             await db.execute(
-                select(UserGym)
-                .where(UserGym.user_id == current_user.id)
-                .order_by(UserGym.created_at)
-                .limit(1)
+                select(UserGym).where(UserGym.user_id == current_user.id).order_by(UserGym.created_at).limit(1)
             )
         ).scalar_one_or_none()
         if remaining:
