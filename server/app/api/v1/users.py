@@ -518,6 +518,52 @@ async def change_primary_gym(
     return await add_primary_gym(request, body, current_user, db)
 
 
+# ── DELETE /users/me/gym/{gym_id} ─────────────────────────────────────────────
+@router.delete("/me/gym/{gym_id}", status_code=204, summary="내 헬스장 삭제")
+@rate_limit("60/minute")
+async def delete_my_gym(
+    request: Request,
+    gym_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        gym_uuid = uuid.UUID(gym_id)
+    except ValueError as e:
+        raise ValidationError(message="잘못된 gym_id 형식입니다.") from e
+
+    user_gym = (
+        await db.execute(
+            select(UserGym).where(
+                UserGym.user_id == current_user.id,
+                UserGym.gym_id == gym_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if user_gym is None:
+        raise NotFoundError(message="등록된 헬스장을 찾을 수 없습니다.")
+
+    was_primary = user_gym.is_primary
+    await db.delete(user_gym)
+    await db.flush()
+
+    # 삭제된 헬스장이 주 헬스장이면 남은 헬스장 중 가장 먼저 등록된 것을 주 헬스장으로 승격
+    if was_primary:
+        remaining = (
+            await db.execute(
+                select(UserGym)
+                .where(UserGym.user_id == current_user.id)
+                .order_by(UserGym.created_at)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if remaining:
+            remaining.is_primary = True
+
+    await db.commit()
+
+
 # ── equipment DTO ─────────────────────────────────────────────────────────────
 def _equipment_to_dto(e: Equipment) -> UserEquipmentItem:
     return UserEquipmentItem(

@@ -148,6 +148,17 @@ export async function updateMyGym(
   });
 }
 
+// DELETE /api/v1/users/me/gym/{gym_id} (헬스장 삭제)
+export async function deleteMyGym(
+  token: string,
+  gym_id: string,
+): Promise<void> {
+  await apiFetch(`/api/v1/users/me/gym/${gym_id}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
 // POST /api/v1/users/me/1rm/bulk (1RM 일괄 저장)
 export interface BulkOneRMItem {
   exercise_code: string;
