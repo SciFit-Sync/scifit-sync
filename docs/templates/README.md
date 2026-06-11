@@ -5,7 +5,7 @@
 # 기구 데이터 추가용 CSV 템플릿
 
 > 새 브랜드 카탈로그를 추가할 때 사용하는 표준 CSV 형식 안내.
-> 스키마 정의: `docs/spec/database-schema.md` (v2.1)
+> 스키마 정의: `docs/spec/database-schema.md` (v2.2) · 현행 ERD 정본: `docs/spec/erd-v2.3.md`
 
 ---
 
@@ -20,9 +20,9 @@
 - `newtech_equipments.csv`
 - `panatta_equipments.csv`
 
-`<brand_slug>`은 소문자·언더스코어로 표기하며, ETL이 파일명을 `equipment_brands.name`과 매핑한다. 매핑 테이블은 ETL 스크립트(`server/scripts/import_equipment_csv.py`, Phase 2+ #2 브랜치)에 정의된다.
+`<brand_slug>`은 소문자·언더스코어로 표기하며, ETL이 파일명을 `equipment_brands.name`과 매핑한다. 매핑 테이블은 ETL 스크립트(`server/import_equipment_csv.py`)에 정의된다.
 
-> **저장 위치**: 실제 수집된 CSV는 git 외부 `data/` 디렉토리에 둔다(`capstone/data/<brand_slug>_equipments.csv`). 본 디렉토리(`docs/templates/`)는 형식 정의 전용.
+> **저장 위치**: 실제 수집된 CSV는 `mlops/data/`에 커밋한다(`mlops/data/<brand_slug>_equipments.csv`). 본 디렉토리(`docs/templates/`)는 형식 정의 전용.
 
 ---
 
@@ -165,7 +165,7 @@ id,brand_id,name,category,sub_category,equipment_type,pulley_ratio,bar_weight_kg
 
 ## 8. ETL 가져오기 (Phase 2+, 참고)
 
-본 템플릿으로 작성된 파일은 후속 Phase 2 브랜치에서 `server/scripts/import_equipment_csv.py`가 처리한다:
+본 템플릿으로 작성된 파일은 `server/import_equipment_csv.py`가 처리한다:
 
 1. 파일명에서 brand 추출 → `equipment_brands.id` 조회
 2. 인코딩 자동 감지 (UTF-8 → CP949 fallback)

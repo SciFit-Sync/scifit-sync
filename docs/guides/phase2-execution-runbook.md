@@ -210,7 +210,7 @@ ssh gpu 'tail -f /mnt/data/scifit-sync/phase2_upsert.log'
 
 ### 4.1 Retry 동작 (PR #184 commit `46b77e6` 이식)
 
-`stage4_upsert._post`는 `load_embeddings.load_api`의 검증된 retry 패턴을 그대로 사용한다 — 2,500만 청크 / 1,250~2,100 배치 호출 중 transient 5xx 한 번에 abort + 운영자 수동 재실행을 차단하기 위한 한 줄짜리 안전망.
+`stage4_upsert._post`는 `load_embeddings.load_api`의 검증된 retry 패턴을 그대로 사용한다 — 25만~42만 청크 / 1,250~2,100 배치 호출(batch 200) 중 transient 5xx 한 번에 abort + 운영자 수동 재실행을 차단하기 위한 한 줄짜리 안전망.
 
 | 항목 | 동작 |
 |---|---|
@@ -418,15 +418,15 @@ aws ecs execute-command --cluster scifit-sync --task "$TASK_ID" --interactive \
 
 ### 9.2 RAG 응답 품질 sanity
 
-주기적으로 (예: 일 1회):
+주기적으로 (예: 일 1회) 적재/alias 상태 점검:
 ```bash
-curl -H "X-Admin-Token: $ADMIN_API_TOKEN" -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"query":"resistance training hypertrophy"}' \
-  https://scifit-sync.com/api/v1/admin/rag/debug-search 2>&1 | jq '.data.chunks[] | {pmid: .pmid, score, evidence_weight: .metadata.evidence_weight}'
+curl -s -H "X-Admin-Token: $ADMIN_API_TOKEN" \
+  "https://scifit-sync.com/api/v1/admin/rag/pmids?limit=1" \
+  | jq '.data | {total, total_chunks}'
 ```
 
-기대: score 분포가 다양화 (0.5 단일값 아님), evidence_weight가 0.3~1.0 분포.
+기대: `total`(unique PMID)·`total_chunks`가 직전 적재 결과와 일치 (급감 시 alias/EFS 점검).
+응답 품질(score 분포 다양화, evidence_weight 0.3~1.0 차등)은 §6.4 chat smoke test로 확인한다 — 전용 debug-search 엔드포인트는 없다.
 
 ---
 
@@ -459,8 +459,7 @@ A. nohup으로 띄웠으면 백그라운드 진행 지속. `tail -f /mnt/data/sc
 - Design spec: `docs/superpowers/specs/2026-05-28-rag-data-normalization-design.md`
 - Implementation plan: `docs/superpowers/plans/2026-05-28-rag-data-normalization-plan.md`
 - 관련 PR: #179 (PR-α efetch), #181 (PR-β JATS), #182 (PR-δ+ε alias-swap), #184 (PR-γ orchestrator + `_post` retry 이식 commit `46b77e6`)
-- 메모리: `project_prod_rag_full_reload_20260528.md`, `project_evidence_weight_data_gap.md`
-- 운영 환경 정보 (메모리 #12461): AWS ALB idle timeout 300초
+- 운영 환경 정보: AWS ALB idle timeout 300초
 
 ---
 

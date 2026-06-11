@@ -2,7 +2,7 @@
 
 > 환경 셋업부터 본 실행, RAG 검증까지 따라할 수 있는 빠른시작 가이드.
 > **검증 환경**: GPU 클러스터 (Ubuntu 22.04, Python 3.10/3.11 공존, NVIDIA CUDA 12.0 드라이버)
-> **기준 코드**: `develop` 브랜치, PR #63 머지 완료 (commit `4abf227`)
+> **기준 코드**: `develop` 브랜치 최신 (작업 전 `git pull origin develop`)
 >
 > 🚀 **빠른 운영 흐름** (develop pull → env → 본 ingest → 메타 동기화 → RAG 검증)만 보려면
 > [`mlops-ingest-runbook.md`](./mlops-ingest-runbook.md)를 참조하세요. 이 문서는 상세 옵션·트러블슈팅용.
@@ -16,13 +16,11 @@
 - 클라우드 인스턴스 (Linux, RAM 4GB+, 디스크 5GB+)
 - root 또는 sudo 권한
 - 인터넷 접근 (NCBI eutils, HuggingFace, PyPI)
-- **선택 / 강력 권장**: NCBI API key — https://www.ncbi.nlm.nih.gov/account/settings/ (rate limit 3→10 req/s)
+- **선택 / 강력 권장**: NCBI API key — https://www.ncbi.nlm.nih.gov/account/settings/ (요청 간격 1.5s → 1.0s + 안정성↑)
 
 ---
 
 ## STEP 1. 코드 가져오기 (develop 브랜치)
-
-PR #63이 develop에 머지 완료됨 (`4abf227`).
 
 ```bash
 # 처음이면 clone
@@ -38,8 +36,8 @@ git pull origin develop
 
 **검증**:
 ```bash
-git log --oneline -1
-# 출력: 4abf227 Merge pull request #63 from SciFit-Sync/feature/jingyu/mlops-paper-ingest
+git status -sb
+# 출력: ## develop...origin/develop  (ahead/behind 없음 = 최신)
 ```
 
 ---
@@ -127,7 +125,7 @@ CPU만으로도 동작 (100편 ~10-15분). 그대로 STEP 6 진행.
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `NCBI_API_KEY` | `""` | NCBI E-utilities API key. 있으면 rate limit **3 → 10 req/s** (코드 내부 `NCBI_RATE_LIMIT`: 1.0s → 0.34s). 29 카테고리 esearch 1-2분 → 20초. |
+| `NCBI_API_KEY` | `""` | NCBI E-utilities API key. 있으면 요청 간격 **1.5s → 1.0s** (코드 내부 `NCBI_RATE_LIMIT`, env `NCBI_RATE_LIMIT_SECONDS`로 override 가능). 50 카테고리 esearch 시간 단축 + 안정성↑. |
 | `API_BASE_URL` | `""` | **`--mode api`** 적재 시 필수. 운영 서버 URL (예: `https://api.scifit-sync.example.com`). `--mode local`에선 무관 |
 | `ADMIN_API_TOKEN` | `""` | **`--mode api`** 적재 시 필수. 서버 `X-Admin-Token` 헤더 값. 서버 환경변수와 정확히 동일해야 인증 통과 |
 
@@ -136,7 +134,7 @@ CPU만으로도 동작 (100편 ~10-15분). 그대로 STEP 6 진행.
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `CHROMA_PERSIST_PATH` | `/chroma-data` | **로컬 적재 시 필수 변경**. 기본값은 ECS/EFS 마운트 가정이라 로컬에선 `$PWD/mlops/data/chroma-data` 같은 쓰기 가능 경로로 |
-| `CHROMA_COLLECTION_NAME` | `paper_chunks` | 컬렉션명. 운영과 동일하게 유지. BGE prefix 마이그레이션 시 `paper_chunks_v2`로 바뀐 적 있음 — 운영 서버 설정과 동기화 필수 |
+| `CHROMA_COLLECTION_NAME` | `paper_chunks` | 컬렉션명. **운영 컬렉션의 SOT는 EFS `/chroma-data/current_alias.json`(alias-swap)** — 운영 적재 전 [`phase2-execution-runbook.md`](./phase2-execution-runbook.md) §0.4.1 절차로 현재 alias를 확인하고 일치시킨다 |
 
 ### 6-3. 임베딩
 
@@ -216,8 +214,7 @@ export MAX_PAPERS_PER_RUN=300
 
 ```bash
 pytest mlops/tests/test_crawler.py mlops/tests/test_load_embeddings.py -v
-# 기대: 36 + 11 = 47 passed
-# (test_crawler 36 = parse 7 + search 2 + round-robin 8 + HTTP retry 9 + fulltext layer retry 10)
+# 기대: 전부 passed — 테스트 수는 코드 버전에 따라 증가 (2026-06 기준 71 + 11 = 82)
 ```
 
 ⚠️ 실패하면 환경 설정 문제. 출력 확보 후 트러블슈팅.
@@ -238,7 +235,7 @@ INFO [mlops.pipeline.chunker] 전체 청킹 완료: 논문 3편 → 청크 N개
 INFO [__main__] [DRY RUN] 임베딩/파일 출력 생략
 ```
 
-소요: NCBI key 있으면 ~20초, 없으면 ~1-2분.
+소요: ~1-2분 (NCBI key 있으면 단축).
 
 ---
 
@@ -250,7 +247,7 @@ python mlops/scripts/export_embeddings.py [옵션...]
 
 | 옵션 | 타입 / 기본 | 설명 |
 |---|---|---|
-| `--max-papers N` | int / `MAX_PAPERS_PER_RUN` (300) | **전체 PMID 수집 상한**. round-robin으로 29 카테고리에서 균등 분배 |
+| `--max-papers N` | int / `MAX_PAPERS_PER_RUN` (300) | **전체 PMID 수집 상한**. round-robin으로 50 카테고리에서 균등 분배 |
 | `--output PATH` | Path / `mlops/data/embeddings.jsonl` | 출력 파일 경로. **확장자 `.jsonl.gz`면 gzip 자동 적용** |
 | `--gzip` | flag / False | 확장자 무관하게 gzip 강제 |
 | `--dry-run` | flag / False | **크롤링 + 청킹만 수행**, 임베딩/파일 출력 생략 |
@@ -472,7 +469,7 @@ python mlops/scripts/refresh_search_categories.py --max-per-category 9999
 
 동작:
 1. `GET /api/v1/admin/rag/pmids` — ChromaDB에 적재된 unique PMID 목록 조회
-2. 65개 카테고리 모두 esearch 재실행 → PMID → 매칭 카테고리 set 빌드
+2. 50개 카테고리 모두 esearch 재실행 → PMID → 매칭 카테고리 set 빌드
 3. `POST /api/v1/admin/rag/refresh-categories` — `{pmid: [categories]}` 매핑 전송
 4. 백엔드가 `collection.update(ids=..., metadatas=...)`로 메타만 덮어씀
 
@@ -481,7 +478,7 @@ python mlops/scripts/refresh_search_categories.py --max-per-category 9999
 - 카테고리 어휘를 더 넓혔을 때 (예: tempo_tut에 "lifting velocity" 추가)
 - 카테고리를 삭제했을 때 (메타에서 자동 제거됨)
 
-소요시간: ~2–4분 (65 카테고리 × esearch 1초 + ChromaDB update 수십초).
+소요시간: ~2–4분 (50 카테고리 × esearch ~1초 + ChromaDB update 수십초).
 
 > 주의: 새 카테고리에 매칭되는 **신규 PMID 수집**은 별도. 그건 monthly_ingest로 처리.
 
@@ -494,16 +491,16 @@ python mlops/scripts/refresh_search_categories.py --max-per-category 9999
 ### 15-1. 핵심 제약 — 카테고리당 후보 풀 cap
 
 ```
-65 카테고리 × max_per_category = round-robin 입력 후보 풀
+50 카테고리 × max_per_category = round-robin 입력 후보 풀
 ```
 
 cap은 CLI `--max-per-category`로 지정한다 (소스별 환경변수 fallback: OpenAlex 500 / PubMed 50). **더 많이 수집하거나 같은 DOI가 여러 카테고리에 매칭될 확률(다중 매칭)을 높이려면 cap을 늘린다**:
 
 | 시나리오 | `--max-per-category` | 후보 풀 (양 소스 합산 cap 기준) | 평균 카테고리/논문 (예상) |
 |---|---|---|---|
-| 가벼운 월간 ingest | 생략 (소스별 기본값) | OA 500 / PM 50 × 65 | ~3.0 |
-| 중간 — 2k 풀 ingest | `50` | 65 × 50 = 3,250 | ~5 |
-| 대규모 — 깊이 우선 | `100` | 65 × 100 = 6,500 | ~7 |
+| 가벼운 월간 ingest | 생략 (소스별 기본값) | OA 500 / PM 50 × 50 | ~3.0 |
+| 중간 — 2k 풀 ingest | `50` | 50 × 50 = 2,500 | ~5 |
+| 대규모 — 깊이 우선 | `100` | 50 × 100 = 5,000 | ~7 |
 | 카테고리 풀 최대 | `9999` (esearch 한도) | — | 평균 10+ |
 
 > round-robin이 큰 카테고리 독식을 막아주므로 cap이 커도 작은 카테고리(30~50건짜리)의 다양성은 유지된다. 다만 esearch 응답 크기와 메타데이터 fetch 부담은 비례 증가.
@@ -732,10 +729,10 @@ source .venv/bin/activate
 
 # 필수 환경변수
 export CHROMA_PERSIST_PATH=$PWD/mlops/data/chroma-data   # 로컬 ChromaDB 경로
-export CHROMA_COLLECTION_NAME=paper_chunks               # 컬렉션명 (운영과 동기화)
+export CHROMA_COLLECTION_NAME=paper_chunks               # 로컬 컬렉션명 (운영 SOT는 current_alias.json — STEP 6-2 참조)
 
 # 권장 환경변수
-export NCBI_API_KEY=<발급키>                              # rate limit 3→10 req/s
+export NCBI_API_KEY=<발급키>                              # 요청 간격 1.5s→1.0s
 export MAX_PAPERS_PER_RUN=300                            # 1회 실행 PMID 상한
 # 카테고리당 후보 풀 cap은 CLI `--max-per-category`로 제어 (생략 시 OpenAlex 500 / PubMed 50)
 
@@ -772,5 +769,5 @@ python mlops/scripts/export_embeddings.py \
 
 - **상세 검증 절차 / 알려진 한계**: [`mlops-pipeline-test.md`](./mlops-pipeline-test.md)
 - **배포 / CI 흐름**: [`deployment.md`](./deployment.md)
-- **서버 admin endpoint**: `server/app/api/v1/admin.py:55` (`POST /api/v1/admin/rag/ingest`)
-- **운영 ECS 제약** (Task count=1, EFS `/chroma-data`): `CLAUDE.md` §15
+- **서버 admin endpoint**: `server/app/api/v1/admin.py` (`POST /api/v1/admin/rag/ingest`)
+- **운영 ECS 제약** (Task count=1, EFS `/chroma-data`): `CLAUDE.md` §16

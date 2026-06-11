@@ -1,3 +1,7 @@
+> 📌 **스냅샷 (2026-05-20)** — 아래 "남은 작업"(Alembic 008 적용·CSV import)은 이후 완료됐다.
+> 또한 2026-06-06 WorkoutX 재설계로 기구 데이터 계약이 변경됨 — 현행 정본은
+> [`../spec/2026-06-06-exercise-equipment-workoutx-redesign.md`](../spec/2026-06-06-exercise-equipment-workoutx-redesign.md) 참조.
+
 # 기구 데이터 작업 현황
 
 > 작성일: 2026-05-20  
