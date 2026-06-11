@@ -1,4 +1,4 @@
-# API 명세 (50개)
+# API 명세 (82개)
 
 > **상세 명세 (Request/Response 포함)**: [Notion API 명세서](https://www.notion.so/32eaebb23ee081dda33ee792957dd16d?v=335aebb23ee0808d9ad6000c2c7c2d30)
 >
@@ -15,6 +15,7 @@
 
 **Base URL**: `/api/v1`
 **인증**: `Authorization: Bearer {access_token}`
+**규모**: 라우터 13개, 고유 엔드포인트 82개 (admin 6 · auth 11 · chat 3 · equipment 4 · exercises 3 · gyms 9 · health 1 · home 1 · notifications 3 · programs 5 · routines 11 · sessions 10 · users 15) — 2026-06-11 코드 실측
 
 ## 표준 응답
 ```json
@@ -59,7 +60,7 @@ data: [DONE]
 
 | # | Method | Path | Auth | 상태 | 비고 |
 |---|---|---|---|---|---|
-| 1 | POST | /auth/register | No | ⚠️ | OTP 이메일 인증 미구현 (D-01) |
+| 1 | POST | /auth/register | No | ✅ | OTP 이메일 인증 포함 (D-01) |
 | 2 | POST | /auth/login | No | ✅ | |
 | 3 | POST | /auth/kakao | No | ✅ | |
 | 4 | POST | /auth/logout | Yes | ✅ | |
@@ -96,7 +97,7 @@ data: [DONE]
 | 36 | GET | /sessions/{id}/rest-timer | Yes | ✅ | |
 | 37 | POST | /chat/messages (SSE) | Yes | ✅ | RAG 응답 구현 완료 (chat_rag_stream) |
 | 38 | GET | /chat/messages | Yes | ✅ | |
-| 39 | GET | /chat/recommended-routines | Yes | ⚠️ | 빈 배열 반환 스텁 |
+| 39 | GET | /chat/recommended-routines | Yes | ✅ | 최근 루틴 4개 기반 추천 구현 완료 |
 | 40 | GET | /notifications | Yes | ✅ | |
 | 41 | PATCH | /notifications/{id}/read | Yes | ✅ | |
 | 42 | POST | /auth/refresh | No | ✅ | |
@@ -119,15 +120,35 @@ data: [DONE]
 | 59 | POST | /users/me/onboard | Yes | ✅ | 온보딩 완료 (최초 신체정보 등록) |
 | 60 | POST | /users/me/1rm/bulk | Yes | ✅ | 1RM 일괄 등록 (온보딩용) |
 | 61 | GET | /sessions/analysis/muscle-volume | Yes | ✅ | 근육 부위별 볼륨 분석 |
+| 62 | GET | /programs | Yes | ✅ | 프로그램 목록 조회 |
+| 63 | POST | /programs | Yes | ✅ | 프로그램 생성 |
+| 64 | GET | /programs/{program_id} | Yes | ✅ | 프로그램 상세 조회 |
+| 65 | PATCH | /programs/{program_id} | Yes | ✅ | 프로그램 수정 |
+| 66 | DELETE | /programs/{program_id} | Yes | ✅ | 프로그램 삭제 |
+| 67 | POST | /users/me/1rm | Yes | ✅ | 1RM 등록 |
+| 68 | POST | /users/me/body/ocr | Yes | ✅ | 인바디 결과지 OCR 추출 (저장 X) |
+| 69 | DELETE | /users/me/gym/{gym_id} | Yes | ✅ | 내 헬스장 삭제 |
+| 70 | DELETE | /gyms/{gym_id}/equipment/{equipment_id} | Yes | ✅ | 헬스장 기구 삭제 |
+| 71 | GET | /gyms/{gym_id}/equipments | Yes | ✅ | 근육별 기구 목록 (머신 + 프리웨이트) |
+| 72 | POST | /routines/{routine_id}/exercises | Yes | ✅ | 루틴 운동 추가 |
+| 73 | DELETE | /routines/{routine_id}/exercises/{routine_exercise_id} | Yes | ✅ | 루틴 운동 삭제 |
+| 74 | GET | /routines/{routine_id}/ai-detail | Yes | ✅ | AI 루틴 상세 조회 |
+| 75 | GET | /sessions/active | Yes | ✅ | 진행 중인 세션 조회 |
+| 76 | PATCH | /notifications/read-all | Yes | ✅ | 모든 알림 읽음 처리 |
+| 77 | GET | /exercises/gif/{gif_id} | No | ✅ | 운동 GIF 프록시 (공개 이미지, WorkoutX 키는 서버에만 보관) |
 
-## Admin 엔드포인트 (내부용, 인증 없음)
+## Admin 엔드포인트 (내부용, X-Admin-Token 헤더 인증 필수)
+
+> `_verify_admin_token` 의존성으로 `X-Admin-Token` 헤더를 `ADMIN_API_TOKEN`과 대조 — 불일치 시 403.
 
 | # | Method | Path | Auth | 상태 | 비고 |
 |---|---|---|---|---|---|
-| A1 | POST | /admin/rag/ingest | No | ✅ | MLOps 파이프라인 논문 청크 적재 |
-| A2 | GET | /admin/rag/dois | No | ✅ | papers 테이블 DOI 목록 |
-| A3 | GET | /admin/rag/pmids | No | ✅ | ChromaDB 적재된 PMID 목록 |
-| A4 | POST | /admin/rag/refresh-categories | No | ✅ | ChromaDB 청크 메타 카테고리 갱신 |
+| A1 | POST | /admin/rag/ingest | X-Admin-Token | ✅ | MLOps 파이프라인 논문 청크 적재 |
+| A2 | GET | /admin/rag/dois | X-Admin-Token | ✅ | papers 테이블 DOI 목록 |
+| A3 | GET | /admin/rag/pmids | X-Admin-Token | ✅ | ChromaDB 적재된 PMID 목록 |
+| A4 | POST | /admin/rag/refresh-categories | X-Admin-Token | ✅ | ChromaDB 청크 메타 카테고리 갱신 |
+| A5 | POST | /admin/exercises/seed-workoutx | X-Admin-Token | ✅ | WorkoutX API로 exercises 테이블 시드 (멱등) |
+| A6 | POST | /admin/rag/collection-swap | X-Admin-Token | ✅ | ChromaDB collection alias 교체 (무중단 swap) |
 
 ## 경로 불일치 (수정 필요)
 
