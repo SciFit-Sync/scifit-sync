@@ -1,3 +1,5 @@
+> ⚠️ SUPERSEDED — 2026-06-06 재설계로 muscle_groups는 WorkoutX canon 20종으로 확정(해부학 26 어휘 폐기, activation 수치만 salvage). 현행은 docs/handoff/workoutx-raw/muscle_normalization.md 참조
+
 # 전체 근육 목록 (26개) — WorkoutX 매핑 대상
 
 > 기존 21 + **신규 5**(★) = 26. T=WorkoutX target(primary 소스), S=secondaryMuscles. *=Delts계열은 운동명 규칙으로 전/측/후 분배.

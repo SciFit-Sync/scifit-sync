@@ -6,7 +6,7 @@
 
 **Architecture:** 5개 PR을 의존성 그래프대로 병행/순차 머지한 뒤, `full_reingest.py` orchestrator로 5 Stage(fetch → chunk → embed → validate → upsert) 파이프라인을 실행. paper-level/chunk-level 두 게이트로 silent failure를 사전 차단하고, ChromaDB alias-swap으로 다운타임 ≤ 5분 보장.
 
-**Tech Stack:** Python 3.11, FastAPI, Pydantic v2, SQLAlchemy 2.0 async, ChromaDB PersistentClient, BAAI/bge-large-en-v1.5, pytest, ruff, AWS ECS Fargate + EFS, GPU 서버(cscloud.gpu3.hufs.ac.kr).
+**Tech Stack:** Python 3.11, FastAPI, Pydantic v2, SQLAlchemy 2.0 async, ChromaDB PersistentClient, BAAI/bge-large-en-v1.5, pytest, ruff, AWS ECS Fargate + EFS, GPU 서버(<교내 GPU 서버>).
 
 **Spec 참조:** `docs/superpowers/specs/2026-05-28-rag-data-normalization-design.md` (commit 515a9ee)
 

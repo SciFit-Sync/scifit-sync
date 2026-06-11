@@ -168,6 +168,9 @@
 **정합 수정**: 병렬 agent 간 rag↔routines 계약 불일치(available_equipments→available_exercises, equipment_label→exercise_name) 메인 보정.
 
 ### ⏳ 남은 작업 (코드 100% — 실행/후속만)
+
+> **(2026-06-11 갱신) 대부분 완료** — prod reseed 실행·rev47 배포·junction/activation/g4 마이그레이션(`20260607_seed_junction`·`20260607_salvage_activation`·`20260607_g4_stretch_bw`) 완료. 잔여는 **CI 프론트엔드 job(tsc/lint) 추가**만.
+
 - **DB 적용 (prod hnwegx)**: 런북 [`2026-06-06-prod-reseed-runbook.md`](2026-06-06-prod-reseed-runbook.md)대로 — ① 백업(papers/paper_chunks 행수 기록 + db-export 스냅샷) ② server/.env를 prod service role URL로 교체 ③ `alembic upgrade head`(clean_slate→reseed_workoutx 순차) ④ 검증 SQL(papers 행수 불변·load_mode NULL 0·exercise_muscles primary 결손 0·orphan 0). gyms에 더찬스짐(ecdd073b) 존재 전제.
 - **Phase 7 (Gemini 후속, 재시드 후)**: exercise_equipment junction(머신↔운동 N:M — 현재 비움이라 머신 루틴 가용성 0) + activation_pct 백필(현재 전부 NULL). G2 머신 160운동 정션 매핑 포함.
 - **Phase 5 프론트** (WR01RoutineCreate/WH02Analysis 부위 10분류) + **CI** app tsc/lint job — 미착수.
@@ -212,6 +215,7 @@
 
 ### 현황 (2026-06-06 fetch)
 - PR #297 develop 머지 완료(91ae6f8). **origin/main 재설계 마이그 없음 + main향 열린 PR 없음 = 배포 미발생(아직 안전)**. 단 develop=팀 통합 브랜치(위로 #296/#298/#294 적층) → **다음 develop→main 릴리스가 자동 트리거**. fix 선반영 시급.
+- **(2026-06-11 갱신) 완료** — PR #300 머지 후 main 릴리스로 배포 발생, prod reseed·junction/activation/g4 마이그레이션까지 적용 완료(현재 rev47).
 
 ### 처방 — PR #300 (`fix/jingyu/reseed-deploy-safety` → develop, 커밋 b61590d)
 수동 적용 불가 조건 → **자동 배포가 안전하게 완결**되도록(head 분리·수동 선적용은 "사람이 prod에 손댐" 전제라 제외):

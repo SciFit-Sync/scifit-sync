@@ -1,3 +1,5 @@
+> ✅ 실행 완료(2026-06-07) — 이후 재시드는 Alembic 체인(20260606_reseed_workoutx 등, deploy.yml 자동)이 정본 경로. 본 문서의 mlops 스크립트 수동 절차는 개발 보조용 이력.
+
 # Prod Reseed Runbook — clean_slate_reseed + WorkoutX 재시드 (2026-06-06)
 
 > 대상 DB: Supabase **hnwegx** (prod). `server/.env DATABASE_URL`은 빈 dev junpxp이므로 반드시 prod URL로 덮어쓸 것.

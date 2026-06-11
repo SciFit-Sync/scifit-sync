@@ -4,7 +4,7 @@
 
 **소요 시간**: 1~2주 (5/20 batch 재크롤이 critical path)
 **다운타임 목표**: alias swap 시점 ≤ 5분
-**실행 위치**: GPU 서버 `cscloud.gpu3.hufs.ac.kr` (crawler/chunk/embed) + AWS ECS (papers_v2 적재 + alias swap)
+**실행 위치**: GPU 서버 `<교내 GPU 서버>` (crawler/chunk/embed) + AWS ECS (papers_v2 적재 + alias swap)
 
 ---
 

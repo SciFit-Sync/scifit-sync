@@ -1,6 +1,4 @@
-> ⚠️ **갱신 예정 (2026-06-06)** — 운동-기구 재설계(WorkoutX)로 `routine_exercises.equipment_id`가
-> **NULL 허용**(D7)으로 바뀐다. 프리웨이트 종목 교체는 `equipment_id` 생략/NULL 정상, **머신만** 실물 기구 필수.
-> 본 문서의 NOT NULL 전제 부분은 무효. 신정본 = [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md).
+> ✅ **D7 적용 완료**(equipment_id NULL 허용) — 본문 일부는 NOT NULL 시절 기준이므로 현행 동작은 코드(`routines.py`) 참조.
 
 # 🔄 운동 변경 선택 (루틴 종목 교체)
 
@@ -40,16 +38,16 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | exercise_id | String (UUID) | ❌ | **종목 자체 교체** 시 새 운동 ID. 없으면 기존 유지 |
 | equipment_id | String (UUID) | ❌ | 사용 기구 변경. 사용자 헬스장 보유 검증 |
-
-> **PR-4 동작 (equipment_id NOT NULL):** `routine_exercises.equipment_id`는 NOT NULL이므로 운동마다 항상 기구가 묶인다.
-> `exercise_id`만 보내 종목을 교체하면 서버가 그 운동에 쓸 기구를 **결정론적으로 자동 선택**한다(우선순위: 루틴 헬스장 머신 → 전 헬스장 공통 프리웨이트). `equipment_id`를 함께 보내면 그 값이 우선한다.
-> 종목 교체 시 헬스장에서 쓸 수 있는 기구가 하나도 없으면 **409 CONFLICT** (`교체할 운동에 사용할 수 있는 기구가 헬스장에 없습니다.`).
 | sets | Integer | ❌ | 세트 수 (≥ 1) |
 | reps_min | Integer | ❌ | 최소 반복 (≥ 1, ≤ reps_max) |
 | reps_max | Integer | ❌ | 최대 반복 (≥ 1) |
 | weight_kg | Float | ❌ | 표시 중량 (도르래 보정 전, ≥ 0). 누락 시 1RM × 목표비율로 자동 계산 |
 | rest_seconds | Integer | ❌ | 휴식 시간 (초, ≥ 0) |
 | note | String | ❌ | 메모 (≤ 500자) |
+
+> **PR-4 동작 (equipment_id NOT NULL):** `routine_exercises.equipment_id`는 NOT NULL이므로 운동마다 항상 기구가 묶인다.
+> `exercise_id`만 보내 종목을 교체하면 서버가 그 운동에 쓸 기구를 **결정론적으로 자동 선택**한다(우선순위: 루틴 헬스장 머신 → 전 헬스장 공통 프리웨이트). `equipment_id`를 함께 보내면 그 값이 우선한다.
+> 종목 교체 시 헬스장에서 쓸 수 있는 기구가 하나도 없으면 **409 CONFLICT** (`교체할 운동에 사용할 수 있는 기구가 헬스장에 없습니다.`).
 
 **Example**
 

@@ -1,3 +1,5 @@
+> ⚠️ SUPERSEDED — 2026-06-06 재설계로 muscle_groups는 WorkoutX canon 20종으로 확정(해부학 26 어휘 기반 매핑 폐기, activation 수치만 salvage). 현행은 docs/handoff/workoutx-raw/muscle_normalization.md 참조
+
 # 1,283 신규 WorkoutX 매핑 요약 (2026-06-05)
 
 > 대상 미매핑 1283 · 매핑성공 1283(행 3693) · cardio 0 · 미매칭 0 · primary없음 0

@@ -2,7 +2,7 @@
 
 > 최종 업데이트: 2026-05-27 00:15 KST
 > 브랜치: `feat/jingyu/local-pdf-ingest`
-> GPU 서버: `ssh gpu` (cscloud.gpu3.hufs.ac.kr:30007, venv: `.venv-gpu`)
+> GPU 서버: `ssh gpu` (<교내 GPU 서버>, venv: `.venv-gpu`)
 
 ---
 

@@ -1,4 +1,4 @@
-> ⚠️ **부분 SUPERSEDED (2026-06-06)** — 운동/기구/근육 도메인은 **운동-기구 재설계(WorkoutX)** 로 변경 예정.
+> ⚠️ 운동/기구/근육 도메인은 **2026-06-06 재설계가 prod 적용 완료(2026-06-07)** — 본문 해당 도메인 ERD는 재설계 이전 기준이므로 현행은 [`erd-v2.3.md`](erd-v2.3.md) 및 마이그레이션 참조.
 > 구(舊)정본 항목: `equipment_muscles`, `exercise_equipment_map`, `equipments.movement_label_*`/`is_freeweight`,
 > `exercises.default_equipment_id`, `muscle_groups.body_region=6부위`, 해부학 근육 어휘.
 > 신(新)정본 = [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md).
@@ -589,7 +589,7 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
 
 ### 임베딩
 - ChromaDB Persistent 모드 단독 — pgvector 미사용
-- `paper_chunks.chroma_id`로 PostgreSQL ↔ ChromaDB 연결
+- ChromaDB doc_id(`{doi}_{chunk_index}`)를 upserter가 관리 (`chroma_id` 컬럼은 007에서 제거됨)
 
 ### JSONB 컬럼 활용
 - `chat_messages.paper_ids`: 복수 논문 인용 배열 (C-2)
