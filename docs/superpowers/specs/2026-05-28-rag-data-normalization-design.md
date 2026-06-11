@@ -2,7 +2,7 @@
 
 **작성일**: 2026-05-28
 **작성자**: jingyu (with Claude Code brainstorming)
-**상태**: Draft — 사용자 review 대기
+**상태**: 구현 완료 (`mlops/scripts/full_reingest.py` · collection-swap admin API `/rag/collection-swap` 반영)
 
 ---
 

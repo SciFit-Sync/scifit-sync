@@ -134,15 +134,15 @@
 | 파일 | 용도 |
 |---|---|
 | `docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md` | **SOT 설계** |
-| `docs/handoff/2026-06-06-FINAL-REPORT-redesign.md` | 감사+마이그+codex 최종보고 |
+| `docs/handoff/2026-06-06-FINAL-REPORT-redesign.md` | 감사+마이그+codex 최종보고 (정리 커밋 d72ab3d에서 제거됨) |
 | `docs/handoff/2026-06-06-code-coupling-report.md` | 151 분리지점 (구현 체크리스트) |
-| `docs/handoff/migrations-draft/20260606_clean_slate_reseed.py` | 클린슬레이트 마이그 draft |
-| `docs/handoff/workoutx-raw/exercises.json` | WorkoutX 원본 1324 (frozen 시드소스) |
+| `docs/handoff/migrations-draft/20260606_clean_slate_reseed.py` | 클린슬레이트 마이그 draft (정리 커밋 d72ab3d에서 제거됨) |
+| `docs/handoff/workoutx-raw/exercises.json` | WorkoutX 원본 1324 (frozen 시드소스 — .gitignore 미추적 로컬 캐시, 정리됨) |
 | `docs/handoff/workoutx-raw/muscle_normalization.md` | secondary 40→20 정규화 맵 |
 | `docs/handoff/workoutx-raw/freeweight_load_modes.csv` | 프리웨이트 load_mode 상수 |
-| `docs/handoff/workoutx-raw/probe_workoutx.py` | WorkoutX 재수집 스크립트 |
+| `docs/handoff/workoutx-raw/probe_workoutx.py` | WorkoutX 재수집 스크립트 (정리 커밋 d72ab3d에서 제거됨) |
 | `docs/handoff/db-export/*.csv` | 기구 데이터(유저 입력) + prod 백업 (.gitignore) |
-| `docs/handoff/codex-review-{1,2,3}-*.md` | codex 3-pass 원문 |
+| `docs/handoff/codex-review-{1,2,3}-*.md` | codex 3-pass 원문 (정리 커밋 d72ab3d에서 제거됨) |
 | 메모리 `project_workoutx_redesign_plan` | cross-session 요약 |
 
 ## 9. 다음 세션 시작 방법

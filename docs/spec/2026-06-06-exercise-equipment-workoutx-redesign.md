@@ -176,8 +176,8 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
 - 실물 기구 데이터 소스 정본화(현 prod 머신 + 브랜드 CSV: hammer/panatta/newtech/chancegym)
 
 ## 참조
-- `docs/handoff/2026-06-06-workoutx-canonical-reconciliation.md` (PR reconciliation + activation 병합 맵)
+- `docs/handoff/2026-06-06-workoutx-canonical-reconciliation.md` (PR reconciliation + activation 병합 맵) (저장소 외부 산출물 — 정리됨)
 - `docs/handoff/workoutx-raw/muscle_normalization.md` (근육 정규화 맵)
-- `docs/handoff/workoutx-raw/exercises.json` (WorkoutX 원본 캐시 1324)
-- `docs/handoff/2026-06-06-db-cleanup-inventory.md` (현 prod 더티데이터)
-- `docs/handoff/db-export/*.csv` (현 prod 백업)
+- `docs/handoff/workoutx-raw/exercises.json` (WorkoutX 원본 캐시 1324) (저장소 외부 산출물 — 정리됨)
+- `docs/handoff/2026-06-06-db-cleanup-inventory.md` (현 prod 더티데이터) (저장소 외부 산출물 — 정리됨)
+- `docs/handoff/db-export/*.csv` (현 prod 백업) (저장소 외부 산출물 — 정리됨)

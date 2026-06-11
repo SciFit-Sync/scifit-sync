@@ -50,19 +50,22 @@
 - D4 가용성 규칙: 머신은 `exercise_equipment ⋈ gym_equipments`로만 노출. 그런데 Smith 실물(f6fe186b)이 gym_equipments 0건 → 테스트 gym(더찬스짐)에서 **M'=0 전량 제외 = 48운동 증발**.
 - **조치**: 더찬스짐에 스미스 머신이 실재하면 `gym_equipments.csv`에 f6fe186b 등록. (현실 사실 = 사용자 확인 필요)
 
-### G2 (P0) — generic→실물 머신 "흡수" 매핑(정션 산출물)이 미작성
+### G2 (P0) — ✅ 해결(2026-06-07) — generic→실물 머신 "흡수" 매핑(정션 산출물)이 미작성
+> **처리됨**: 마이그레이션 `20260607_seed_junction`이 machine/cable 운동↔실물 기구 정션(`junction_seed.csv`)을 적재.
 - 머신-클래스 운동 = Leverage 81 + Smith 48 + Sled 15 + Assisted 14 + Hammer 1 + towel 1 = **160운동**.
 - 이들을 어느 실물 `equipments` 행에 붙일지의 **검증된 `exercise_equipment` 정션 내용**이 어떤 파일에도 없음. SOT §7-3e는 "Gemini 매핑 검증본 적재"라는 **메커니즘만** 명시, **내용은 미작성**. SOT §10 미결로만 플래그됨.
 - 정션이 비면 160운동 전부 M'=0 런타임 침묵 제외.
 - **조치**: Phase 7 Gemini N:M 산출 시, 머신-클래스 160운동 → 실물 행(f6fe186b/2ca108c5/91dd2f21 등) 매핑을 **명시 산출 → 사용자 검증 → 적재**. §9 게이트 "머신 정션 없는 machine/cable 운동 = 0" 검증.
 
-### G3 (P1) — `load_calc.py` machine 분기가 has_weight_assist 미반영 (잠복 버그)
+### G3 (P1) — ✅ 해결 — `load_calc.py` machine 분기가 has_weight_assist 미반영 (잠복 버그)
+> **처리됨**: 커밋 `a7b5b66`(load_calc load_mode 11종 전환 + 어시스티드 머신 부호반대 수정)에서 machine 분기에 has_weight_assist 처리 반영.
 - 현 `load_calc.py` machine 분기: `stack/pulley_ratio + bar_weight`. **has_weight_assist 미참조**. 어시스트 로직(`body_weight - stack`)은 bodyweight 분기에만 존재.
 - Assisted Dip/Chin(has_weight_assist=TRUE)을 `load_mode=machine`으로 분류하면 → 어시스트 무게를 **실효부하로 오계산(부호 반대 폭탄)**.
 - SOT §4 line 100은 "machine이 has_weight_assist 사용"이라 적었으나 현 구현 미반영 = **스펙↔코드 갭**.
 - **조치**: Phase 4 load_calc 재작성 시 machine 분기에 has_weight_assist 처리 추가.
 
-### G4 (P1) — WorkoutX "Assisted" 15운동 대부분이 파트너 스트레치 → machine 오분류 위험
+### G4 (P1) — ✅ 해결(2026-06-07) — WorkoutX "Assisted" 15운동 대부분이 파트너 스트레치 → machine 오분류 위험
+> **처리됨**: 마이그레이션 `20260607_g4_stretch_bw`가 assisted 스트레치/맨몸 15운동의 load_mode를 machine→bodyweight로 정정.
 - `equipment="Assisted"` 15운동(Assisted Lying Glutes Stretch, Assisted Hanging Knee Raise 등)은 외부 부하 없는 **스트레치/맨몸**. 실제 어시스트 부하 머신은 has_weight_assist=TRUE 1행뿐.
 - SOT §6 룩업대로 일괄 `Assisted→machine` 하면 부하 없는 스트레치가 실물 머신 정션을 강제 요구 → 게이트 탈락.
 - SOT §6 룩업에 "초안 후 사용자 검토" 단서 있음.
