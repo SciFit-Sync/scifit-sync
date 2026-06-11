@@ -4,7 +4,7 @@
 > 신(新)정본 = [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md).
 > 해당 도메인 구현/리뷰 시 재설계 스펙을 따를 것 (그 외 도메인은 본 문서 유효).
 
-# 데이터 모델 (31개 테이블)
+# 데이터 모델 (30개 테이블)
 
 > ⚠️ 아래 ERD는 핵심 테이블 중심. `email_otps`(OTP 인증)·`equipment_suggestions`(기구 제보)도 실제 테이블이며, `exercises.gif_url`·`users.is_email_verified` 컬럼이 추가됨 (ERD 갱신 예정).
 
@@ -17,21 +17,21 @@
 
 | 도메인 | 개수 | 테이블 |
 |---|---|---|
-| User | 5 | `users`, `user_profiles`, `user_body_measurements`, `user_exercise_1rm`, `refresh_tokens` |
-| Gym | 7 | `gyms`, `user_gyms`, `equipment_brands`, `equipments`, `gym_equipments`, `equipment_reports`, `equipment_muscles` |
-| Exercise | 4 | `exercises`, `exercise_equipment_map`, `muscle_groups`, `exercise_muscles` |
+| User | 6 | `users`, `user_profiles`, `user_body_measurements`, `user_exercise_1rm`, `refresh_tokens`, `email_otps` |
+| Gym | 7 | `gyms`, `user_gyms`, `equipment_brands`, `equipments`, `gym_equipments`, `equipment_reports`, `equipment_suggestions` |
+| Exercise | 4 | `exercises`, `exercise_equipment`, `muscle_groups`, `exercise_muscles` |
 | Routine | 4 | `workout_routines`, `routine_days`, `routine_exercises`, `routine_papers` |
 | Program | 2 | `programs`, `program_routines` |
 | Workout | 2 | `workout_logs`, `workout_log_sets` |
 | Chat & RAG | 4 | `chat_sessions`, `chat_messages`, `papers`, `paper_chunks` |
 | 기타 | 1 | `notifications` |
-| **합계** | **29** | |
+| **합계** | **30** | |
 
 ---
 
 ## 도메인별 설명
 
-### User 도메인 (5개)
+### User 도메인 (6개)
 
 | 테이블 | 설명 |
 |--------|------|
@@ -40,6 +40,7 @@
 | `user_body_measurements` | 변동 신체 지표 INSERT only 이력 (체중/체지방/골격근량) |
 | `user_exercise_1rm` | 운동별 1RM 추정 INSERT only 이력 (Epley 또는 manual) |
 | `refresh_tokens` | JWT Refresh Token. `family_id`로 Token Rotation 지원 |
+| `email_otps` | 이메일 OTP 인증 코드 (D-01, alembic 005). `expires_at`/`used_at`으로 1회용 관리 |
 
 ### Gym 도메인 (7개)
 
@@ -51,14 +52,14 @@
 | `equipments` | 기구 상세. `category` (근육 부위 대표 1개) + `sub_category` (세부 영역, v2.1) + `equipment_type` (물리 타입) 분리. 중량 계산 엔진의 핵심 참조. 무게 컬럼(`bar_weight`, `min_stack`, `max_stack`, `stack_weight`)은 원본 단위 그대로 저장하며 단위는 `bar_weight_unit` / `stack_unit`에 보존 (v2.1) |
 | `gym_equipments` | 헬스장↔기구 매핑 (복합 PK). 헬스장마다 복수 기구 |
 | `equipment_reports` | 기구 데이터 사용자 제보 (missing / incorrect_data) + status 워크플로우 |
-| `equipment_muscles` | 기구↔근육 N:M. 한 기구가 여러 근육 활성 (예: 체스트 프레스 → chest + triceps) |
+| `equipment_suggestions` | 신규 기구 제안 (alembic 006). name/brand/description + status 워크플로우 |
 
 ### Exercise 도메인 (4개)
 
 | 테이블 | 설명 |
 |--------|------|
 | `exercises` | 운동 마스터 (한글명 + 영문명 UK). compound/isolation 분류 |
-| `exercise_equipment_map` | 운동↔기구 N:M 매핑 (복합 PK) |
+| `exercise_equipment` | 운동↔기구 N:M 매핑 (머신/케이블 운동만 행 보유 — 2026-06-06 재설계로 `exercise_equipment_map` 대체) |
 | `muscle_groups` | 근육군 마스터 (전신 세부 분류, 21개 시드) |
 | `exercise_muscles` | 운동↔근육 N:M. `involvement` (primary/secondary/stabilizer) + `activation_pct` (EMG 수치) |
 
@@ -611,6 +612,7 @@ ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
 
 | 버전 | 변경 내용 |
 |------|----------|
+| 2026-06-06 재설계 반영 (30테이블, 현행) | clean_slate 재시드 마이그레이션(`20260606_clean_slate_reseed`)으로 `equipment_muscles`·`exercise_equipment_map` DROP + `exercise_equipment` 신설 (2026-06-07 prod 적용 완료). `email_otps`(005)·`equipment_suggestions`(006) 포함 모델 실측 총 **30개**. 상세는 [`erd-v2.3.md`](erd-v2.3.md)·[`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md) 참조 |
 | v3 (29테이블, Task 12 multi-source ingestion) | `papers` / `paper_chunks` clean slate 재설계. `papers`: `doi` NOT NULL UNIQUE (primary lookup 전환), `pmcid` / `openalex_id` 신규, `publication_types` TEXT[] + `evidence_weight` NUMERIC(3,2) + `fulltext_source` + `search_categories` TEXT[] 신규. GIN 인덱스 (`publication_types`, `search_categories`), 단순 인덱스 (`pmid`, `openalex_id`, `published_year`). `paper_chunks`: `evidence_weight` / `publication_types` 청크 레벨 신규, `chroma_id` 제거, `(paper_id, chunk_index)` UNIQUE 보장. Alembic migration: `007_clean_slate_papers_multi_source.py`. |
 | v2.2 (29테이블, docs-only) | v2.1 후속 정합화 — 설계서 자체 모순 3건 해소. (1) JSONB `stack_weight`의 `value`/`pattern` top-level 키 상호 배타를 DB 레벨에서 강제하는 **신규 CHECK `chk_stack_weight_shape`** 도입 (v2.1까지는 앱 레이어 검증만 명시). (2) `stack_unit` 단일 컬럼이 `min_stack`/`max_stack`/`stack_weight` 3필드 공통 단위라는 스키마 구조적 제약을 컬럼 설명에 명시 — `min_stack='kg', max_stack='lb'` 같은 표상이 불가능함을 분명히 함. (3) 후속 마이그레이션 번호를 **Alembic 008**로 정정 (v2.1 스펙 작성 시점엔 005가 최신이라 006으로 적혀 있었으나, 007 multi-source paper ingestion 머지로 008이 됨). Alembic 008은 v2.1 + v2.2 결정을 단일 마이그레이션으로 통합 적용. |
 | v2.1 (29테이블, docs-only) | 수집 데이터셋(Hammer Strength / Newtech / Panatta CSV) 정합화. `equipments`에 `name_en` 문서 보정, `sub_category` 신규, `bar_weight_unit` / `stack_unit` 신규. **컬럼 RENAME**: `bar_weight_kg → bar_weight`, `min_stack_kg → min_stack`, `max_stack_kg → max_stack`, `stack_weight_kg → stack_weight`(추가로 `decimal → jsonb`). `equipment_brands`에 `default_bar_unit` / `default_stack_unit` 신규. 신규 enum `weightunit('kg','lb')`. 신규 CHECK 제약 `chk_bar_unit_synced`, `chk_stack_unit_synced` — 값과 단위 동기성 보장. 무게 단위 정책 변경: **단위 변환 없이 원본 그대로 저장**. CSV 템플릿: `docs/templates/equipment_template.csv`. |
