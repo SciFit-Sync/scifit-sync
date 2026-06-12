@@ -1,11 +1,11 @@
 > ⚠️ **부분 SUPERSEDED (2026-06-06)** — 운동/기구/근육 엔티티(`movement_label_*`, `is_freeweight`,
-> `default_equipment_id`, `exercise_equipment_map`, `body_region 6부위`)는 **운동-기구 재설계(WorkoutX)** 로 대체 예정.
+> `default_equipment_id`, `exercise_equipment_map`, `body_region 6부위`)는 **운동-기구 재설계(WorkoutX)** 로 대체 완료(2026-06-07 prod 적용).
 > 이 ERD를 따라 모델/마이그를 재구성하지 말 것. 신정본 = [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md).
 
 # ERD v2.3 (2026-06-04) — v2.2 → 현재 구현 반영
 
 > 출처: Notion ERD v2.2(2026-05-19) ↔ 현재 develop(`bc0485b`) SQLAlchemy 모델 전수 대조(8-에이전트 workflow).
-> 진실원천: `server/app/models/*.py` + alembic migrations. **테이블 29 → 31개.**
+> 진실원천: `server/app/models/*.py` + alembic migrations. **테이블 29 → 31개(v2.3 시점) — 현행 30개(모델 실측).**
 > 용도: Notion ERD 갱신(v2.3)용. 아래 §B mermaid를 그대로 교체 사용.
 
 ---
@@ -14,8 +14,8 @@
 
 ### A-0. 테이블 인벤토리
 - **신규 테이블 2개**(ERD v2.2 mermaid 누락 — 이미 구현됨): `email_otps`(alembic 005, D-01), `equipment_suggestions`(alembic 006).
-- **DROP 예정 1개**: `exercise_equipment_map` — PR-5(미배포, 승인 게이트). v2.3엔 deprecated로 유지, PR-5 머지 후 제거.
-- 도메인 카운트: User 5→**6**, Gym 7→**8**, 나머지 동일. 총 **31개**(CLAUDE.md §10·모델과 일치).
+- **DROP 적용 완료 2개 + 신설 1개**: clean_slate 재시드(2026-06-06~07 마이그레이션 `20260606_clean_slate_reseed`)로 `exercise_equipment_map`·`equipment_muscles` DROP + `exercise_equipment` 신설, prod 적용 완료.
+- 도메인 카운트: User 5→**6**, Gym 7→**8** (v2.3 시점). 재설계 적용 후 현행 **30개**(모델 실측).
 
 ### A-1. User 도메인
 | 테이블 | 변경 |
@@ -38,7 +38,7 @@
 | 테이블 | 변경 |
 |---|---|
 | `exercises` | **+`gif_url`** varchar(500) NULL (m20260525), **+`default_equipment_id`** uuid FK→equipments(SET NULL) NULL (PR-4.5), **+`created_at`**(ERD 누락) |
-| `exercise_equipment_map` | **DEPRECATED** — 런타임 0건(PR-4.5), **PR-5에서 DROP 예정** |
+| `exercise_equipment_map` | **DROP 완료** — clean_slate 재시드(2026-06-06)로 제거, `exercise_equipment` 신설로 대체 |
 | `muscle_groups`/`exercise_muscles` | 변경 없음 |
 
 ### A-4. Routine 도메인
@@ -60,6 +60,8 @@
 ---
 
 ## B. v2.3 ERD (mermaid, 31 tables) — Notion 교체용
+
+> 아래 다이어그램은 v2.3 시점(2026-06-04) 기준 — 운동/기구 도메인 현행은 마이그레이션(`20260606_clean_slate_reseed`) 및 재설계 스펙([`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md)) 참조.
 
 ```mermaid
 erDiagram
@@ -423,13 +425,13 @@ erDiagram
     papers ||--o{ paper_chunks : "RAG 청크"
     papers ||--o{ routine_papers : "루틴 참조"
 
-    %% [DEPRECATED · PR-5에서 DROP 예정] exercise_equipment_map (런타임 0건, PR-4.5 → default_equipment_id 대체)
+    %% [DROP 완료 · 2026-06-06 clean_slate 재시드] exercise_equipment_map → exercise_equipment 신설로 대체
     %% exercises ||--o{ exercise_equipment_map : "(deprecated)"
     %% equipments ||--o{ exercise_equipment_map : "(deprecated)"
 ```
 
 ---
 
-## C. PR-5(eem DROP) 머지 후 추가 정정
-- `exercise_equipment_map` 엔티티 블록 + 위 주석 처리된 2개 관계선 **완전 삭제** → 총 **30개**.
-- 상세: `docs/handoff/2026-06-04-bodyweight-classification-pr5-runbook.md`, 스펙 §8.
+## C. 운동-기구 재설계 적용 내역 (2026-06-06~07, prod 적용 완료)
+- clean_slate 재시드(2026-06-06~07 마이그레이션 `20260606_clean_slate_reseed`)로 `exercise_equipment_map`·`equipment_muscles` DROP + `exercise_equipment` 신설, prod 적용 완료 → 현행 **30개**(모델 실측).
+- 상세: [`2026-06-06-exercise-equipment-workoutx-redesign.md`](2026-06-06-exercise-equipment-workoutx-redesign.md), 재시드 런북 `docs/handoff/2026-06-06-prod-reseed-runbook.md`.

@@ -2,7 +2,7 @@
 
 > 최종 업데이트: 2026-05-27 00:15 KST
 > 브랜치: `feat/jingyu/local-pdf-ingest`
-> GPU 서버: `ssh gpu` (cscloud.gpu3.hufs.ac.kr:30007, venv: `.venv-gpu`)
+> GPU 서버: `ssh gpu` (<교내 GPU 서버>, venv: `.venv-gpu`)
 
 ---
 
@@ -145,9 +145,9 @@ ssh gpu "tail -50 /mnt/data/scifit-sync/ab_eval_and_upsert.log | grep -i error"
 
 ---
 
-## 6. 다음 작업: 파이프라인 자동화 + 골드셋 자동 평가
+## 5. 다음 작업: 파이프라인 자동화 + 골드셋 자동 평가
 
-### 6.1 크롤링→청킹→임베딩→upsert 자동화
+### 5.1 크롤링→청킹→임베딩→upsert 자동화
 현재 파이프라인은 각 단계가 수동 실행. 새로운 논문이 추가될 때:
 ```
 크롤링 → 청킹 → 임베딩 → export → upsert (프로덕션 API)
@@ -156,7 +156,7 @@ ssh gpu "tail -50 /mnt/data/scifit-sync/ab_eval_and_upsert.log | grep -i error"
 - `--export-batch` 없이 실행 시 자동 upsert가 동작하도록 보장
 - 또는 export 후 `load_embeddings.py --mode api`를 자동 체인
 
-### 6.2 골드셋 자동 평가 (GPU 서버 ChromaDB 기반)
+### 5.2 골드셋 자동 평가 (GPU 서버 ChromaDB 기반)
 A/B 모델 비교와는 별개로, **프로덕션과 동일한 환경(GPU 서버 ChromaDB)**에서 골드셋 평가가 자동 실행되어야 한다.
 
 **전제 조건: GPU 서버 ChromaDB에 임베딩 적재 확인**
@@ -181,14 +181,14 @@ A/B 모델 비교와는 별개로, **프로덕션과 동일한 환경(GPU 서버
 → 리포트 생성 (mlops/eval/reports/)
 ```
 
-### 6.3 구현 방안 (후속 PR)
+### 5.3 구현 방안 (후속 PR)
 1. **파이프라인 자동화 스크립트** — `ingest_curated_pmids.py` 또는 새 wrapper가 crawl→chunk→embed→upsert→eval 전체를 순차 실행
 2. **GPU ChromaDB 초기 적재** — 현재 모든 bge-large 임베딩 파일을 `--mode local`로 GPU ChromaDB에 적재
 3. **eval 자동 트리거** — upsert 완료 후 `run_eval.py --retriever chroma` 자동 실행, 리포트 저장
 
 ---
 
-## 7. 전체 upsert 실행 중 (2026-05-27)
+## 6. 전체 upsert 실행 중 (2026-05-27)
 
 - **ALB 타임아웃**: 60초 → **300초**로 변경 완료
 - **batch-size 테스트 결과**: 200(32s) / 500(53s) / 1000(79s) 모두 성공
@@ -197,7 +197,7 @@ A/B 모델 비교와는 별개로, **프로덕션과 동일한 환경(GPU 서버
 - **로그**: `ssh gpu "tail -f /mnt/data/scifit-sync/upsert_full_v4.log"`
 - **DOI 확인**: `ssh gpu` → 위 §3.2 명령어
 
-## 8. 알려진 제약
+## 7. 알려진 제약
 
 - `load_embeddings.py`는 manifest 업데이트를 하지 않음 — ChromaDB에는 들어가지만 `curated_provenance.json` 미반영
 - legacy batch의 `search_categories`가 구버전 (덜 세분화). 나중 파일이 같은 DOI를 덮어쓰면 새 카테고리로 교체됨

@@ -6,7 +6,8 @@
 때의 표준 절차를 정리한다.
 
 > 카테고리는 100개까지 확장됐다가 운동 루틴 생성 핵심 외 35개(영양/임상 인구/특수 보조제 등)를
-> 제거하여 65개로 정제됐다. 100개 시절 검증 history는 §5 참조.
+> 제거하여 65개로 정제됐고, 이후 추가 정제를 거쳐 **현행 50개(strict 29 / semi 12 / loose 9)**가 됐다.
+> 100개 시절 검증 history는 §5 참조.
 
 ---
 
@@ -38,9 +39,9 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
 
 | level | 카테고리 수 | 대표 예시 |
 |---|---|---|
-| strict | 41 | volume, intensity, frequency, chest/legs/arms_training, BFR, plyometric, foam_rolling, VBT, RPE |
+| strict | 29 | volume, intensity, frequency, chest/legs/arms_training, rest_interval, protein_nutrition, rpe_perceived_exertion |
 | semi | 12 | failure_rir, periodization, tempo_tut, back/shoulders/core_training, stretching_flexibility |
-| loose | 12 | personalized_prescription, training_split, exercise_order, advanced_techniques, olympic_lifting |
+| loose | 9 | personalized_prescription, training_split, exercise_order, advanced_techniques, bodyweight_training |
 
 ### 4축 분류 (RAG 사용 관점)
 
@@ -59,7 +60,7 @@ SEARCH_QUERY_CATEGORIES: list[tuple[str, str, str]] = [
 
 ### 2.1 후보 발굴 — 운동 루틴 RAG 관련성 우선
 
-기존 65개와 의미 중복 금지. 후보 축 예시:
+기존 50개와 의미 중복 금지. 후보 축 예시:
 - 신규 인구: 류마티스, 만성통증, 자가면역 등
 - 신규 종목: 골프, 테니스, 스키 등
 - 신규 보조제·영양: BCAA 외 EAA 변형, 단백질 타이밍 등
@@ -132,9 +133,9 @@ git commit -m "feat: 논문 검색 쿼리 N개 추가 — <축 설명>"
 
 | 변수 | 필수 여부 | 비고 |
 |---|---|---|
-| `NCBI_API_KEY` | 권장 | 없으면 rate limit 1s → 0.34s로 ~3배 단축 + 안정성↑ |
+| `NCBI_API_KEY` | 권장 | 있으면 요청 간격 1.5s → 1.0s 단축 + 안정성↑ |
 | `CHROMA_PERSIST_PATH` | 기본 `/chroma-data` | 로컬은 권한 fallback 자동 동작 (`server/app/services/rag.py`) |
-| `CHROMA_COLLECTION_NAME` | 기본 `paper_chunks` | BGE prefix 일관성 위해 `paper_chunks_v2` 권장 |
+| `CHROMA_COLLECTION_NAME` | 기본 `paper_chunks` | 운영 컬렉션 SOT는 EFS `/chroma-data/current_alias.json` — `phase2-execution-runbook.md` §0.4.1 절차로 확인 후 일치 |
 | `EMBEDDING_MODEL` | 기본 `BAAI/bge-large-en-v1.5` | 변경 시 collection 차원 불일치 주의 |
 | `MAX_PAPERS_PER_RUN` | 기본 300 | round-robin dedup 후 신규 PMID 상한 |
 | `OPENALEX_MAX_PER_CATEGORY` | 기본 500 | 카테고리당 OpenAlex 후보 풀 cap |
@@ -217,7 +218,7 @@ python3 -m mlops.scripts.export_embeddings
 **과거 검색 결과 기반**이라는 점을 인지하자. 차이가 크면 manifest를 비우고 재적재하는
 편이 검색 일관성에 좋다 (단, 신규 적재 비용 발생).
 
-### 4.4 65개를 더 늘리는 게 좋을지 판단
+### 4.4 50개를 더 늘리는 게 좋을지 판단
 
 권장: **실제 ingest 후 RAG hit rate / 챗봇 미답변 로그**를 먼저 측정. 100개 이상은
 NCBI relevance 정렬 한계로 중복 PMID 비율과 폐기율이 빠르게 증가하므로,

@@ -34,14 +34,14 @@
 
 | 영역 | 기술 |
 |---|---|
-| 모바일 | React Native + Expo Managed (Expo Go 개발, EAS Build 배포) |
+| 모바일 | React Native + Expo Managed (expo-dev-client 개발 빌드 — Expo Go 불가, EAS Build 배포) |
 | 상태 관리 | TanStack Query + Zustand |
 | 네비게이션 | React Navigation 7 |
 | 백엔드 | FastAPI (Python 3.11+), Pydantic v2, SQLAlchemy 2.0 async |
 | DB 마이그레이션 | Alembic (단독 관리, Supabase 대시보드 직접 수정 절대 금지) |
-| 관계형 DB | PostgreSQL 15 (Supabase), asyncpg 드라이버 |
+| 관계형 DB | PostgreSQL 17.6 (Supabase prod) · postgres:15 (로컬 docker-compose/CI), asyncpg 드라이버 |
 | Vector DB | ChromaDB 인프로세스 (PersistentClient, /chroma-data 볼륨 필수) |
-| LLM | Gemini 1.5 Flash → GPT-4o-mini (환경변수로 전환, 자동 fallback) |
+| LLM | Gemini 2.5 Flash → GPT-4o-mini (환경변수로 전환, 자동 fallback) |
 | 임베딩 | BAAI/bge-large-en-v1.5 (1024차원) |
 | 배포 | AWS ECS Fargate, ALB + ACM HTTPS (`scifit-sync.com`), EFS (/chroma-data) |
 | 시크릿 관리 | AWS Secrets Manager (DATABASE_URL + ADMIN_API_TOKEN + GEMINI/KAKAO/OPENAI/JWT) — ECS Task Def `secrets` 참조, env 평문 0건 |
@@ -60,7 +60,7 @@ scifit-sync/
 │   ├── services/     # API 클라이언트, SSE 클라이언트
 │   └── constants/    # 디자인 토큰, 상수
 ├── server/app/
-│   ├── api/v1/       # 라우터 (auth, users, gyms, routines, sessions, chat, notifications)
+│   ├── api/v1/       # 라우터 (admin, auth, chat, equipment, exercises, gyms, health, home, notifications, programs, routines, sessions, users)
 │   ├── models/       # SQLAlchemy 모델 (31개 테이블)
 │   ├── schemas/      # Pydantic 스키마
 │   ├── services/     # rag.py, load_calc.py, po.py, llm.py
@@ -106,7 +106,7 @@ cd app && npm test
     ├── Chat Service    → RAG Pipeline (rag.py)
     │                       ├── 한→영 번역 (Gemini) + fallback 원문 검색
     │                       ├── ChromaDB (top_k=10, threshold=0.70)
-    │                       └── LLM 응답 (Gemini 1.5 Flash → GPT-4o-mini)
+    │                       └── LLM 응답 (Gemini 2.5 Flash → GPT-4o-mini)
     └── Equipment Service → 카카오 로컬 API 프록시
 
 [PostgreSQL — Supabase]  [ChromaDB — 인프로세스 /chroma-data]
@@ -121,7 +121,7 @@ cd app && npm test
 - 인증 완료 전까지 로그인 불가
 - 화면 플로우: W-A02 정보입력 → W-OTP 인증번호입력(6자리) → W-A03 신체정보
 - W-OTP 화면 신규 추가 필요 (Figma 정본화 필요)
-- 이메일 발송 서비스: SendGrid 또는 AWS SES 사용
+- 이메일 발송 서비스: Gmail SMTP 사용 (SES는 샌드박스 심사 거절로 미사용 — services/ses.py는 사장 코드)
 - OTP 유효시간: 10분
 - phone 컬럼 없음 (SMS 방식 아님)
 
@@ -381,7 +381,7 @@ v2.1에서 컬럼명에서 `_kg` 접미사를 제거 — 컬럼명이 kg 단일 
 값의 단위는 같은 행의 `stack_unit`이 결정하며 JSONB 내부에는 단위를 두지 않는다.
 - 균일 스택: `{"value": 5}` (stack_unit이 'kg'이면 5kg, 'lb'이면 5lb)
 - 변동 스택(예: Hammer Strength Select): `{"pattern": [{"from": 1, "to": 5, "value": 10}, {"from": 6, "to": 15, "value": 15}]}`
-- **`value`와 `pattern`은 상호 배타** — DB CHECK 제약 `chk_stack_weight_shape`가 top-level 키 양립을 차단한다 (Alembic 008에서 추가 예정):
+- **`value`와 `pattern`은 상호 배타** — DB CHECK 제약 `chk_stack_weight_shape`가 top-level 키 양립을 차단한다 (Alembic 008에서 적용됨):
   ```sql
   ALTER TABLE equipments ADD CONSTRAINT chk_stack_weight_shape CHECK (
     stack_weight IS NULL
@@ -466,7 +466,7 @@ one_rm = effective_weight * (1 + reps / 30)
 4. ChromaDB 검색 (top_k=10, threshold=0.70)
    distance → similarity 변환: similarity = 1 - distance
 5. 프로필 + 청크 + 가용 운동 목록 → 프롬프트 조합
-6. Gemini 1.5 Flash SSE 스트리밍 (fallback: GPT-4o-mini)
+6. Gemini 2.5 Flash SSE 스트리밍 (fallback: GPT-4o-mini)
 7. exercise_id DB 존재 검증 (없으면 제외 또는 이름 기반 fallback)
 8. load_calc으로 중량 계산 → DB 저장
 ```
@@ -528,14 +528,14 @@ cd app && npm test
 ### 컬러
 | 용도 | 값 |
 |---|---|
-| Primary 버튼 배경 | #000000 |
+| Primary 버튼 배경 | #111FA2 |
 | Primary 버튼 텍스트 | #FFFFFF |
 | 카카오 버튼 배경 | #FEE500 |
 | 카카오 버튼 텍스트 | #000000 |
 | 입력 필드 배경 | #F7F7F7 |
-| 입력 필드 테두리 | #CCCCCC |
+| 입력 필드 테두리 | #DDDDDD |
 | AI 인사이트 배경 | #F0E6FF |
-| 선택된 칩 배경 | #000000 |
+| 선택된 칩 배경 | #111FA2 |
 | 선택된 칩 텍스트 | #FFFFFF |
 
 ### 1RM dot 색상
@@ -555,7 +555,7 @@ ChipSelector:  선택 시 bg=#000 text white
 ```
 
 ### 하단 탭 순서
-챗봇 | 분석 | 메인(홈) | 기록 | 마이페이지
+알림 | 분석 | 메인(홈) | 기록 | 마이페이지 (챗봇은 플로팅 버튼)
 
 ---
 
@@ -597,7 +597,7 @@ git pull origin <현재-브랜치>   # 또는 git merge origin/develop
 | D-02 | PO 제안 바텀시트(W-L03) 구현 여부 | 미정 |
 | D-05 | 소셜 로그인 확장 (네이버/Google/Apple) | 미정 (카카오만 명세) |
 | D-06 | 주당 운동 일수 UI (슬라이더 vs 칩) | 미정 |
-| D-07 | 나이 입력 방식 (숫자 vs Date Picker) | 미정 |
+| D-07 | 나이 입력 방식 (숫자 vs Date Picker) | ❌ 폐기 — D-M8(birth_date 전환)로 대체 |
 | D-09 | 근육 회복도 계산 기준 | 미정 |
 | D-MX | 복수 목표 시 PO/권장 중량 계산 기준 (D-M6 후속) | 미정 |
 
@@ -607,9 +607,9 @@ git pull origin <현재-브랜치>   # 또는 git merge origin/develop
 
 | 문서 | 경로 |
 |---|---|
-| API 전체 명세 50개 | `docs/spec/api-endpoints.md` |
-| DB 스키마 29테이블 | `docs/spec/database-schema.md` |
-| 화면 목록 25개+ | `docs/spec/screens.md` |
+| API 전체 명세 82개 | `docs/spec/api-endpoints.md` |
+| DB 스키마 31테이블(ERD v2.3) | `docs/spec/database-schema.md` |
+| 화면 목록 24개 | `docs/spec/screens.md` |
 | 환경 셋업 가이드 | `docs/guides/environment-setup.md` |
 | 테스트 전략 | `docs/guides/testing-strategy.md` |
 | 배포 + CI/CD | `docs/guides/deployment.md` |

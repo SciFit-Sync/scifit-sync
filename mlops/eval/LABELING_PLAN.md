@@ -1,5 +1,7 @@
 # 골드셋 라벨링 작업 계획 (Goldset Labeling Plan)
 
+> ✅ **완료/대체(2026-05-23 curated ingest 파이프라인 경유)** — goldset 102 시드→71문항 확정(`goldset.jsonl`), 베이스라인 리포트 생성 완료(`reports/ab_*.md`). 본 문서는 계획 이력 기록.
+
 `mlops/eval/goldset_seed.jsonl` (102개 query 시드) → 라벨링 완료
 `mlops/eval/goldset.jsonl` 까지의 작업 단계를 정리한 워킹 플랜.
 

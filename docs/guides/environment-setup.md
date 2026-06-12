@@ -2,9 +2,9 @@
 
 ## 사전 요구사항
 - Python 3.11+
-- Node.js 18+ / npm 9+
+- Node.js 20+ / npm 9+ (Expo SDK 54 요구)
 - Docker Desktop (Windows: WSL2 백엔드 활성화 필수)
-- Expo Go 앱 (모바일 테스트용, iOS/Android)
+- expo-dev-client 개발 빌드 (모바일 테스트용 — 네이티브 모듈 포함으로 **Expo Go 사용 불가**. Xcode/Android Studio 로컬 빌드 또는 EAS Build로 개발 빌드 설치 필요)
 - Git
 
 ## Docker 서비스 구성
@@ -52,7 +52,9 @@ docker compose exec server alembic upgrade head
 cd app && npm install && npx expo start
 ```
 
-## 환경변수 전체 목록
+## 주요 환경변수
+
+> 전체 목록은 `server/.env.example` 참조.
 
 | 변수명 | 설명 | 필수 | 획득처 |
 |---|---|---|---|
@@ -79,11 +81,16 @@ GitHub 레포 > Settings > Secrets and variables > Actions 에서 설정:
 
 | Secret 이름 | 용도 | 사용 워크플로우 |
 |---|---|---|
-| `API_BASE_URL` | 프로덕션 서버 URL (예: `https://api.scifitsync.com`) | `mlops.yml` |
+| `API_BASE_URL` | 프로덕션 서버 URL (예: `https://scifit-sync.com`) | `mlops.yml` |
 | `ADMIN_API_TOKEN` | 서버 admin API 인증 토큰 | `mlops.yml` |
-
-> 현재 미설정 상태. MLOps 월간 파이프라인이 서버 admin 엔드포인트를 호출할 때 필요.
-> 서버 배포 후 설정.
+| `NCBI_API_KEY` | NCBI(PubMed) API 키 | `mlops.yml` |
+| `OPENALEX_MAILTO` | OpenAlex polite pool 이메일 | `mlops.yml` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | 배포용 IAM 사용자 키 | `deploy.yml` |
+| `AWS_REGION` | 리전 (예: `ap-northeast-2`) | `deploy.yml` |
+| `ECR_REPOSITORY` | ECR 저장소 이름 | `deploy.yml` |
+| `ECS_CLUSTER` / `ECS_SERVICE` / `ECS_TASK_DEFINITION` / `CONTAINER_NAME` | ECS 배포 대상 식별자 | `deploy.yml` |
+| `ECS_SUBNET_IDS` / `ECS_SG_IDS` | 마이그레이션 one-off 태스크용 서브넷/보안 그룹 | `deploy.yml` |
+| `PROD_DATABASE_URL` / `BACKUP_S3_URI` | 마이그레이션 전 pg_dump → S3 백업 (두 secret 설정 시 활성화) | `deploy.yml` |
 
 ## 플랫폼별 주의사항
 | 환경 | 주의 |

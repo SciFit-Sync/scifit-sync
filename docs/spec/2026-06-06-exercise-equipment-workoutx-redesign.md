@@ -1,6 +1,6 @@
 # 운동–기구 재설계 (WorkoutX 캐노니컬) — 설계 스펙
 
-> 작성 2026-06-06 · 상태: **설계 확정, 구현 전** · prod(hnwegx) 실측 + WorkoutX 실 API 1324운동 기반
+> 작성 2026-06-06 · 상태: **구현 완료 (2026-06-07, PR #297/#300 + 20260606~07 마이그레이션 3종, prod 반영)** · prod(hnwegx) 실측 + WorkoutX 실 API 1324운동 기반
 > 한 줄: **운동-중심 + 기구↔운동 N:M + 프리웨이트 baseline + WorkoutX 분류 통일 + 클린슬레이트 재시드**
 
 ---
@@ -176,8 +176,8 @@ activation_pct = 병합 맵(reconciliation §2.1), 없으면 NULL
 - 실물 기구 데이터 소스 정본화(현 prod 머신 + 브랜드 CSV: hammer/panatta/newtech/chancegym)
 
 ## 참조
-- `docs/handoff/2026-06-06-workoutx-canonical-reconciliation.md` (PR reconciliation + activation 병합 맵)
+- `docs/handoff/2026-06-06-workoutx-canonical-reconciliation.md` (PR reconciliation + activation 병합 맵) (저장소 외부 산출물 — 정리됨)
 - `docs/handoff/workoutx-raw/muscle_normalization.md` (근육 정규화 맵)
-- `docs/handoff/workoutx-raw/exercises.json` (WorkoutX 원본 캐시 1324)
-- `docs/handoff/2026-06-06-db-cleanup-inventory.md` (현 prod 더티데이터)
-- `docs/handoff/db-export/*.csv` (현 prod 백업)
+- `docs/handoff/workoutx-raw/exercises.json` (WorkoutX 원본 캐시 1324) (저장소 외부 산출물 — 정리됨)
+- `docs/handoff/2026-06-06-db-cleanup-inventory.md` (현 prod 더티데이터) (저장소 외부 산출물 — 정리됨)
+- `docs/handoff/db-export/*.csv` (현 prod 백업) (저장소 외부 산출물 — 정리됨)

@@ -10,8 +10,8 @@
 
 ## 사전 조건
 
-- AWS 콘솔 또는 CLI 사용 권한 (현재 IAM 사용자 `sungjoon`이 `Admins` 그룹 — admin 권한 보유)
-- 계정: `223767250023` / 리전: `ap-northeast-2`
+- AWS 콘솔 또는 CLI 사용 권한 (`<관리자 IAM 사용자>` — admin 권한 보유)
+- 계정: `<AWS 계정 ID>` / 리전: `ap-northeast-2`
 
 ## 적용 순서
 
@@ -69,7 +69,7 @@ permissions:
 - name: Configure AWS credentials
   uses: aws-actions/configure-aws-credentials@v4
   with:
-    role-to-assume: arn:aws:iam::223767250023:role/github-actions-deploy-oidc
+    role-to-assume: arn:aws:iam::<AWS 계정 ID>:role/github-actions-deploy-oidc
     aws-region: ap-northeast-2
 ```
 
@@ -86,9 +86,10 @@ aws iam update-access-key --user-name github-actions-deploy --access-key-id AKIA
 aws iam delete-access-key --user-name github-actions-deploy --access-key-id AKIA...
 ```
 
-## Why this matters
+## 적용 현황 (2026-06-11 기준)
 
-- **현재 상태**: `github-actions-deploy` IAM 사용자가 `AdministratorAccess` 보유 + 영구 access key가 GitHub Secrets에 평문. 키 유출 시 계정 전체 권한 노출.
+- **준비 완료, 미적용**: 정책 JSON과 본 가이드는 준비 완료 상태이나, OIDC 전환(위 2~5단계)은 아직 적용되지 않음.
+- **현행 배포 방식**: `github-actions-deploy` IAM 사용자(`AdministratorAccess`)의 영구 access key가 GitHub Secrets에 보관되어 사용 중 — 키 유출 시 계정 전체 권한 노출 위험.
 - **OIDC 전환 후**: 각 워크플로우 실행마다 단기(1시간) STS 토큰 발급, 영구 key 없음. role에 부착된 정책으로 권한 범위 ECR/ECS/IAM PassRole/Logs로 한정.
 - **데모 1주 전** 작업으로 분류됨 — capstone staging 단계엔 위험 허용 가능하나 데모 직전엔 정리 필요.
 

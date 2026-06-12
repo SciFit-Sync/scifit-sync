@@ -2,7 +2,7 @@
 
 **작성일**: 2026-05-28
 **작성자**: jingyu (with Claude Code brainstorming)
-**상태**: Draft — 사용자 review 대기
+**상태**: 구현 완료 (`mlops/scripts/full_reingest.py` · collection-swap admin API `/rag/collection-swap` 반영)
 
 ---
 
@@ -358,7 +358,7 @@ curl -H "X-Admin-Token: $ADMIN_API_TOKEN" https://scifit-sync.com/api/v1/admin/r
 
 **인프라 의존성**:
 - AWS 환경: EFS `/chroma-data`, ECS Fargate, Route 53, ACM (CLAUDE.md §2)
-- GPU 서버: `cscloud.gpu3.hufs.ac.kr` — fetch/chunk/embed 실행 환경
+- GPU 서버: `<교내 GPU 서버>` — fetch/chunk/embed 실행 환경
 
 **Phase 2 시작 전 prerequisite 체크리스트**:
 - [ ] GPU 서버 SSH 접근 (alias `gpu`, key-based auth) — `ssh gpu` 통신 확인

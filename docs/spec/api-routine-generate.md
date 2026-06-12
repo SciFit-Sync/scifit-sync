@@ -27,7 +27,7 @@ Accept: text/event-stream
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | goals | Array<String> | ✅ | 운동 목표 (hypertrophy / strength / endurance / rehabilitation / weight_loss), 복수 선택 가능 |
-| target_muscle_group_ids | Array<UUID> | ❌ | 운동 부위 근육 그룹 UUID 배열 (`GET /equipment/muscle-groups` 또는 DB muscle_groups.id) |
+| target_muscle_group_ids | Array<String> | ❌ | 운동 부위 배열 — `muscle_groups.id` UUID 또는 부위 문자열(`chest`/`back`/`shoulders`/`arms`/`legs`/`abs`/`core`) 혼용 가능. 서버가 UUID 파싱 실패 시 부위 문자열로 해석 |
 | session_minutes | Integer | ❌ | 세션 시간 (분). 미지정 시 AI 추천 |
 | split_type | String | ❌ | 분할 방식 (2split / 3split / 4split / 5split), 미지정 시 AI 추천 |
 | injury | String | ❌ | 부상 정보 (예: 허리 통증으로 데드리프트 제외) |
@@ -64,22 +64,22 @@ Connection: keep-alive
 
 ```
 id: evt_001
-data: {"type": "started", "message": "루틴 생성을 시작합니다."}
+data: {"type": "started", "routine_id": "550e8400-e29b-41d4-a716-446655440000", "goals": ["hypertrophy", "strength"]}
 
 id: evt_002
-data: {"type": "paper_found", "papers": [{"paper_id": "uuid", "title": "Effects of strength training frequency on muscle hypertrophy", "pmid": "31141878", "similarity": 0.84}]}
-
-id: evt_003
 data: {"type": "chunk", "content": "사용자 1RM과 보유 기구를 고려해 3분할을 추천합니다..."}
 
+id: evt_003
+data: {"type": "day_complete", "day": 1, "data": {"routine_day_id": "b2c3d4e5-...", "day_number": 1, "label": "가슴 / 삼두", "exercises": [{"routine_exercise_id": "c3d4e5f6-...", "exercise_id": "a1b2c3d4-...", "order_index": 0, "sets": 4, "reps_min": 8, "reps_max": 12, "weight_kg": 22.5, "rest_seconds": 90, "note": "가동 범위를 충분히 확보하세요"}]}}
+
 id: evt_004
-data: {"type": "day_complete", "day": 1, "data": {"day_number": 1, "label": "가슴 / 삼두", "exercises": [{"exercise_id": "a1b2c3d4-...", "name": "인클라인 덤벨 프레스", "equipment": "덤벨", "sets": 4, "reps_min": 8, "reps_max": 12, "weight_kg": 22.5, "rest_seconds": 90, "has_paper": true}]}}
+data: {"type": "day_complete", "day": 2, "data": {"routine_day_id": "...", "day_number": 2, "label": "등 / 이두", "exercises": [...]}}
 
 id: evt_005
-data: {"type": "day_complete", "day": 2, "data": {"day_number": 2, "label": "등 / 이두", "exercises": [...]}}
+data: {"type": "paper_found", "papers": [{"pmid": "31141878", "title": "Effects of strength training frequency on muscle hypertrophy", "similarity": 0.84}]}
 
-id: evt_final
-data: {"type": "done", "routine_id": "550e8400-e29b-41d4-a716-446655440000", "name": "AI 추천 3분할 (근비대)", "ai_reasoning": "..."}
+id: evt_006
+data: {"type": "done", "routine_id": "550e8400-e29b-41d4-a716-446655440000"}
 
 data: [DONE]
 ```
@@ -88,14 +88,14 @@ data: [DONE]
 
 | type | 의미 |
 | --- | --- |
-| started | 생성 시작 알림 |
-| paper_found | RAG 검색으로 참조한 논문 목록 (top_k=10, similarity ≥ 0.70) |
+| started | 생성 시작 알림 (`routine_id`, `goals` 포함) |
 | chunk | AI의 추론 과정 텍스트 스트리밍 |
-| day_complete | Day 단위 운동 구성 완성 |
-| done | 모든 Day 완성 + DB 저장 완료, routine_id 발행 |
-| error | 중간 실패 (스트림 종료 직전) |
+| day_complete | Day 단위 운동 구성 완성 + DB 저장 (저장된 `routine_day_id`/`routine_exercise_id` 포함) |
+| paper_found | RAG 검색(top_k=10, similarity ≥ 0.70) 상위 청크를 DOI 기준 dedup한 참조 논문 목록 (최대 5건, 모든 day_complete 이후 전송) |
+| done | 스트림 종료. 성공 시 `routine_id` 포함, 에러 발생 시 `routine_id` 미포함 (generate 경로는 빈 루틴 삭제) |
+| error | 중간 실패 (`{"type": "error", "message": "..."}` 형태) |
 
-**재연결**: 클라이언트는 마지막 `id` 값을 `Last-Event-ID` 헤더로 보내 재연결 가능
+**재연결**: 이벤트마다 `id`(evt_NNN)가 부여되지만 서버는 `Last-Event-ID` 재개를 지원하지 않음 — 연결이 끊기면 새 생성 요청 필요
 
 **Error (400)**
 
@@ -104,7 +104,7 @@ data: [DONE]
   "success": false,
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "선택한 부위에 맞는 보유 기구가 부족합니다.",
+    "message": "goals는 비어 있을 수 없습니다.",
     "request_id": "req_abc123"
   }
 }
@@ -130,43 +130,33 @@ data: [DONE]
   "success": false,
   "error": {
     "code": "ONBOARDING_REQUIRED",
-    "message": "프로필 또는 1RM 정보가 필요합니다.",
+    "message": "온보딩을 완료해주세요",
     "request_id": "req_abc123"
   }
 }
 ```
 
-**Error (429)**
+**Error (429)** — rate limit 5회/분
 
 ```json
 {
   "success": false,
   "error": {
     "code": "RATE_LIMITED",
-    "message": "요청 횟수가 초과되었습니다. 잠시 후 다시 시도해주세요.",
+    "message": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요. (5 per 1 minute)",
     "request_id": "req_abc123"
   }
 }
 ```
 
-**Error (503)**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "LLM_UNAVAILABLE",
-    "message": "AI 서비스가 일시적으로 사용할 수 없습니다.",
-    "request_id": "req_abc123"
-  }
-}
-```
-
-**SSE 시작 이후 에러** — 스트림 안에서 `error` 이벤트로 전송
+**SSE 시작 이후 에러** — LLM/RAG 실패는 HTTP 에러가 아니라 스트림 안에서 `error` 이벤트로 전송 (이후 `done`에는 `routine_id` 미포함)
 
 ```
 id: evt_007
-data: {"type": "error", "code": "LLM_UNAVAILABLE", "message": "AI 응답 실패", "request_id": "req_abc123"}
+data: {"type": "error", "message": "AI 응답 생성 중 오류가 발생했습니다."}
+
+id: evt_008
+data: {"type": "done"}
 
 data: [DONE]
 ```

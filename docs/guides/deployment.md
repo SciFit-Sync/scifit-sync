@@ -9,7 +9,7 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 | 서비스 | 용도 | 비고 |
 |---|---|---|
 | ECS Fargate | FastAPI 서버 | Docker 이미지 배포 |
-| Supabase (PostgreSQL 15) | 관계형 DB | 프로덕션 DB (asyncpg, `DATABASE_URL` via Secrets Manager) |
+| Supabase (PostgreSQL 17.6) | 관계형 DB | 프로덕션 DB (asyncpg, `DATABASE_URL` via Secrets Manager). 로컬·CI는 `postgres:15` 컨테이너 사용 — 버전 차이 주의 |
 | EFS | ChromaDB 데이터 | `/chroma-data` 영구 스토리지 (ECS Fargate는 EBS 미지원) |
 | ECR | Docker 이미지 레지스트리 | CI에서 빌드 후 push |
 | ALB | 로드 밸런서 | Listener 443 HTTPS(TLS 1.3) + 80 → 443 redirect, 헬스체크 |
@@ -28,19 +28,21 @@ develop → main PR 승인 → main 머지 → AWS 배포 → 헬스체크
 
 HTTP는 ALB Listener 80에서 자동 HTTPS 301 redirect. 모바일 ATS(iOS) / Cleartext Traffic(Android) 정책 통과.
 
-## 배포 체크리스트
-1. `develop` → `main` PR 생성 및 승인 (리뷰어 1명)
-2. CI 테스트 통과 확인
-3. Docker 이미지 빌드 → ECR push
-4. DB 마이그레이션 확인 (아래 참조)
-5. ECS 서비스 업데이트 (Task Definition 새 revision 배포)
-6. **필수**: ChromaDB 스토리지(EFS) 마운트 확인
-7. 헬스체크: `GET /health` 200 응답 확인
-8. 주요 기능 수동 확인 (루틴 생성, 챗봇 응답)
+## 배포 파이프라인 (자동 — `.github/workflows/deploy.yml`)
+`main` push 또는 workflow_dispatch(수동 재배포/일회성 reseed) 시 자동 실행:
+
+1. Docker 이미지 빌드 → ECR push (`{커밋 SHA}` + `latest` 태그)
+2. 현재 Task Definition 다운로드 → 새 이미지로 갱신 → 새 revision 등록
+3. **[조건부] prod DB 백업**: `PROD_DATABASE_URL` + `BACKUP_S3_URI` secret 설정 시 `pg_dump` → gzip → S3 업로드 (100바이트 초과 검증, 미달 시 배포 중단 / 미설정이면 경고 후 skip)
+4. one-off Fargate 태스크로 `alembic upgrade head` 실행 — **clean_slate 가드**: 사용자 데이터가 존재하고 `ALLOW_CLEAN_SLATE_WIPE` 미설정이면 마이그레이션 중단 (workflow_dispatch의 `allow_clean_slate_wipe=true`일 때만 해제)
+5. `update-service --desired-count 1` — 콘솔에서 desiredCount가 변경됐어도 매 배포 시 1로 강제 복구 (ChromaDB 단일 인스턴스 제약)
+6. `aws ecs wait services-stable` 대기 후 완료
+
+배포 후 확인: `GET /api/v1/health` 200 응답 + 주요 기능 수동 확인 (루틴 생성, 챗봇 응답)
 
 ## DB 마이그레이션 (프로덕션)
 - ECS: Task Definition의 `entryPoint`에 `alembic upgrade head` 포함, 또는 별도 migration task 실행
-- **로컬 DB(Docker postgres)와 프로덕션(RDS/Supabase)의 `DATABASE_URL`이 다름** — 혼동 주의
+- **로컬 DB(Docker postgres)와 프로덕션(Supabase)의 `DATABASE_URL`이 다름** — 혼동 주의
 - 마이그레이션 롤백: `alembic downgrade -1` (직전 버전)
 
 ## ChromaDB 초기 데이터
@@ -80,11 +82,11 @@ HTTP는 ALB Listener 80에서 자동 HTTPS 301 redirect. 모바일 ATS(iOS) / Cl
 ### PR 자동 테스트 (`.github/workflows/test.yml`)
 - **트리거**: `develop`, `main` 대상 PR 생성/업데이트 시
 - **Status Check 이름**: `test-server` (브랜치 보호 규칙에서 참조)
-- **실행 내용**:
-  1. PostgreSQL 서비스 컨테이너 기동 (CI 전용)
-  2. `pip install -r server/requirements-dev.txt`
-  3. `ruff check server/` — 린트 실패 시 즉시 중단
-  4. `pytest server/tests/ -v --tb=short` — 테스트 실행
+- **3-job 구조** (`lint` 통과 후 두 test job 병렬 실행):
+  1. `lint` — `ruff check server/ mlops/` + `ruff format --check server/ mlops/`
+  2. `test-server` — `postgres:15-alpine` 서비스 컨테이너 기동 → `alembic upgrade head` 마이그레이션 → `pytest server/tests/ --cov=app --cov-report=term-missing`
+  3. `test-mlops` — `pytest mlops/tests/ -m "not integration"` (외부 API 실호출 테스트 제외)
+- **coverage는 측정·보고만** 수행 (fail-under 없음 — 커버리지 수치로 머지가 차단되지 않음)
 - **환경변수**: CI 서비스 컨테이너에서 자동 구성 (GitHub Secrets 불필요)
 
 ### 월간 논문 파이프라인 (`.github/workflows/mlops.yml`)
@@ -96,7 +98,7 @@ HTTP는 ALB Listener 80에서 자동 HTTPS 301 redirect. 모바일 ATS(iOS) / Cl
 
 ### 최소 모니터링
 - AWS CloudWatch: CPU, Memory, Request count 확인
-- `/health` 엔드포인트: 주기적 ping (UptimeRobot 등 무료 서비스)
+- `/api/v1/health` 엔드포인트: 주기적 ping (UptimeRobot 등 무료 서비스)
 
 ### 로깅 규칙
 - 모든 에러 로그에 `request_id`, `user_id`, `endpoint` 포함

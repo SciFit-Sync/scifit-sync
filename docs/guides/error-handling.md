@@ -36,7 +36,7 @@
 | ChromaDB 연결 실패 | INTERNAL_ERROR | 로그 기록 + 사용자에게 "잠시 후 재시도" 응답 |
 | LLM API 할당량 초과 | RATE_LIMITED | 대체 모델(GPT-4o-mini ↔ Gemini) 자동 전환 |
 | 도르래 비율 범위 초과 (0 이하, 10 초과) | VALIDATION_ERROR | 기구 데이터 확인 요청 |
-| SSE 스트리밍 중 연결 끊김 | — | `event_id` 기반 재연결, 마지막 이벤트부터 재전송 |
+| SSE 스트리밍 중 연결 끊김 | — | 이벤트 `id`(`evt_NNN`) 발급만 — 재전송(resume)은 미구현, 재연결 시 새 요청 필요 |
 | Supabase 연결 타임아웃 | INTERNAL_ERROR | 재시도 3회 후 실패 응답 |
 
 ## 프로덕션 금지 노출 항목

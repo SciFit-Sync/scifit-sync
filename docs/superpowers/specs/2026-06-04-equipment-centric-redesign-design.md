@@ -1,3 +1,5 @@
+> ⚠️ SUPERSEDED by docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md (movement_label·is_freeweight·equipment_muscles 백필 노선 전부 폐기)
+
 # 최종 설계 스펙 — 기구-중심 루틴 재설계 (Equipment-Centric Redesign)
 
 > 작성: 2026-06-04 / 브랜치: `feat/jingyu/muscle-equipment-redesign`

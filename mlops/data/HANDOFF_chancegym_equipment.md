@@ -1,5 +1,7 @@
 # Handoff — 찬스짐 기구 데이터 seed
 
+> ⚠️ **재설계(2026-06-06) 이후 generic 기구 행 제거·Smith 분류 변경 — 본 문서는 이력 기록**. 현행 정본: `docs/spec/2026-06-06-exercise-equipment-workoutx-redesign.md`.
+
 > 최종 업데이트: 2026-05-28
 > 브랜치: `feat/namgw/chancegym-equipment-seed` → 후속 PR `feat/sungjoon/chancegym-gym-seed`
 

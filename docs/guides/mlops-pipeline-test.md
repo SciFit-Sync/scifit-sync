@@ -1,3 +1,7 @@
+> 📌 **PR #63 시점 스냅샷 아카이브** — 본 문서의 카테고리 수(29)·테스트 수·rate limit·커밋 해시는
+> 당시 기준이며 현행 코드와 다르다 (현행: 카테고리 50개, NCBI 요청 간격 기본 1.5s → 키 있으면 1.0s).
+> 현행 수치·절차는 [`mlops-cloud-quickstart.md`](./mlops-cloud-quickstart.md)를 참조.
+
 # MLOps 파이프라인 로컬/클라우드 테스트 가이드
 
 `mlops/` 파이프라인(크롤링 → 청킹 → 임베딩 → JSON Lines export → ChromaDB 적재 → RAG 검색)을 다른 환경에서 재현하기 위한 절차. 본 가이드는 브랜치 `feature/jingyu/mlops-paper-ingest` (commit `b917369`, `4b83f22`, `a14d0ab`) 기준으로 실측 검증된 흐름을 정리한 것이다.
